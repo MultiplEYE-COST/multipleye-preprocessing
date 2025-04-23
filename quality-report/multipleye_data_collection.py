@@ -13,10 +13,25 @@ from functools import partial
 
 from data_collection import DataCollection
 from plot import load_data, preprocess
-from stimulus import load_stimuli, LabConfig, Stimulus
+from stimulus import LabConfig, Stimulus
 import os
 from formal_experiment_checks import check_all_screens_logfile, check_all_screens, check_instructions
 from et_quality_checks import check_validations, plot_gaze, plot_main_sequence, check_comprehension_question_answers
+
+NAMES = [
+    "PopSci_MultiplEYE",
+    "Ins_HumanRights",
+    "Ins_LearningMobility",
+    "Lit_Alchemist",
+    "Lit_MagicMountain",
+    "Lit_Solaris",
+    "Lit_BrokenApril",
+    "Arg_PISACowsMilk",
+    "Arg_PISARapaNui",
+    "PopSci_Caveman",
+    "Enc_WikiMoon",
+    "Lit_NorthWind",
+]
 
 
 class MultipleyeDataCollection(DataCollection):
@@ -32,6 +47,7 @@ class MultipleyeDataCollection(DataCollection):
                  # stimuli: list[Stimulus],
                  **kwargs):
         super().__init__(**kwargs)
+        self.different_stimulus_names = False
         self.config_file = config_file
         self.stimulus_dir = stimulus_dir
         self.lab_number = lab_number
@@ -48,9 +64,45 @@ class MultipleyeDataCollection(DataCollection):
         self.add_recorded_sessions(self.data_root, self.session_folder_regex, convert_to_asc=True)
         logging.basicConfig()
 
+    @staticmethod
+    def _get_stimulus_names(stimulus_dir: Path, stimulus_file: str, col_name_stimulus: str = "stimulus_name") -> list[
+        str]:
+        stimulus_df_path = (stimulus_dir / stimulus_file)
+        assert (stimulus_df_path.exists()), f"File {stimulus_df_path} does not exist"
+
+        stimulus_df = pl.read_excel(stimulus_df_path)
+        stimulus_names = stimulus_df[col_name_stimulus].unique().to_list()
+        return stimulus_names
+
+    @staticmethod
+    def load_labconfig(stimulus_dir: Path, lang: str,
+                       country: str, labnum: int, city: str, year: int, ) -> LabConfig:
+        """
+        Load the stimuli and lab configuration from the specified directory.
+        :param stimulus_dir: The directory where the stimuli are stored.
+        :param lang: The language of the stimuli.
+        :param country: The country of the stimuli.
+        :param labnum: The lab number.
+        :param city: The city of the stimuli.
+        :param year: The year of the stimuli.
+
+        """
+        config = LabConfig.load(stimulus_dir, lang, country, labnum, city, year)
+
+        return config
+
     @classmethod
     def create_from_data_folder(cls, data_dir: str,
-                                additional_folder: str = 'core_dataset') -> "MultipleyeDataCollection":
+                                additional_folder: str | None = None,
+                                different_stimulus_names: bool = False) -> "MultipleyeDataCollection":
+        """
+        :param data_dir: str  path to the data folder
+        :param additional_folder: if additional subfolders in the data folder are used, e.g. 'core_dataset', test_dataset, pilot_dataset
+        :param differents_stimulus_names:  if the stimulus names are different from the default ones they can be extrated from the multipleye_stimuli_experiment_en.xlsx file, at the moment only used for testing purposes
+        :return:
+        MultipleyeDataCollection object
+        """
+
         data_dir = Path(data_dir)
 
         data_folder_name = data_dir.name
@@ -63,12 +115,14 @@ class MultipleyeDataCollection(DataCollection):
                        'config' /
                        f'config_{stimulus_language.lower()}_{country.lower()}_{city}_{lab_number}.py')
 
-        stimuli, lab_configuration_data = load_stimuli(stimulus_folder_path, stimulus_language,
-                                                       country, lab_number, city, year, question_version=1)
+
+        lab_configuration_data = cls.load_labconfig(stimulus_folder_path, stimulus_language,
+                                                    country, lab_number, city, year)
 
         eye_tracker = lab_configuration_data.name_eye_tracker
+        print(eye_tracker)
 
-        et_data_path = data_dir / 'eye-tracking-sessions' / additional_folder  # ToDo: implement it more general to adhere to multipleye folder structure
+        et_data_path = data_dir / 'eye-tracking-sessions' / additional_folder if additional_folder else data_dir / 'eye-tracking-sessions'
 
         return cls(
             data_collection_name=data_folder_name,
@@ -83,6 +137,7 @@ class MultipleyeDataCollection(DataCollection):
             city=city,
             data_root=et_data_path,
             lab_configuration=lab_configuration_data,
+            different_stimulus_names=different_stimulus_names,
             # stimuli=stimuli
         )
 
@@ -180,7 +235,38 @@ class MultipleyeDataCollection(DataCollection):
 
         return gaze
 
+    @staticmethod
+    def load_stimuli(stimulus_dir: Path, lang: str,
+                     country: str, labnum: int,
+                     question_version: int,
+                     stimulus_names: None | list = None) -> list[Stimulus]:
+        """
+        Load the stimuli and lab configuration from the specified directory.
+        :param stimulus_dir: The directory where the stimuli are stored.
+        :param lang: The language of the stimuli.
+        :param country: The country of the stimuli.
+        :param stimulus_names: The names of the stimuli to load. If None, the predefined stimuli names in the Global Variables NAMES are used.
+        :param question_version: The version of the questions to load. efault is on such that code does not break,
+        when loading the lab configuration, however it does not make sense to have the same stimuli for the whole data
+        collection as they are participant dependent.
+        """
+        stimuli = []
+        if stimulus_names is None:
+            stimulus_names = NAMES
+
+        for stimulus_name in stimulus_names:
+            stimulus = Stimulus.load(stimulus_dir, lang, country, labnum, stimulus_name, question_version)
+            stimuli.append(stimulus)
+
+        return stimuli
+
     def create_sanity_check_report(self, sessions: str | list[str] | None = None, plotting: bool = True):
+
+        if self.different_stimulus_names:
+            stimulus_names = self._get_stimulus_names(self.stimulus_dir,
+                                                     f"multipleye_stimuli_experiment_{self.language}.xlsx")
+        else:
+            stimulus_names = NAMES
 
         if not sessions:
             sessions = (session_name for session_name, session in self.sessions.items())
@@ -197,10 +283,10 @@ class MultipleyeDataCollection(DataCollection):
             report = partial(report_meta, report_file=report_file)
             question_order_version = self._extract_question_order_version(session_name)
             self.sessions[session_name]['report_file'] = report_file
-            self.sessions[session_name]['session_stimuli'], _ = load_stimuli(
+            self.sessions[session_name]['session_stimuli'] = MultipleyeDataCollection.load_stimuli(
                 self.stimulus_dir, self.language, self.country, self.lab_number,
-                self.city, self.year,
-                question_version=question_order_version)  # loading stimuli and Labconfig but only using the labconfig as the stimuli are participant dependent
+                question_version=question_order_version, stimulus_names=stimulus_names)  # loading stimuli  but only using the labconfig as the stimuli are participant dependent
+
             self.load_logfiles(session_name)
             # check_gaze(gaze, report)
             check_metadata(gaze._metadata, report)
@@ -221,8 +307,10 @@ class MultipleyeDataCollection(DataCollection):
         """
 
         report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
-        check_comprehension_question_answers(self.sessions[session_identifier]["logfile"], self.sessions[session_identifier]["session_stimuli"], report_file)
-        check_all_screens_logfile(self.sessions[session_identifier]["logfile"], self.sessions[session_identifier]["session_stimuli"], report_file)
+        check_comprehension_question_answers(self.sessions[session_identifier]["logfile"],
+                                             self.sessions[session_identifier]["session_stimuli"], report_file)
+        check_all_screens_logfile(self.sessions[session_identifier]["logfile"],
+                                  self.sessions[session_identifier]["session_stimuli"], report_file)
 
     def create_plots(self, session_identifier, gaze=None):
 
@@ -250,7 +338,8 @@ class MultipleyeDataCollection(DataCollection):
         logging.debug(f"Checking asc file for {session_identifier} instructions.")
         messages = self._load_messages_for_experimenter_checks(session_identifier)
         report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
-        check_instructions(messages, self.sessions[session_identifier]["session_stimuli"], report_file, self.sessions[session_identifier]["stimuli_order"])
+        check_instructions(messages, self.sessions[session_identifier]["session_stimuli"], report_file,
+                           self.sessions[session_identifier]["stimuli_order"])
 
     def _extract_question_order_version(self, session_identifier):
         """

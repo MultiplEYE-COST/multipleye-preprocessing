@@ -8,6 +8,8 @@ from typing import Literal
 import polars as pl
 import pymovements as pm
 
+
+
 NAMES = [
     "PopSci_MultiplEYE",
     "Ins_HumanRights",
@@ -22,7 +24,7 @@ NAMES = [
     "Enc_WikiMoon",
     "Lit_NorthWind",
 ]
-
+QUESTION_NUMBERS = {"experiment": 6, "practice": 2, "test_practice": 1, "test_experiment": 2}
 
 @dataclass
 class Rating:
@@ -80,8 +82,10 @@ class Stimulus:
             stimulus_name: str,
             question_version: int,
     ) -> "Stimulus":
-        assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
+        #assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
         stimulus_df_path = stimulus_dir / f"multipleye_stimuli_experiment_{lang}.xlsx"
+        assert (stimulus_df_path.exists()), f"File {stimulus_df_path} does not exist"
+
         stimulus_df = pl.read_excel(stimulus_df_path)
         stimulus_row = stimulus_df.row(
             by_predicate=pl.col("stimulus_name") == stimulus_name, named=True
@@ -92,6 +96,8 @@ class Stimulus:
         assert stimulus_type in [
             "experiment",
             "practice",
+            "test_practice",
+            "test_experiment"
         ], f"{stimulus_type!r} is not a valid stimulus type"
 
         pages = []
@@ -148,7 +154,7 @@ class Stimulus:
             question_image_path = (
                     stimulus_dir
                     / f"question_images_{lang}_{country}_{labnum}"
-                    / f"question_images_version_{question_version}"  # NOTE: We always use version 1 here (but different participants have different versions)
+                    / f"question_images_version_{question_version}"
                     / f"{stimulus_name}_id{stimulus_id}_question_{question_id}_{lang}.png"
             )
             question = ComprehensionQuestion(
@@ -202,12 +208,13 @@ class Stimulus:
             list_name.append(instruction)
 
         if stimulus_type == "experiment":
+
             assert (
-                    len(questions) == 6
+                    len(questions) == QUESTION_NUMBERS["experiment"]
             ), f"{stimulus_id} has {len(questions)} questions instead of 6"
-        else:
+        elif stimulus_type == "practice":
             assert (
-                    len(questions) == 2
+                    len(questions) == QUESTION_NUMBERS["practice"]
             ), f"{stimulus_id} has {len(questions)} questions instead of 2"
 
         stimulus = cls(
@@ -255,6 +262,7 @@ class LabConfig:
         with open(json_config_path) as f:
             json_config = json.load(f)
 
+
         return cls(
             screen_resolution=config.RESOLUTION,
             screen_size_cm=config.SCREEN_SIZE_CM,
@@ -266,9 +274,9 @@ class LabConfig:
 
 
 def load_stimuli(
-        stimulus_dir: Path, lang: str, country: str, labnum: int, city: str, year: int, question_version: int
+        stimulus_dir: Path, lang: str, country: str, labnum: int, city: str, year: int, question_version: int,
 ) -> tuple[list[Stimulus], LabConfig]:
-    stimuli = []
+    stimuli =[]
     for stimulus_name in NAMES:
         stimulus = Stimulus.load(stimulus_dir, lang, country, labnum, stimulus_name, question_version)
         stimuli.append(stimulus)

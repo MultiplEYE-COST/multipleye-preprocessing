@@ -103,7 +103,7 @@ class DataCollection:
 
             for item in os.scandir(self.data_root):
                 if item.is_dir():
-                    if re.match(session_folder_regex, item.name):
+                    if re.match(session_folder_regex, item.name, re.IGNORECASE):
 
                         session_file = list(Path(item.path).glob('*' + session_file_suffix))
 
