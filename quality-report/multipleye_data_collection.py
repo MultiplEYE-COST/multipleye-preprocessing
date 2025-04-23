@@ -8,7 +8,7 @@ import pandas as pd
 import logging
 from pymovements import GazeDataFrame
 from tqdm import tqdm
-from report import check_gaze, check_metadata,report_to_file as report_meta
+from report import check_gaze, check_metadata, report_to_file as report_meta
 from functools import partial
 
 from data_collection import DataCollection
@@ -29,7 +29,7 @@ class MultipleyeDataCollection(DataCollection):
                  data_root: Path,
                  lab_configuration: LabConfig,
                  session_folder_regex: str,
-                 stimuli: list[Stimulus],
+                 # stimuli: list[Stimulus],
                  **kwargs):
         super().__init__(**kwargs)
         self.config_file = config_file
@@ -39,8 +39,7 @@ class MultipleyeDataCollection(DataCollection):
         self.lab_configuration = lab_configuration
         self.data_root = data_root
         self.session_folder_regex = session_folder_regex
-        self.stimuli = stimuli
-
+        # self.stimuli = stimuli
 
         if not self.output_dir:
             self.output_dir = self.data_root.parent / 'quality_reports'
@@ -50,12 +49,12 @@ class MultipleyeDataCollection(DataCollection):
         logging.basicConfig()
 
     @classmethod
-    def create_from_data_folder(cls, data_dir: str, additional_folder: str = 'core_dataset') -> "MultipleyeDataCollection":
+    def create_from_data_folder(cls, data_dir: str,
+                                additional_folder: str = 'core_dataset') -> "MultipleyeDataCollection":
         data_dir = Path(data_dir)
 
         data_folder_name = data_dir.name
         _, stimulus_language, country, city, lab_number, year = data_folder_name.split('_')
-
 
         session_folder_regex = r"\d\d\d" + f"_{stimulus_language}_{country}_{lab_number}_ET1"
 
@@ -65,11 +64,11 @@ class MultipleyeDataCollection(DataCollection):
                        f'config_{stimulus_language.lower()}_{country.lower()}_{city}_{lab_number}.py')
 
         stimuli, lab_configuration_data = load_stimuli(stimulus_folder_path, stimulus_language,
-                                                       country, lab_number, city, year)
+                                                       country, lab_number, city, year, question_version=1)
 
         eye_tracker = lab_configuration_data.name_eye_tracker
 
-        et_data_path = data_dir / 'eye-tracking-sessions' / additional_folder #ToDo: implement it more general to adhere to multipleye folder structure
+        et_data_path = data_dir / 'eye-tracking-sessions' / additional_folder  # ToDo: implement it more general to adhere to multipleye folder structure
 
         return cls(
             data_collection_name=data_folder_name,
@@ -84,7 +83,7 @@ class MultipleyeDataCollection(DataCollection):
             city=city,
             data_root=et_data_path,
             lab_configuration=lab_configuration_data,
-            stimuli=stimuli
+            # stimuli=stimuli
         )
 
     def create_gaze_frame(self, session: str | list[str] = '', overwrite: bool = False) -> None:
@@ -159,7 +158,7 @@ class MultipleyeDataCollection(DataCollection):
 
         try:
             # check if pkl files are already available
-            gaze_path = Path(self.output_dir/ session_identifier).glob('*.pkl')
+            gaze_path = Path(self.output_dir / session_identifier).glob('*.pkl')
 
             if len(list(gaze_path)) == 1:
                 gaze_path = Path(self.output_dir / session_identifier).glob('*.pkl')
@@ -196,12 +195,16 @@ class MultipleyeDataCollection(DataCollection):
             report_file = open(self.output_dir / session_name / f"{session_name}_report.txt", "a+", encoding="utf-8")
 
             report = partial(report_meta, report_file=report_file)
+            question_order_version = self._extract_question_order_version(session_name)
             self.sessions[session_name]['report_file'] = report_file
+            self.sessions[session_name]['session_stimuli'], _ = load_stimuli(
+                self.stimulus_dir, self.language, self.country, self.lab_number,
+                self.city, self.year,
+                question_version=question_order_version)  # loading stimuli and Labconfig but only using the labconfig as the stimuli are participant dependent
             self.load_logfiles(session_name)
-            #check_gaze(gaze, report)
+            # check_gaze(gaze, report)
             check_metadata(gaze._metadata, report)
             report_file.close()
-
 
             self.check_logfiles(session_name)
             self.check_asc_all_screens(session_name, gaze)
@@ -209,8 +212,6 @@ class MultipleyeDataCollection(DataCollection):
             self.check_asc_validation(session_name, gaze)
             if plotting:
                 self.create_plots(session_name, gaze)
-
-
 
     def check_logfiles(self, session_identifier):
         """
@@ -220,10 +221,8 @@ class MultipleyeDataCollection(DataCollection):
         """
 
         report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
-        check_comprehension_question_answers(self.sessions[session_identifier]["logfile"], self.stimuli, report_file)
-        check_all_screens_logfile(self.sessions[session_identifier]["logfile"], self.stimuli, report_file)
-
-
+        check_comprehension_question_answers(self.sessions[session_identifier]["logfile"], self.sessions[session_identifier]["session_stimuli"], report_file)
+        check_all_screens_logfile(self.sessions[session_identifier]["logfile"], self.sessions[session_identifier]["session_stimuli"], report_file)
 
     def create_plots(self, session_identifier, gaze=None):
 
@@ -238,25 +237,41 @@ class MultipleyeDataCollection(DataCollection):
 
         plot_main_sequence(gaze.events, plot_dir)
 
-        for stimulus in self.stimuli:
+        for stimulus in self.sessions[session_identifier]['session_stimuli']:
             logging.debug(f"Creating plots for {stimulus.name}.")
             plot_gaze(gaze, stimulus, plot_dir)
-
-
 
     def check_asc_instructions(self, session_identifier):
         """
         Check the instructions for the specified session.
-        :param messages: The messages for the session.
-        :param stimuli: The stimuli for the session.
-        :param report_file: The report file.
+        :param session_identifier: The session identifier. eg "005_ET_EE_1_ET1"
         :return:
         """
         logging.debug(f"Checking asc file for {session_identifier} instructions.")
         messages = self._load_messages_for_experimenter_checks(session_identifier)
         report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
-        check_instructions(messages, self.stimuli, report_file, self.sessions[session_identifier]["stimuli_order"])
+        check_instructions(messages, self.sessions[session_identifier]["session_stimuli"], report_file, self.sessions[session_identifier]["stimuli_order"])
 
+    def _extract_question_order_version(self, session_identifier):
+        """
+        Extract the question order and version from the session identifier.
+        :param session_identifier: The session identifier.
+        :return: The question order version to correctly map participant, stimulus and question order versions.
+        """
+        logfilepath = Path(f'{self.data_root}/{session_identifier}/logfiles')
+        general_logfile = logfilepath.glob('GENERAL_LOGFILE_*.txt')
+        general_logfile = next(general_logfile)
+        assert general_logfile.exists(), f"Logfile path {general_logfile} does not exist."
+
+        regex = r"(STIMULUS_ORDER_VERSION_)(?P<question_order_version>\d)"
+        with open(general_logfile, "r", encoding="utf-8") as f:
+            text = f.read()
+        match = re.search(regex, text)
+        if match:
+            question_order_version = match.groupdict()['question_order_version']
+        else:
+            raise ValueError(f"Could not find question order version in {general_logfile}.")
+        return question_order_version
 
     def load_logfiles(self, session_identifier):
         """
@@ -275,12 +290,13 @@ class MultipleyeDataCollection(DataCollection):
         completed_stimuli = pl.read_csv(stim_path, separator=","),
         stimuli_order = pl.read_csv(stim_path, separator=",")[
             "stimulus_id"].to_list()
+        question_version = self._extract_question_order_version(session_identifier)
 
         self.sessions[session_identifier]['logfile'] = logfile
         self.sessions[session_identifier]['completed_stimuli'] = completed_stimuli
         self.sessions[session_identifier]['stimuli_order'] = stimuli_order
-        #return logfile, completed_stimuli, stimuli_order
-
+        self.sessions[session_identifier]['question_order_version'] = question_version
+        # return logfile, completed_stimuli, stimuli_order
 
     def _report_to_file(message: str, report_file: Path):
         assert isinstance(report_file, Path)
@@ -302,7 +318,6 @@ class MultipleyeDataCollection(DataCollection):
             if match:
                 messages.append(match.groupdict())
         return messages
-
 
     def check_asc_validation(self, session_identifier, gaze=None):
         """
@@ -331,7 +346,7 @@ class MultipleyeDataCollection(DataCollection):
             gaze = self.get_gaze_frame(session_identifier, create_if_not_exists=True)
 
         report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
-        check_all_screens(gaze, self.stimuli, report_file)
+        check_all_screens(gaze, self.sessions[session_identifier]["session_stimuli"], report_file)
 
     def create_experiment_frame(self, session_identifier):
         """
@@ -357,7 +372,7 @@ if __name__ == '__main__':
     data_folder_path = this_repo / "data" / data_collection_folder
 
     multipleye = MultipleyeDataCollection.create_from_data_folder(str(data_folder_path))
-    #multipleye.add_recorded_sessions(data_root= data_folder_path / 'eye-tracking-sessions' / 'core_dataset', convert_to_asc=False, session_folder_regex=r"005_ET_EE_1_ET1")
-    #multipleye.create_gaze_frame("005_ET_EE_1_ET1")
+    # multipleye.add_recorded_sessions(data_root= data_folder_path / 'eye-tracking-sessions' / 'core_dataset', convert_to_asc=False, session_folder_regex=r"005_ET_EE_1_ET1")
+    # multipleye.create_gaze_frame("005_ET_EE_1_ET1")
     multipleye.create_sanity_check_report(["005_ET_EE_1_ET1", "006_ET_EE_1_ET1"])
     multipleye.create_experiment_frame("005_ET_EE_1_ET1")

@@ -78,6 +78,7 @@ class Stimulus:
             country: str,
             labnum: int,
             stimulus_name: str,
+            question_version: int,
     ) -> "Stimulus":
         assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
         stimulus_df_path = stimulus_dir / f"multipleye_stimuli_experiment_{lang}.xlsx"
@@ -147,7 +148,7 @@ class Stimulus:
             question_image_path = (
                     stimulus_dir
                     / f"question_images_{lang}_{country}_{labnum}"
-                    / "question_images_version_1"  # NOTE: We always use version 1 here (but different participants have different versions)
+                    / f"question_images_version_{question_version}"  # NOTE: We always use version 1 here (but different participants have different versions)
                     / f"{stimulus_name}_id{stimulus_id}_question_{question_id}_{lang}.png"
             )
             question = ComprehensionQuestion(
@@ -265,11 +266,11 @@ class LabConfig:
 
 
 def load_stimuli(
-        stimulus_dir: Path, lang: str, country: str, labnum: int, city: str, year: int
+        stimulus_dir: Path, lang: str, country: str, labnum: int, city: str, year: int, question_version: int
 ) -> tuple[list[Stimulus], LabConfig]:
     stimuli = []
     for stimulus_name in NAMES:
-        stimulus = Stimulus.load(stimulus_dir, lang, country, labnum, stimulus_name)
+        stimulus = Stimulus.load(stimulus_dir, lang, country, labnum, stimulus_name, question_version)
         stimuli.append(stimulus)
     config = LabConfig.load(stimulus_dir, lang, country, labnum, city, year)
 
@@ -278,13 +279,13 @@ def load_stimuli(
 
 if __name__ == "__main__":
     stimulus_dir = Path(
-        "C:\\Users\saphi\PycharmProjects\multipleye-preprocessing\data\stimuli_MultiplEYE_zh_ch_Zurich_1_2025")
-    lang = "zh"
+       "C:\\Users\saphi\PycharmProjects\multipleye-preprocessing\data\stimuli_MultiplEYE_HR_CH_Zurich_1_2025")
+    lang = "hr"
     country = "ch"
     labnum = 1
     stimulus_name = "PopSci_MultiplEYE"
     print(stimulus_dir.exists())
-    stimulus = Stimulus.load(stimulus_dir, lang, country, labnum, stimulus_name)
+    stimulus = Stimulus.load(stimulus_dir, lang, country, labnum, stimulus_name, question_version=3)
     for page in stimulus.questions:
         print(page.name, page.image_path)
 
