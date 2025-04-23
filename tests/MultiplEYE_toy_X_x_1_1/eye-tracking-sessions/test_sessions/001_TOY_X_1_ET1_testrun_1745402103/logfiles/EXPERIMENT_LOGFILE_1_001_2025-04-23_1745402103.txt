@@ -1,0 +1,52 @@
+timestamp	trial_number	stimulus_number	page_number	screen_onset_timestamp	keypress_timestamp	key_pressed	question	answer_correct	message
+6098.8058999646455	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	*** DATE:2025-04-23
+6100.520399981178	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	*** EXP_START_TIMESTAMP:1745402103
+6101.830199942924	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	*** SESSION_ID:1
+6103.4960999386385	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	*** PARTICIPANT_ID:001
+6105.17009999603	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	*** DATASET_TYPE:test_sessions
+6106.117199989967	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	<NA>	*** SESSION_MODE:minimal
+11545.061799930409	<NA>	<NA>	instruction_screen_1	11114.479999989271	11545.048499945551	space	False	<NA>	stop showing: instruction_screen_1
+12563.530699932016	<NA>	<NA>	instruction_screen_2	11564.830199931748	12563.51749994792	space	False	<NA>	stop showing: instruction_screen_2
+12974.759500008076	<NA>	<NA>	instruction_screen_3	12581.561899976805	12974.744100007229	space	False	<NA>	stop showing: instruction_screen_3
+15061.85389996972	<NA>	<NA>	practice_start_screen	14465.398699976504	space	15061.840699985623	False	<NA>	stop showing: practice_start_screen
+18036.059999954887	1	8	1	15414.650799939409	18035.993499914184	space	False	<NA>	showing: toy_text_3
+21247.237299918197	1	<NA>	familiarity_rating_screen_1	18364.703699946404	21247.18019994907	option_2	False	<NA>	rating screen: familiarity_rating_screen_1
+38466.86960000079	1	<NA>	familiarity_rating_screen_2	21581.35350001976	38466.81199991144	option_3	False	<NA>	rating screen: familiarity_rating_screen_2
+39485.065200016834	1	<NA>	subject_difficulty_screen	38798.825999954715	39485.01289996784	option_1	False	<NA>	rating screen: subject_difficulty_screen
+40048.402399988845	1	8	8111	40048.38779999409	40036.77629993763	down	True	False	preliminary answer: distractor_c_key
+40237.58159996942	1	8	8111	40048.38779999409	40237.56759997923	space	True	False	preliminary answer: final_confirmation
+40238.381700008176	1	8	8111	39832.3266999796	40237.56759997923	down	True	False	FINAL ANSWER: correct answer is 'right' (George Eliot - Middlemarch), participant's answer is False
+64038.37650001515	<NA>	<NA>	transition_screen	40248.187299934216	space	64038.36230002344	False	<NA>	stop showing: transition_screen
+64329.53859993722	<NA>	<NA>	<NA>	64066.26899994444	64329.52509995084	space	False	<NA>	stop showing: validation_screen
+68101.32219991647	1	1	1	65667.0693999622	68101.26479994506	space	False	<NA>	showing: toy_text_1
+70493.95549995825	1	1	2	68432.50120000448	70493.90779994428	space	False	<NA>	showing: toy_text_1
+73257.71999999415	1	1	3	70832.41759997327	73257.66170001589	space	False	<NA>	showing: toy_text_1
+75430.55079993792	1	<NA>	familiarity_rating_screen_1	73583.81560002454	75430.50050002057	option_1	False	<NA>	rating screen: familiarity_rating_screen_1
+76889.75159998517	1	<NA>	familiarity_rating_screen_2	75766.92490000278	76889.69330000691	option_1	False	<NA>	rating screen: familiarity_rating_screen_2
+77315.48310001381	1	<NA>	subject_difficulty_screen	77216.9727999717	77315.42619992979	option_1	False	<NA>	rating screen: subject_difficulty_screen
+77833.64349999465	1	1	1111	77833.63040001132	77816.93139998242	down	True	False	preliminary answer: distractor_b_key
+77857.23049996886	1	1	1111	77833.63040001132	77857.21479996573	space	True	False	preliminary answer: final_confirmation
+77857.9219999956	1	1	1111	77651.50119992904	77857.21479996573	down	True	False	FINAL ANSWER: correct answer is 'left' (A Python package), participant's answer is False
+78378.64429992624	2	5	<NA>	77865.5539000174	78378.63369996194	space	False	<NA>	obligatory break duration: 513.0797999445349
+78876.09389994759	<NA>	<NA>	<NA>	78400.03659995273	78876.08079996426	space	False	<NA>	stop showing: validation_screen
+82407.79879991896	2	5	1	80216.32849995513	82407.74129994679	space	False	<NA>	showing: toy_text_2
+85010.26999996975	2	5	2	82733.63109992351	85010.21999993827	space	False	<NA>	showing: toy_text_2
+86133.80019995384	2	<NA>	familiarity_rating_screen_1	85350.52430001087	86133.74249998014	option_1	False	<NA>	rating screen: familiarity_rating_screen_1
+86671.10159993172	2	<NA>	familiarity_rating_screen_2	86467.59909996763	86671.04359995574	option_1	False	<NA>	rating screen: familiarity_rating_screen_2
+87648.7468999112	2	<NA>	subject_difficulty_screen	87000.59880001936	87648.68929993827	option_1	False	<NA>	rating screen: subject_difficulty_screen
+88010.05729997996	2	5	5112	87984.38649997115	88010.04019996617	space	True	False	preliminary answer: final_confirmation
+88117.71619995125	2	5	5112	88117.69909993745	88095.68319993559	down	True	True	preliminary answer: target_key
+88534.28929997608	2	5	5112	88534.27549998742	88518.65119999275	down	True	True	preliminary answer: target_key
+88957.7830999624	2	5	5112	88534.27549998742	88957.7672999585	space	True	True	preliminary answer: final_confirmation
+88958.4792999085	2	5	5112	87984.38649997115	88957.7672999585	down	True	True	FINAL ANSWER: correct answer is 'down' (They reflect human cognitive processes.), participant's answer is True
+89394.8962999275	2	5	5111	89284.07369996421	89394.8804999236	space	True	False	preliminary answer: final_confirmation
+89599.78559997398	2	5	5111	89599.77199998684	89590.37099999841	down	True	False	preliminary answer: distractor_b_key
+89722.7159999311	2	5	5111	89599.77199998684	89722.70189994015	space	True	False	preliminary answer: final_confirmation
+89723.62649999559	2	5	5111	89284.07369996421	89722.70189994015	down	True	False	FINAL ANSWER: correct answer is 'left' (Reading comprehension), participant's answer is False
+90468.67229999043	3	4	<NA>	89726.11549997237	90468.65990001243	space	False	<NA>	optional break duration: 742.5444000400603
+90975.06069997326	<NA>	<NA>	<NA>	90483.34659996908	90975.0492000021	space	False	<NA>	stop showing: validation_screen
+95378.61269991845	3	4	1	92316.36059994344	95378.55579995085	space	False	<NA>	showing: toy_text_4
+96512.64269999228	3	<NA>	familiarity_rating_screen_1	95718.00009999424	96512.5952999806	option_1	False	<NA>	rating screen: familiarity_rating_screen_1
+97671.56279995106	3	<NA>	familiarity_rating_screen_2	96851.07630002312	97671.50479997508	option_1	False	<NA>	rating screen: familiarity_rating_screen_2
+98438.6040000245	3	<NA>	subject_difficulty_screen	98000.93059998471	98438.54569992982	option_1	False	<NA>	rating screen: subject_difficulty_screen
+99449.9744999921	<NA>	<NA>	final_screen	99449.89019993227	space	99449.96389991138	False	<NA>	stop showing: final_screen

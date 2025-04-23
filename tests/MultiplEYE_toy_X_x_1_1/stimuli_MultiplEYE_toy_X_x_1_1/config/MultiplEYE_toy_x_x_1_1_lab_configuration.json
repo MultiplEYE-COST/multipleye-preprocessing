@@ -1,0 +1,30 @@
+{
+"Data_collection_name": "MultiplEYE_toy_X_x_1_1",
+"Preregistration_core_or_additional_data_collection" : "Pre-registration for core dataset",
+"Name_eye-tracker": "EyeLink 1000 Plus",
+"Name_eye-tracker_manufacturer": "SR Research Ltd.",
+"Specification_camera_system": "Desktop mount",
+"Name_computer_operation_system": "Windows 10",
+"Name_monitor": [
+"BenQ",
+"Xl2411"
+],
+"Monitor_resolution_in_px": "(1920,1200)",
+"Screen_size_in_cm": "(54.4,30.3)",
+"Distance_in_cm": "60",
+"Script_direction": "LTR",
+"Language_code": "toy",
+"Country_code": "X",
+"Lab_number": "1",
+"City": "x",
+"Estimated_end_year_of_data_collection": "1",
+"Use_of_multiple_devices" : "",
+"Stimuli_preparation": [
+"Stimuli will be or have been prepared by our own lab"
+],
+"Psychometric_tests": {
+"Are_tests_conducted": "Yes",
+"PLAB": "Metalinguistic aptitude: PLAB",
+"RAN": "Rapid automatized naming: RAN task",
+"WikiVocab": "Vocabulary test: WikiVocab"
+}}
