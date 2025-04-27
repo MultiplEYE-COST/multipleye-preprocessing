@@ -83,7 +83,7 @@ def check_all_screens(gaze, stimuli, report_file):
 
 
 # check order in ASC file based on messages
-def check_instructions(messages: list, stimuli: Stimulus | list, report_file: Path, stimuli_order: list):
+def check_instructions(messages: list, stimuli: Stimulus | list, report_file: Path, stimuli_order: list, split: bool = False):
     messages_only = [d.get('message') for d in messages]
     one_time_screens = ['welcome_screen', 'informed_consent_screen', 'start_experiment', 'stimulus_order_version',
                         'showing_instruction_screen_1', 'showing_instruction_screen_2', 'showing_instruction_screen_3',
@@ -138,7 +138,12 @@ def check_instructions(messages: list, stimuli: Stimulus | list, report_file: Pa
                 logging.debug(f"{instruction} found")
 
     def reoccuring_msg(trial):
-        index_obligatory_break = messages_only.index("obligatory_break")
+        try:
+            index_obligatory_break = messages_only.index("obligatory_break")
+        except ValueError as e:
+            index_obligatory_break = 0 # hacky for split versions
+            logging.info(f"{e} only acceptable if MERid version")
+
         pattern = f"_trial_{trial}_stimulus_{stimulus.name}_{stimulus.id}"
         last_index = messages_only.index(f"start_recording{pattern}_page_1")
         last_timestamp = messages[last_index].get("timestamp")
@@ -206,10 +211,14 @@ def check_instructions(messages: list, stimuli: Stimulus | list, report_file: Pa
 
         _check_validation_screen(last_index, index_next_stimulus)
 
-    for trial, id in enumerate(
-            stimuli_order[2:]):  # for id in vars_dict["stimulus_order]: # skip th e practice trials
+    if not split:
+        stimuli_order =stimuli_order[2:]  # skip the two  practice trials for complete asc file
+    else:
+        stimuli_order = stimuli_order[1:] # skip only one practice trial for merid version
+
+    for trial, id in enumerate(stimuli_order):
         try:
-            stimulus, next_stimulus = _get_stimulus(id, stimuli_order[2:][
+            stimulus, next_stimulus = _get_stimulus(id, stimuli_order[
                 trial + 1])  # also get next stimulus to check for the reoccuring screens
         except IndexError:
             logging.debug("Last stimulus")

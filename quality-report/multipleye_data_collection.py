@@ -70,8 +70,11 @@ class MultipleyeDataCollection(DataCollection):
         str]:
         stimulus_df_path = (stimulus_dir / stimulus_file)
         assert (stimulus_df_path.exists()), f"File {stimulus_df_path} does not exist"
-
-        stimulus_df = pl.read_excel(stimulus_df_path)
+        if stimulus_df_path.suffix == ".csv":
+            stimulus_df = pl.read_csv(stimulus_df_path)
+            stimulus_names = stimulus_df[col_name_stimulus].unique().to_list()
+        else:
+            stimulus_df = pl.read_excel(stimulus_df_path)
         stimulus_names = stimulus_df[col_name_stimulus].unique().to_list()
         return stimulus_names
 
@@ -95,8 +98,9 @@ class MultipleyeDataCollection(DataCollection):
     @classmethod
     def create_from_data_folder(cls, data_dir: str,
                                 additional_folder: str | None = None,
-                                different_stimulus_names: bool = False) -> "MultipleyeDataCollection":
+                                different_stimulus_names: str | None = None) -> "MultipleyeDataCollection":
         """
+        :param different_stimulus_names:
         :param data_dir: str  path to the data folder
         :param additional_folder: if additional subfolders in the data folder are used, e.g. 'core_dataset', test_dataset, pilot_dataset
         :param differents_stimulus_names:  if the stimulus names are different from the default ones they can be extrated from the multipleye_stimuli_experiment_en.xlsx file, at the moment only used for testing purposes
@@ -139,6 +143,8 @@ class MultipleyeDataCollection(DataCollection):
             different_stimulus_names=different_stimulus_names,
             # stimuli=stimuli
         )
+
+
 
     def _get_sessions_name(self, session: str | list[str] | None) -> list[str]:
         """
@@ -271,14 +277,28 @@ class MultipleyeDataCollection(DataCollection):
 
         return stimuli
 
-    def create_sanity_check_report(self, sessions: str | list[str] | None = None, plotting: bool = True):
 
-        if self.different_stimulus_names:
+    def get_session_dependent_stimuli(self, session_identifier):
+        self.load_logfiles(session_identifier)
+
+        if self.different_stimulus_names == "split":
+            stimulus_names = self.sessions[session_identifier]["completed_stimuli"][
+            "stimulus_name"].to_list()
+        elif self.different_stimulus_names == "test":
             stimulus_names = self._get_stimulus_names(self.stimulus_dir,
                                                       f"multipleye_stimuli_experiment_{self.language}.xlsx")
         else:
             stimulus_names = NAMES
+        session_name = session_identifier
+        question_order_version = self._extract_question_order_version(session_name)
 
+        self.sessions[session_name]['session_stimuli'] = MultipleyeDataCollection.load_stimuli(
+            self.stimulus_dir, self.language, self.country, self.lab_number,
+            question_version=question_order_version, stimulus_names=stimulus_names)
+
+        #self.load_logfiles(session_name)
+
+    def create_sanity_check_report(self, sessions: str | list[str] | None = None, plotting: bool = True):
         if not sessions:
             sessions = [session_name for session_name in self.sessions.keys()]
         elif isinstance(sessions, str):
@@ -287,19 +307,14 @@ class MultipleyeDataCollection(DataCollection):
             sessions = sessions
 
         for session_name in tqdm(sessions, desc=f"performing sanity checks"):
-
-            gaze = self.get_gaze_frame(session_name, create_if_not_exists=True)
+            os.makedirs(self.output_dir / session_name,  exist_ok=True)
             report_file = open(self.output_dir / session_name / f"{session_name}_report.txt", "a+", encoding="utf-8")
-
-            report = partial(report_meta, report_file=report_file)
-            question_order_version = self._extract_question_order_version(session_name)
             self.sessions[session_name]['report_file'] = report_file
-            self.sessions[session_name]['session_stimuli'] = MultipleyeDataCollection.load_stimuli(
-                self.stimulus_dir, self.language, self.country, self.lab_number,
-                question_version=question_order_version, stimulus_names=stimulus_names)
+            report = partial(report_meta, report_file=report_file)
+            self.get_session_dependent_stimuli(session_name)
 
-            self.load_logfiles(session_name)
             # check_gaze(gaze, report)
+            gaze = self.get_gaze_frame(session_name, create_if_not_exists=True)
             check_metadata(gaze._metadata, report)
             report_file.close()
 
@@ -307,6 +322,7 @@ class MultipleyeDataCollection(DataCollection):
             self.check_asc_all_screens(session_name, gaze)
             self.check_asc_instructions(session_name)
             self.check_asc_validation(session_name, gaze)
+            #self.get_stimulus_order_version_csv(session_name)
 
             if plotting:
                 self.create_plots(session_name, gaze)
@@ -350,8 +366,10 @@ class MultipleyeDataCollection(DataCollection):
         logging.debug(f"Checking asc file for {session_identifier} instructions.")
         messages = self._load_messages_for_experimenter_checks(session_identifier)
         report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
+        if self.different_stimulus_names == "split":
+            split = True
         check_instructions(messages, self.sessions[session_identifier]["session_stimuli"], report_file,
-                           self.sessions[session_identifier]["stimuli_order"])
+                           self.sessions[session_identifier]["stimuli_order"], split=split)
 
     def _extract_question_order_version(self, session_identifier):
         """
@@ -364,7 +382,7 @@ class MultipleyeDataCollection(DataCollection):
         general_logfile = next(general_logfile)
         assert general_logfile.exists(), f"Logfile path {general_logfile} does not exist."
 
-        regex = r"(STIMULUS_ORDER_VERSION_)(?P<question_order_version>\d)"
+        regex = r"(STIMULUS_ORDER_VERSION_)(?P<question_order_version>\d+)"
         with open(general_logfile, "r", encoding="utf-8") as f:
             text = f.read()
         match = re.search(regex, text)
@@ -373,6 +391,9 @@ class MultipleyeDataCollection(DataCollection):
         else:
             raise ValueError(f"Could not find question order version in {general_logfile}.")
         return question_order_version
+
+
+
 
     def load_logfiles(self, session_identifier):
         """
@@ -391,7 +412,7 @@ class MultipleyeDataCollection(DataCollection):
         assert len(logfiles) == 1, f"More than one or none logfile found in {logfilepath}. Please check the logfiles."
 
         logfile = pl.read_csv(logfiles[0], separator="\t")
-        completed_stimuli = pl.read_csv(stim_path, separator=","),
+        completed_stimuli = pl.read_csv(stim_path, separator=",")
         stimuli_order = pl.read_csv(stim_path, separator=",")[
             "stimulus_id"].to_list()
         question_version = self._extract_question_order_version(session_identifier)
@@ -421,6 +442,9 @@ class MultipleyeDataCollection(DataCollection):
             match = re.match(REGEX, line)
             if match:
                 messages.append(match.groupdict())
+                if "stimulus_order_version" in line:
+                    self.sessions[session_identifier]['stimulus_order_version_asc'] = line
+                    print(f"{self.sessions[session_identifier]['question_order_version']}, {line}")
         return messages
 
     def check_asc_validation(self, session_identifier, gaze=None):
@@ -452,21 +476,12 @@ class MultipleyeDataCollection(DataCollection):
         report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
         check_all_screens(gaze, self.sessions[session_identifier]["session_stimuli"], report_file)
 
-    def create_experiment_frame(self, session_identifier):
-        """
-        Create the experiment frame for the specified session.
-        :param session_identifier: The session identifier.
-        :return:
-        """
-        logging.debug(f"Creating experiment frame for {session_identifier}.")
-        self.load_logfiles(session_identifier)
 
-        logfile = self.sessions[session_identifier]['logfile']
-        stimuli_order = self.sessions[session_identifier]['stimuli_order']
-        completed_stimuli = self.sessions[session_identifier]['completed_stimuli']
-        gaze = self.get_gaze_frame(session_identifier, create_if_not_exists=True)
-
-
+    def get_stimulus_order_version_csv(self, session_identifier):
+        stim_order_csv_path = self.stimulus_dir / "config" / f"stimulus_order_versions_{self.language.lower()}_{self.country.lower()}_{self.lab_number}.csv"
+        stim_order_csv = pl.read_csv(stim_order_csv_path, separator=",")
+        #session_stim_order = stim_order_csv.filter(pl.col("participant_id") == session_identifier.split('_')[0])
+        #logging.info(f"session stim order version based on asc file {session_stim_order}")
 
 
 if __name__ == '__main__':
