@@ -155,7 +155,7 @@ class DataCollection:
 
         # TODO: make sure that edf2asc is installed on the computer
         for session in tqdm(self.sessions, desc='Converting EDF to ASC'):
-            path = self.sessions[session]['session_file_path']
+            path = Path(self.sessions[session]['session_file_path'])
 
             if not path.with_suffix('.asc').exists():
 

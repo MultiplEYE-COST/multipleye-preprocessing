@@ -11,10 +11,39 @@ import pandas as pd
 import polars as pl
 import pymovements as pm
 from matplotlib.patches import Circle
+import config
+from typing import Any, Callable, TextIO, Union
 
 from stimulus import Stimulus
 
 
+ReportFunction = Callable[[str, Any, Union[list, tuple]], None]
+def report_to_file_metadata(
+        name: str,
+        values: Any,
+        acceptable_values: Any,
+        *,
+        report_file: TextIO,
+        percentage: bool = False,
+) -> None:
+    if not isinstance(values, (list, tuple)):
+        values = [values]
+    result = ""
+
+    if isinstance(acceptable_values, list):  # List of acceptable values
+        if all(value in acceptable_values for value in values):
+            result = "✅"
+    elif isinstance(acceptable_values, tuple):  # Range of acceptable values
+        lower, upper = acceptable_values
+        if all((lower <= value) and (upper >= value) for value in values):
+            result = "✅"
+    else:  # Single acceptable value
+        if all(value == acceptable_values for value in values):
+            result = "✅"
+
+    if percentage:
+        values = [f"{value:.6%}" for value in values]
+    report_file.write(f"{result} {name}: {', '.join(map(str, values))}\n")
 def _report_to_file(message: str, report_file: Path):
     assert isinstance(report_file, Path)
     with open(report_file, "a", encoding="utf-8") as report_file:
@@ -31,7 +60,7 @@ def check_comprehension_question_answers(logfile: pl, stimuli: Stimulus | list[S
     for stimulus in stimuli:
         if stimulus.type == "practice":
             continue
-        # print(f"Checking {stimulus.name} in Logfile")
+        print(f"Checking {stimulus.name} in Logfile")
         trial_id = logfile.filter((pl.col("stimulus_number") == f"{stimulus.id}")).item(0,
                                                                                         "trial_number")  # get the trial number for the stimulus as ratingscreens don't have an entry in the stimulus_number column
 
@@ -231,6 +260,84 @@ def plot_main_sequence(events: pm.EventDataFrame, plots_dir: Path) -> None:
         events, show=False, savepath=plots_dir / "main_sequence.png"
     )
 
+def check_metadata(metadata: dict[str, Any], report: ReportFunction) -> None:
+    date = f"{metadata['time']};     {metadata['day']}.{metadata['month']}.{metadata['year']}"
+    report(
+        "Date", date, None
+    )
+    num_calibrations = len(metadata["calibrations"])
+    report(
+        "Number of calibrations", num_calibrations, config.ACCEPTABLE_NUM_CALIBRATIONS
+    )
+    validation_scores_avg = [
+        float(validation["validation_score_avg"])
+        for validation in metadata["validations"]
+    ]
+    num_validations = len(metadata["validations"])
+    report(
+        "Number of validations", num_validations, config.ACCEPTABLE_NUM_CALIBRATIONS
+    )
+    report(
+        "AVG validation scores",
+        validation_scores_avg,
+        config.ACCEPTABLE_AVG_VALIDATION_SCORES,
+    )
+    validation_scores_max = [
+        float(validation["validation_score_max"])
+        for validation in metadata["validations"]
+    ]
+    report(
+        "MAX validation scores",
+        validation_scores_max,
+        config.TRACKED_EYE,
+    )
+    validation_errors = [
+        validation["error"].removesuffix(" ERROR")
+        for validation in metadata["validations"]
+    ]
+    report("Validation errors", validation_errors, config.ACCEPTABLE_VALIDATION_ERRORS)
+
+    tracked_eye = metadata["tracked_eye"]
+    report("tracked_eye",
+           tracked_eye,
+           config.TRACKED_EYE
+           )
+
+    validation_eye = [
+        (validation["tracked_eye"][0])
+        for validation in metadata["validations"]
+    ]
+    report(
+        "Validation tracked Eyes",
+        validation_eye,
+        tracked_eye,
+    )
+    data_loss_ratio = metadata["data_loss_ratio"]
+    report(
+        "Data loss ratio",
+        data_loss_ratio,
+        config.ACCEPTABLE_DATA_LOSS_RATIOS,
+        percentage=True,
+    )
+    data_loss_ratio_blinks = metadata["data_loss_ratio_blinks"]
+    report(
+        "Data loss ratio due to blinks",
+        data_loss_ratio_blinks,
+        config.ACCEPTABLE_DATA_LOSS_RATIOS,
+        percentage=True,
+    )
+    total_recording_duration = metadata["total_recording_duration_ms"] / 60000
+    report(
+        "Total recording duration",
+        total_recording_duration,
+        config.ACCEPTABLE_RECORDING_DURATIONS,
+    )
+    sampling_rate = metadata["sampling_rate"]
+    report("Sampling rate",
+           sampling_rate,
+           config.EXPECTED_SAMPLING_RATE,
+           )
+
 
 def analyse_asc(asc_file: str,
                 session: str,
@@ -249,7 +356,7 @@ def analyse_asc(asc_file: str,
     status = []
     stimulus_name = []
 
-    output_dir = Path("C://Users/saphi/PycharmProjects/multipleye-preprocessing/quality-report/output") / 'reading_times'
+    output_dir = Path("C://Users/saphi/PycharmProjects/multipleye-preprocessing/quality-report") / 'reading_times'
     output_dir.mkdir(exist_ok=True)
 
     #stimuli_trial_mapping = {k: v for k, v in stimuli_trial_mapping.items()}
