@@ -1,23 +1,24 @@
-import math
-from pathlib import Path
+import logging
 import math
 import os
 import re
 from pathlib import Path
-import logging
+from typing import Any, Callable, TextIO, Union
+
 import PIL
 import matplotlib.pyplot as plt
 import pandas as pd
 import polars as pl
 import pymovements as pm
 from matplotlib.patches import Circle
-import config
-from typing import Any, Callable, TextIO, Union
 
-from stimulus import Stimulus
+from quality_report import config
+from quality_report.stimulus import Stimulus
 
 
 ReportFunction = Callable[[str, Any, Union[list, tuple]], None]
+
+
 def report_to_file_metadata(
         name: str,
         values: Any,
@@ -44,6 +45,8 @@ def report_to_file_metadata(
     if percentage:
         values = [f"{value:.6%}" for value in values]
     report_file.write(f"{result} {name}: {', '.join(map(str, values))}\n")
+
+
 def _report_to_file(message: str, report_file: Path):
     assert isinstance(report_file, Path)
     with open(report_file, "a", encoding="utf-8") as report_file:
@@ -71,9 +74,13 @@ def check_comprehension_question_answers(logfile: pl, stimuli: Stimulus | list[S
         correct_answers = stimulus_frame.filter(pl.col("message").str.contains("True") == True)
         overall_correct_answers += len(correct_answers)
         overall_answers += len(answers)
-        _report_to_file(f"Correct answers for {stimulus.name}: {len(correct_answers)} out of {len(answers)} answers", report_file)
+        _report_to_file(f"Correct answers for {stimulus.name}: {len(correct_answers)} out of {len(answers)} answers",
+                        report_file)
 
-    _report_to_file(f"Overall correct answers: {overall_correct_answers} out of {overall_answers} answers {overall_correct_answers/overall_answers:.2f}", report_file)
+    _report_to_file(
+        f"Overall correct answers: {overall_correct_answers} out of {overall_answers} answers {overall_correct_answers / overall_answers:.2f}",
+        report_file)
+
 
 def check_validations(gaze, messages, report_file):
     for num, validation in enumerate(gaze._metadata["validations"]):
@@ -260,6 +267,7 @@ def plot_main_sequence(events: pm.EventDataFrame, plots_dir: Path) -> None:
         events, show=False, savepath=plots_dir / "main_sequence.png"
     )
 
+
 def check_metadata(metadata: dict[str, Any], report: ReportFunction) -> None:
     date = f"{metadata['time']};     {metadata['day']}.{metadata['month']}.{metadata['year']}"
     report(
@@ -343,7 +351,7 @@ def analyse_asc(asc_file: str,
                 session: str,
                 initial_ts: int | None,
                 lab: str,
-                #completed_stimuli: str
+                # completed_stimuli: str
                 stimuli_trial_mapping: dict[str, str]):
     start_ts = []
     stop_ts = []
@@ -356,10 +364,10 @@ def analyse_asc(asc_file: str,
     status = []
     stimulus_name = []
 
-    output_dir = Path("C://Users/saphi/PycharmProjects/multipleye-preprocessing/quality-report") / 'reading_times'
+    output_dir = Path("C://Users/saphi/PycharmProjects/multipleye-preprocessing/quality_report") / 'reading_times'
     output_dir.mkdir(exist_ok=True)
 
-    #stimuli_trial_mapping = {k: v for k, v in stimuli_trial_mapping.items()}
+    # stimuli_trial_mapping = {k: v for k, v in stimuli_trial_mapping.items()}
 
     with open(asc_file, 'r', encoding='utf8') as f:
 
@@ -459,9 +467,10 @@ def analyse_asc(asc_file: str,
 
     total_times.to_csv(output_dir / 'total_times.tsv', sep='\t', index=False)
 
+
 #    total_times.to_excel(output_dir / 'total_times.xlsx', index=False)
- #   sum_df.to_excel(output_dir / f'times_per_trial_pilot_{session}.xlsx', index=False)
-  #  df.to_excel(output_dir / f'times_per_page_pilot_{session}.xlsx', index=False)
+#   sum_df.to_excel(output_dir / f'times_per_trial_pilot_{session}.xlsx', index=False)
+#  df.to_excel(output_dir / f'times_per_page_pilot_{session}.xlsx', index=False)
 
 
 def convert_to_time_str(duration_ms: float) -> str:
@@ -474,7 +483,8 @@ def convert_to_time_str(duration_ms: float) -> str:
 
 if __name__ == '__main__':
     analyse_asc(
-        Path("C:\\Users\saphi\PycharmProjects\multipleye-preprocessing\data\MultiplEYE_ET_EE_Tartu_1_2025\eye-tracking-sessions\core_dataset\\006_ET_EE_1_ET1\\006etee1.asc"),
+        Path(
+            "C:\\Users\saphi\PycharmProjects\multipleye-preprocessing\data\MultiplEYE_ET_EE_Tartu_1_2025\eye-tracking-sessions\core_dataset\\006_ET_EE_1_ET1\\006etee1.asc"),
         session="006",
         lab='et',
         initial_ts=None,

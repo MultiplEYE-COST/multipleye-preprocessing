@@ -8,9 +8,6 @@ import numpy as np
 from pymovements import GazeDataFrame
 from tqdm import tqdm
 
-from plot import load_data, preprocess
-from stimulus import load_stimuli
-
 EYETRACKER_NAMES = {
     'eyelink': [
         'EyeLink 1000 Plus',
@@ -69,8 +66,6 @@ class DataCollection:
             raise ValueError(f'Eye tracker {eye_tracker} not yet supported. '
                              f'Supported eye trackers are: '
                              f'{np.array([val for k, val in EYETRACKER_NAMES.items()]).flatten()}')
-
-
 
     def add_recorded_sessions(self,
                               data_root: Path,

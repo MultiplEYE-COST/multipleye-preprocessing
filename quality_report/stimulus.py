@@ -8,8 +8,6 @@ from typing import Literal
 import polars as pl
 import pymovements as pm
 
-
-
 NAMES = [
     "PopSci_MultiplEYE",
     "Ins_HumanRights",
@@ -25,6 +23,7 @@ NAMES = [
     "Lit_NorthWind",
 ]
 QUESTION_NUMBERS = {"experiment": 6, "practice": 2, "test_practice": 1, "test_experiment": 2}
+
 
 @dataclass
 class Rating:
@@ -82,7 +81,7 @@ class Stimulus:
             stimulus_name: str,
             question_version: int,
     ) -> "Stimulus":
-        #assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
+        # assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
         stimulus_df_path = stimulus_dir / f"multipleye_stimuli_experiment_{lang}.xlsx"
         assert (stimulus_df_path.exists()), f"File {stimulus_df_path} does not exist"
 
@@ -262,7 +261,6 @@ class LabConfig:
         with open(json_config_path) as f:
             json_config = json.load(f)
 
-
         return cls(
             screen_resolution=config.RESOLUTION,
             screen_size_cm=config.SCREEN_SIZE_CM,
@@ -276,7 +274,7 @@ class LabConfig:
 def load_stimuli(
         stimulus_dir: Path, lang: str, country: str, labnum: int, city: str, year: int, question_version: int,
 ) -> tuple[list[Stimulus], LabConfig]:
-    stimuli =[]
+    stimuli = []
     for stimulus_name in NAMES:
         stimulus = Stimulus.load(stimulus_dir, lang, country, labnum, stimulus_name, question_version)
         stimuli.append(stimulus)
@@ -287,7 +285,7 @@ def load_stimuli(
 
 if __name__ == "__main__":
     stimulus_dir = Path(
-       "C:\\Users\saphi\PycharmProjects\multipleye-preprocessing\data\stimuli_MultiplEYE_HR_CH_Zurich_1_2025")
+        "C:\\Users\saphi\PycharmProjects\multipleye-preprocessing\data\stimuli_MultiplEYE_HR_CH_Zurich_1_2025")
     lang = "hr"
     country = "ch"
     labnum = 1

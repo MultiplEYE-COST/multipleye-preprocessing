@@ -1,20 +1,14 @@
-from pathlib import Path
-import importlib
-import json
-from dataclasses import dataclass
-from glob import glob
-from pathlib import Path
-from typing import Literal
-import PIL
-import matplotlib.pyplot as plt
-import polars as pl
-import pymovements as pm
+import logging
 import re
 import tempfile
-import logging
 from collections import defaultdict
+from dataclasses import dataclass
+from pathlib import Path
 
-from stimulus import LabConfig, Stimulus, load_stimuli
+import polars as pl
+import pymovements as pm
+
+from stimulus import LabConfig, Stimulus
 
 SPLITS: {"page": "stop_recording",
          "trial": "TRIAL_VAR stimulus_name"}
@@ -41,7 +35,6 @@ class ExperimentFrame:
     display_cord: [""]
     current_stimuli_id: None | int
     split_experiment: bool
-
 
     @classmethod
     def load_from_multipleye_data_collection(cls,
@@ -83,17 +76,14 @@ class ExperimentFrame:
         logging.info(f"asc file was not split, returning file path to whole asc file")
         return self.asc_file
 
-
     def split_asc_file(self, split_line: str | None = "stop_recording_", overwrite: bool = False):
         """instanciete and assignsthe generator  to the class attribute temp_asc
         also check if already instancieted"""
 
         if self.asc_generator == None or overwrite:
-
             self.asc_generator = self._split_asc_file_generator(split_line)
 
         self.get_next_tem_asc_file()
-
 
     def _split_asc_file_generator(self, split_line: str | None,
                                   REGEX: str | None = r'MSG\s+(?P<timestamp>\d+[.]?\d*)\s+(?P<message>.*)'):
@@ -137,10 +127,11 @@ class ExperimentFrame:
                         lines.clear()
                         num_file += 1
                     yield f.name
+
     def __str__(self):
         return f"{type(self)} for {self.session_identifier} stimulus"
-    def load_data(self, asc_file: Path, lab_config: LabConfig, session_idf: str = '') -> pm.GazeDataFrame:
 
+    def load_data(self, asc_file: Path, lab_config: LabConfig, session_idf: str = '') -> pm.GazeDataFrame:
 
         gaze = pm.gaze.from_asc(
             asc_file,
@@ -232,7 +223,8 @@ class ExperimentFrame:
 
     def aois_mapping(self, gaze, Stimulus):
         """ does not work yet properly, due to odditis in pymovement, andreas is wotking on it"""
-        gaze.events.frame = gaze.events.frame.filter(pl.col("name") == "fixation") # only keeping fixations (saccades are also generated but will break code if kept in frame)
+        gaze.events.frame = gaze.events.frame.filter(pl.col(
+            "name") == "fixation")  # only keeping fixations (saccades are also generated but will break code if kept in frame)
         gaze.events.map_aois(Stimulus.text_stimulus)
         print(gaze.events)
 
@@ -241,9 +233,12 @@ class ExperimentFrame:
         durations = df.group_by("name").agg(pl.col("duration").sum())
         num_fix_and_sac = df.group_by("name").len()
 
-        self.summary_dict[self.current_stimuli_id].update({'number of fixations' :num_fix_and_sac.rows_by_key(key="name").pop("fixation")})
+        self.summary_dict[self.current_stimuli_id].update(
+            {'number of fixations': num_fix_and_sac.rows_by_key(key="name").pop("fixation")})
 
-        self.summary_dict[self.current_stimuli_id].update({'number of saccades' :num_fix_and_sac.rows_by_key(key="name").pop("saccade")})
+        self.summary_dict[self.current_stimuli_id].update(
+            {'number of saccades': num_fix_and_sac.rows_by_key(key="name").pop("saccade")})
+
     def create_experiment_summary(self):
         self.split_asc_file()
 
@@ -251,9 +246,8 @@ class ExperimentFrame:
         for asc_parts in self.asc_generator:
             gaze = self.load_data(self.temp_asc, self.lab_configuration)
             self.summary_dict[self.current_stimuli_id] = gaze._metadata
-            #self.preprocess(gaze)
-            #self._create_experiment_summary(gaze.events)
-
+            # self.preprocess(gaze)
+            # self._create_experiment_summary(gaze.events)
 
 
 def main():
@@ -272,19 +266,20 @@ def main():
     experiment = ExperimentFrame.load_from_multipleye_data_collection(multipleye, "005_RU_RU_1_ET1")
     experiment.create_experiment_summary()
 
-   # experiment.split_asc_file(split_line="stop_recording_")
-  #logging.info(f"{experiment.temp_asc}")
-  #gaze = experiment.load_data(experiment.temp_asc, multipleye.lab_configuration)
-  #print(gaze.frame)
-  ##experiment.preprocess(gaze)
-  ##print(gaze.events)
-  #print(experiment.temp_asc)
-  #experiment.get_next_tem_asc_file()
-  #gaze2 = experiment.load_data(experiment.temp_asc, multipleye.lab_configuration)
-  #
-  #print(gaze2.frame)
-  ##experiment.preprocess(gaze2)
-  ##print(gaze2.events)
+
+# experiment.split_asc_file(split_line="stop_recording_")
+# logging.info(f"{experiment.temp_asc}")
+# gaze = experiment.load_data(experiment.temp_asc, multipleye.lab_configuration)
+# print(gaze.frame)
+##experiment.preprocess(gaze)
+##print(gaze.events)
+# print(experiment.temp_asc)
+# experiment.get_next_tem_asc_file()
+# gaze2 = experiment.load_data(experiment.temp_asc, multipleye.lab_configuration)
+#
+# print(gaze2.frame)
+##experiment.preprocess(gaze2)
+##print(gaze2.events)
 
 
 if __name__ == "__main__":

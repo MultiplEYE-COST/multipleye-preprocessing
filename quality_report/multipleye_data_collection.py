@@ -1,25 +1,23 @@
-import json
-import pickle
-from pathlib import Path
-from pprint import pprint
-import polars as pl
-import re
-import tempfile
-import pandas as pd
 import logging
+import os
+import pickle
+import re
+# from report import check_gaze, check_metadata, report_to_file as report_meta
+from functools import partial
+from pathlib import Path
+
+import polars as pl
 from pymovements import GazeDataFrame
 from tqdm import tqdm
-#from report import check_gaze, check_metadata, report_to_file as report_meta
-from functools import partial
 
 from data_collection import DataCollection
+from quality_report.checks.et_quality_checks import check_validations, plot_gaze, plot_main_sequence, check_comprehension_question_answers, \
+    check_metadata, report_to_file_metadata as report_meta
+from formal_experiment_checks import check_all_screens_logfile, check_all_screens, check_instructions
 from plot import load_data, preprocess
 from stimulus import LabConfig, Stimulus
-import os
-from formal_experiment_checks import check_all_screens_logfile, check_all_screens, check_instructions
-from et_quality_checks import check_validations, plot_gaze, plot_main_sequence, check_comprehension_question_answers, check_metadata, report_to_file_metadata as report_meta
 
-NAMES = [
+STIMULUS_NAMES = [
     "PopSci_MultiplEYE",
     "Ins_HumanRights",
     "Ins_LearningMobility",
@@ -66,15 +64,27 @@ class MultipleyeDataCollection(DataCollection):
         logging.basicConfig()
 
     @staticmethod
-    def _get_stimulus_names(stimulus_dir: Path, stimulus_file: str, col_name_stimulus: str = "stimulus_name") -> list[
-        str]:
+    def _get_stimulus_names(stimulus_dir: Path, stimulus_file: str,
+                            col_name_stimulus: str = "stimulus_name") -> list[str]:
+        """
+        Get the stimulus names from the stimulus file.
+        :param stimulus_dir: Directory where stimuli are stored
+        :param stimulus_file: File where the stimuli are stored. It should be a csv or xlsx file containing one
+        stimulus per row
+        :param col_name_stimulus: The name of the column where the stimulus names are indicated
+        :return: stimulus names in a list
+        """
+
         stimulus_df_path = (stimulus_dir / stimulus_file)
         assert (stimulus_df_path.exists()), f"File {stimulus_df_path} does not exist"
+
         if stimulus_df_path.suffix == ".csv":
             stimulus_df = pl.read_csv(stimulus_df_path)
-            stimulus_names = stimulus_df[col_name_stimulus].unique().to_list()
-        else:
+        elif stimulus_df_path.suffix == ".xlsx":
             stimulus_df = pl.read_excel(stimulus_df_path)
+        else:
+            raise ValueError(f"File {stimulus_df_path} is not a csv or xlsx file")
+
         stimulus_names = stimulus_df[col_name_stimulus].unique().to_list()
         return stimulus_names
 
@@ -102,8 +112,10 @@ class MultipleyeDataCollection(DataCollection):
         """
         :param different_stimulus_names:
         :param data_dir: str  path to the data folder
-        :param additional_folder: if additional subfolders in the data folder are used, e.g. 'core_dataset', test_dataset, pilot_dataset
-        :param differents_stimulus_names:  if the stimulus names are different from the default ones they can be extrated from the multipleye_stimuli_experiment_en.xlsx file, at the moment only used for testing purposes
+        :param additional_folder: if additional sub-folders in the data folder are used,
+        e.g. 'core_dataset', test_dataset, pilot_dataset
+        :param different_stimulus_names: if the stimulus names are different from the default ones they can be extracted
+        from the multipleye_stimuli_experiment_en.xlsx file, at the moment only used for testing purposes
         :return:
         MultipleyeDataCollection object
         """
@@ -125,7 +137,8 @@ class MultipleyeDataCollection(DataCollection):
 
         eye_tracker = lab_configuration_data.name_eye_tracker
 
-        et_data_path = data_dir / 'eye-tracking-sessions' / additional_folder if additional_folder else data_dir / 'eye-tracking-sessions'
+        et_data_path = (data_dir / 'eye-tracking-sessions' /
+                        additional_folder) if additional_folder else data_dir / 'eye-tracking-sessions'
 
         return cls(
             data_collection_name=data_folder_name,
@@ -144,9 +157,7 @@ class MultipleyeDataCollection(DataCollection):
             # stimuli=stimuli
         )
 
-
-
-    def _get_sessions_name(self, session: str | list[str] | None) -> list[str]:
+    def _get_session_names(self, session: str | list[str] | None) -> list[str]:
         """
         Get the session names from the data root folder.
         :param session: If a session identifier is specified only the gaze data for this session is loaded.
@@ -163,7 +174,6 @@ class MultipleyeDataCollection(DataCollection):
         elif isinstance(session, list):
             return session
 
-
     def create_gaze_frame(self, session: str | list[str] = '', overwrite: bool = False) -> None:
         """
         Creates, preprocesses and saves the gaze data for the specified session or all sessions.
@@ -171,7 +181,7 @@ class MultipleyeDataCollection(DataCollection):
         :param overwrite: If True the gaze data is overwritten if it already exists.
         :return:
         """
-        session_keys = self._get_sessions_name(session)
+        session_keys = self._get_session_names(session)
 
         for session_name in tqdm(session_keys, desc="Creating gaze data"):
             gaze_path = self.output_dir / session_name
@@ -233,7 +243,7 @@ class MultipleyeDataCollection(DataCollection):
                 gaze_path = list(gaze_path)[0]
                 self.sessions[session_identifier]['gaze_path'] = gaze_path
                 logging.debug(f'Found pkl file for {session_identifier}.')
-            #elif len(gaze_path_list) > 1:
+            # elif len(gaze_path_list) > 1:
             #    raise FileExistsError(f"More than one pkl file found for {session_identifier}. Please check the {self.output_dir / session_identifier} directory.")
             else:
                 raise FileNotFoundError
@@ -262,14 +272,16 @@ class MultipleyeDataCollection(DataCollection):
         :param stimulus_dir: The directory where the stimuli are stored.
         :param lang: The language of the stimuli.
         :param country: The country of the stimuli.
-        :param stimulus_names: The names of the stimuli to load. If None, the predefined stimuli names in the Global Variables NAMES are used.
-        :param question_version: The version of the questions to load.
+        :param stimulus_names: The names of the stimuli to load. If None, the predefined stimuli names in the
+        global variable STIMULUS_NAMES are used.
+        :param question_version: The version of the questions to load. Specifies how the questions are ordered and the
+        shuffeling of the answer options.
         when loading the lab configuration, however it does not make sense to have the same stimuli for the whole data
         collection as they are participant dependent.
         """
         stimuli = []
         if stimulus_names is None:
-            stimulus_names = NAMES
+            stimulus_names = STIMULUS_NAMES
 
         for stimulus_name in stimulus_names:
             stimulus = Stimulus.load(stimulus_dir, lang, country, labnum, stimulus_name, question_version)
@@ -277,18 +289,17 @@ class MultipleyeDataCollection(DataCollection):
 
         return stimuli
 
-
     def get_session_dependent_stimuli(self, session_identifier):
         self.load_logfiles(session_identifier)
 
         if self.different_stimulus_names == "split":
             stimulus_names = self.sessions[session_identifier]["completed_stimuli"][
-            "stimulus_name"].to_list()
+                "stimulus_name"].to_list()
         elif self.different_stimulus_names == "test":
             stimulus_names = self._get_stimulus_names(self.stimulus_dir,
                                                       f"multipleye_stimuli_experiment_{self.language}.xlsx")
         else:
-            stimulus_names = NAMES
+            stimulus_names = STIMULUS_NAMES
         session_name = session_identifier
         question_order_version = self._extract_question_order_version(session_name)
 
@@ -296,9 +307,10 @@ class MultipleyeDataCollection(DataCollection):
             self.stimulus_dir, self.language, self.country, self.lab_number,
             question_version=question_order_version, stimulus_names=stimulus_names)
 
-        #self.load_logfiles(session_name)
+        # self.load_logfiles(session_name)
 
     def create_sanity_check_report(self, sessions: str | list[str] | None = None, plotting: bool = True):
+
         if not sessions:
             sessions = [session_name for session_name in self.sessions.keys()]
         elif isinstance(sessions, str):
@@ -306,23 +318,28 @@ class MultipleyeDataCollection(DataCollection):
         elif isinstance(sessions, list):
             sessions = sessions
 
-        for session_name in tqdm(sessions, desc=f"performing sanity checks"):
-            os.makedirs(self.output_dir / session_name,  exist_ok=True)
-            report_file = open(self.output_dir / session_name / f"{session_name}_report.txt", "a+", encoding="utf-8")
-            self.sessions[session_name]['report_file'] = report_file
-            report = partial(report_meta, report_file=report_file)
-            self.get_session_dependent_stimuli(session_name)
+        for session_name in (pbar := tqdm(sessions, total=len(sessions))):
+            pbar.set_description(
+                f'Creating sanity check report for session {session_name}'
+            )
 
-            # check_gaze(gaze, report)
-            gaze = self.get_gaze_frame(session_name, create_if_not_exists=True)
-            check_metadata(gaze._metadata, report)
-            report_file.close()
+            os.makedirs(self.output_dir / session_name, exist_ok=True)
+
+            with open(self.output_dir / session_name / f"{session_name}_report.txt", "a+",
+                      encoding="utf-8") as report_file:
+                self.sessions[session_name]['report_file'] = report_file
+                report = partial(report_meta, report_file=report_file)
+                self.get_session_dependent_stimuli(session_name)
+
+                # check_gaze(gaze, report)
+                gaze = self.get_gaze_frame(session_name, create_if_not_exists=True)
+                check_metadata(gaze._metadata, report)
 
             self.check_logfiles(session_name)
             self.check_asc_all_screens(session_name, gaze)
             self.check_asc_instructions(session_name)
             self.check_asc_validation(session_name, gaze)
-            #self.get_stimulus_order_version_csv(session_name)
+            # self.get_stimulus_order_version_csv(session_name)
 
             if plotting:
                 self.create_plots(session_name, gaze)
@@ -392,9 +409,6 @@ class MultipleyeDataCollection(DataCollection):
             raise ValueError(f"Could not find question order version in {general_logfile}.")
         return question_order_version
 
-
-
-
     def load_logfiles(self, session_identifier):
         """
         Load the logfile for the specified session.
@@ -407,9 +421,10 @@ class MultipleyeDataCollection(DataCollection):
         logfile = logfilepath.glob("EXPERIMENT_*.txt")
         stim_path = logfilepath / 'completed_stimuli.csv'
 
-        logfiles = [log for log in
-                    logfile]  # create a list of logfiles, as the glob returns a generator, and we want to check if there are more than one file matching the pattern
-        assert len(logfiles) == 1, f"More than one or none logfile found in {logfilepath}. Please check the logfiles."
+        logfiles = list(logfile)
+
+        if len(logfiles) != 1:
+            raise ValueError(f"More than one or no logfile found in {logfilepath}. Please check the logfiles.")
 
         logfile = pl.read_csv(logfiles[0], separator="\t")
         completed_stimuli = pl.read_csv(stim_path, separator=",")
@@ -423,23 +438,17 @@ class MultipleyeDataCollection(DataCollection):
         self.sessions[session_identifier]['question_order_version'] = question_version
         # return logfile, completed_stimuli, stimuli_order
 
-    def _report_to_file(message: str, report_file: Path):
-        assert isinstance(report_file, Path)
-        with open(report_file, "a", encoding="utf-8") as report_file:
-            report_file.write(f"{message}\n")
-        # logging.info(message)
-
     def _load_messages_for_experimenter_checks(self, session_identifier: str):
         """
        qick fix for now, should be replaced by the summary experiment frame later on
         """
-        REGEX = r'MSG\s+(?P<timestamp>\d+[.]?\d*)\s+(?P<message>.*)'
+        regex = r'MSG\s+(?P<timestamp>\d+[.]?\d*)\s+(?P<message>.*)'
         asc_file = self.sessions[session_identifier]['asc_path']
         with open(asc_file, "r", encoding="utf-8") as f:
             lines = f.readlines()
         messages = []
         for line in lines:
-            match = re.match(REGEX, line)
+            match = re.match(regex, line)
             if match:
                 messages.append(match.groupdict())
                 if "stimulus_order_version" in line:
@@ -447,10 +456,12 @@ class MultipleyeDataCollection(DataCollection):
                     print(f"{self.sessions[session_identifier]['question_order_version']}, {line}")
         return messages
 
-    def check_asc_validation(self, session_identifier, gaze=None):
+    def check_asc_validation(self, session_identifier: str, gaze: GazeDataFrame = None):
         """
         Check the asc file for the specified session.
         :param session_identifier: The session identifier.
+        :param gaze: If the gaze data has already been created it can be passed as an argument.
+        If not it will be created.
         :return:
         """
         logging.debug(f"Checking Validation for {session_identifier}.")
@@ -475,13 +486,6 @@ class MultipleyeDataCollection(DataCollection):
 
         report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
         check_all_screens(gaze, self.sessions[session_identifier]["session_stimuli"], report_file)
-
-
-    def get_stimulus_order_version_csv(self, session_identifier):
-        stim_order_csv_path = self.stimulus_dir / "config" / f"stimulus_order_versions_{self.language.lower()}_{self.country.lower()}_{self.lab_number}.csv"
-        stim_order_csv = pl.read_csv(stim_order_csv_path, separator=",")
-        #session_stim_order = stim_order_csv.filter(pl.col("participant_id") == session_identifier.split('_')[0])
-        #logging.info(f"session stim order version based on asc file {session_stim_order}")
 
 
 if __name__ == '__main__':
