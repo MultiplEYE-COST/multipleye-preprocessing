@@ -64,8 +64,8 @@ def load_data(asc_file: Path, lab_config: LabConfig, session_idf: str = '') -> p
     #print(lab_config) #ersten drei sollte es aus asc herauslesen, andere aus lab config
     gaze.experiment = pm.Experiment(
        sampling_rate=gaze._metadata["sampling_rate"],
-       screen_width_px=lab_config.screen_resolution[0],
-       screen_height_px=lab_config.screen_resolution[1],
+       screen_width_px=lab_config.image_resolution[0],
+       screen_height_px=lab_config.image_resolution[1],
        screen_width_cm=lab_config.screen_size_cm[0],
        screen_height_cm=lab_config.screen_size_cm[1],
        distance_cm=lab_config.screen_distance_cm,

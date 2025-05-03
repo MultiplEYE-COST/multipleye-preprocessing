@@ -21,9 +21,11 @@ SPLITS: {"page": "stop_recording",
 """ Idea: create temporary asc files, only containing hte current stimulus I want to check if spilt line is defined 
 (else whole asc file is preprocessed, do preprocessing and create gaze data frame ans AOIS mappin (currently only possible 
  screen page
- I can then use the first metadata dictonary create to compar ale the following to it to chech if smapling frequency 
+ I can then use the first metadata dictonary create to compare all the following to it to chech if smapling frequency 
  tracked eye ect are consistent. Create a dictonary with all the messages in it, where the messages are the keys and the values are 
- a list of timestamps, such that i get all the messages and can efficently check if certain messages are in there"""
+ a list of timestamps, such that i get all the messages and can efficently check if certain messages are in there
+ independent from logfile
+ only necessary, stimulus folder and edf file"""
 
 
 @dataclass
@@ -85,7 +87,7 @@ class ExperimentFrame:
 
 
     def split_asc_file(self, split_line: str | None = "stop_recording_", overwrite: bool = False):
-        """instanciete and assignsthe generator  to the class attribute temp_asc
+        """instanciete and assign the generator  to the class attribute temp_asc
         also check if already instancieted"""
 
         if self.asc_generator == None or overwrite:
@@ -123,7 +125,7 @@ class ExperimentFrame:
                                 if len(self.display_cord) > 2:
                                     logging.error(f"multiple screen resoultions found {self.display_cord}")
                         if "stimulus_order_version" in line:
-                            self.stimulus_order_version_asc = line
+                            self.stimulus_order_version_asc = line # in the future this should be used to get the stimulus order versio instead of the multipleye methode
 
                 else:
                     lines.append(line)
@@ -194,8 +196,8 @@ class ExperimentFrame:
         # print(lab_config) #ersten drei sollte es aus asc herauslesen, andere aus lab config
         gaze.experiment = pm.Experiment(
             sampling_rate=gaze._metadata["sampling_rate"],
-            screen_width_px=lab_config.screen_resolution[0],
-            screen_height_px=lab_config.screen_resolution[1],
+            screen_width_px=lab_config.image_resolution[0],
+            screen_height_px=lab_config.image_resolution[1],
             screen_width_cm=lab_config.screen_size_cm[0],
             screen_height_cm=lab_config.screen_size_cm[1],
             distance_cm=lab_config.screen_distance_cm,
@@ -231,7 +233,7 @@ class ExperimentFrame:
             gaze.events.add_event_properties(new_properties, join_on=join_on)
 
     def aois_mapping(self, gaze, Stimulus):
-        """ does not work yet properly, due to odditis in pymovement, andreas is wotking on it"""
+        """ does not work yet properly, due to odditis in pymovement, andreas is working on it"""
         gaze.events.frame = gaze.events.frame.filter(pl.col("name") == "fixation") # only keeping fixations (saccades are also generated but will break code if kept in frame)
         gaze.events.map_aois(Stimulus.text_stimulus)
         print(gaze.events)
@@ -242,7 +244,6 @@ class ExperimentFrame:
         num_fix_and_sac = df.group_by("name").len()
 
         self.summary_dict[self.current_stimuli_id].update({'number of fixations' :num_fix_and_sac.rows_by_key(key="name").pop("fixation")})
-
         self.summary_dict[self.current_stimuli_id].update({'number of saccades' :num_fix_and_sac.rows_by_key(key="name").pop("saccade")})
     def create_experiment_summary(self):
         self.split_asc_file()

@@ -126,7 +126,8 @@ class MultipleyeDataCollection(DataCollection):
         eye_tracker = lab_configuration_data.name_eye_tracker
 
         et_data_path = data_dir / 'eye-tracking-sessions' / additional_folder if additional_folder else data_dir / 'eye-tracking-sessions'
-
+        out_dir = et_data_path / 'quality_reports'
+        out_dir.mkdir(exist_ok=True)
         return cls(
             data_collection_name=data_folder_name,
             stimulus_language=stimulus_language,
@@ -141,6 +142,7 @@ class MultipleyeDataCollection(DataCollection):
             data_root=et_data_path,
             lab_configuration=lab_configuration_data,
             different_stimulus_names=different_stimulus_names,
+            output_dir=out_dir,
             # stimuli=stimuli
         )
 
@@ -363,11 +365,14 @@ class MultipleyeDataCollection(DataCollection):
         :param session_identifier: The session identifier. eg "005_ET_EE_1_ET1"
         :return:
         """
+        global split
         logging.debug(f"Checking asc file for {session_identifier} instructions.")
         messages = self._load_messages_for_experimenter_checks(session_identifier)
         report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
         if self.different_stimulus_names == "split":
             split = True
+        else:
+            split = False
         check_instructions(messages, self.sessions[session_identifier]["session_stimuli"], report_file,
                            self.sessions[session_identifier]["stimuli_order"], split=split)
 

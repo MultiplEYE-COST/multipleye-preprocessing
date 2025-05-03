@@ -71,7 +71,7 @@ def check_all_screens(gaze, stimuli, report_file):
         for question in stimulus.questions:
             if f"question_{question.id}" not in stimulus_frame[
                 "screen"].to_list() and f"question_{question.id[1:]}" not in stimulus_frame["screen"].to_list():
-                _report_warning(f"Missing question_{question.id} in asc file", report_file)
+                _report_warning(f"Missing question_{question.name} in asc file or in experiment frame", report_file)
                # print(stimulus_frame["screen"])
 
         for rating in stimulus.ratings:
