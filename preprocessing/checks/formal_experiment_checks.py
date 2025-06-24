@@ -66,14 +66,14 @@ def check_all_screens(gaze, stimuli, report_file):
         # check if all pages are present
         for page in stimulus.pages:
             if f"page_{page.number}" not in stimulus_frame["screen"].to_list():
-                # print(f"Missing page {page.number}")
+               # print(f"Missing page {page.number}")
                 _report_warning(f"Missing page {page.number} in asc file", report_file)
         # check if all questions are present
         for question in stimulus.questions:
             if f"question_{question.id}" not in stimulus_frame[
                 "screen"].to_list() and f"question_{question.id[1:]}" not in stimulus_frame["screen"].to_list():
-                _report_warning(f"Missing question_{question.id} in asc file", report_file)
-            # print(stimulus_frame["screen"])
+                _report_warning(f"Missing question_{question.name} in asc file or in experiment frame", report_file)
+               # print(stimulus_frame["screen"])
 
         for rating in stimulus.ratings:
             if f"{rating.name}" not in stimulus_frame["screen"].to_list():
@@ -84,8 +84,7 @@ def check_all_screens(gaze, stimuli, report_file):
 
 
 # check order in ASC file based on messages
-def check_instructions(messages: list, stimuli: Stimulus | list, report_file: Path, stimuli_order: list,
-                       split: bool = False):
+def check_instructions(messages: list, stimuli: Stimulus | list, report_file: Path, stimuli_order: list, split: bool = False):
     messages_only = [d.get('message') for d in messages]
     one_time_screens = ['welcome_screen', 'informed_consent_screen', 'start_experiment', 'stimulus_order_version',
                         'showing_instruction_screen_1', 'showing_instruction_screen_2', 'showing_instruction_screen_3',
@@ -143,7 +142,7 @@ def check_instructions(messages: list, stimuli: Stimulus | list, report_file: Pa
         try:
             index_obligatory_break = messages_only.index("obligatory_break")
         except ValueError as e:
-            index_obligatory_break = 0  # hacky for split versions
+            index_obligatory_break = 0 # hacky for split versions
             logging.info(f"{e} only acceptable if MERid version")
 
         pattern = f"_trial_{trial}_stimulus_{stimulus.name}_{stimulus.id}"

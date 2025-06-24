@@ -1,11 +1,15 @@
-import logging
+import json
 import os
 import pickle
 import re
 from functools import partial
 from pathlib import Path
-
+from pprint import pprint
 import polars as pl
+import re
+import tempfile
+import pandas as pd
+import logging
 from pymovements import GazeDataFrame
 from tqdm import tqdm
 
@@ -154,9 +158,9 @@ class MultipleyeDataCollection(DataCollection):
 
         eye_tracker = lab_configuration_data.name_eye_tracker
 
-        et_data_path = (data_dir / 'eye-tracking-sessions' /
-                        additional_folder) if additional_folder else data_dir / 'eye-tracking-sessions'
-
+        et_data_path = data_dir / 'eye-tracking-sessions' / additional_folder if additional_folder else data_dir / 'eye-tracking-sessions'
+        out_dir = et_data_path / 'quality_reports'
+        out_dir.mkdir(exist_ok=True)
         return cls(
             data_collection_name=data_folder_name,
             stimulus_language=stimulus_language,
@@ -171,6 +175,7 @@ class MultipleyeDataCollection(DataCollection):
             data_root=et_data_path,
             lab_configuration=lab_configuration_data,
             different_stimulus_names=different_stimulus_names,
+            output_dir=out_dir,
             # stimuli=stimuli
         )
 
@@ -190,6 +195,7 @@ class MultipleyeDataCollection(DataCollection):
             return [session]
         elif isinstance(session, list):
             return session
+
 
     def create_gaze_frame(self, session: str | list[str] = '', overwrite: bool = False) -> None:
         """
