@@ -8,7 +8,7 @@ import polars as pl
 import pymovements as pm
 from matplotlib.patches import Circle
 
-from stimulus import LabConfig, Stimulus, load_stimuli
+from preprocessing.data_collection.stimulus import LabConfig, Stimulus, load_stimuli
 
 
 def load_data(asc_file: Path, lab_config: LabConfig, session_idf: str = '') -> pm.GazeDataFrame:

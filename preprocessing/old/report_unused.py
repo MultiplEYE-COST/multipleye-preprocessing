@@ -167,7 +167,7 @@ def check_metadata(metadata: dict[str, Any], report: ReportFunction) -> None:
     sampling_rate = metadata["sampling_rate"]
     report("Sampling rate",
            sampling_rate,
-           config.EXPECTED_SAMPLING_RATE,
+           config.EXPECTED_SAMPLING_RATE_HZ,
            )
 
 

@@ -13,7 +13,7 @@ put it to a proper clean repo.
 
 ## Preprocessing steps
 
-![](preprocessing.drawio.png)
+![](templates_and_notes/preprocessing.drawio.png)
 
 All input and output files (except for the original EDF/ASC files) are to be included in the published dataset.
 

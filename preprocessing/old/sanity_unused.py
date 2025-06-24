@@ -89,7 +89,7 @@ class Sanity:
             local_file_path=Path(local_file_path),
             asc_file=Path(local_file_path) / Path(path_asc_file),
             stimulus_file_path=Path(stimulus_file_path),
-            # output_dir=Path(f"{local_file_path}\quality-report\output\{vars_dict['data_coll_abr']}\{vars_dict['participant_abbr']}"),
+            # output_dir=Path(f"{local_file_path}\preprocessing\output\{vars_dict['data_coll_abr']}\{vars_dict['participant_abbr']}"),
             output_dir=output_dir,
             json=Path(f"{stimulus_file_path}\config\MultiplEYE_{vars_dict['data_coll_abr']}_lab_configuration.json"),
             participant_abbr=vars_dict["participant_abbr"],
@@ -97,11 +97,11 @@ class Sanity:
             experiment_config=Path(
                 f"{stimulus_file_path}\config\config_{vars_dict['lang'].lower()}_{vars_dict['country'].lower()}_{vars_dict['data_coll_abr'].split('_')[2]}_{vars_dict['labnum']}_{vars_dict['data_coll_abr'].split('_')[4]}.py"),
             # report_file=Path(
-            #    f"{local_file_path}\quality-report\output\{vars_dict['data_coll_abr']}\{vars_dict['participant_abbr']}_report.txt"),
+            #    f"{local_file_path}\preprocessing\output\{vars_dict['data_coll_abr']}\{vars_dict['participant_abbr']}_report.txt"),
             report_file=Path(f"{output_dir}\{vars_dict['participant_abbr']}_report.txt"),
             plot_dir=Path(f"{output_dir}\{vars_dict['participant_abbr']}_plots"),
             # plot_dir=Path(
-            #    f"{local_file_path}\quality-report\output\{vars_dict['data_coll_abr']}\{vars_dict['participant_abbr']}_plots"),
+            #    f"{local_file_path}\preprocessing\output\{vars_dict['data_coll_abr']}\{vars_dict['participant_abbr']}_plots"),
             logfile=pl.read_csv(logfile_path, separator="\t"),
             completed_stimuli=pl.read_csv(Path(logfile_path).parent / "completed_stimuli.csv", separator=","),
             stimuli_order=pl.read_csv(Path(logfile_path).parent / "completed_stimuli.csv", separator=",")[

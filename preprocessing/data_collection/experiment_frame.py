@@ -42,7 +42,7 @@ class ExperimentFrame:
                                              session_identifier):
 
         session = MultipleyeDataCollection.sessions[session_identifier]
-        MultipleyeDataCollection.get_session_dependent_stimuli(session_identifier)
+        MultipleyeDataCollection.load_session_dependent_stimuli(session_identifier)
         return cls(
             session_identifier=session_identifier,
             stimuli=session["session_stimuli"],
@@ -252,7 +252,7 @@ class ExperimentFrame:
 
 def main():
     import logging
-    from multipleye_data_collection import MultipleyeDataCollection
+    from preprocessing.data_collection.multipleye_data_collection import MultipleyeDataCollection
     logging.basicConfig(level=logging.INFO)
     data_collection_folder = 'MultiplEYE_RU_RU_NewYork_1_2025'
 

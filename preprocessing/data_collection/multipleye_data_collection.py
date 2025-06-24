@@ -2,7 +2,6 @@ import logging
 import os
 import pickle
 import re
-# from report import check_gaze, check_metadata, report_to_file as report_meta
 from functools import partial
 from pathlib import Path
 
@@ -10,12 +9,14 @@ import polars as pl
 from pymovements import GazeDataFrame
 from tqdm import tqdm
 
-from data_collection import DataCollection
-from quality_report.checks.et_quality_checks import check_validations, plot_gaze, plot_main_sequence, check_comprehension_question_answers, \
+
+from preprocessing.checks.et_quality_checks import check_validations, plot_gaze, plot_main_sequence, check_comprehension_question_answers, \
     check_metadata, report_to_file_metadata as report_meta
-from formal_experiment_checks import check_all_screens_logfile, check_all_screens, check_instructions
-from plot import load_data, preprocess
-from stimulus import LabConfig, Stimulus
+from preprocessing.checks.formal_experiment_checks import check_all_screens_logfile, check_all_screens, check_instructions
+
+from preprocessing.data_collection.data_collection import DataCollection
+from preprocessing.plotting.plot import load_data, preprocess
+from preprocessing.data_collection.stimulus import LabConfig, Stimulus
 
 STIMULUS_NAMES = [
     "PopSci_MultiplEYE",
@@ -101,9 +102,7 @@ class MultipleyeDataCollection(DataCollection):
         :param year: The year of the stimuli.
 
         """
-        config = LabConfig.load(stimulus_dir, lang, country, labnum, city, year)
-
-        return config
+        return LabConfig.load(stimulus_dir, lang, country, labnum, city, year)
 
     @classmethod
     def create_from_data_folder(cls, data_dir: str,
@@ -124,6 +123,24 @@ class MultipleyeDataCollection(DataCollection):
 
         data_folder_name = data_dir.name
         _, stimulus_language, country, city, lab_number, year = data_folder_name.split('_')
+        if not data_folder_name.startswith('MultiplEYE'):
+            raise ValueError(f"Data collection name {data_folder_name} does not start with 'MultiplEYE'. "
+                             f"Please check the folder name.")
+        if not year.isdigit() or len(year) != 4:
+            raise ValueError(f"Year {year} of the data collection name is not a valid year. "
+                             f"It should be a 4 digit number.")
+        if not lab_number.isdigit() or len(lab_number) != 1:
+            raise ValueError(f"Lab number {lab_number} of the data collection name is not a valid lab number. "
+                             f"It should be a 1 digit number.")
+        if len(country) != 2 or not country.isalpha():
+            raise ValueError(f"Country {country} of the data collection name is not a valid country code. "
+                             f"It should be a 2 letter code.")
+        if len(city) < 2 or not city.isalpha():
+            raise ValueError(f"City {city} of the data collection name is not a valid city name. "
+                             f"It should be a string with at least 2 letters.")
+        if not stimulus_language.isalpha() or len(stimulus_language) != 2:
+            raise ValueError(f"Stimulus language {stimulus_language} of the data collection name is not a valid "
+                             f"language code. It should be a 2 letter code.")
 
         session_folder_regex = r"\d\d\d" + f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
 
@@ -228,7 +245,7 @@ class MultipleyeDataCollection(DataCollection):
         :param create_if_not_exists: The gaze data will be created and stored if True.
         :param session_identifier: If (a) session identifier(s) is/are specified only the gaze data for this session is
         loaded. Otherwise, the gaze data for all sessions is loaded.
-        :return:
+        :return: GazeDataFrame of the session. Comes with metadata on the session.
         """
 
         if session_identifier not in self.sessions:
@@ -254,10 +271,10 @@ class MultipleyeDataCollection(DataCollection):
                 gaze_path = self.sessions[session_identifier]['gaze_path']
             else:
                 raise KeyError(f'Gaze frame not created for session {session_identifier}. Please create first.')
-        print(gaze_path)
-        print(type(gaze_path))
+        #print(gaze_path)
+        #print(type(gaze_path))
         with open(gaze_path, "rb") as f:
-            print(f)
+            #print(f)
             gaze = pickle.load(f)
 
         return gaze
@@ -289,10 +306,16 @@ class MultipleyeDataCollection(DataCollection):
 
         return stimuli
 
-    def get_session_dependent_stimuli(self, session_identifier):
+    def load_session_dependent_stimuli(self, session_identifier) -> None:
+        """
+        Get the sessions that were completed in the specified session.
+        :param session_identifier:
+        """
         self.load_logfiles(session_identifier)
 
         if self.different_stimulus_names == "split":
+            # the last one of these stimuli might not have been completed entirely of the session has been interrupted
+            # and split into two sessions
             stimulus_names = self.sessions[session_identifier]["completed_stimuli"][
                 "stimulus_name"].to_list()
         elif self.different_stimulus_names == "test":
@@ -309,27 +332,40 @@ class MultipleyeDataCollection(DataCollection):
 
         # self.load_logfiles(session_name)
 
-    def create_sanity_check_report(self, sessions: str | list[str] | None = None, plotting: bool = True):
+    def create_sanity_check_report(self, sessions: str | list[str] | None = None, plotting: bool = True) -> None:
+        """
+        Create the sanity checks and reports if for one or multiple sessions.
+        :param sessions: Specifies which sessions to create the report for. Default is None which creates the reports
+        for all sessions.
+        :param plotting: If True, all plots are also created for all the sessions.
+        """
 
-        if not sessions:
+        if sessions is None:
             sessions = [session_name for session_name in self.sessions.keys()]
         elif isinstance(sessions, str):
             sessions = [sessions]
         elif isinstance(sessions, list):
             sessions = sessions
+        else:
+            raise ValueError(f"Sessions should be a string, a list of strings or None. You passed {type(sessions)}.")
+
+        # TODO: check if all session names are available in self.session, before we enter the loop to avoid a key error
 
         for session_name in (pbar := tqdm(sessions, total=len(sessions))):
+
             pbar.set_description(
                 f'Creating sanity check report for session {session_name}'
             )
 
             os.makedirs(self.output_dir / session_name, exist_ok=True)
 
-            with open(self.output_dir / session_name / f"{session_name}_report.txt", "a+",
+            report_file_path = self.output_dir / session_name / f"{session_name}_report.txt"
+            with open(report_file_path, "a+",
                       encoding="utf-8") as report_file:
-                self.sessions[session_name]['report_file'] = report_file
+                self.sessions[session_name]['report_file_path'] = report_file_path
+                # set report object
                 report = partial(report_meta, report_file=report_file)
-                self.get_session_dependent_stimuli(session_name)
+                self.load_session_dependent_stimuli(session_name)
 
                 # check_gaze(gaze, report)
                 gaze = self.get_gaze_frame(session_name, create_if_not_exists=True)
@@ -346,7 +382,7 @@ class MultipleyeDataCollection(DataCollection):
 
     def check_logfiles(self, session_identifier):
         """
-        Check the logfile for the specified session.
+        Check the experiment logfile for the specified session.
         :param session_identifier: The session identifier.
         :return:
         """
@@ -354,6 +390,7 @@ class MultipleyeDataCollection(DataCollection):
         report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
         check_comprehension_question_answers(self.sessions[session_identifier]["logfile"],
                                              self.sessions[session_identifier]["session_stimuli"], report_file)
+
         check_all_screens_logfile(self.sessions[session_identifier]["logfile"],
                                   self.sessions[session_identifier]["session_stimuli"], report_file)
 
@@ -385,10 +422,12 @@ class MultipleyeDataCollection(DataCollection):
         report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
         if self.different_stimulus_names == "split":
             split = True
+        else:
+            split = False
         check_instructions(messages, self.sessions[session_identifier]["session_stimuli"], report_file,
                            self.sessions[session_identifier]["stimuli_order"], split=split)
 
-    def _extract_question_order_version(self, session_identifier):
+    def _extract_question_order_version(self, session_identifier: str) -> int:
         """
         Extract the question order and version from the session identifier.
         :param session_identifier: The session identifier.
@@ -411,30 +450,28 @@ class MultipleyeDataCollection(DataCollection):
 
     def load_logfiles(self, session_identifier):
         """
-        Load the logfile for the specified session.
+        Load the logfiles for the specified session. Stores the logfile and the completed stimuli as a polars DataFrame,
+        the order of the stimuli as list, and the version of the question oder as an int.
         :param session_identifier: The session identifier.
-        :return: The logfile as a polars DataFrame, the completed stimuli and the stimuli order.
         """
-        logfilepath = Path(f'{self.data_root}/{session_identifier}/logfiles')
+        logfile_folder = Path(f'{self.data_root}/{session_identifier}/logfiles')
 
-        assert logfilepath.exists(), f"Logfile path {logfilepath} does not exist."
-        logfile = logfilepath.glob("EXPERIMENT_*.txt")
-        stim_path = logfilepath / 'completed_stimuli.csv'
+        assert logfile_folder.exists(), f"Logfile folder {logfile_folder} does not exist."
+        logfile = logfile_folder.glob("EXPERIMENT_*.txt")
+        completed_stim_path = logfile_folder / 'completed_stimuli.csv'
 
         logfiles = list(logfile)
 
         if len(logfiles) != 1:
-            raise ValueError(f"More than one or no logfile found in {logfilepath}. Please check the logfiles.")
+            raise ValueError(f"More than one or no logfile found in {logfile_folder}. Please check the logfiles.")
 
         logfile = pl.read_csv(logfiles[0], separator="\t")
-        completed_stimuli = pl.read_csv(stim_path, separator=",")
-        stimuli_order = pl.read_csv(stim_path, separator=",")[
-            "stimulus_id"].to_list()
+        completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
         question_version = self._extract_question_order_version(session_identifier)
 
         self.sessions[session_identifier]['logfile'] = logfile
         self.sessions[session_identifier]['completed_stimuli'] = completed_stimuli
-        self.sessions[session_identifier]['stimuli_order'] = stimuli_order
+        self.sessions[session_identifier]['stimuli_order'] = completed_stimuli["stimulus_id"].to_list()
         self.sessions[session_identifier]['question_order_version'] = question_version
         # return logfile, completed_stimuli, stimuli_order
 

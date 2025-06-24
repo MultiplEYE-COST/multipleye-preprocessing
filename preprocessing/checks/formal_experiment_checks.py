@@ -3,7 +3,7 @@ from pathlib import Path
 
 import polars as pl
 
-from stimulus import Stimulus
+from preprocessing.data_collection.stimulus import Stimulus
 
 
 def _report_warning(message: str, report_file: Path):
@@ -102,7 +102,7 @@ def check_instructions(messages: list, stimuli: Stimulus | list, report_file: Pa
     optional_screens = ['empty_screen', 'optional_break_screen', 'fixation_trigger:skipped_by_experimenter',
                         'fixation_trigger:experimenter_calibration_triggered', 'optional_break',
                         'optional_break_duration', 'obligatory_break', 'recalibration']
-    reoccuring_screens = ['showing_subject_difficulty_screen', 'showing_familiarity_rating_screen_1',
+    reoccurring_screens = ['showing_subject_difficulty_screen', 'showing_familiarity_rating_screen_1',
                           'showing_familiarity_rating_screen_2']
 
     def _check_validation_screen(last_index, index_next_stimulus):
@@ -132,7 +132,7 @@ def check_instructions(messages: list, stimuli: Stimulus | list, report_file: Pa
         return current_stimulus, next_stimulus
 
     def _check_instruction_screens(last_index, index_next_stimulus):
-        for instruction in reoccuring_screens:
+        for instruction in reoccurring_screens:
             if f"{instruction}" not in messages_only[last_index:index_next_stimulus]:
                 # print(f"Missing instruction {instruction}")
                 _report_warning(f"Missing instruction {instruction} in asc file", report_file)

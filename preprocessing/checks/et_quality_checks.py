@@ -12,9 +12,8 @@ import polars as pl
 import pymovements as pm
 from matplotlib.patches import Circle
 
-from quality_report import config
-from quality_report.stimulus import Stimulus
-
+from preprocessing import config
+from preprocessing.data_collection.stimulus import Stimulus
 
 ReportFunction = Callable[[str, Any, Union[list, tuple]], None]
 
@@ -27,6 +26,15 @@ def report_to_file_metadata(
         report_file: TextIO,
         percentage: bool = False,
 ) -> None:
+    """
+    Check if the metadata values are in the acceptable values or within the acceptable range and write a report to file.
+    :param name: Name of the metadata value
+    :param values: Values of the metadata to check
+    :param acceptable_values: Acceptable values or range of acceptable values for the metadata value
+    :param report_file: Opened file to write the report to
+    :param percentage: If True, the values are converted to percentage
+    :return:
+    """
     if not isinstance(values, (list, tuple)):
         values = [values]
     result = ""
@@ -54,7 +62,8 @@ def _report_to_file(message: str, report_file: Path):
     logging.info(message)
 
 
-def check_comprehension_question_answers(logfile: pl, stimuli: Stimulus | list[Stimulus], report_file: Path = None):
+def check_comprehension_question_answers(logfile: pl.DataFrame, stimuli: Stimulus | list[Stimulus],
+                                         report_file: Path = None):
     """ compute the number of correct answers for each participant
         params: logfile as polars
         returns nothing"""
@@ -64,14 +73,15 @@ def check_comprehension_question_answers(logfile: pl, stimuli: Stimulus | list[S
         if stimulus.type == "practice":
             continue
         print(f"Checking {stimulus.name} in Logfile")
-        trial_id = logfile.filter((pl.col("stimulus_number") == f"{stimulus.id}")).item(0,
-                                                                                        "trial_number")  # get the trial number for the stimulus as ratingscreens don't have an entry in the stimulus_number column
 
+        # get the trial number for the stimulus as rating screens don't have an entry in the stimulus_number column
+        trial_id = logfile.filter((pl.col("stimulus_number") == f"{stimulus.id}")).item(0,
+                                                                                        "trial_number")
         stimulus_frame = logfile.filter(
             (pl.col("trial_number") == f"{trial_id}")
         )
-        answers = stimulus_frame.filter(pl.col("message").str.contains("FINAL ANSWER") == True)
-        correct_answers = stimulus_frame.filter(pl.col("message").str.contains("True") == True)
+        answers = stimulus_frame.filter(pl.col("message").str.contains("FINAL ANSWER"))
+        correct_answers = stimulus_frame.filter(pl.col("message").str.contains("True"))
         overall_correct_answers += len(correct_answers)
         overall_answers += len(answers)
         _report_to_file(f"Correct answers for {stimulus.name}: {len(correct_answers)} out of {len(answers)} answers",
@@ -269,14 +279,22 @@ def plot_main_sequence(events: pm.EventDataFrame, plots_dir: Path) -> None:
 
 
 def check_metadata(metadata: dict[str, Any], report: ReportFunction) -> None:
+    """
+    Check the metadata of the gaze data and write a report to file.
+    :param metadata: Metadata report.
+    :param report: Function to write the report to file.
+    :return:
+    """
     date = f"{metadata['time']};     {metadata['day']}.{metadata['month']}.{metadata['year']}"
     report(
         "Date", date, None
     )
+
     num_calibrations = len(metadata["calibrations"])
     report(
         "Number of calibrations", num_calibrations, config.ACCEPTABLE_NUM_CALIBRATIONS
     )
+
     validation_scores_avg = [
         float(validation["validation_score_avg"])
         for validation in metadata["validations"]
@@ -343,16 +361,16 @@ def check_metadata(metadata: dict[str, Any], report: ReportFunction) -> None:
     sampling_rate = metadata["sampling_rate"]
     report("Sampling rate",
            sampling_rate,
-           config.EXPECTED_SAMPLING_RATE,
+           config.EXPECTED_SAMPLING_RATE_HZ,
            )
 
 
-def analyse_asc(asc_file: str,
-                session: str,
-                initial_ts: int | None,
-                lab: str,
-                # completed_stimuli: str
-                stimuli_trial_mapping: dict[str, str]):
+def analyse_eyelink_asc(asc_file: str,
+                        session: str,
+                        initial_ts: int | None,
+                        lab: str,
+                        # completed_stimuli: str
+                        stimuli_trial_mapping: dict[str, str]):
     start_ts = []
     stop_ts = []
     start_msg = []
@@ -364,7 +382,7 @@ def analyse_asc(asc_file: str,
     status = []
     stimulus_name = []
 
-    output_dir = Path("C://Users/saphi/PycharmProjects/multipleye-preprocessing/quality_report") / 'reading_times'
+    output_dir = Path("C://Users/saphi/PycharmProjects/multipleye-preprocessing/preprocessing") / 'reading_times'
     output_dir.mkdir(exist_ok=True)
 
     # stimuli_trial_mapping = {k: v for k, v in stimuli_trial_mapping.items()}
@@ -482,7 +500,7 @@ def convert_to_time_str(duration_ms: float) -> str:
 
 
 if __name__ == '__main__':
-    analyse_asc(
+    analyse_eyelink_asc(
         Path(
             "C:\\Users\saphi\PycharmProjects\multipleye-preprocessing\data\MultiplEYE_ET_EE_Tartu_1_2025\eye-tracking-sessions\core_dataset\\006_ET_EE_1_ET1\\006etee1.asc"),
         session="006",
