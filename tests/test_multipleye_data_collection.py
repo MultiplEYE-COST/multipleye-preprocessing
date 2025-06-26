@@ -84,7 +84,7 @@ def test_create_gaze_frame(mock_pickle, mock_open_file, mock_preprocess, mock_lo
     }
 
     # Mock _get_sessions_name to return the session we want to test
-    data_collection._get_session_names = MagicMock(return_value=[session_name])
+    data_collection._load_session_names = MagicMock(return_value=[session_name])
 
     # Patch Path.exists to simulate that the file does NOT exist
     with patch.object(Path, "exists", return_value=False), \

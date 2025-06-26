@@ -13,14 +13,16 @@ import logging
 from pymovements import GazeDataFrame
 from tqdm import tqdm
 
-
-from preprocessing.checks.et_quality_checks import check_validations, plot_gaze, plot_main_sequence, check_comprehension_question_answers, \
+from preprocessing.checks.et_quality_checks import check_validations, plot_gaze, plot_main_sequence, \
+    check_comprehension_question_answers, \
     check_metadata, report_to_file_metadata as report_meta
-from preprocessing.checks.formal_experiment_checks import check_all_screens_logfile, check_all_screens, check_instructions
+from preprocessing.checks.formal_experiment_checks import check_all_screens_logfile, check_all_screens, \
+    check_instructions
 
 from preprocessing.data_collection.data_collection import DataCollection
 from preprocessing.plotting.plot import load_data, preprocess
 from preprocessing.data_collection.stimulus import LabConfig, Stimulus
+from preprocessing.utils.fix_pq_data import remap_wrong_pq_values
 
 STIMULUS_NAMES = [
     "PopSci_MultiplEYE",
@@ -51,7 +53,6 @@ class MultipleyeDataCollection(DataCollection):
                  # stimuli: list[Stimulus],
                  **kwargs):
         super().__init__(**kwargs)
-        self.different_stimulus_names = False
         self.config_file = config_file
         self.stimulus_dir = stimulus_dir
         self.lab_number = lab_number
@@ -59,13 +60,20 @@ class MultipleyeDataCollection(DataCollection):
         self.lab_configuration = lab_configuration
         self.data_root = data_root
         self.session_folder_regex = session_folder_regex
-        # self.stimuli = stimuli
+        self.different_stimulus_names = kwargs.get('different_stimulus_names', 'all')
+        self.psychometric_tests = kwargs.get('psychometric_tests', [])
 
         if not self.output_dir:
             self.output_dir = self.data_root.parent / 'quality_reports'
             self.output_dir.mkdir(exist_ok=True)
 
         self.add_recorded_sessions(self.data_root, self.session_folder_regex, convert_to_asc=True)
+
+        if len(self.sessions) == 0:
+            raise ValueError(f"No sessions found in {self.data_root}. Please check the session_folder_regex "
+                             f"and the data_root.")
+
+        self.parse_participant_data()
         logging.basicConfig()
 
     @staticmethod
@@ -111,14 +119,15 @@ class MultipleyeDataCollection(DataCollection):
     @classmethod
     def create_from_data_folder(cls, data_dir: str,
                                 additional_folder: str | None = None,
-                                different_stimulus_names: str | None = None) -> "MultipleyeDataCollection":
+                                different_stimulus_names: str | None = None,
+                                include_pilots: bool = False) -> "MultipleyeDataCollection":
         """
-        :param different_stimulus_names:
         :param data_dir: str  path to the data folder
         :param additional_folder: if additional sub-folders in the data folder are used,
         e.g. 'core_dataset', test_dataset, pilot_dataset
         :param different_stimulus_names: if the stimulus names are different from the default ones they can be extracted
         from the multipleye_stimuli_experiment_en.xlsx file, at the moment only used for testing purposes
+        :param include_pilots: If True, the pilot sessions are included in the data collection.
         :return:
         MultipleyeDataCollection object
         """
@@ -157,10 +166,10 @@ class MultipleyeDataCollection(DataCollection):
                                                     country, lab_number, city, year)
 
         eye_tracker = lab_configuration_data.name_eye_tracker
+        psychometric_tests = lab_configuration_data.psychometric_tests
 
         et_data_path = data_dir / 'eye-tracking-sessions' / additional_folder if additional_folder else data_dir / 'eye-tracking-sessions'
-        out_dir = et_data_path / 'quality_reports'
-        out_dir.mkdir(exist_ok=True)
+
         return cls(
             data_collection_name=data_folder_name,
             stimulus_language=stimulus_language,
@@ -175,11 +184,13 @@ class MultipleyeDataCollection(DataCollection):
             data_root=et_data_path,
             lab_configuration=lab_configuration_data,
             different_stimulus_names=different_stimulus_names,
-            output_dir=out_dir,
+            include_pilots=include_pilots,
+            pilot_folder=et_data_path / 'pilot_sessions' if include_pilots else None,
+            psychometric_tests=psychometric_tests,
             # stimuli=stimuli
         )
 
-    def _get_session_names(self, session: str | list[str] | None) -> list[str]:
+    def _load_session_names(self, session: str | list[str] | None) -> list[str]:
         """
         Get the session names from the data root folder.
         :param session: If a session identifier is specified only the gaze data for this session is loaded.
@@ -196,7 +207,6 @@ class MultipleyeDataCollection(DataCollection):
         elif isinstance(session, list):
             return session
 
-
     def create_gaze_frame(self, session: str | list[str] = '', overwrite: bool = False) -> None:
         """
         Creates, preprocesses and saves the gaze data for the specified session or all sessions.
@@ -204,7 +214,7 @@ class MultipleyeDataCollection(DataCollection):
         :param overwrite: If True the gaze data is overwritten if it already exists.
         :return:
         """
-        session_keys = self._get_session_names(session)
+        session_keys = self._load_session_names(session)
 
         for session_name in tqdm(session_keys, desc="Creating gaze data"):
             gaze_path = self.output_dir / session_name
@@ -243,47 +253,47 @@ class MultipleyeDataCollection(DataCollection):
             with open(gaze_path, "wb") as f:
                 pickle.dump(gaze, f)
 
-    def get_gaze_frame(self, session_identifier: str = '',
-                       create_if_not_exists: bool = False,
-                       ) -> GazeDataFrame:
-        """
-        Loads and possibly creates the gaze data for the specified session(s).
-        :param create_if_not_exists: The gaze data will be created and stored if True.
-        :param session_identifier: If (a) session identifier(s) is/are specified only the gaze data for this session is
-        loaded. Otherwise, the gaze data for all sessions is loaded.
-        :return: GazeDataFrame of the session. Comes with metadata on the session.
-        """
-
-        if session_identifier not in self.sessions:
-            raise KeyError(f'Session {session_identifier} not found in {self.data_root}.')
-
-        try:
-            # check if pkl files are already available
-            gaze_path = Path(self.output_dir / session_identifier).glob('*.pkl')
-
-            if len(list(gaze_path)) == 1:
-                gaze_path = Path(self.output_dir / session_identifier).glob('*.pkl')
-                gaze_path = list(gaze_path)[0]
-                self.sessions[session_identifier]['gaze_path'] = gaze_path
-                logging.debug(f'Found pkl file for {session_identifier}.')
-            # elif len(gaze_path_list) > 1:
-            #    raise FileExistsError(f"More than one pkl file found for {session_identifier}. Please check the {self.output_dir / session_identifier} directory.")
-            else:
-                raise FileNotFoundError
-
-        except FileNotFoundError:
-            if create_if_not_exists:
-                self.create_gaze_frame(session=session_identifier)
-                gaze_path = self.sessions[session_identifier]['gaze_path']
-            else:
-                raise KeyError(f'Gaze frame not created for session {session_identifier}. Please create first.')
-        #print(gaze_path)
-        #print(type(gaze_path))
-        with open(gaze_path, "rb") as f:
-            #print(f)
-            gaze = pickle.load(f)
-
-        return gaze
+    # def get_gaze_frame(self, session_identifier: str = '',
+    #                    create_if_not_exists: bool = False,
+    #                    ) -> GazeDataFrame:
+    #     """
+    #     Loads and possibly creates the gaze data for the specified session(s).
+    #     :param create_if_not_exists: The gaze data will be created and stored if True.
+    #     :param session_identifier: If (a) session identifier(s) is/are specified only the gaze data for this session is
+    #     loaded. Otherwise, the gaze data for all sessions is loaded.
+    #     :return: GazeDataFrame of the session. Comes with metadata on the session.
+    #     """
+    #
+    #     if session_identifier not in self.sessions:
+    #         raise KeyError(f'Session {session_identifier} not found in {self.data_root}.')
+    #
+    #     try:
+    #         # check if pkl files are already available
+    #         gaze_path = Path(self.output_dir / session_identifier).glob('*.pkl')
+    #
+    #         if len(list(gaze_path)) == 1:
+    #             gaze_path = Path(self.output_dir / session_identifier).glob('*.pkl')
+    #             gaze_path = list(gaze_path)[0]
+    #             self.sessions[session_identifier]['gaze_path'] = gaze_path
+    #             logging.debug(f'Found pkl file for {session_identifier}.')
+    #         # elif len(gaze_path_list) > 1:
+    #         #    raise FileExistsError(f"More than one pkl file found for {session_identifier}. Please check the {self.output_dir / session_identifier} directory.")
+    #         else:
+    #             raise FileNotFoundError
+    #
+    #     except FileNotFoundError:
+    #         if create_if_not_exists:
+    #             self.create_gaze_frame(session=session_identifier)
+    #             gaze_path = self.sessions[session_identifier]['gaze_path']
+    #         else:
+    #             raise KeyError(f'Gaze frame not created for session {session_identifier}. Please create first.')
+    #     #print(gaze_path)
+    #     #print(type(gaze_path))
+    #     with open(gaze_path, "rb") as f:
+    #         #print(f)
+    #         gaze = pickle.load(f)
+    #
+    #     return gaze
 
     @staticmethod
     def load_stimuli(stimulus_dir: Path, lang: str,
@@ -321,9 +331,12 @@ class MultipleyeDataCollection(DataCollection):
 
         if self.different_stimulus_names == "split":
             # the last one of these stimuli might not have been completed entirely of the session has been interrupted
-            # and split into two sessions
-            stimulus_names = self.sessions[session_identifier]["completed_stimuli"][
-                "stimulus_name"].to_list()
+            # and split into two sessions. In this case, completed is set to False
+            # TODO: write down that the last stimulus might not be completed and therefore has been read twice partially
+            stimuli = self.sessions[session_identifier]["completed_stimuli"][
+                self.sessions[session_identifier]["completed_stimuli"]['completed'] == True]
+            stimulus_names = stimuli["stimulus_name"].to_list()
+
         elif self.different_stimulus_names == "test":
             stimulus_names = self._get_stimulus_names(self.stimulus_dir,
                                                       f"multipleye_stimuli_experiment_{self.language}.xlsx")
@@ -439,8 +452,9 @@ class MultipleyeDataCollection(DataCollection):
         :param session_identifier: The session identifier.
         :return: The question order version to correctly map participant, stimulus and question order versions.
         """
-        logfilepath = Path(f'{self.data_root}/{session_identifier}/logfiles')
-        general_logfile = logfilepath.glob('GENERAL_LOGFILE_*.txt')
+        session_path = self.sessions[session_identifier]['session_folder_path']
+        logfile_path = Path(f'{session_path}/logfiles')
+        general_logfile = logfile_path.glob('GENERAL_LOGFILE_*.txt')
         general_logfile = next(general_logfile)
         assert general_logfile.exists(), f"Logfile path {general_logfile} does not exist."
 
@@ -448,6 +462,7 @@ class MultipleyeDataCollection(DataCollection):
         with open(general_logfile, "r", encoding="utf-8") as f:
             text = f.read()
         match = re.search(regex, text)
+
         if match:
             question_order_version = match.groupdict()['question_order_version']
         else:
@@ -460,7 +475,8 @@ class MultipleyeDataCollection(DataCollection):
         the order of the stimuli as list, and the version of the question oder as an int.
         :param session_identifier: The session identifier.
         """
-        logfile_folder = Path(f'{self.data_root}/{session_identifier}/logfiles')
+        session_path = self.sessions[session_identifier]['session_folder_path']
+        logfile_folder = Path(f'{session_path}/logfiles')
 
         assert logfile_folder.exists(), f"Logfile folder {logfile_folder} does not exist."
         logfile = logfile_folder.glob("EXPERIMENT_*.txt")
@@ -499,13 +515,12 @@ class MultipleyeDataCollection(DataCollection):
                     print(f"{self.sessions[session_identifier]['question_order_version']}, {line}")
         return messages
 
-    def check_asc_validation(self, session_identifier: str, gaze: GazeDataFrame = None):
+    def check_asc_validation(self, session_identifier: str, gaze: GazeDataFrame = None) -> None:
         """
-        Check the asc file for the specified session.
+        Check the validations in the asc file for the specified session.
         :param session_identifier: The session identifier.
         :param gaze: If the gaze data has already been created it can be passed as an argument.
         If not it will be created.
-        :return:
         """
         logging.debug(f"Checking Validation for {session_identifier}.")
         messages = self._load_messages_for_experimenter_checks(session_identifier)
@@ -529,6 +544,49 @@ class MultipleyeDataCollection(DataCollection):
 
         report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
         check_all_screens(gaze, self.sessions[session_identifier]["session_stimuli"], report_file)
+
+    def check_if_psychometric_tests(self, session_identifier: str) -> bool:
+        pass
+
+    def preprocess_psychometric_tests(self):
+        pass
+
+    def parse_participant_data(self) -> None:
+        """
+        Load the participant data for all participants.
+
+        """
+
+        participant_data = pd.DataFrame()
+
+        for idx, session in (pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))):
+            pbar.set_description(f'Parsing participant data : {session}')
+
+            folder = Path(self.sessions[session]['session_folder_path'])
+            id, country, lang, lab, _ = session.split('_')
+            pq_file = folder / f'{id}_{country}_{lang}_{lab}_pq_data.json'
+            if pq_file.exists():
+                with open(pq_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+
+                # due to a bug in an earlier version of the experiment, some of the participant data has been lost,
+                # and we need to correct it
+                if 'native_language_1_academic_reading_time' not in data:
+                    data = remap_wrong_pq_values(data)
+
+                data['participant_id'] = id
+
+                participant_data = pd.concat([participant_data, pd.DataFrame(data, index=[idx])], ignore_index=True)
+
+            else:
+                logging.warning(f"No participant data found for session {session}. Skipping.")
+
+        # reorder columns such that participant_id is the first column
+        cols = participant_data.columns.tolist()
+        cols = ['participant_id'] + [col for col in cols if col != 'participant_id']
+        participant_data = participant_data[cols]
+
+        participant_data.to_csv(self.data_root.parent / 'participant_data.csv', index=False)
 
 
 if __name__ == '__main__':

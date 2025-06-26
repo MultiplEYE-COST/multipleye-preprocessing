@@ -237,6 +237,7 @@ class LabConfig:
     image_resolution: tuple[int, int]
     image_size_cm: tuple[float, float]
     name_eye_tracker: str
+    psychometric_tests: list[str] = None
 
     @classmethod
     def load(cls, stimulus_dir: Path, lang: str, country: str, labnum: int, city: str, year: int) -> "LabConfig":
@@ -261,6 +262,10 @@ class LabConfig:
         with open(json_config_path) as f:
             json_config = json.load(f)
 
+        tests = list(json_config.get("Psychometric_tests", []).keys())
+
+        tests.remove('Are_tests_conducted')
+
         return cls(
             screen_resolution=config.RESOLUTION,
             screen_size_cm=config.SCREEN_SIZE_CM,
@@ -268,6 +273,7 @@ class LabConfig:
             image_resolution=(config.IMAGE_WIDTH_PX, config.IMAGE_HEIGHT_PX),
             image_size_cm=config.IMAGE_SIZE_CM,
             name_eye_tracker=json_config["Name_eye-tracker"],
+            psychometric_tests=tests if tests else None,
         )
 
 

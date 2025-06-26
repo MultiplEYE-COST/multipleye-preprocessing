@@ -48,13 +48,17 @@ class DataCollection:
         """
         self.session_folder_regex = ''
         self.data_root = ''
-        self.output_dir = ''
+
         self.sessions = {}
         # TODO: in theory this can be multiple languages for the stimuli..
         self.language = stimulus_language
         self.country = country
         self.year = year
         self.data_collection_name = data_collection_name
+
+        self.include_pilots = kwargs.get('include_pilots', False)
+        self.output_dir = kwargs.get('output_dir', '')
+        self.pilot_folder = kwargs.get('pilot_folder', '')
 
         for short_name, long_name in EYETRACKER_NAMES.items():
             if eye_tracker in long_name:
@@ -96,7 +100,12 @@ class DataCollection:
         # get a list of all folders in the data folder
         if session_folder_regex:
 
-            for item in os.scandir(self.data_root):
+            items = os.scandir(self.data_root)
+            if self.include_pilots:
+                pilots = os.scandir(self.data_root / self.pilot_folder)
+                items = list(items) + list(pilots)
+
+            for item in items:
                 if item.is_dir():
                     if re.match(session_folder_regex, item.name, re.IGNORECASE):
 
@@ -132,6 +141,8 @@ class DataCollection:
                     else:
                         print(f'Folder {item.name} does not match the regex pattern {session_folder_regex}. '
                               f'Not considered as session.')
+
+                # if there are no session folders then we assume that the root folder contains all data files
                 elif item.is_file() and item.name.endswith('.edf'):
                     self.sessions[item.name] = {
                         'session_file_path': item.path,
@@ -173,8 +184,7 @@ class DataCollection:
         """
         Loads and possibly creates the gaze data for the specified session(s).
         :param create_if_not_exists: The gaze data will be created and stored if True.
-        :param session_identifier: If (a) session identifier(s) is/are specified only the gaze data for this session is
-        loaded. Otherwise, the gaze data for all sessions is loaded.
+        :param session_identifier: The session identifier to load the gaz data for.
         :return:
         """
 
