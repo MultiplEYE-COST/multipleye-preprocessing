@@ -1,4 +1,5 @@
 import argparse
+import logging
 from pathlib import Path
 
 from preprocessing.data_collection.multipleye_data_collection import MultipleyeDataCollection
@@ -19,6 +20,8 @@ def run_multipleye_sanity_checks(data_collection_name: str, full_path: str = Non
         split = 'split'
     else:
         split = 'all'
+
+    logging.basicConfig(level=logging.INFO, filename=data_folder_path / 'sanity_checks_logfile.log')
     multipleye = MultipleyeDataCollection.create_from_data_folder(str(data_folder_path), include_pilots=include_pilots,
                                                                   different_stimulus_names=split
                                                                   )
@@ -61,7 +64,7 @@ def parse_args():
         '--create_plots',
         action='store_true',
         help='If set, the sanity check report will include plots.',
-        default=True,
+        default=False,
     )
 
     # TODO: possibly use a yaml config such that it can be easily adapted

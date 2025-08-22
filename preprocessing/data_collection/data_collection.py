@@ -30,6 +30,11 @@ def eyelink(method):
 
 
 class DataCollection:
+    data_collection_name: str
+    year: int
+    country: str
+    session_folder_regex: str = ''
+    data_root: Path = None
 
     def __init__(self,
                  data_collection_name: str,
@@ -46,9 +51,6 @@ class DataCollection:
         :param year:
         :param eye_tracker: 
         """
-        self.session_folder_regex = ''
-        self.data_root = ''
-
         self.sessions = {}
         # TODO: in theory this can be multiple languages for the stimuli..
         self.language = stimulus_language
@@ -78,6 +80,8 @@ class DataCollection:
                               convert_to_asc: bool = False) -> None:
         """
         
+        :param convert_to_asc: If True, the asc files for the recorded sessions are generated. Only works if the eye
+        tracker is an Eyelink.
         :param data_root: Specifies the root folder where the data is stored
         :param session_folder_regex: The pattern for the session folder names. It is possible to include infomration in
         regex groups. Those will be parsed directly and stored in the session object.
@@ -85,7 +89,6 @@ class DataCollection:
         from the sessions.
         :param session_file_suffix: The pattern for the session file names. If no pattern is given, all files in the
         session folder are assumed to be the data files depending on the eye tracker.
-        :return: 
         """
 
         self.data_root = data_root
