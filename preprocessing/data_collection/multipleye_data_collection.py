@@ -314,8 +314,7 @@ class MultipleyeDataCollection(DataCollection):
 
         # get the stimuli that were actually completed in that session. for crashed sessions we only load those
         # TODO: write down that the last stimulus might not be completed and therefore has been read twice partially
-        completed_stimuli = self.sessions[session_identifier]["completed_stimuli"][
-            self.sessions[session_identifier]["completed_stimuli"]['completed'] == True]
+        completed_stimuli = self.sessions[session_identifier]["completed_stimuli"].filter(pl.col('completed') == True)
         completed_stimulus_names = completed_stimuli["stimulus_name"].to_list()
 
 
@@ -330,7 +329,7 @@ class MultipleyeDataCollection(DataCollection):
                 stimulus_names = self.stimulus_names
 
             # check that tall stimuli have been completed
-            for stim in self.stimulus_names:
+            for stim in stimulus_names:
                 if stim not in completed_stimulus_names:
                     raise Warning(f"Stimulus {stim} was not completed in session {session_identifier}. Please check the files carefully.")
 
