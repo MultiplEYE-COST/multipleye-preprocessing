@@ -334,7 +334,7 @@ class MultipleyeDataCollection(DataCollection):
                     raise Warning(f"Stimulus {stim} was not completed in session {session_identifier}. Please check the files carefully.")
 
         session_name = session_identifier
-        question_order_version = self._extract_question_order_version(session_name)
+        question_order_version = self._stimulus_order_version_from_logfile(session_name)
 
         self.sessions[session_name]['session_stimuli'] = self.load_stimuli(
             self.stimulus_dir, self.language, self.country, self.lab_number,
@@ -371,6 +371,10 @@ class MultipleyeDataCollection(DataCollection):
 
             report_file_path = self.output_dir / session_name / f"{session_name}_report.txt"
 
+            messages = self._load_messages_for_experimenter_checks(session_name)
+            if not messages:
+                logging.error(f"No messages found in {session_name}.")
+
             self.load_session_dependent_stimuli(session_name)
 
             with open(report_file_path, "a+",
@@ -381,9 +385,11 @@ class MultipleyeDataCollection(DataCollection):
                 gaze = self.get_gaze_frame(session_name, create_if_not_exists=True)
                 check_metadata(gaze._metadata, report)
 
+
+
             self.check_logfiles(session_name)
             self.check_asc_all_screens(session_name, gaze)
-            self.check_asc_instructions(session_name)
+            self.check_asc_instructions(messages, session_name)
             self.check_asc_validation(session_name, gaze)
             self.check_psychometric_tests(session_name)
             # self.get_stimulus_order_version_csv(session_name)
@@ -418,18 +424,18 @@ class MultipleyeDataCollection(DataCollection):
         for stimulus in self.sessions[session_identifier]['session_stimuli']:
             plot_gaze(gaze, stimulus, plot_dir)
 
-    def check_asc_instructions(self, session_identifier: str) -> None:
+    def check_asc_instructions(self, messages, session_identifier: str) -> None:
         """
         Check the instructions for the specified session.
         :param session_identifier: The session identifier. eg "005_ET_EE_1_ET1"
         """
-        messages = self._load_messages_for_experimenter_checks(session_identifier)
+
         report_file_path = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
 
         check_instructions(messages, self.sessions[session_identifier]["session_stimuli"], report_file_path,
                            self.sessions[session_identifier]["stimuli_order"], num_sessions=self.num_sessions)
 
-    def _extract_question_order_version(self, session_identifier: str) -> int:
+    def _stimulus_order_version_from_logfile(self, session_identifier: str) -> int:
         """
         Extract the question order and version from the session identifier.
         :param session_identifier: The session identifier.
@@ -441,16 +447,16 @@ class MultipleyeDataCollection(DataCollection):
         general_logfile = next(general_logfile)
         assert general_logfile.exists(), f"Logfile path {general_logfile} does not exist."
 
-        regex = r"(STIMULUS_ORDER_VERSION_)(?P<question_order_version>\d+)"
+        regex = r"(STIMULUS_ORDER_VERSION_)(?P<order_version>\d+)"
         with open(general_logfile, "r", encoding="utf-8") as f:
             text = f.read()
         match = re.search(regex, text)
 
         if match:
-            question_order_version = match.groupdict()['question_order_version']
+            stimulus_order_version_logfile = int(match.groupdict()['order_version'])
         else:
             raise ValueError(f"Could not find question order version in {general_logfile}.")
-        return question_order_version
+        return stimulus_order_version_logfile
 
     def load_logfiles(self, session_identifier):
         """
@@ -468,17 +474,18 @@ class MultipleyeDataCollection(DataCollection):
         logfiles = list(logfile)
 
         if len(logfiles) != 1:
+
             raise ValueError(f"More than one or no logfile found in {logfile_folder}. Please check the logfiles.")
 
         logfile = pl.read_csv(logfiles[0], separator="\t")
         completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
-        question_version = self._extract_question_order_version(session_identifier)
+        stimulus_order_version_from_logfile = self._stimulus_order_version_from_logfile(session_identifier)
 
         p_id = session_identifier.split('_')[0]
 
         self.sessions[session_identifier]['logfile'] = logfile
         self.sessions[session_identifier]['completed_stimuli'] = completed_stimuli
-        self.sessions[session_identifier]['question_order_version'] = question_version
+        self.sessions[session_identifier]['stimulus_order_version_from_logfile'] = stimulus_order_version_from_logfile
 
         # if the session crashed, only load the stimuli that were actually completed in that session
         if p_id in self.crashed_session_ids:
@@ -487,14 +494,16 @@ class MultipleyeDataCollection(DataCollection):
             try:
                 stimulus_order = self.stim_order_versions[int(p_id)]
             except KeyError:
-                raise KeyError(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
-                               f"participant IDs in the stimulus order versions file.")
+                logging.warning(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
+                               f"participant IDs in the stimulus order versions file")
 
+                stimulus_order = completed_stimuli.filter(completed_stimuli['completed'] == True)['stimulus_id'].to_list()
+        assert(self.sessions[session_identifier]['stimulus_order_version_from_logfile'] ==  self.sessions[session_identifier]['stimulus_order_version_from_asc'])
         self.sessions[session_identifier]['stimuli_order'] = stimulus_order
 
     def _load_messages_for_experimenter_checks(self, session_identifier: str):
         """
-       qick fix for now, should be replaced by the summary experiment frame later on
+       qick fix for now, should be replaced by the summary experiment frame later on, however the extraction of the stimulus order version is essential for other code parts, it cannot be removed without further alterations
         """
         regex = r'MSG\s+(?P<timestamp>\d+[.]?\d*)\s+(?P<message>.*)'
         asc_file = self.sessions[session_identifier]['asc_path']
@@ -506,7 +515,7 @@ class MultipleyeDataCollection(DataCollection):
             if match:
                 messages.append(match.groupdict())
                 if "stimulus_order_version" in line:
-                    self.sessions[session_identifier]['stimulus_order_version_asc'] = line
+                    self.sessions[session_identifier]['stimulus_order_version_from_asc'] = int(line.split(" ")[-1].strip())
                     # print(f"{self.sessions[session_identifier]['question_order_version']}, {line}")
         return messages
 
@@ -517,9 +526,7 @@ class MultipleyeDataCollection(DataCollection):
         :param gaze: If the gaze data has already been created it can be passed as an argument.
         If not it will be created.
         """
-        messages = self._load_messages_for_experimenter_checks(session_identifier)
-        if not messages:
-            logging.error(f"No messages found in {session_identifier}.")
+
         if not gaze:
             logging.debug(f"Loading gaze data for {session_identifier}.")
             gaze = self.get_gaze_frame(session_identifier, create_if_not_exists=True)

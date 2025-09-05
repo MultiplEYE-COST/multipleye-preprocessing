@@ -23,7 +23,7 @@ class Merid(MultipleyeDataCollection):
         stimulus_names = stimuli["stimulus_name"].to_list()
 
         session_name = session_identifier
-        question_order_version = self._extract_question_order_version(session_name)
+        question_order_version = self._stimulus_order_from_logfile(session_name)
 
         self.sessions[session_name]['session_stimuli'] = self.load_stimuli(
             self.stimulus_dir, self.language, self.country, self.lab_number,
@@ -49,7 +49,7 @@ class Merid(MultipleyeDataCollection):
 
         logfile = pl.read_csv(logfiles[0], separator="\t")
         completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
-        question_version = self._extract_question_order_version(session_identifier)
+        question_version = self._stimulus_order_from_logfile(session_identifier)
 
         p_id = session_identifier.split('_')[0]
 
