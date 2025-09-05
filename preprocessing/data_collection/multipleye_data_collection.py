@@ -46,6 +46,7 @@ class MultipleyeDataCollection(DataCollection):
 
     participant_data_path: Path | str | None
     crashed_session_ids: list[str] = []
+    num_sessions = 1
 
     def __init__(self,
                  config_file: Path,
@@ -65,7 +66,6 @@ class MultipleyeDataCollection(DataCollection):
         self.lab_configuration = lab_configuration
         self.data_root = data_root
         self.session_folder_regex = session_folder_regex
-        self.different_stimulus_names = kwargs.get('different_stimulus_names', 'all')
         self.psychometric_tests = kwargs.get('psychometric_tests', [])
 
         if not self.output_dir:
@@ -74,9 +74,18 @@ class MultipleyeDataCollection(DataCollection):
 
         self.add_recorded_sessions(self.data_root, self.session_folder_regex, convert_to_asc=True)
 
+        self.excluded_sessions = self._load_excluded_sessions()
+
         if len(self.sessions) == 0:
             raise ValueError(f"No sessions found in {self.data_root}. Please check the session_folder_regex "
                              f"and the data_root.")
+
+        stim_order_versions = self.stimulus_dir / 'config' / f'stimulus_order_versions_{self.language}_{self.country}_{self.lab_number}.csv'
+        stim_order_versions = pd.read_csv(stim_order_versions)
+        stim_order_versions = stim_order_versions[stim_order_versions['participant_id'].notnull()]
+        # create dict from dataframe with participant_id as key and stimulus order as value (i.e. trial_1, trial_2, ...)
+        stim_order_versions = stim_order_versions.drop(columns='version_number')
+        self.stim_order_versions = stim_order_versions.set_index('participant_id').T.to_dict('list')
 
         self.parse_participant_data()
 
@@ -123,7 +132,6 @@ class MultipleyeDataCollection(DataCollection):
     @classmethod
     def create_from_data_folder(cls, data_dir: str,
                                 additional_folder: str | None = None,
-                                different_stimulus_names: str | None = None,
                                 include_pilots: bool = False) -> "MultipleyeDataCollection":
         """
         :param data_dir: str  path to the data folder
@@ -188,13 +196,21 @@ class MultipleyeDataCollection(DataCollection):
             city=city,
             data_root=et_data_path,
             lab_configuration=lab_configuration_data,
-            different_stimulus_names=different_stimulus_names,
             include_pilots=include_pilots,
             pilot_folder=et_data_path / 'pilot_sessions' if include_pilots else None,
             psychometric_tests=psychometric_tests,
             ps_tests_path=ps_tests_path,
-            # stimuli=stimuli
         )
+
+    def _load_excluded_sessions(self) -> list[str]:
+        # read excluded sessions from txt file if it exists in the top data folder
+        excluded_sessions_file = self.data_root.parent / 'excluded_sessions.txt'
+        excluded_sessions = []
+        if excluded_sessions_file.exists():
+            with open(excluded_sessions_file, 'r') as f:
+                excluded_sessions = [line.strip() for line in f.readlines() if line.strip()]
+
+        return excluded_sessions
 
     def _load_session_names(self, session: str | list[str] | None) -> list[str]:
         """
@@ -222,7 +238,7 @@ class MultipleyeDataCollection(DataCollection):
         """
         session_keys = self._load_session_names(session)
 
-        for session_name in tqdm(session_keys, desc="Creating gaze data"):
+        for session_name in session_keys:
             gaze_path = self.output_dir / session_name
 
             # / f"{session_name}_gaze.pkl"
@@ -241,7 +257,8 @@ class MultipleyeDataCollection(DataCollection):
             try:
                 gaze = load_data(Path(self.sessions[session_name]['asc_path']), self.lab_configuration,
                                  session_idf=session_name)
-            except KeyError:
+            except KeyError as e:
+                raise e
                 raise KeyError(
                     f"Session {session_name} not found in {self.data_root}.")
             except FileNotFoundError:
@@ -288,31 +305,41 @@ class MultipleyeDataCollection(DataCollection):
     def load_session_dependent_stimuli(self, session_identifier: str, full_version: bool = True) -> None:
         """
         Get the sessions that were completed in the specified session.
-        :param session_identifier:
+        :param session_identifier: what session to load the stimuli for
+        :param full_version: if True, all stimuli are loaded. If False, only a subset of the original stimuli has been used and
+        the original Excel file is checked to see which ones.
         """
         self.load_logfiles(session_identifier)
         p_id = session_identifier.split('_')[0]
 
-        # if the session
-        if p_id in self.crashed_session_ids:
-            # the last one of these stimuli might not have been completed entirely of the session has been interrupted
-            # and split into two sessions. In this case, completed is set to False
-            # TODO: write down that the last stimulus might not be completed and therefore has been read twice partially
-            stimuli = self.sessions[session_identifier]["completed_stimuli"][
-                self.sessions[session_identifier]["completed_stimuli"]['completed'] == True]
-            stimulus_names = stimuli["stimulus_name"].to_list()
+        # get the stimuli that were actually completed in that session. for crashed sessions we only load those
+        # TODO: write down that the last stimulus might not be completed and therefore has been read twice partially
+        completed_stimuli = self.sessions[session_identifier]["completed_stimuli"][
+            self.sessions[session_identifier]["completed_stimuli"]['completed'] == True]
+        completed_stimulus_names = completed_stimuli["stimulus_name"].to_list()
 
-        elif not full_version:
-            stimulus_names = self._get_stimulus_names(self.stimulus_dir,
-                                                      f"multipleye_stimuli_experiment_{self.language}.xlsx")
-        else:
-            stimulus_names = self.stimulus_names
+
+        # load the stimuli that were supposed to be used in that session
+        if p_id not in self.crashed_session_ids:
+            # subset of the original stimuli has been used, e.g. for testing purposes
+            if not full_version:
+                stimulus_names = self._get_stimulus_names(self.stimulus_dir,
+                                                          f"multipleye_stimuli_experiment_{self.language}.xlsx")
+            # all original multipleye stimuli have been used
+            else:
+                stimulus_names = self.stimulus_names
+
+            # check that tall stimuli have been completed
+            for stim in self.stimulus_names:
+                if stim not in completed_stimulus_names:
+                    raise Warning(f"Stimulus {stim} was not completed in session {session_identifier}. Please check the files carefully.")
+
         session_name = session_identifier
         question_order_version = self._extract_question_order_version(session_name)
 
         self.sessions[session_name]['session_stimuli'] = self.load_stimuli(
             self.stimulus_dir, self.language, self.country, self.lab_number,
-            question_order_version, stimulus_names)
+            question_order_version, completed_stimulus_names)
 
 
     def create_sanity_check_report(self, sessions: str | list[str] | None = None, plotting: bool = True) -> None:
@@ -334,6 +361,9 @@ class MultipleyeDataCollection(DataCollection):
 
         for session_name in (pbar := tqdm(sessions, total=len(sessions))):
 
+            if session_name in self.excluded_sessions:
+                continue
+
             pbar.set_description(
                 f'Creating sanity check report for session {session_name}'
             )
@@ -342,7 +372,7 @@ class MultipleyeDataCollection(DataCollection):
 
             report_file_path = self.output_dir / session_name / f"{session_name}_report.txt"
 
-            self.load_session_dependent_stimuli(session_name, full_version=False)
+            self.load_session_dependent_stimuli(session_name)
 
             with open(report_file_path, "a+",
                       encoding="utf-8") as report_file:
@@ -389,20 +419,16 @@ class MultipleyeDataCollection(DataCollection):
         for stimulus in self.sessions[session_identifier]['session_stimuli']:
             plot_gaze(gaze, stimulus, plot_dir)
 
-    def check_asc_instructions(self, session_identifier):
+    def check_asc_instructions(self, session_identifier: str) -> None:
         """
         Check the instructions for the specified session.
         :param session_identifier: The session identifier. eg "005_ET_EE_1_ET1"
-        :return:
         """
         messages = self._load_messages_for_experimenter_checks(session_identifier)
-        report_file = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
-        if self.different_stimulus_names == "split":
-            split = True
-        else:
-            split = False
-        check_instructions(messages, self.sessions[session_identifier]["session_stimuli"], report_file,
-                           self.sessions[session_identifier]["stimuli_order"], split=split)
+        report_file_path = self.output_dir / session_identifier / f"{session_identifier}_report.txt"
+
+        check_instructions(messages, self.sessions[session_identifier]["session_stimuli"], report_file_path,
+                           self.sessions[session_identifier]["stimuli_order"], num_sessions=self.num_sessions)
 
     def _extract_question_order_version(self, session_identifier: str) -> int:
         """
@@ -449,11 +475,19 @@ class MultipleyeDataCollection(DataCollection):
         completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
         question_version = self._extract_question_order_version(session_identifier)
 
+        p_id = session_identifier.split('_')[0]
+
         self.sessions[session_identifier]['logfile'] = logfile
         self.sessions[session_identifier]['completed_stimuli'] = completed_stimuli
-        self.sessions[session_identifier]['stimuli_order'] = completed_stimuli["stimulus_id"].to_list()
         self.sessions[session_identifier]['question_order_version'] = question_version
-        # return logfile, completed_stimuli, stimuli_order
+
+        # if the session crashed, only load the stimuli that were actually completed in that session
+        if p_id in self.crashed_session_ids:
+            stimulus_order = completed_stimuli.filter(completed_stimuli['completed'] == True)['stimulus_id'].to_list()
+        else:
+            stimulus_order = self.stim_order_versions[int(p_id)]
+
+        self.sessions[session_identifier]['stimuli_order'] = stimulus_order
 
     def _load_messages_for_experimenter_checks(self, session_identifier: str):
         """
@@ -470,7 +504,7 @@ class MultipleyeDataCollection(DataCollection):
                 messages.append(match.groupdict())
                 if "stimulus_order_version" in line:
                     self.sessions[session_identifier]['stimulus_order_version_asc'] = line
-                    print(f"{self.sessions[session_identifier]['question_order_version']}, {line}")
+                    # print(f"{self.sessions[session_identifier]['question_order_version']}, {line}")
         return messages
 
     def check_asc_validation(self, session_identifier: str, gaze: GazeDataFrame = None) -> None:

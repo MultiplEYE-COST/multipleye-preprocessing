@@ -2,10 +2,11 @@ import argparse
 import logging
 from pathlib import Path
 
+from preprocessing.data_collection.merid_data_collection import Merid
 from preprocessing.data_collection.multipleye_data_collection import MultipleyeDataCollection
 
 
-def run_multipleye_sanity_checks(data_collection_name: str, full_path: str = None, create_plots: bool = True,
+def run_merid_sanity_checks(data_collection_name: str, full_path: str = None, create_plots: bool = True,
                                  include_pilots: bool = False):
     if full_path is None:
         this_repo = Path().resolve()
@@ -17,14 +18,14 @@ def run_multipleye_sanity_checks(data_collection_name: str, full_path: str = Non
             data_folder_path = Path(full_path) / data_collection_name
 
     logging.basicConfig(level=logging.INFO, filename=data_folder_path / 'sanity_checks_logfile.log')
-    multipleye = MultipleyeDataCollection.create_from_data_folder(str(data_folder_path), include_pilots=include_pilots,
+    merid = Merid.create_from_data_folder(str(data_folder_path), include_pilots=include_pilots,
                                                                   )
 
-    multipleye.create_sanity_check_report(plotting=create_plots)
+    merid.create_sanity_check_report(plotting=create_plots, sessions=['011_ZH_CH_1_ET1'])
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Run multipleye preprocessing on an experiment file')
+    parser = argparse.ArgumentParser(description='Run merid preprocessing on an experiment file')
 
     parser.add_argument(
         'data_collection_name',
@@ -68,4 +69,4 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    run_multipleye_sanity_checks(**vars(args))
+    run_merid_sanity_checks(**vars(args))

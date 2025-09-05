@@ -35,6 +35,7 @@ class DataCollection:
     country: str
     session_folder_regex: str = ''
     data_root: Path = None
+    excluded_sessions = list[str]
 
     def __init__(self,
                  data_collection_name: str,

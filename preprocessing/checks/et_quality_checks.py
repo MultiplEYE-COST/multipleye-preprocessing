@@ -59,7 +59,6 @@ def _report_to_file(message: str, report_file: Path):
     assert isinstance(report_file, Path)
     with open(report_file, "a", encoding="utf-8") as report_file:
         report_file.write(f"{message}\n")
-    logging.info(message)
 
 
 def check_comprehension_question_answers(logfile: pl.DataFrame, stimuli: Stimulus | list[Stimulus],
@@ -86,9 +85,14 @@ def check_comprehension_question_answers(logfile: pl.DataFrame, stimuli: Stimulu
         _report_to_file(f"Correct answers for {stimulus.name}: {len(correct_answers)} out of {len(answers)} answers",
                         report_file)
 
-    _report_to_file(
-        f"Overall correct answers: {overall_correct_answers} out of {overall_answers} answers {overall_correct_answers / overall_answers:.2f}",
-        report_file)
+    if not overall_answers == 0:
+        _report_to_file(
+            f"Overall correct answers: {overall_correct_answers} out of {overall_answers} answers {overall_correct_answers / overall_answers:.2f}",
+            report_file)
+    else:
+        _report_to_file(
+            f"Overall correct answers: {overall_correct_answers} out of {overall_answers} answers",
+            report_file)
 
 
 def check_validations(gaze, report_file):
@@ -260,8 +264,6 @@ def analyse_eyelink_asc(asc_file: str,
         duration_str.append(time_str)
         total_reading_duration_ms += time_ms
 
-    print('Total reading duration:', convert_to_time_str(total_reading_duration_ms))
-
     # calcualte duration between pages
     temp_stop_ts = stop_ts.copy()
     temp_stop_ts.insert(0, initial_ts)
@@ -286,7 +288,7 @@ def analyse_eyelink_asc(asc_file: str,
         pages.append(page)
         status.append('time before pages and breaks')
 
-    print('Total set up and break time:', convert_to_time_str(total_set_up_time_ms))
+    # print('Total set up and break time:', convert_to_time_str(total_set_up_time_ms))
 
     df = pd.DataFrame({
         'start_ts': start_ts,
@@ -308,8 +310,8 @@ def analyse_eyelink_asc(asc_file: str,
     sum_df['duration-hh:mm:ss'] = duration
     sum_df.to_csv(output_dir / f'times_per_page_pilot_{session}.tsv', index=False, sep='\t')
 
-    print('Total exp time: ', convert_to_time_str(total_reading_duration_ms + total_set_up_time_ms))
-    print('\n')
+    # print('Total exp time: ', convert_to_time_str(total_reading_duration_ms + total_set_up_time_ms))
+    # print('\n')
 
     # write total times to csv
     total_times = pd.DataFrame({
