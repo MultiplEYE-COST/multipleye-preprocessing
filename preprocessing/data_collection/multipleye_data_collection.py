@@ -588,12 +588,13 @@ class MultipleyeDataCollection(DataCollection):
                 logging.warning(f"No participant data found for session {session}. Skipping.")
 
         # reorder columns such that participant_id is the first column
-        cols = participant_data.columns.tolist()
-        cols = ['participant_id'] + [col for col in cols if col != 'participant_id']
-        participant_data = participant_data[cols]
+        if not participant_data.empty:
+            cols = participant_data.columns.tolist()
+            cols = ['participant_id'] + [col for col in cols if col != 'participant_id']
+            participant_data = participant_data[cols]
 
-        participant_data.to_csv(self.data_root.parent / 'participant_data.csv', index=False)
-        self.participant_data_path = self.data_root.parent / 'participant_data.csv'
+            participant_data.to_csv(self.data_root.parent / 'participant_data.csv', index=False)
+            self.participant_data_path = self.data_root.parent / 'participant_data.csv'
 
 
 if __name__ == '__main__':
