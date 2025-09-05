@@ -485,7 +485,11 @@ class MultipleyeDataCollection(DataCollection):
         if p_id in self.crashed_session_ids:
             stimulus_order = completed_stimuli.filter(completed_stimuli['completed'] == True)['stimulus_id'].to_list()
         else:
-            stimulus_order = self.stim_order_versions[int(p_id)]
+            try:
+                stimulus_order = self.stim_order_versions[int(p_id)]
+            except KeyError:
+                raise KeyError(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
+                               f"participant IDs in the stimulus order versions file.")
 
         self.sessions[session_identifier]['stimuli_order'] = stimulus_order
 
