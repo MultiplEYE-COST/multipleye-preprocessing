@@ -81,7 +81,7 @@ def check_all_screens(gaze, stimuli, report_file):
 
 # check order in ASC file based on messages
 def check_instructions(
-        messages: list, completed_stimuli: Stimulus | list,
+        messages: list, stimuli: Stimulus | list,
         report_file: Path,
         stimuli_order: list,
         num_sessions: int,
@@ -89,9 +89,9 @@ def check_instructions(
     """
 
     :param messages:
-    :param completed_stimuli: the stimuli ids that were completed in the experiment
+    :param stimuli: the stimuli ids that were completed in the experiment
     :param report_file:
-    :param stimuli_order: the order of the stimuli as they should appear in the experiment
+    :param stimuli_order: the order of the stimuli as they appear in the experiment
     :param split:
     :return:
     """
@@ -144,14 +144,15 @@ def check_instructions(
 
         current_stimulus = None
         next_stimulus = None
-        for stimulus in completed_stimuli:
+        for stimulus in stimuli:
             if stimulus.id == stim_id:
                 current_stimulus = stimulus
             if stimulus.id == next_id:
                 next_stimulus = stimulus
 
         if not current_stimulus:
-            raise ValueError(f"Stimulus with id {stim_id} not found in completed_stimuli. Experiment did not run correctly. Please check manually.")
+            raise ValueError(f"Stimulus with id {stim_id} not found in completed_stimuli. "
+                             f"Experiment did not run correctly. Please check manually.")
 
         trial += 1  # trials start with 1 in the experiment
 
