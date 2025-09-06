@@ -16,20 +16,20 @@ class Merid(MultipleyeDataCollection):
         :param full_version: if True, all stimuli are loaded. If False, only a subset of the original stimuli has been used and
         the original Excel file is checked to see which ones.
         """
-        self.load_logfiles(session_identifier)
+        self.load_session_logfile(session_identifier)
 
         stimuli = self.sessions[session_identifier]["completed_stimuli"].filter(pl.col("completed") == True)
 
         stimulus_names = stimuli["stimulus_name"].to_list()
 
         session_name = session_identifier
-        question_order_version = self._extract_question_order_version(session_name)
+        question_order_version = self._load_session_question_order_version(session_name)
 
-        self.sessions[session_name]['session_stimuli'] = self.load_stimuli(
+        self.sessions[session_name]['session_stimuli'] = self.load_experiment_stimuli(
             self.stimulus_dir, self.language, self.country, self.lab_number,
             question_order_version, stimulus_names)
 
-    def load_logfiles(self, session_identifier):
+    def load_session_logfile(self, session_identifier):
         """
         Load the logfiles for the specified session. Stores the logfile and the completed stimuli as a polars DataFrame,
         the order of the stimuli as list, and the version of the question oder as an int.
@@ -49,7 +49,7 @@ class Merid(MultipleyeDataCollection):
 
         logfile = pl.read_csv(logfiles[0], separator="\t")
         completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
-        question_version = self._extract_question_order_version(session_identifier)
+        question_version = self._load_session_question_order_version(session_identifier)
 
         p_id = session_identifier.split('_')[0]
 

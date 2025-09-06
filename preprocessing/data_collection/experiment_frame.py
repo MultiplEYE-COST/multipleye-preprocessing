@@ -268,7 +268,7 @@ def main():
 
     multipleye = MultipleyeDataCollection.create_from_data_folder(str(data_folder_path),
                                                                   additional_folder='pilot_sessions')
-    multipleye.load_logfiles("005_RU_RU_1_ET1")
+    multipleye.load_session_logfile("005_RU_RU_1_ET1")
 
     experiment = ExperimentFrame.load_from_multipleye_data_collection(multipleye, "005_RU_RU_1_ET1")
     experiment.create_experiment_summary()

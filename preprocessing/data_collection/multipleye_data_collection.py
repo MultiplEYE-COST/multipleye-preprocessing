@@ -74,12 +74,16 @@ class MultipleyeDataCollection(DataCollection):
 
         self.add_recorded_sessions(self.data_root, self.session_folder_regex, convert_to_asc=True)
 
+        self.prepare_session_level_information()
+
+        # these are defined manually as a file!!
         self.excluded_sessions = self._load_excluded_sessions()
 
         if len(self.sessions) == 0:
             raise ValueError(f"No sessions found in {self.data_root}. Please check the session_folder_regex "
                              f"and the data_root.")
 
+        # load stimulus order versions to know what stimulus randomization was used for each participant
         stim_order_versions = self.stimulus_dir / 'config' / f'stimulus_order_versions_{self.language}_{self.country}_{self.lab_number}.csv'
         stim_order_versions = pd.read_csv(stim_order_versions)
         stim_order_versions = stim_order_versions[stim_order_versions['participant_id'].notnull()]
@@ -229,6 +233,20 @@ class MultipleyeDataCollection(DataCollection):
         elif isinstance(session, list):
             return session
 
+    def prepare_session_level_information(self):
+        """
+
+        :return:
+        """
+
+        for session in self.sessions.keys():
+            self.sessions[session]['logfile'] = self._load_session_logfile(session)
+            self.sessions[session]['completed_stimuli'] = self._load_session_completed_stimuli(session)
+            self.sessions[session]['question_order_version'] = self._load_session_question_order_version(session)
+            self.sessions[session]['stimuli_order'] = self._load_session_stimulus_order(session)
+            self.sessions[session]['session_stimuli'] = self.load_session_dependent_stimuli(session)
+
+
     def create_gaze_frame(self, session: str | list[str] = '', overwrite: bool = False) -> None:
         """
         Creates, preprocesses and saves the gaze data for the specified session or all sessions.
@@ -259,8 +277,6 @@ class MultipleyeDataCollection(DataCollection):
                                  session_idf=session_name)
             except KeyError as e:
                 raise e
-                raise KeyError(
-                    f"Session {session_name} not found in {self.data_root}.")
             except FileNotFoundError:
                 raise FileNotFoundError(
                     f"No asc file found for session {session_name}. Please create first.")
@@ -276,12 +292,12 @@ class MultipleyeDataCollection(DataCollection):
             with open(gaze_path, "wb") as f:
                 pickle.dump(gaze, f)
 
-    def load_stimuli(self, stimulus_dir: Path, lang: str,
-                     country: str, lab_num: int,
-                     question_version: int,
-                     stimulus_names: None | list = None) -> list[Stimulus]:
+    def load_experiment_stimuli(self, stimulus_dir: Path, lang: str,
+                                country: str, lab_num: int,
+                                question_version: int,
+                                stimulus_names: None | list = None) -> list[Stimulus]:
         """
-        Load the stimuli and lab configuration from the specified directory.
+        Load the stimuli from the specified directory.
         :param stimulus_dir: The directory where the stimuli are stored.
         :param lang: The language of the stimuli.
         :param country: The country of the stimuli.
@@ -302,21 +318,19 @@ class MultipleyeDataCollection(DataCollection):
 
         return stimuli
 
-    def load_session_dependent_stimuli(self, session_identifier: str, full_version: bool = True) -> None:
+    def load_session_dependent_stimuli(self, session_identifier: str, full_version: bool = True) -> list[Stimulus]:
         """
         Get the sessions that were completed in the specified session.
         :param session_identifier: what session to load the stimuli for
         :param full_version: if True, all stimuli are loaded. If False, only a subset of the original stimuli has been used and
         the original Excel file is checked to see which ones.
         """
-        self.load_logfiles(session_identifier)
         p_id = session_identifier.split('_')[0]
 
         # get the stimuli that were actually completed in that session. for crashed sessions we only load those
         # TODO: write down that the last stimulus might not be completed and therefore has been read twice partially
         completed_stimuli = self.sessions[session_identifier]["completed_stimuli"].filter(pl.col('completed') == True)
         completed_stimulus_names = completed_stimuli["stimulus_name"].to_list()
-
 
         # load the stimuli that were supposed to be used in that session
         if p_id not in self.crashed_session_ids:
@@ -334,9 +348,9 @@ class MultipleyeDataCollection(DataCollection):
                     raise Warning(f"Stimulus {stim} was not completed in session {session_identifier}. Please check the files carefully.")
 
         session_name = session_identifier
-        question_order_version = self._extract_question_order_version(session_name)
+        question_order_version = self._load_session_question_order_version(session_name)
 
-        self.sessions[session_name]['session_stimuli'] = self.load_stimuli(
+        return self.load_experiment_stimuli(
             self.stimulus_dir, self.language, self.country, self.lab_number,
             question_order_version, completed_stimulus_names)
 
@@ -357,7 +371,6 @@ class MultipleyeDataCollection(DataCollection):
             sessions = sessions
 
         # TODO: check if all session names are available in self.session, before we enter the loop to avoid a key error
-
         for session_name in (pbar := tqdm(sessions, total=len(sessions))):
 
             if session_name in self.excluded_sessions:
@@ -429,7 +442,7 @@ class MultipleyeDataCollection(DataCollection):
         check_instructions(messages, self.sessions[session_identifier]["session_stimuli"], report_file_path,
                            self.sessions[session_identifier]["stimuli_order"], num_sessions=self.num_sessions)
 
-    def _extract_question_order_version(self, session_identifier: str) -> int:
+    def _load_session_question_order_version(self, session_identifier: str) -> int:
         """
         Extract the question order and version from the session identifier.
         :param session_identifier: The session identifier.
@@ -452,18 +465,18 @@ class MultipleyeDataCollection(DataCollection):
             raise ValueError(f"Could not find question order version in {general_logfile}.")
         return question_order_version
 
-    def load_logfiles(self, session_identifier):
+    def _load_session_logfile(self, session_identifier):
         """
         Load the logfiles for the specified session. Stores the logfile and the completed stimuli as a polars DataFrame,
         the order of the stimuli as list, and the version of the question oder as an int.
         :param session_identifier: The session identifier.
         """
+
         session_path = self.sessions[session_identifier]['session_folder_path']
         logfile_folder = Path(f'{session_path}/logfiles')
 
         assert logfile_folder.exists(), f"Logfile folder {logfile_folder} does not exist."
         logfile = logfile_folder.glob("EXPERIMENT_*.txt")
-        completed_stim_path = logfile_folder / 'completed_stimuli.csv'
 
         logfiles = list(logfile)
 
@@ -471,18 +484,23 @@ class MultipleyeDataCollection(DataCollection):
             raise ValueError(f"More than one or no logfile found in {logfile_folder}. Please check the logfiles.")
 
         logfile = pl.read_csv(logfiles[0], separator="\t")
+        return logfile
+
+    def _load_session_completed_stimuli(self, session_identifier):
+
+        session_path = self.sessions[session_identifier]['session_folder_path']
+        logfile_folder = Path(f'{session_path}/logfiles')
+        completed_stim_path = logfile_folder / 'completed_stimuli.csv'
+
         completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
-        question_version = self._extract_question_order_version(session_identifier)
 
-        p_id = session_identifier.split('_')[0]
+        return completed_stimuli
 
-        self.sessions[session_identifier]['logfile'] = logfile
-        self.sessions[session_identifier]['completed_stimuli'] = completed_stimuli
-        self.sessions[session_identifier]['question_order_version'] = question_version
-
+    def _load_session_stimulus_order(self, session_identifier):
         # if the session crashed, only load the stimuli that were actually completed in that session
+        p_id = session_identifier.split('_')[0]
         if p_id in self.crashed_session_ids:
-            stimulus_order = completed_stimuli.filter(completed_stimuli['completed'] == True)['stimulus_id'].to_list()
+            stimulus_order = self.sessions[session_identifier]['completed_stimuli'].filter(self.sessions[session_identifier]['completed_stimuli']['completed'] == True)['stimulus_id'].to_list()
         else:
             try:
                 stimulus_order = self.stim_order_versions[int(p_id)]
@@ -490,7 +508,7 @@ class MultipleyeDataCollection(DataCollection):
                 raise KeyError(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
                                f"participant IDs in the stimulus order versions file.")
 
-        self.sessions[session_identifier]['stimuli_order'] = stimulus_order
+        return stimulus_order
 
     def _load_messages_for_experimenter_checks(self, session_identifier: str):
         """

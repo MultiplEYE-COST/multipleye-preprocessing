@@ -35,7 +35,6 @@ class DataCollection:
     country: str
     session_folder_regex: str = ''
     data_root: Path = None
-    excluded_sessions = list[str]
 
     def __init__(self,
                  data_collection_name: str,
@@ -73,6 +72,11 @@ class DataCollection:
             raise ValueError(f'Eye tracker {eye_tracker} not yet supported. '
                              f'Supported eye trackers are: '
                              f'{np.array([val for k, val in EYETRACKER_NAMES.items()]).flatten()}')
+
+    def __iter__(self):
+        for session in self.sessions:
+            yield session
+
 
     def add_recorded_sessions(self,
                               data_root: Path,

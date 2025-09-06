@@ -1,5 +1,6 @@
 import argparse
 import logging
+import warnings
 from pathlib import Path
 
 from preprocessing.data_collection.multipleye_data_collection import MultipleyeDataCollection
@@ -21,6 +22,10 @@ def run_multipleye_sanity_checks(data_collection_name: str, full_path: str = Non
                                                                   )
 
     multipleye.create_sanity_check_report(plotting=create_plots)
+
+    if len(multipleye.excluded_sessions) >= 1:
+        warnings.warn(f"Don't forget, those sessions have been excluded from the analysis: {multipleye.excluded_sessions}. "
+                      f"Specified 'excluded_sessions.txt'.")
 
 
 def parse_args():
