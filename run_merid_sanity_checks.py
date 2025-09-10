@@ -22,12 +22,14 @@ def run_merid_sanity_checks(data_collection_name: str, full_path: str = None, cr
     merid = Merid.create_from_data_folder(str(data_folder_path), include_pilots=include_pilots)
 
     merid.create_sanity_check_report(plotting=create_plots,
-                                     sessions=['011_ZH_CH_1_ET1_start_after_trial_1'],
+                                     #sessions=['011_ZH_CH_1_ET1_start_after_trial_1'],
+                                     overwrite=True,
                                      )
 
     if len(merid.excluded_sessions) >= 1:
         warnings.warn(f"Don't forget, those sessions have been excluded from the analysis: {merid.excluded_sessions}. "
                       f"Specified 'excluded_sessions.txt'.")
+
 
 
 def parse_args():

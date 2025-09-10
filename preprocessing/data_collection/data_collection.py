@@ -211,6 +211,8 @@ class DataCollection:
         with open(gaze_path, "rb") as f:
             gaze = pickle.load(f)
 
+        self.sessions[session_identifier]['metadata'] = gaze._metadata
+
         return gaze
 
     # TODO: add method to check whether stimuli are completed
