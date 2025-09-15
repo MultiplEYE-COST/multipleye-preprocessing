@@ -64,3 +64,6 @@ class Merid(MultipleyeDataCollection):
 
         return stimulus_order
 
+    def _load_psychometric_tests(self, session_identifier: str) -> bool:
+        raise NotImplementedError
+

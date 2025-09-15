@@ -109,6 +109,7 @@ class DataCollection:
         if session_folder_regex:
 
             items = os.scandir(self.data_root)
+            pilots = []
             if self.include_pilots:
                 pilots = os.scandir(self.data_root / self.pilot_folder)
                 items = list(items) + list(pilots)
@@ -130,12 +131,14 @@ class DataCollection:
                             session_file = session_file[0]
 
                         # TODO: introduce a session object?
+                        is_pilot = self.include_pilots and (item in pilots)
                         self.sessions[item.name] = {
                             'session_folder_path': item.path,
                             'session_file_path': session_file,
                             'session_file_name': session_file.name,
                             'session_folder_name': item.name,
-                            'session_stimuli': ''
+                            'session_stimuli': '',
+                            'is_pilot': is_pilot,
                         }
 
                         # check if asc files are already available
@@ -180,7 +183,7 @@ class DataCollection:
             else:
                 asc_path = path.with_suffix('.asc')
                 self.sessions[session]['asc_path'] = asc_path
-                print(f'ASC file already exists for {session}.')
+                #print(f'ASC file already exists for {session}.')
 
     def create_gaze_frame(self, session: str | list[str] = '', overwrite: bool = False) -> None:
 

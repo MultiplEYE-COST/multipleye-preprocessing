@@ -29,4 +29,8 @@ class Session:
 
     trials = list[Trial]
 
+    def __iter__(self):
+        for trial in self.trials:
+            yield trial
+
 

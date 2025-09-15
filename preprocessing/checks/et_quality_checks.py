@@ -94,29 +94,58 @@ def check_comprehension_question_answers(logfile: pl.DataFrame, stimuli: Stimulu
             report_file)
 
 
-def check_validations(metadata, report_file):
-    for num, validation in enumerate(metadata["validations"]):
-        if validation["validation_score_avg"] < "0.305":
-            # print(f"Validation score {validation['validation_score_avg']} too low")
-            continue
-        else:
-            bad_val_timestamp = float(validation["timestamp"])
-            found_val = False
+def check_validation_requirements(metadata, report_file, stimulus_times):
 
-        for cal in metadata["calibrations"]:
-            cal_timestamp = float(cal["timestamp"])
-            if bad_val_timestamp < cal_timestamp < bad_val_timestamp + 200000:
-                index_bad_val = metadata["validations"].index(validation)
-                next_validation = metadata['validations'][index_bad_val + 1]
-                time_between = round((float(next_validation["timestamp"]) - bad_val_timestamp) / 1000, 3)
-                _report_to_file(
-                    f"Calibration after validation at timestamp {cal['timestamp']}.   Next validation, {time_between} seconds later with score {next_validation['validation_score_avg']}",
-                    report_file)
-                found_val = True
-        if not found_val:
-            _report_to_file(
-                f"No calibration after validation {num + 1}/{len(metadata['validations'])} at {bad_val_timestamp} with validation score {validation['validation_score_avg']}",
-                report_file)
+    # sort validations and calibrations by timestamp, merge into one list
+    vals = sorted(metadata["validations"], key=lambda x: float(x["timestamp"]))
+    cals = sorted(metadata["calibrations"], key=lambda x: float(x["timestamp"]))
+
+    merged = sorted(vals + cals + stimulus_times, key=lambda x: float(x["timestamp"]))
+    bad_tstamp = None
+    bad_val = False
+    in_stimulus = False
+    val_count = 0
+    cal_count = 0
+    for m in merged:
+        if "validation_score_avg" in m:
+            val_count += 1
+            if bad_val:
+                _report_to_file(f"⚠️ No calibration at {m['timestamp']} after BAD validation at timestamp {bad_tstamp}", report_file)
+                bad_val = False
+            score = float(m["validation_score_avg"])
+            if score < 0.305:
+                _report_to_file(f"✅ Good validation at {m['timestamp']} with score {m['validation_score_avg']}", report_file)
+                bad_val = False
+            elif 0.45 > score >= 0.305:
+                _report_to_file(f"⚠️ Moderate validation at {m['timestamp']} with score {m['validation_score_avg']}", report_file)
+                bad_val = True
+                bad_tstamp = int(m["timestamp"])
+            elif score >= 0.45:
+                _report_to_file(f"❌ BAD Validation at {m['timestamp']} with score {m['validation_score_avg']}", report_file)
+                bad_val = True
+                bad_tstamp = int(m["timestamp"])
+            if in_stimulus:
+                _report_to_file(f"⚠️ Validation during stimulus at {m['timestamp']} with score {m['validation_score_avg']}", report_file)
+
+        elif 'message' in m:
+            if 'start' in  m['message']:
+                in_stimulus = True
+                _report_to_file(f'ℹ️ {m["message"]} at {m["timestamp"]}', report_file)
+                if bad_val:
+                    _report_to_file(f"❌ {m['message']} directly after bad validation!", report_file)
+
+            if 'end' in m['message']:
+                in_stimulus = False
+                _report_to_file(f'ℹ️ {m["message"]} at {m["timestamp"]}', report_file)
+
+        else:
+            cal_count += 1
+            if bad_val:
+                bad_val = False
+                time_between = round((float(m["timestamp"]) - bad_tstamp) / 1000, 3)
+                _report_to_file(f"✅ Calibration at {m['timestamp']} {time_between} seconds after bad/moderate validation", report_file)
+            if in_stimulus:
+                _report_to_file(f"⚠️ Calibration during stimulus at {m['timestamp']}", report_file)
 
 
 def check_metadata(metadata: dict[str, Any], report: ReportFunction) -> None:

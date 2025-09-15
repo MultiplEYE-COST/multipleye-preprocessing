@@ -5,6 +5,7 @@ from glob import glob
 from pathlib import Path
 from typing import Literal
 
+import pandas as pd
 import polars as pl
 import pymovements as pm
 
@@ -85,7 +86,7 @@ class Stimulus:
         stimulus_df_path = stimulus_dir / f"multipleye_stimuli_experiment_{lang}.xlsx"
         assert (stimulus_df_path.exists()), f"File {stimulus_df_path} does not exist"
 
-        stimulus_df = pl.read_excel(stimulus_df_path)
+        stimulus_df = pl.read_excel(stimulus_df_path, engine="openpyxl")
         stimulus_row = stimulus_df.row(
             by_predicate=pl.col("stimulus_name") == stimulus_name, named=True
         )
@@ -137,7 +138,7 @@ class Stimulus:
         questions_df_path = (
                 stimulus_dir / f"multipleye_comprehension_questions_{lang}.xlsx"
         )
-        questions_df = pl.read_excel(questions_df_path)
+        questions_df = pl.read_excel(questions_df_path, engine="openpyxl")
         question_rows = questions_df.filter(
             pl.col("stimulus_name") == stimulus_name
         ).rows(named=True)

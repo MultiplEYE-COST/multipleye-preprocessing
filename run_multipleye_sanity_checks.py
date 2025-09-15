@@ -21,7 +21,7 @@ def run_multipleye_sanity_checks(data_collection_name: str, full_path: str = Non
     multipleye = MultipleyeDataCollection.create_from_data_folder(str(data_folder_path), include_pilots=include_pilots,
                                                                   )
 
-    multipleye.create_sanity_check_report(plotting=create_plots)
+    multipleye.create_sanity_check_report(plotting=create_plots, overwrite=True)
 
     if len(multipleye.excluded_sessions) >= 1:
         warnings.warn(f"Don't forget, those sessions have been excluded from the analysis: {multipleye.excluded_sessions}. "
@@ -34,7 +34,7 @@ def parse_args():
     parser.add_argument(
         'data_collection_name',
         type=str,
-        help='Name of the folder containing the data collection. E.g. "MultiplEYE_ET_EE_Tartu_1_2022". '
+        help='Name of the folder containing the data collection. E.g. "MultiplEYE_SQ_CH_Zurich_1_2025". '
              'The folder should be located in the "data" directory of this repository. '
              'Otherwise, specify the full path using --full-path.',
     )

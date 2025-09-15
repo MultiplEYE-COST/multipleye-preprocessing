@@ -1,26 +1,28 @@
+from pathlib import Path
 
-def preprocess_stroop():
+
+def preprocess_stroop(path: Path | str):
     pass
 
 
-def preprocess_flanker():
+def preprocess_flanker(path: Path | str):
     pass
 
 
-def preprocess_wmc_battery():
+def preprocess_lwmc(path: Path | str):
     pass
 
 
-def preprocess_ran():
+def preprocess_ran(path: Path | str):
     pass
 
-def preprocess_wikivocab():
-    pass
-
-
-def preprocess_lextale():
+def preprocess_wikivocab(path: Path | str):
     pass
 
 
-def preprocess_plab():
+def preprocess_lextale(path: Path | str):
+    pass
+
+
+def preprocess_plab(path: Path | str):
     pass

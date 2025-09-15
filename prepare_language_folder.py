@@ -63,6 +63,16 @@ def prepare_language_folder(data_collection_name):
         else:
             print(f"No zipped data found for {participant_folder.name}. Proceeding with existing data.")
 
+    stimulus_folder_path = data_folder_path / f"stimuli_{data_collection_name}"
+
+    if not stimulus_folder_path.exists():
+        print(f'The stimulus folder stimuli_{data_collection_name} does not exist. Check and if necessary, ask team to upload.')
+    else:
+        config_path = stimulus_folder_path / "config"
+        if not config_path.exists():
+            raise FileNotFoundError(f"The stimulus config folder not found in '{stimulus_folder_path}'. "
+                                    "Please check and restructure or possibly unzip the stimulus folder.")
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Run multipleye preprocessing on an experiment file')

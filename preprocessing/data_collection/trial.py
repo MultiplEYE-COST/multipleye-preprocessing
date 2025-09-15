@@ -17,3 +17,4 @@ class Trial:
     familiarity_rating_1: int
     familiarity_rating_2: int
     difficulty_rating: int
+
