@@ -94,7 +94,7 @@ def check_comprehension_question_answers(logfile: pl.DataFrame, stimuli: Stimulu
             report_file)
 
 
-def check_validation_requirements(metadata, report_file, stimulus_times):
+def check_validation_requirements(metadata: dict[str, Any], report_file, stimulus_times):
 
     # sort validations and calibrations by timestamp, merge into one list
     vals = sorted(metadata["validations"], key=lambda x: float(x["timestamp"]))
@@ -132,7 +132,7 @@ def check_validation_requirements(metadata, report_file, stimulus_times):
                 in_stimulus = True
                 _report_to_file(f'ℹ️ {m["message"]} at {m["timestamp"]}', report_file)
                 if bad_val:
-                    _report_to_file(f"❌ {m['message']} directly after bad validation!", report_file)
+                    _report_to_file(f"❌ {m['message']} directly after bad/moderate validation!", report_file)
 
             if 'end' in m['message']:
                 in_stimulus = False

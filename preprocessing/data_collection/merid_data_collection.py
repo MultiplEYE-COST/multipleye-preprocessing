@@ -65,5 +65,8 @@ class Merid(MultipleyeDataCollection):
         return stimulus_order
 
     def _load_psychometric_tests(self, session_identifier: str) -> bool:
+        # TODO: make sure that it works with the sessions. I.e. in one session one tests is done,
+        #  in the other the others.
+
         raise NotImplementedError
 

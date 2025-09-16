@@ -74,8 +74,8 @@ class DataCollection:
                              f'{np.array([val for k, val in EYETRACKER_NAMES.items()]).flatten()}')
 
     def __iter__(self):
-        for session in self.sessions:
-            yield session
+        for session in sorted(self.sessions):
+            yield self.sessions[session]
 
 
     def add_recorded_sessions(self,
@@ -160,14 +160,13 @@ class DataCollection:
                         'session_file_name': item.name,
                     }
 
-        # TODO: somehow manage the case that the asc files are already available
         if convert_to_asc:
             self.convert_edf_to_asc()
 
     @eyelink
     def convert_edf_to_asc(self) -> None:
 
-        if self.sessions is None:
+        if not self.sessions:
             raise ValueError('No sessions added. Please add sessions first.')
 
         # TODO: make sure that edf2asc is installed on the computer

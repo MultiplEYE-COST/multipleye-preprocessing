@@ -886,7 +886,6 @@ class MultipleyeDataCollection(DataCollection):
     def parse_participant_data(self) -> None:
         """
         Load the participant data for all participants.
-
         """
 
         participant_data = pd.DataFrame()

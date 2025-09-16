@@ -11,7 +11,7 @@ from matplotlib.patches import Circle
 from preprocessing.data_collection.stimulus import LabConfig, Stimulus, load_stimuli
 
 
-def load_data(asc_file: Path, lab_config: LabConfig, session_idf: str = '') -> pm.GazeDataFrame:
+def load_data(asc_file: Path, lab_config: LabConfig, session_idf: str = '') -> pm.Gaze:
     gaze = pm.gaze.from_asc(
         asc_file,
         patterns=[
@@ -59,21 +59,15 @@ def load_data(asc_file: Path, lab_config: LabConfig, session_idf: str = '') -> p
 
     # Extract metadata from stimulus config and ASC file
     #TODO: Uncomment assertions when experiment implementation is fixed (https://www.sr-research.com/support/thread-9129.html)
-    #assert metadata["resolution"][0] == stimulus_config.IMAGE_WIDTH_PX, f"Image width mismatch: {metadata['resolution'][0]} != {stimulus_config.IMAGE_WIDTH_PX}"
-    #assert metadata["resolution"][1] == stimulus_config.IMAGE_HEIGHT_PX, f"Image height mismatch: {metadata['resolution'][1]} != {stimulus_config.IMAGE_HEIGHT_PX}"
-    #print(lab_config) #ersten drei sollte es aus asc herauslesen, andere aus lab config
     gaze.experiment = pm.Experiment(
        sampling_rate=gaze._metadata["sampling_rate"],
        screen_width_px=lab_config.image_resolution[0],
        screen_height_px=lab_config.image_resolution[1],
-       screen_width_cm=lab_config.screen_size_cm[0],
-       screen_height_cm=lab_config.screen_size_cm[1],
+       screen_width_cm=lab_config.image_size_cm[0],
+       screen_height_cm=lab_config.image_size_cm[1],
        distance_cm=lab_config.screen_distance_cm,
     )
-    #gaze.experiment.screen.width_cm = 37
-    #gaze.experiment.screen.height_cm = 28
-    #gaze.experiment.screen.distance_cm = lab_config.screen_distance_cm
-    #print(gaze.experiment)
+
     return gaze
 
 
