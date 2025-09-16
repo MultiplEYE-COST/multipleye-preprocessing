@@ -860,6 +860,8 @@ class MultipleyeDataCollection(DataCollection):
 
     def _extract_question_answers(self, stimuli: list[Stimulus], session_identifier: str) -> None:
 
+        # TODO: Jana
+
         check_comprehension_question_answers(self.sessions[session_identifier]["logfile"],
                                              stimuli, self.sessions[session_identifier]['sanity_report_path'])
 
