@@ -1,0 +1,2 @@
+participant_id;session_part; trial_number; stimulus_number; page_number; screen_onset_timestamp; screen_offset_timestamp; time_on_screen; num_fixations; aoi_ratio
+1;1;2;4;3;1253156;125360;300;22;0.9

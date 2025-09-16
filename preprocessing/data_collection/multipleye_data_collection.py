@@ -1,0 +1,964 @@
+import json
+import os
+import pickle
+import re
+import warnings
+from functools import partial
+from pathlib import Path
+import pprint
+from turtledemo.penrose import start
+
+import polars as pl
+import re
+import tempfile
+import pandas as pd
+import logging
+
+import yaml
+from pymovements import GazeDataFrame
+from tqdm import tqdm
+
+from preprocessing.checks.et_quality_checks import \
+    check_comprehension_question_answers, \
+    check_metadata, report_to_file_metadata as report_meta, check_validation_requirements
+from preprocessing.checks.formal_experiment_checks import check_all_screens_logfile, sanity_check_gaze_frame, \
+    check_messages
+
+from preprocessing.data_collection.data_collection import DataCollection
+from preprocessing.plotting.plot import load_data, preprocess, plot_gaze, plot_main_sequence
+from preprocessing.data_collection.stimulus import LabConfig, Stimulus
+from preprocessing.psychometric_tests.preprocess_psychometric_tests import preprocess_plab, preprocess_ran, \
+    preprocess_stroop, preprocess_flanker, preprocess_wikivocab, preprocess_lwmc
+from preprocessing.utils.fix_pq_data import remap_wrong_pq_values
+
+class MultipleyeDataCollection(DataCollection):
+
+    stimulus_names = {
+        "PopSci_MultiplEYE": 1,
+        "Ins_HumanRights": 2,
+        "Ins_LearningMobility": 3,
+        "Lit_Alchemist": 4,
+        "Lit_MagicMountain": 6,
+        "Lit_Solaris": 8,
+        "Lit_BrokenApril": 9,
+        "Arg_PISACowsMilk": 10,
+        "Arg_PISARapaNui": 11,
+        "PopSci_Caveman": 12,
+        "Enc_WikiMoon": 13,
+        "Lit_NorthWind": 7,
+}
+
+    participant_data_path: Path | str | None
+    crashed_session_ids: list[str] = []
+    num_sessions = 1
+    overview = {}
+
+    def __init__(self,
+                 config_file: Path,
+                 stimulus_dir: Path,
+                 lab_number: int,
+                 city: str,
+                 data_root: Path,
+                 lab_configuration: LabConfig,
+                 session_folder_regex: str,
+                 # stimuli: list[Stimulus],
+                 **kwargs):
+        super().__init__(**kwargs)
+        self.config_file = config_file
+        self.stimulus_dir = stimulus_dir
+        self.lab_number = lab_number
+        self.city = city
+        self.lab_configuration = lab_configuration
+        self.data_root = data_root
+        self.session_folder_regex = session_folder_regex
+        self.psychometric_tests = kwargs.get('psychometric_tests', [])
+
+        open(self.data_root.parent / 'preprocessing_logs.txt', 'w').close()
+
+        if not self.output_dir:
+            self.output_dir = self.data_root.parent / 'quality_reports'
+            self.output_dir.mkdir(exist_ok=True)
+
+        self.add_recorded_sessions(self.data_root, self.session_folder_regex, convert_to_asc=True)
+
+        if len(self.sessions) == 0:
+            raise ValueError(f"No sessions found in {self.data_root}. Please check the session_folder_regex "
+                             f"and the data_root.")
+
+        # load stimulus order versions to know what stimulus randomization was used for each participant
+        stim_order_versions = self.stimulus_dir / 'config' / f'stimulus_order_versions_{self.language}_{self.country}_{self.lab_number}.csv'
+        stim_order_versions = pd.read_csv(stim_order_versions)
+        self.stim_order_versions = stim_order_versions[stim_order_versions['participant_id'].notnull()]
+
+        # load all the manual corrections from the yaml file
+        self.excluded_sessions = self._load_manual_corrections()
+
+        self.prepare_session_level_information()
+        self.parse_participant_data()
+
+        self.overview = self.create_dataset_overview()
+
+
+    def __repr__(self):
+        if not self.overview:
+            print("no overview created yet")
+
+        return "\n".join("{}\t{}".format(k, v) for k, v in self.overview.items())
+
+
+    @staticmethod
+    def load_lab_config(stimulus_dir: Path, lang: str,
+                        country: str, labnum: int, city: str, year: int, ) -> LabConfig:
+        """
+        Load the stimuli and lab configuration from the specified directory.
+        :param stimulus_dir: The directory where the stimuli are stored.
+        :param lang: The language of the stimuli.
+        :param country: The country of the stimuli.
+        :param labnum: The lab number.
+        :param city: The city of the stimuli.
+        :param year: The year of the stimuli.
+
+        """
+        return LabConfig.load(stimulus_dir, lang, country, labnum, city, year)
+
+    @classmethod
+    def create_from_data_folder(cls, data_dir: str,
+                                additional_folder: str | None = None,
+                                include_pilots: bool = False) -> "MultipleyeDataCollection":
+        """
+        :param data_dir: str  path to the data folder
+        :param additional_folder: if additional sub-folders in the data folder are used,
+        e.g. 'core_dataset', test_dataset, pilot_dataset
+        :param different_stimulus_names: if the stimulus names are different from the default ones they can be extracted
+        from the multipleye_stimuli_experiment_en.xlsx file, at the moment only used for testing purposes
+        :param include_pilots: If True, the pilot sessions are included in the data collection.
+        :return:
+        MultipleyeDataCollection object
+        """
+
+        data_dir = Path(data_dir)
+
+        data_folder_name = data_dir.name
+        _, stimulus_language, country, city, lab_number, year = data_folder_name.split('_')
+        if not data_folder_name.startswith('MultiplEYE'):
+            raise ValueError(f"Data collection name {data_folder_name} does not start with 'MultiplEYE'. "
+                             f"Please check the folder name.")
+        if not year.isdigit() or len(year) != 4:
+            raise ValueError(f"Year {year} of the data collection name is not a valid year. "
+                             f"It should be a 4 digit number.")
+        if not lab_number.isdigit() or len(lab_number) != 1:
+            raise ValueError(f"Lab number {lab_number} of the data collection name is not a valid lab number. "
+                             f"It should be a 1 digit number.")
+        if len(country) != 2 or not country.isalpha():
+            raise ValueError(f"Country {country} of the data collection name is not a valid country code. "
+                             f"It should be a 2 letter code.")
+        if len(city) < 2 or not city.isalpha():
+            raise ValueError(f"City {city} of the data collection name is not a valid city name. "
+                             f"It should be a string with at least 2 letters.")
+        if not stimulus_language.isalpha() or len(stimulus_language) != 2:
+            raise ValueError(f"Stimulus language {stimulus_language} of the data collection name is not a valid "
+                             f"language code. It should be a 2 letter code.")
+
+        session_folder_regex = r"\d\d\d" + f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
+
+        stimulus_folder_path = data_dir / f'stimuli_{data_folder_name}'
+        config_file = (stimulus_folder_path /
+                       'config' /
+                       f'config_{stimulus_language.lower()}_{country.lower()}_{city}_{lab_number}.py')
+
+        lab_configuration_data = cls.load_lab_config(stimulus_folder_path, stimulus_language,
+                                                     country, int(lab_number), city, int(year))
+
+        eye_tracker = lab_configuration_data.name_eye_tracker
+        psychometric_tests = lab_configuration_data.psychometric_tests
+
+        et_data_path = data_dir / 'eye-tracking-sessions' / additional_folder if additional_folder else data_dir / 'eye-tracking-sessions'
+        ps_tests_path = data_dir / 'psychometric-tests-sessions' / additional_folder if additional_folder else data_dir / 'psychometric-tests'
+
+        return cls(
+            data_collection_name=data_folder_name,
+            stimulus_language=stimulus_language,
+            country=country,
+            year=int(year),
+            eye_tracker=eye_tracker,
+            session_folder_regex=session_folder_regex,
+            config_file=config_file,
+            stimulus_dir=stimulus_folder_path,
+            lab_number=int(lab_number),
+            city=city,
+            data_root=et_data_path,
+            lab_configuration=lab_configuration_data,
+            include_pilots=include_pilots,
+            pilot_folder=et_data_path / 'pilot_sessions' if include_pilots else None,
+            psychometric_tests=psychometric_tests,
+            ps_tests_path=ps_tests_path,
+        )
+
+    def create_sanity_check_report(self, sessions: str | list[str] | None = None, plotting: bool = True, overwrite: bool = False) -> None:
+        """
+        Create the sanity checks and reports if for one or multiple sessions.
+        :param sessions: Specifies which sessions to create the report for. Default is None which creates the reports
+        for all sessions.
+        :param plotting: If True, all plots are also created for all the sessions.
+        :param overwrite: If True, the sanity check report is overwritten if it already exists.
+        """
+
+        if sessions is None:
+            sessions = [session_name for session_name in self.sessions.keys()]
+        elif isinstance(sessions, str):
+            sessions = [sessions]
+        elif isinstance(sessions, list):
+            sessions = sessions
+
+        # TODO: check if all session names are available in self.session, before we enter the loop to avoid a key error
+        for session_name in (pbar := tqdm(sessions, total=len(sessions))):
+
+            if session_name in self.excluded_sessions:
+                continue
+
+            pbar.set_description(
+                f'Creating sanity check report for session {session_name}'
+            )
+
+            session_results = self.output_dir / session_name
+            os.makedirs(session_results, exist_ok=True)
+
+            report_file_path = self.output_dir / session_name / f"{session_name}_report.txt"
+            self.sessions[session_name]['sanity_report_path'] = report_file_path
+
+            if not report_file_path.exists() or overwrite:
+
+                open(report_file_path, "w", encoding="utf-8").close()
+
+                gaze = self.get_gaze_frame(session_name, create_if_not_exists=True)
+                messages = self.sessions[session_name]['messages']
+
+                if not messages:
+                    self._write_to_logfile(f"No messages found in asc file of {session_name}.")
+
+                self._document_calibrations(session_name)
+
+                stimuli = self._load_session_stimuli(self.stimulus_dir, self.language, self.country,
+                                                     self.lab_number,
+                                                     self.sessions[session_name]['stimulus_order_version'],
+                                                     session_name,
+                                                     )
+
+
+                with open(report_file_path, "a+",  encoding="utf-8") as report_file:
+                    # set report object
+                    report = partial(report_meta, report_file=report_file)
+                    check_metadata(self.sessions[session_name]['metadata'], report)
+
+                self._check_logfiles(stimuli, session_name)
+                self._check_stimuli_gaze_frame(stimuli, session_name, gaze)
+                self._check_asc_messages(stimuli, messages, session_name)
+                self._check_asc_validation(session_name)
+                self._load_psychometric_tests(session_name)
+                self._extract_question_answers(stimuli, session_name)
+                self._load_psychometric_tests(session_name)
+
+                if plotting:
+                    self._create_plots(stimuli, session_name, gaze)
+
+    def _load_manual_corrections(self) -> list[str]:
+        # read excluded sessions from txt file if it exists in the top data folder
+        manual_corrections = self.data_root.parent / 'manual_preprocessing_corrections.yaml'
+        if manual_corrections.exists():
+            with open(manual_corrections, 'r') as f:
+                yaml_dict = yaml.load(f, Loader=yaml.SafeLoader)
+                if 'excluded_sessions' in yaml_dict:
+                    excluded_sessions = yaml_dict['excluded_sessions']
+                    if excluded_sessions:
+                        return excluded_sessions.keys().to_list()
+
+        else:
+            # create the file so that we can write to it later
+            open(manual_corrections, 'w').close()
+
+        return []
+
+    def _load_session_names(self, session: str | list[str] | None) -> list[str]:
+        """
+        Get the session names from the data root folder.
+        :param session: If a session identifier is specified only the gaze data for this session is loaded.
+        :return:
+        """
+        if not session:
+            sessions = [key for key in self.sessions.keys()]
+            return sessions
+        elif session not in self.sessions:
+            raise KeyError(f'Session {session} not found in {self.data_root}.')
+
+        elif isinstance(session, str):
+            return [session]
+        elif isinstance(session, list):
+            return session
+
+    def create_dataset_overview(self) -> dict:
+        """
+        Create an overview of the dataset and save it as a yaml file in the top data folder.
+        :return: overview dict
+        """
+
+        overview_path = self.data_root.parent / f"{self.data_collection_name}_overview.yaml"
+
+        num_sessions = len(self.sessions)
+        num_pilots = len([session for session in self.sessions if self.sessions[session]['is_pilot']])
+
+        # TODO: add more, check metadata scheme, add stats like num read pages, total reading time etc.
+        overview = {
+            'data_collection_name': self.data_collection_name,
+            'num_sessions': num_sessions,
+            'num_pilots': num_pilots,
+        }
+
+        with open(overview_path, 'w') as f:
+            yaml.dump(overview, f)
+
+        return overview
+
+
+    def prepare_session_level_information(self):
+        """
+        Load the logfiles and completed stimuli for all sessions. All of this information is needed repeatedly
+        in the sanity checks and is therefore loaded once here.
+        :return:
+        """
+
+        for session in self.sessions.keys():
+            p_id = session.split('_')[0]
+
+            if 'start_after_trial' in session:
+                if p_id not in self.crashed_session_ids:
+                    self.crashed_session_ids.append(p_id)
+                    self._write_to_logfile(f"Session {session} started after a trial. Only the completed stimuli will be considered.")
+
+
+            self.create_gaze_frame(session)
+
+            self.sessions[session]['completed_stimuli_ids'], self.sessions[session][
+                'stimuli_trial_mapping'] = self._load_session_completed_stimuli(session)
+            self.sessions[session]['messages'] = self._parse_asc(session)
+            self.sessions[session]['logfile'] = self._load_session_logfile(session)
+            self.sessions[session]['stimulus_order_version'] = self._load_stimulus_order_version_from_logfile(session)
+            self.sessions[session]['stimuli_order_ids'] = self._load_session_stimulus_order(session, self.sessions[session]['stimulus_order_version'])
+
+            if self.sessions[session]['stimuli_order_ids'] != self.sessions[session]['completed_stimuli_ids']:
+                if not p_id in self.crashed_session_ids:
+                    self._write_to_logfile(f"Stimulus order and completed stimuli do not match for session {session}. "
+                                  f"Please check the files carefully.")
+
+
+    def create_gaze_frame(self, session: str | list[str] = '', overwrite: bool = False) -> None:
+        """
+        Creates, preprocesses and saves the gaze data for the specified session or all sessions.
+        :param session: If a session identifier is specified only the gaze data for this session is loaded.
+        :param overwrite: If True the gaze data is overwritten if it already exists.
+        :return:
+        """
+        session_keys = self._load_session_names(session)
+
+        for session_name in session_keys:
+            gaze_path = self.output_dir / session_name
+
+            # / f"{session_name}_gaze.pkl"
+            gaze_path.mkdir(parents=True, exist_ok=True)
+
+            gaze_path = gaze_path / f"{session_name}_gaze.pkl"
+
+            if gaze_path.exists() and not overwrite:
+                # make sure gaze path is added if the pkl was created in a previous run
+                self.sessions[session_name]['gaze_path'] = gaze_path
+                logging.debug(f"Gaze data already exists for {session_name}.")
+                return
+
+            self.sessions[session_name]['gaze_path'] = gaze_path
+
+            try:
+                gaze = load_data(Path(self.sessions[session_name]['asc_path']), self.lab_configuration,
+                                 session_idf=session_name)
+            except KeyError as e:
+                raise e
+            except FileNotFoundError:
+                raise FileNotFoundError(
+                    f"No asc file found for session {session_name}. Please create first.")
+
+            logging.warning(f"Preprocessing gaze data for {session_name}. This might take a while.")
+
+            preprocess(gaze)
+            # save and load the gaze dataframe to pickle for later usage
+            self.sessions[session_name]['gaze_path'] = gaze_path
+            self.sessions[session_name]['metadata'] = gaze._metadata
+
+            # make sure all dirs haven been created
+
+            with open(gaze_path, "wb") as f:
+                pickle.dump(gaze, f)
+
+    def _load_session_stimuli(self, stimulus_dir: Path, lang: str,
+                              country: str, lab_num: int,
+                              stimulus_order_version: int,
+                              session_identifier: str,
+                              stimulus_names: None | list = None,
+                              ) -> list[Stimulus]:
+        """
+        Load the stimuli from the specified directory.
+        :param stimulus_dir: The directory where the stimuli are stored.
+        :param lang: The language of the stimuli.
+        :param country: The country of the stimuli.
+        :param stimulus_names: The names of the stimuli to load. If None, the predefined stimuli names in the
+        global variable self.stimulus_names are used.
+        :param stimulus_order_version: The version of the questions to load. Specifies how the questions are ordered and the
+        shuffling of the answer options.
+        :param lab_num: The lab number.
+
+        """
+        stimuli = []
+        if stimulus_names is None:
+            stimulus_names = [name for name, num in self.stimulus_names.items()
+                              if num in self.sessions[session_identifier]['completed_stimuli_ids']]
+
+        for stimulus_name in stimulus_names:
+            stimulus = Stimulus.load(stimulus_dir, lang, country, lab_num, stimulus_name, stimulus_order_version)
+            stimuli.append(stimulus)
+
+        return stimuli
+
+
+    def _load_stimulus_order_version_from_logfile(self, session_identifier: str) -> int:
+        """
+        Extract the question order and version from the session identifier.
+        :param session_identifier: The session identifier.
+        :return: The question order version to correctly map participant, stimulus and question order versions.
+        """
+        session_path = self.sessions[session_identifier]['session_folder_path']
+        logfile_path = Path(f'{session_path}/logfiles')
+        general_logfile = logfile_path.glob('GENERAL_LOGFILE_*.txt')
+        general_logfile = next(general_logfile)
+        assert general_logfile.exists(), f"Logfile path {general_logfile} does not exist."
+
+        regex = r"(STIMULUS_ORDER_VERSION_)(?P<order_version>\d+)"
+        with open(general_logfile, "r", encoding="utf-8") as f:
+            text = f.read()
+        match = re.search(regex, text)
+
+        if match:
+            stimulus_order_version_logfile = int(match.groupdict()['order_version'])
+        else:
+            raise ValueError(f"Could not find question order version in {general_logfile}.")
+
+        return stimulus_order_version_logfile
+
+    def _load_session_logfile(self, session_identifier):
+        """
+        Load the logfiles for the specified session. Stores the logfile and the completed stimuli as a polars DataFrame,
+        the order of the stimuli as list, and the version of the question oder as an int.
+        :param session_identifier: The session identifier.
+        """
+
+        session_path = self.sessions[session_identifier]['session_folder_path']
+        logfile_folder = Path(f'{session_path}/logfiles')
+
+        assert logfile_folder.exists(), f"Logfile folder {logfile_folder} does not exist."
+        logfile = logfile_folder.glob("EXPERIMENT_*.txt")
+
+        logfiles = list(logfile)
+
+        if len(logfiles) != 1:
+            raise ValueError(f"More than one or no logfile found in {logfile_folder}. Please check the logfiles carefully. "
+                             f"This can happen if the experiment crashed early and was restarted, in that case the earlier logfiles can be deleted.")
+
+        logfile = pl.read_csv(logfiles[0], separator="\t")
+        return logfile
+
+    def _load_session_completed_stimuli(self, session_identifier):
+
+        session_path = self.sessions[session_identifier]['session_folder_path']
+        logfile_folder = Path(f'{session_path}/logfiles')
+        completed_stim_path = logfile_folder / 'completed_stimuli.csv'
+
+        completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
+
+        p_id = session_identifier.split('_')[0]
+
+        # load trial to stimulus mapping
+        trial_ids = completed_stimuli['trial_id'].to_list()
+        stimulus_names = completed_stimuli['stimulus_name'].to_list()
+        stimuli_trial_mapping = {str(trial): name for trial, name in zip(trial_ids, stimulus_names)}
+
+        if completed_stimuli['completed'].cast(pl.Utf8).str.contains('restart').any():
+            if p_id not in self.crashed_session_ids:
+                self.crashed_session_ids.append(p_id)
+                self._write_to_logfile(f"Session {session_identifier} has been restarted. Only the completed stimuli will be considered.")
+            # delete the last row in the csv if it contains 'restart' in the completed column
+            completed_stimuli = completed_stimuli[:-1]
+
+        completed_stimuli = completed_stimuli.cast({'completed': pl.Int8})
+        completed_stimuli = completed_stimuli.filter(completed_stimuli['completed'] == 1)['stimulus_id'].to_list()
+
+        return completed_stimuli, stimuli_trial_mapping
+
+    def _load_session_stimulus_order(self, session_identifier, logfile_order_version: int) -> list[int]:
+
+        # if the session crashed, only load the stimuli that were actually completed in that session
+        p_id = session_identifier.split('_')[0]
+        incomplete_order = []
+        if p_id in self.crashed_session_ids:
+            incomplete_order = self.sessions[session_identifier]['completed_stimuli_ids']
+
+        # get the entry where the participant id matches
+        stim_order_version = self.stim_order_versions[self.stim_order_versions['participant_id'] == int(p_id)]
+        if len(stim_order_version) == 0:
+            raise KeyError(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
+                           f"participant IDs in the stimulus order versions file. It is possible that the team did not "
+                           f"upload the correct stimulus version from the experiment folder.")
+        elif len(stim_order_version) == 1:
+            version = stim_order_version['version_number'].values[0]
+            if logfile_order_version != version:
+                self._write_to_logfile(f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                              f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the "
+                              f"version from the logfile.")
+            stimulus_order = stim_order_version.drop(columns=['version_number', 'participant_id']).values[0].tolist()
+
+            if incomplete_order:
+                stimulus_order_copy = stimulus_order.copy()
+                incom, comp = 0, 0
+                for _ in range(len(stimulus_order)):
+
+                    if len(incomplete_order) == incom:
+                        return incomplete_order
+
+                    if incomplete_order[incom] == stimulus_order_copy[comp]:
+                        incom += 1
+                        comp += 1
+                        continue
+
+                    if incomplete_order[incom] != stimulus_order_copy[comp]:
+                        stimulus_order_copy.pop(incom)
+
+                    if stimulus_order_copy == incomplete_order:
+                        return incomplete_order
+
+                    if len(stimulus_order_copy) < len(incomplete_order):
+                        raise ValueError(
+                            'Crashed session stimulus order is not a subset of the stimuli order which was '
+                            'supposed to be completed.')
+                return incomplete_order
+
+            return stimulus_order
+
+        else:
+            raise ValueError(f"More than one entry found for participant ID {p_id} in stimulus order versions. "
+                             f"Please check the stimulus order versions file for duplicates.")
+
+
+    def _parse_asc(self, session_identifier: str):
+        """
+       qick fix for now, should be replaced by the summary experiment frame later on, however the extraction of the
+       stimulus order version is essential for other code parts, it cannot be removed without further alterations
+        """
+        regex = re.compile(r'MSG\s+(?P<timestamp>\d+[.]?\d*)\s+(?P<message>.*)')
+        start_regex = re.compile(
+            r'MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)')
+        stop_regex = re.compile(
+            r'MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)')
+
+        other_screens = ['welcome_screen', 'informed_consent_screen', 'start_experiment', 'stimulus_order_version',
+                            'showing_instruction_screen',
+                            'camera_setup_screen', 'practice_text_starting_screen','transition_screen',
+                            'final_validation', 'show_final_screen',
+                         'optional_break_screen', 'fixation_trigger:skipped_by_experimenter',
+                            'fixation_trigger:experimenter_calibration_triggered',
+                             'recalibration', 'empty_screen', 'obligatory_break', 'optional_break',]
+
+
+        asc_file = self.sessions[session_identifier]['asc_path']
+        stimuli_trial_mapping = self.sessions[session_identifier]['stimuli_trial_mapping']
+
+        other_screen_appearance = {
+            'timestamp': [],
+            'screen': [],
+        }
+
+        reading_times = {
+            'start_ts': [],
+            'stop_ts': [],
+            'start_msg': [],
+            'stop_msg': [],
+            'duration_ms': [],
+            'duration_str': [],
+            'trials': [],
+            'pages': [],
+            'status': [],
+            'stimulus_name': [],
+        }
+
+        breaks = {
+            'start_ts': [],
+            'stop_ts': [],
+            'duration_ms': [],
+            'type': [],
+        }
+
+        messages = []
+
+        initial_ts = 0
+
+        result_folder = self.output_dir / session_identifier
+        in_break = False
+
+        with open(asc_file, "r", encoding="utf-8") as f:
+
+            for l in f.readlines():
+
+                if match := regex.match(l):
+                    messages.append(match.groupdict())
+                    msg = match.groupdict()['message']
+                    ts = match.groupdict()['timestamp']
+
+                    if not initial_ts:
+                        initial_ts = ts
+
+                    for screen in other_screens:
+                        if screen in l:
+                            other_screen_appearance['screen'].append(msg)
+                            other_screen_appearance['timestamp'].append(ts)
+
+                    if msg == 'optional_break' and not in_break:
+                        in_break = True
+                        breaks['start_ts'].append(ts)
+                        breaks['type'].append('optional')
+                    elif msg == 'optional_break_end' and in_break:
+                        in_break = False
+                        breaks['stop_ts'].append(ts)
+                    elif msg.split()[0] == 'optional_break_duration:':
+                        breaks['duration_ms'].append(msg.split()[1])
+
+                    elif msg == 'obligatory_break' and not in_break:
+                        in_break = True
+                        breaks['start_ts'].append(ts)
+                        breaks['type'].append('obligatory')
+                    elif msg == 'obligatory_break_end' and in_break:
+                        in_break = False
+                        breaks['stop_ts'].append(ts)
+                    elif msg.split()[0] == 'obligatory_break_duration:':
+                        breaks['duration_ms'].append(msg.split()[1])
+                    else:
+                        self._write_to_logfile(
+                            f'Found inconsistent break messages in asc file at ts {ts} with msg {msg}.'
+                        )
+
+                if match := start_regex.match(l):
+                    reading_times['start_ts'].append(match.groupdict()['timestamp'])
+                    reading_times['start_msg'].append(match.groupdict()['type'])
+
+                    trial = match.groupdict()['trial']
+                    trial = trial.replace('trial_', '')
+                    reading_times['trials'].append(trial)
+
+                    if trial in stimuli_trial_mapping:
+                        reading_times['stimulus_name'].append(stimuli_trial_mapping[trial])
+                    else:
+                        reading_times['stimulus_name'].append('unknown')
+
+                    reading_times['pages'].append(match.groupdict()['page'])
+                    reading_times['status'].append('reading time')
+                elif match := stop_regex.match(l):
+                    reading_times['stop_ts'].append(match.groupdict()['timestamp'])
+                    reading_times['stop_msg'].append(match.groupdict()['type'])
+
+            self._document_reading_times(initial_ts, reading_times, result_folder, session_identifier)
+
+            other_screens_df = pd.DataFrame(other_screen_appearance)
+            other_screens_df.to_csv(result_folder / f'other_screens_{session_identifier}.tsv', sep='\t', index=False)
+
+            if not in_break:
+                breaks_df = pd.DataFrame(breaks)
+                breaks_df.to_csv(result_folder / f'breaks_{session_identifier}.tsv', sep='\t', index=False)
+            else:
+                self._write_to_logfile(f"Session {session_identifier} did not finish a break properly, "
+                                       f"missing end message.")
+
+        return messages
+
+    def _document_reading_times(self, initial_ts, reading_times, result_folder, session_identifier):
+
+        stimuli_trial_mapping = self.sessions[session_identifier]['stimuli_trial_mapping']
+        total_reading_duration_ms = 0
+
+        for start, stop in zip(reading_times['start_ts'], reading_times['stop_ts']):
+            time_ms = int(stop) - int(start)
+            time_str = convert_to_time_str(time_ms)
+            reading_times['duration_ms'].append(time_ms)
+            reading_times['duration_str'].append(time_str)
+            total_reading_duration_ms += time_ms
+
+        # calculate duration between pages
+        temp_stop_ts = reading_times['stop_ts'].copy()
+        temp_stop_ts.insert(0, initial_ts)
+        temp_stop_ts = temp_stop_ts[:-1]
+        total_set_up_time_ms = 0
+
+        for stop, start, page, trial in zip(temp_stop_ts, reading_times['start_ts'], reading_times['pages'],
+                                            reading_times['trials']):
+            time_ms = int(start) - int(stop)
+            time_str = convert_to_time_str(time_ms)
+            reading_times['duration_ms'].append(time_ms)
+            reading_times['duration_str'].append(time_str)
+            reading_times['start_msg'].append('time inbetween')
+            reading_times['stop_msg'].append('time inbetween')
+            reading_times['start_ts'].append(stop)
+            reading_times['stop_ts'].append(start)
+            reading_times['trials'].append(trial)
+            total_set_up_time_ms += time_ms
+
+            if trial in stimuli_trial_mapping:
+                reading_times['stimulus_name'].append(stimuli_trial_mapping[trial])
+            else:
+                reading_times['stimulus_name'].append('unknown')
+
+            reading_times['pages'].append(page)
+            reading_times['status'].append('time before pages and breaks')
+
+        df = pd.DataFrame({
+            'start_ts': reading_times['start_ts'],
+            'stop_ts': reading_times['stop_ts'],
+            'trial': reading_times['trials'],
+            'stimulus': reading_times['stimulus_name'],
+            'page': reading_times['pages'],
+            'type': reading_times['status'],
+            'duration_ms': reading_times['duration_ms'],
+            'duration-hh:mm:ss': reading_times['duration_str']
+        })
+
+        df.to_csv(result_folder / f'times_per_page_{session_identifier}.tsv', sep='\t', index=False, )
+        sum_df = df[['stimulus', 'trial', 'type', 'duration_ms', 'start_ts', 'stop_ts']].dropna()
+        sum_df['duration_ms'] = sum_df['duration_ms'].astype(float)
+        sum_df = sum_df.groupby(by=['stimulus', 'trial', 'type']).agg({'duration_ms': 'sum', 'start_ts': 'min', 'stop_ts': 'max'}).reset_index()
+        duration = sum_df['duration_ms'].apply(lambda x: convert_to_time_str(x))
+        sum_df['duration-hh:mm:ss'] = duration
+
+        sum_df.to_csv(result_folder / f'times_per_stimulus_{session_identifier}.tsv', index=False, sep='\t')
+
+        start_end_per_stimulus = sum_df[['stimulus', 'trial', 'start_ts', 'stop_ts']].dropna()[~sum_df['type'].str.contains('time before')]
+
+        self.sessions[session_identifier]['stimulus_start_end'] = start_end_per_stimulus.to_dict(orient='records')
+
+        total_times = pd.DataFrame({
+            'session': session_identifier,
+            'lab': self.lab_number,
+            'language': self.language,
+            'total_trials': [len(sum_df) / 2],
+            'total_pages': [len(df) / 2],
+            'total_reading_time': [convert_to_time_str(total_reading_duration_ms)],
+            'total_non-reading_time': [convert_to_time_str(total_set_up_time_ms)],
+            'total_exp_time': [convert_to_time_str(total_reading_duration_ms + total_set_up_time_ms)]
+        })
+
+        if os.path.exists(self.data_root.parent / f'total_reading_times.tsv'):
+            temp_total_times = pd.read_csv(self.data_root.parent / 'total_reading_times.tsv', sep='\t')
+            if session_identifier not in temp_total_times['session'].tolist():
+                total_times = pd.concat([temp_total_times, total_times], ignore_index=True)
+
+        total_times.to_csv(self.data_root.parent / 'total_reading_times.tsv', sep='\t', index=False)
+
+
+    def _document_calibrations(self, session_identifier: str):
+
+        metadata = self.sessions[session_identifier]['metadata']
+
+        validations = metadata['validations']
+        calibrations = metadata['calibrations']
+
+        val_df = pd.DataFrame(validations)
+        cal_df = pd.DataFrame(calibrations)
+
+        result_folder = self.output_dir / session_identifier
+        val_df.to_csv(result_folder / f'validations_{session_identifier}.tsv',
+                        sep='\t', index=False)
+        cal_df.to_csv(result_folder / f'calibrations_{session_identifier}.tsv',
+                        sep='\t', index=False)
+
+
+    def _check_asc_validation(self, session_identifier: str) -> None:
+        """
+        Check the validations in the asc file for the specified session.
+        :param session_identifier: The session identifier.
+        :param gaze: If the gaze data has already been created it can be passed as an argument.
+        If not it will be created.
+        """
+
+        # sort stimulus times into list by start and end time
+        sorted_stimuli = sorted(self.sessions[session_identifier]['stimulus_start_end'], key=lambda x: float(x['start_ts']))
+        sorted_start_end = []
+        for stimulus in sorted_stimuli:
+            sorted_start_end.append({'message': f'{stimulus["stimulus"]}_start', 'timestamp': float(stimulus['start_ts'])})
+            sorted_start_end.append({'message': f'{stimulus["stimulus"]}_end', 'timestamp': float(stimulus['stop_ts'])})
+
+        check_validation_requirements(self.sessions[session_identifier]['metadata'], self.sessions[session_identifier]['sanity_report_path'],
+                            sorted_start_end)
+
+    def _check_stimuli_gaze_frame(self, stimuli, session_identifier, gaze=None):
+        """
+        """
+        logging.debug(f"Checking asc file all screens for {session_identifier} all screens.")
+
+        if not gaze:
+            logging.debug(f"Loading gaze data for {session_identifier}.")
+            gaze = self.get_gaze_frame(session_identifier, create_if_not_exists=True)
+
+        sanity_check_gaze_frame(gaze, stimuli, self.sessions[session_identifier]['sanity_report_path'])
+
+    def _check_asc_messages(self, stimuli, messages, session_identifier: str) -> None:
+        """
+        Check the instructions for the specified session.
+        :param messages:
+        :param stimuli:
+        :param session_identifier: The session identifier. eg "005_ET_EE_1_ET1"
+        """
+
+        p_id = session_identifier.split('_')[0]
+        check_messages(messages, stimuli, self.sessions[session_identifier]['sanity_report_path'],
+                       self.sessions[session_identifier]["completed_stimuli_ids"],
+                       restarted=p_id in self.crashed_session_ids)
+
+    def _check_logfiles(self, stimuli, session_identifier):
+        """
+        Check the experiment logfile for the specified session.
+        :param stimuli:
+        :param session_identifier: The session identifier.
+        :return:
+        """
+
+        check_all_screens_logfile(self.sessions[session_identifier]["logfile"],
+                                  stimuli, self.sessions[session_identifier]['sanity_report_path'])
+
+    def _load_psychometric_tests(self, session_identifier: str):
+        if self.psychometric_tests:
+            for test in self.psychometric_tests:
+                test_path = self.data_root.parent / 'psychometric-tests-sessions' / session_identifier
+                if not test_path.exists():
+                    self._write_to_logfile(f"Psychometric test path {test_path} does not exist for session {session_identifier}.")
+                else:
+                    if test == 'PLAB':
+                        preprocess_plab(path=test_path)
+                    elif test == 'RAN':
+                        preprocess_ran(path=test_path)
+                    elif test == 'Stroop':
+                        preprocess_stroop(path=test_path)
+                    elif test == 'Flanker':
+                        preprocess_flanker(path=test_path)
+                    elif test == 'WikiVocab':
+                        preprocess_wikivocab(path=test_path)
+                    elif test == 'LWMC':
+                        preprocess_lwmc(path=test_path)
+                    else:
+                        self._write_to_logfile(f"Psychometric test {test} not recognized. "
+                                               f"Please check the psychometric tests configuration in the lab configuration yaml file.")
+
+
+    def _extract_question_answers(self, stimuli: list[Stimulus], session_identifier: str) -> None:
+
+        check_comprehension_question_answers(self.sessions[session_identifier]["logfile"],
+                                             stimuli, self.sessions[session_identifier]['sanity_report_path'])
+
+
+    def _create_plots(self, stimuli, session_identifier, gaze=None):
+
+        if not gaze:
+            gaze = self.get_gaze_frame(session_identifier, create_if_not_exists=True)
+
+        plot_dir = self.output_dir / session_identifier / f"{session_identifier}_plots"
+        plot_dir.mkdir(exist_ok=True)
+
+        plot_main_sequence(gaze.events, plot_dir)
+
+        for stimulus in stimuli:
+            plot_gaze(gaze, stimulus, plot_dir)
+
+    def preprocess_psychometric_tests(self):
+        pass
+
+    def preprocess_eye_tracking_data(self):
+        pass
+
+    def parse_participant_data(self) -> None:
+        """
+        Load the participant data for all participants.
+        """
+
+        participant_data = pd.DataFrame()
+
+        for idx, session in (pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))):
+            pbar.set_description(f'Parsing participant data : {session}')
+            notes = ''
+            folder = Path(self.sessions[session]['session_folder_path'])
+            try:
+                participant_id, country, lang, lab, session_id = session.split('_')
+            except ValueError:
+                if 'start_after_trial_' in session:
+                    logging.warning(f'Session {session} has been restarted.')
+                    participant_id, country, lang, lab, _, _, _, _, trial = session.split('_')
+                    notes = f'Session has been restarted after trial {trial}.'
+                else:
+                    raise ValueError(f"Session {session} does not match the expected format.")
+
+            pq_file = folder / f'{participant_id}_{country}_{lang}_{lab}_pq_data.json'
+            if pq_file.exists():
+                with open(pq_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+
+                # due to a bug in an earlier version of the experiment, some of the participant data has been lost,
+                # and we need to correct it
+                if 'native_language_1_academic_reading_time' not in data:
+                    data = remap_wrong_pq_values(data)
+
+                data['participant_id'] = participant_id
+                data['notes'] = notes
+                data['session'] = session_id
+
+                participant_data = pd.concat([participant_data, pd.DataFrame(data, index=[idx])], ignore_index=True)
+
+            else:
+                logging.warning(f"No participant data found for session {session}. Skipping.")
+
+        # reorder columns such that participant_id is the first column
+        if not participant_data.empty:
+            cols = participant_data.columns.tolist()
+            cols = ['participant_id'] + [col for col in cols if col != 'participant_id']
+            participant_data = participant_data[cols]
+
+            participant_data.to_csv(self.data_root.parent / 'participant_data.csv', index=False)
+            self.participant_data_path = self.data_root.parent / 'participant_data.csv'
+
+
+    def _write_to_logfile(self, message: str) -> None:
+
+        log_file = self.data_root.parent / 'preprocessing_logs.txt'
+        with open(log_file, 'a', encoding='utf-8') as logs:
+            logs.write(message + '\n')
+
+
+
+def convert_to_time_str(duration_ms: float) -> str:
+    seconds = int(duration_ms / 1000) % 60
+    minutes = int(duration_ms / (1000 * 60)) % 60
+    hours = int(duration_ms / (1000 * 60 * 60)) % 24
+
+    return f'{hours:02d}:{minutes:02d}:{seconds:02d}'
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    data_collection_folder = 'MultiplEYE_ET_EE_Tartu_1_2025'
+
+    this_repo = Path().resolve().parent
+
+    data_folder_path = this_repo / "data" / data_collection_folder
+
+    multipleye = MultipleyeDataCollection.create_from_data_folder(str(data_folder_path))
+    # multipleye.add_recorded_sessions(data_root= data_folder_path / 'eye-tracking-sessions' / 'core_dataset', convert_to_asc=False, session_folder_regex=r"005_ET_EE_1_ET1")
+    # multipleye.create_gaze_frame("005_ET_EE_1_ET1")
+    multipleye.create_sanity_check_report(["005_ET_EE_1_ET1", "006_ET_EE_1_ET1"])
+    multipleye.create_experiment_frame("005_ET_EE_1_ET1")
