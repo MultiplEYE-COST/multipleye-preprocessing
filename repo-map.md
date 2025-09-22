@@ -8,7 +8,7 @@ multipleye-preprocessing/
 ├── prepare_language_folder.py
 ├── run_multipleye_preprocessing.py
 ├── run_multipleye_sanity_checks.py
-├── run_merid_sanity_checks.py
+├── run_merid_sanity_checks.py 
 ├── edf2asc
 ├── old/
 ├── preprocessing/
@@ -16,7 +16,7 @@ multipleye-preprocessing/
 │   ├── config.py
 │   ├── requirements_temp.txt
 │   ├── peyepline-AS.py **my current tasks**
-│   ├── multipleye_pEYEpline.ipynb **one of the original preprocessing notebooks**
+│   ├── multipleye_pEYEpline.ipynb **one of the original preprocessing notebooks should be deleted**
 │   ├── multipleye_pEYEpline_AS.ipynb **my working copy**
 │   ├── data_collection/
 │   │   ├── __init__.py
