@@ -1,10 +1,9 @@
 import pymovements as pm
 from pathlib import Path
-from pymovements.dataset.dataset_files import load_gaze_file
-from pymovements.dataset.dataset_definition import DatasetDefinition
 from pymovements.gaze import Gaze
-from typing import Any
-from polars import DataFrame
+from pymovements.gaze.io import from_asc
+import polars as pl
+
 # from pymovements.gaze.Gaze import compute_event_properties
 
 
@@ -18,30 +17,27 @@ def create_gaze_frame(raw_file: str, save=True) -> pm.Gaze:
     """
     # TODO: figure out if pm can save gaze data?
     # TODO: what to do about the metadata argument? create a function to properly access it? getter?
-    # print file path
     print(f"Parsing raw file: {raw_file}")
-    file_path = Path(raw_file)
 
-    # def load_gaze_file(filepath: Path, fileinfo_row: dict[str, Any], definition: DatasetDefinition, preprocessed: bool=False) -> Gaze
+    gaze = from_asc(
+        file=raw_file,
+        events=True
+    )
 
-    #  metadata_patterns: list[dict[str, Any] | str] | None
-    #     List of patterns to match for extracting metadata from custom logged messages.
-    #     (default: None)
+    # Set screen parameters for degrees of visual angle conversion
+    # a must-have in order to convert pixels to degrees of visual angle
+    gaze.experiment.screen.distance_cm = 60
+    gaze.experiment.screen.height_cm = 28
+    gaze.experiment.screen.width_cm = 37
 
-    gaze = load_gaze_file(
-        file_path, {'load_function': 'from_asc', 'load_kwargs': {}}, 'definition': DatasetDefinition(), 'preprocessed': False)
-    # {'metadata_patterns': []}
-    # print the first 5 rows of the gaze data
-    # from tutorial: Every Gaze has some samples with six columns (check Gaze/samples): [time, stimuli_x, stimuli_y, text_id, page_id, pixel].
-    # but we have 4 columns: time, pupil, preprocessed, pixel
-    print(type(gaze))
     print(gaze.samples.head())
+
     # print the metadata
     print(gaze.experiment)
 
     if save:
         # save gaze data as pickle file in the working folder
-        gaze.save(file_path.with_suffix(".pkl"), save_experiment=True)
+        gaze.save(Path(raw_file).with_suffix(".pkl"), save_experiment=True)
     return gaze
 
 
@@ -52,22 +48,22 @@ gaze = create_gaze_frame(
 def calculate_fixations(gaze: pm.Gaze):
     # TODO: figure out how to use pymovements algorithms to calculate fixations
 
-    #     properties = Gaze.compute_event_properties(
-    #         gaze, event_properties=['amplitude', 'dispersion', 'disposition', 'duration', 'location', 'peak_velocity'])
-    #   File "/Users/anastassiashaitarova/Documents/postdoc-life/openEye/pymovements/src/pymovements/gaze/gaze.py", line 1100, in compute_event_properties
-    #     raise ValueError(
-    #     ...<2 lines>...
-    #     )
-    # ValueError: The following event properties already exist and cannot be recomputed: {'duration'}. Please remove them first.
-
-    # properties = Gaze.compute_event_properties(
-    #     gaze, event_properties=['amplitude', 'dispersion', 'disposition', 'location', 'peak_velocity'])
-    # print(f"Detected properties: {properties}")
+    print()
+    print('Print gaze.events.frame:')
+    print('# This gaze has parsed events (recorded by the eye tracker during acquisition), not recomputed from samples by PyMovements #')
     print(gaze.events.frame)
+    print('Print gaze.samples:')
+    print(gaze.samples.head())
 
     gaze.pix2deg()
     gaze.pos2vel('smooth')
-    print(gaze.samples.head())
+
+    print('Newly computed fixations:')
+    print()
+    # recompute events (e.g. with IVT), produces fixations
+    gaze.detect(method="ivt", velocity_threshold=30)
+    fixations_ivt = gaze.events.frame.filter(pl.col("name") == "fixation")
+    print(fixations_ivt.head())
 
 
 calculate_fixations(gaze)
