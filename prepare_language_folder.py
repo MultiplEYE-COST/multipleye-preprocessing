@@ -34,6 +34,16 @@ def prepare_language_folder(data_collection_name):
             raise FileNotFoundError(f"The 'eye-tracking-sessions' folder does not exist in '{data_folder_path}'. "
                                 "Please ensure the data collection is correctly structured.")
 
+    # check if there is a core_sessionsfolder and if yes, check if there are any folder inside and then move them up and delete the core_sessions folder
+    core_sessions_path = eye_tracking_sessions_path / "core_sessions"
+    if core_sessions_path.exists():
+        core_folders = list(core_sessions_path.glob("*"))
+        if len(core_folders) > 0:
+            for folder in core_folders:
+                shutil.move(str(folder), str(eye_tracking_sessions_path))
+            shutil.rmtree(core_sessions_path)
+            print(f"Moved folders from 'core_sessions' to 'eye-tracking-sessions' and removed 'core_sessions' folder.")
+
     psychometric_tests_path = data_folder_path / "psychometric-tests-sessions"
     if not psychometric_tests_path.exists():
         # if there is no psychometric-tests folder, check if it is still in a tar
@@ -60,8 +70,15 @@ def prepare_language_folder(data_collection_name):
             print(f"Extracted participant data from '{participant_folder}'")
             # remove the zip file after extraction
             participant_folder.unlink()
-        else:
-            print(f"No zipped data found for {participant_folder.name}. Proceeding with existing data.")
+
+    pilot_folder = eye_tracking_sessions_path / "pilot_sessions"
+    if pilot_folder.exists():
+        for pilot_participant_folder in pilot_folder.glob("*"):
+            if pilot_participant_folder.suffix == ".zip":
+                shutil.unpack_archive(pilot_participant_folder, extract_dir=pilot_folder)
+                print(f"Extracted pilot participant data from '{pilot_participant_folder}'")
+                # remove the zip file after extraction
+                pilot_participant_folder.unlink()
 
     stimulus_folder_path = data_folder_path / f"stimuli_{data_collection_name}"
 

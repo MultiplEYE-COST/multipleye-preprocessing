@@ -2,11 +2,14 @@ import os
 import pickle
 import re
 import subprocess
+import warnings
 from pathlib import Path
 
 import numpy as np
 from pymovements import GazeDataFrame
 from tqdm import tqdm
+
+from preprocessing.data_collection.session import Session
 
 EYETRACKER_NAMES = {
     'eyelink': [
@@ -35,6 +38,7 @@ class DataCollection:
     country: str
     session_folder_regex: str = ''
     data_root: Path = None
+    excluded_sessions: list = []
 
     def __init__(self,
                  data_collection_name: str,
@@ -118,36 +122,40 @@ class DataCollection:
                 if item.is_dir():
                     if re.match(session_folder_regex, item.name, re.IGNORECASE):
 
-                        session_file = list(Path(item.path).glob('*' + session_file_suffix))
+                        if item.name not in self.excluded_sessions:
 
-                        if len(session_file) == 0:
-                            raise ValueError(f'No files found in folder {item.name} that match the pattern '
-                                             f'{session_file_suffix}')
-                        elif len(session_file) > 1:
-                            raise ValueError(f'More than one file found in folder {item.name} that match the pattern '
-                                             f'{session_file_suffix}. Please specify a more specific pattern and check '
-                                             f'your data.')
-                        else:
-                            session_file = session_file[0]
+                            session_file = list(Path(item.path).glob('*' + session_file_suffix))
 
-                        # TODO: introduce a session object?
-                        is_pilot = self.include_pilots and (item in pilots)
-                        self.sessions[item.name] = {
-                            'session_folder_path': item.path,
-                            'session_file_path': session_file,
-                            'session_file_name': session_file.name,
-                            'session_folder_name': item.name,
-                            'session_stimuli': '',
-                            'is_pilot': is_pilot,
-                        }
+                            if len(session_file) == 0:
+                                raise ValueError(f'No files found in folder {item.name} that match the pattern '
+                                                 f'{session_file_suffix}')
 
-                        # check if asc files are already available
-                        if not convert_to_asc and self.eye_tracker == 'eyelink':
-                            asc_file = Path(item.path).glob('*.asc')
-                            if len(list(asc_file)) == 1:
-                                asc_file = list(asc_file)[0]
-                                self.sessions[item.name]['asc_path'] = asc_file
-                                print(f'Found asc file for {item.name}.')
+                            elif len(session_file) > 1:
+                                raise ValueError(f'More than one file found in folder {item.name} that match the pattern '
+                                                 f'{session_file_suffix}. Please specify a more specific pattern and check '
+                                                 f'your data.')
+                            else:
+                                session_file = session_file[0]
+
+                            # TODO: introduce a session object?
+                            is_pilot = self.include_pilots and (item in pilots)
+
+                            self.sessions[item.name] = {
+                                'session_folder_path': item.path,
+                                'session_file_path': session_file,
+                                'session_file_name': session_file.name,
+                                'session_folder_name': item.name,
+                                'session_stimuli': '',
+                                'is_pilot': is_pilot,
+                            }
+
+                            # check if asc files are already available
+                            if not convert_to_asc and self.eye_tracker == 'eyelink':
+                                asc_file = Path(item.path).glob('*.asc')
+                                if len(list(asc_file)) == 1:
+                                    asc_file = list(asc_file)[0]
+                                    self.sessions[item.name]['asc_path'] = asc_file
+                                    print(f'Found asc file for {item.name}.')
 
                     else:
                         print(f'Folder {item.name} does not match the regex pattern {session_folder_regex}. '

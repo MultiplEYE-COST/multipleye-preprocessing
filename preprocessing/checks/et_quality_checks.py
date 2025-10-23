@@ -100,52 +100,134 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
     vals = sorted(metadata["validations"], key=lambda x: float(x["timestamp"]))
     cals = sorted(metadata["calibrations"], key=lambda x: float(x["timestamp"]))
 
+    # prepare lists
+
+
+    mes = {
+        'val_cal_during_stimulus': [],
+    'good_vals':  [],
+    'no_cal_after_bad_val':  [],
+    'moderate_vals': [],
+    'bad_vals': [],
+    'others': [],
+    'start_after_bad_val': [],
+        'no_val_before_stimulus': [],
+    'start_after_moderate_val': [],
+        'necessary_cals': [],
+    }
+
+
     merged = sorted(vals + cals + stimulus_times, key=lambda x: float(x["timestamp"]))
     bad_tstamp = None
     bad_val = False
+    val = False
+    moderate_val = False
     in_stimulus = False
     val_count = 0
+    good_vals = 0
+    moderate_vls = 0
     cal_count = 0
+    val_performed = False
     for m in merged:
+        val = False
         if "validation_score_avg" in m:
             val_count += 1
+            val = True
             if bad_val:
-                _report_to_file(f"⚠️ No calibration at {m['timestamp']} after BAD validation at timestamp {bad_tstamp}", report_file)
-                bad_val = False
+                time_since_last_val = round((float(m["timestamp"]) - bad_tstamp) / 1000, 3)
+                # if there are more than 2 minutes between bad val and next val, we consider that a calibration should have happened
+                if time_since_last_val > 120:
+                    mes['no_cal_after_bad_val'].append(f"⚠️ No calibration at {m['timestamp']} after BAD validation at timestamp {bad_tstamp}")
+                    bad_val = False
             score = float(m["validation_score_avg"])
             if score < 0.305:
                 _report_to_file(f"✅ Good validation at {m['timestamp']} with score {m['validation_score_avg']}", report_file)
                 bad_val = False
+                moderate_val = False
+                val_performed = True
+                good_vals += 1
             elif 0.45 > score >= 0.305:
-                _report_to_file(f"⚠️ Moderate validation at {m['timestamp']} with score {m['validation_score_avg']}", report_file)
-                bad_val = True
-                bad_tstamp = int(m["timestamp"])
+                mes['moderate_vals'].append(f"⚠️ Moderate validation at {m['timestamp']} with score {m['validation_score_avg']}")
+                moderate_val = True
+                bad_val = False
+                moderate_vls += 1
+                mod_tstamp = int(m["timestamp"])
             elif score >= 0.45:
-                _report_to_file(f"❌ BAD Validation at {m['timestamp']} with score {m['validation_score_avg']}", report_file)
+                mes['bad_vals'].append(f"❌ BAD Validation at {m['timestamp']} with score {m['validation_score_avg']}")
                 bad_val = True
+                moderate_val = False
                 bad_tstamp = int(m["timestamp"])
             if in_stimulus:
-                _report_to_file(f"⚠️ Validation during stimulus at {m['timestamp']} with score {m['validation_score_avg']}", report_file)
+                mes['val_cal_during_stimulus'].append(f"⚠️ Validation during stimulus at {m['timestamp']} with score {m['validation_score_avg']}")
 
         elif 'message' in m:
             if 'start' in  m['message']:
                 in_stimulus = True
-                _report_to_file(f'ℹ️ {m["message"]} at {m["timestamp"]}', report_file)
+                _report_to_file(f'{m["message"]} at {m["timestamp"]}', report_file)
                 if bad_val:
-                    _report_to_file(f"❌ {m['message']} directly after bad/moderate validation!", report_file)
+                    mes['start_after_bad_val'].append(f"❌ {m['message']} directly after bad/moderate validation!")
+                elif moderate_val:
+                    mes['start_after_moderate_val'].append(f"⚠️ {m['message']} directly after moderate validation!")
+                elif val_performed:
+                    val_performed = False
+                elif not val_performed:
+                    mes['no_val_before_stimulus'].append(f"⚠️ {m['message']} without prior validation at {m['timestamp']}")
 
             if 'end' in m['message']:
                 in_stimulus = False
-                _report_to_file(f'ℹ️ {m["message"]} at {m["timestamp"]}', report_file)
+                _report_to_file(f'{m["message"]} at {m["timestamp"]}', report_file)
 
         else:
             cal_count += 1
             if bad_val:
                 bad_val = False
                 time_between = round((float(m["timestamp"]) - bad_tstamp) / 1000, 3)
-                _report_to_file(f"✅ Calibration at {m['timestamp']} {time_between} seconds after bad/moderate validation", report_file)
+                mes['necessary_cals'].append(f"✅ Calibration at {m['timestamp']} {time_between} seconds after BAD validation")
             if in_stimulus:
-                _report_to_file(f"⚠️ Calibration during stimulus at {m['timestamp']}", report_file)
+                mes['val_cal_during_stimulus'].append(f"⚠️ Calibration during stimulus at {m['timestamp']}")
+
+    _report_to_file("\nValidation/Calibration summary\n------------------------------------------", report_file)
+    _report_to_file(f"Good validations: {good_vals}/{val_count}", report_file)
+    _report_to_file(f"Moderate validations: {moderate_vls}/{val_count}", report_file)
+    _report_to_file(f"Bad validations: {len(mes['bad_vals'])}/{val_count}", report_file)
+
+    _report_to_file(f"Stimulus start after bad/moderate validation", report_file)
+    for start in mes['start_after_bad_val']:
+        start = '\t' + start
+        _report_to_file(start, report_file)
+    for start in mes['start_after_moderate_val']:
+        start = '\t' + start
+        _report_to_file(start, report_file)
+
+    _report_to_file("Missing calibrations after bad/moderate validations", report_file)
+    for start in mes['no_cal_after_bad_val']:
+        start = '\t' + start
+        _report_to_file(start, report_file)
+
+    _report_to_file(f"No validation before stimulus start", report_file)
+    for start in mes['no_val_before_stimulus']:
+        start = '\t' + start
+        _report_to_file(start, report_file)
+
+    _report_to_file("Validation/calibration during stimulus presentation", report_file)
+    for vc in mes['val_cal_during_stimulus']:
+        vc = '\t' + vc
+        _report_to_file(vc, report_file)
+
+    _report_to_file(f'Bad validations', report_file)
+    for bad in mes['bad_vals']:
+        bad = '\t' + bad
+        _report_to_file(bad, report_file)
+
+    _report_to_file(f'Moderate validations', report_file)
+    for moderate in mes['moderate_vals']:
+        moderate = '\t' + moderate
+        _report_to_file(moderate, report_file)
+
+    if val:
+        _report_to_file(f'✅ Final validation', report_file)
+    else:
+        _report_to_file(f'❌ No final calibration!', report_file)
 
 
 def check_metadata(metadata: dict[str, Any], report: ReportFunction) -> None:

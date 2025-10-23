@@ -7,7 +7,7 @@ from preprocessing.data_collection.multipleye_data_collection import MultipleyeD
 
 
 def run_multipleye_sanity_checks(data_collection_name: str, full_path: str = None, create_plots: bool = True,
-                                 include_pilots: bool = False):
+                                 include_pilots: bool = False, sessions_to_check: list = None):
     if full_path is None:
         this_repo = Path().resolve()
         data_folder_path = this_repo / "data" / data_collection_name
@@ -21,7 +21,10 @@ def run_multipleye_sanity_checks(data_collection_name: str, full_path: str = Non
     multipleye = MultipleyeDataCollection.create_from_data_folder(str(data_folder_path), include_pilots=include_pilots,
                                                                   )
 
-    multipleye.create_sanity_check_report(plotting=create_plots, overwrite=True)
+    multipleye.create_sanity_check_report(
+        plotting=create_plots,
+        sessions=sessions_to_check,
+        overwrite=True)
 
     if len(multipleye.excluded_sessions) >= 1:
         warnings.warn(f"Don't forget, those sessions have been excluded from the analysis: {multipleye.excluded_sessions}. "

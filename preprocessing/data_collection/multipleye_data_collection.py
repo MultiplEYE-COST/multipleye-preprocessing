@@ -15,6 +15,7 @@ import pandas as pd
 import logging
 
 import yaml
+from polars.polars import ComputeError
 from pymovements import GazeDataFrame
 from tqdm import tqdm
 
@@ -72,6 +73,9 @@ class MultipleyeDataCollection(DataCollection):
         self.data_root = data_root
         self.session_folder_regex = session_folder_regex
         self.psychometric_tests = kwargs.get('psychometric_tests', [])
+        # load all the manual corrections from the yaml file
+
+        self._load_manual_corrections()
 
         open(self.data_root.parent / 'preprocessing_logs.txt', 'w').close()
 
@@ -89,9 +93,6 @@ class MultipleyeDataCollection(DataCollection):
         stim_order_versions = self.stimulus_dir / 'config' / f'stimulus_order_versions_{self.language}_{self.country}_{self.lab_number}.csv'
         stim_order_versions = pd.read_csv(stim_order_versions)
         self.stim_order_versions = stim_order_versions[stim_order_versions['participant_id'].notnull()]
-
-        # load all the manual corrections from the yaml file
-        self.excluded_sessions = self._load_manual_corrections()
 
         self.prepare_session_level_information()
         self.parse_participant_data()
@@ -270,7 +271,9 @@ class MultipleyeDataCollection(DataCollection):
                 if 'excluded_sessions' in yaml_dict:
                     excluded_sessions = yaml_dict['excluded_sessions']
                     if excluded_sessions:
-                        return excluded_sessions.keys().to_list()
+                        self.excluded_sessions = list(excluded_sessions.keys())
+                if 'stimuli_session_mapping' in yaml_dict:
+                    self.session_stimulus_mapping = yaml_dict['stimuli_session_mapping']
 
         else:
             # create the file so that we can write to it later
@@ -469,7 +472,11 @@ class MultipleyeDataCollection(DataCollection):
             raise ValueError(f"More than one or no logfile found in {logfile_folder}. Please check the logfiles carefully. "
                              f"This can happen if the experiment crashed early and was restarted, in that case the earlier logfiles can be deleted.")
 
-        logfile = pl.read_csv(logfiles[0], separator="\t")
+        try:
+            logfile = pl.read_csv(logfiles[0], separator="\t")
+        except ComputeError:
+            raise ValueError(f"Could not read logfile {logfiles[0]}. Most probably there is a line break in one of the "
+                             f"answer options that is written to the file. Please check manually and remove the line break.")
         return logfile
 
     def _load_session_completed_stimuli(self, session_identifier):
@@ -644,10 +651,6 @@ class MultipleyeDataCollection(DataCollection):
                         breaks['stop_ts'].append(ts)
                     elif msg.split()[0] == 'obligatory_break_duration:':
                         breaks['duration_ms'].append(msg.split()[1])
-                    else:
-                        self._write_to_logfile(
-                            f'Found inconsistent break messages in asc file at ts {ts} with msg {msg}.'
-                        )
 
                 if match := start_regex.match(l):
                     reading_times['start_ts'].append(match.groupdict()['timestamp'])
