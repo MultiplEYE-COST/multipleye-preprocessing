@@ -61,7 +61,7 @@ class ExperimentFrame:
             asc_file=session["asc_path"],
             asc_generator=None,
             temp_asc=None,
-            output_dir=MultipleyeDataCollection.output_dir,
+            output_dir=MultipleyeDataCollection.reports_dir,
             lab_configuration=MultipleyeDataCollection.lab_configuration,
             display_cord=[""],
             current_stimuli_id=session["stimuli_order"][0],

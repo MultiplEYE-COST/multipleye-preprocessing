@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 import re
+import subprocess
 import warnings
 from functools import partial
 from pathlib import Path
@@ -16,7 +17,7 @@ import logging
 
 import yaml
 from polars.polars import ComputeError
-from pymovements import GazeDataFrame
+from pymovements import GazeDataFrame, Gaze
 from tqdm import tqdm
 
 from preprocessing.checks.et_quality_checks import \
@@ -25,15 +26,36 @@ from preprocessing.checks.et_quality_checks import \
 from preprocessing.checks.formal_experiment_checks import check_all_screens_logfile, sanity_check_gaze_frame, \
     check_messages
 
-from preprocessing.data_collection.data_collection import DataCollection
-from preprocessing.plotting.plot import load_data, preprocess, plot_gaze, plot_main_sequence
+from preprocessing.plotting.plot import plot_gaze, plot_main_sequence
 from preprocessing.data_collection.stimulus import LabConfig, Stimulus
 from preprocessing.psychometric_tests.preprocess_psychometric_tests import preprocess_plab, preprocess_ran, \
     preprocess_stroop, preprocess_flanker, preprocess_wikivocab, preprocess_lwmc
 from preprocessing.utils.fix_pq_data import remap_wrong_pq_values
 
+from preprocessing.peyepeline import load_gaze_data, preprocess_gaze_data
 
-class MultipleyeDataCollection(DataCollection):
+
+EYETRACKER_NAMES = {
+    'eyelink': [
+        'EyeLink 1000 Plus',
+        'EyeLink II',
+        'EyeLink 1000',
+        'EyeLink Portable Duo',
+    ],
+}
+
+
+def eyelink(method):
+    def wrapper(self):
+        if self.eye_tracker == 'eyelink':
+            return method(self)
+        else:
+            raise ValueError(f'Function {method.__name__} is only supported for EyeLink data. '
+                             f'You are using {self.eye_tracker}')
+
+    return wrapper
+
+class MultipleyeDataCollection:
 
     stimulus_names = {
         "PopSci_MultiplEYE": 1,
@@ -55,7 +77,19 @@ class MultipleyeDataCollection(DataCollection):
     num_sessions = 1
     overview = {}
 
+    data_collection_name: str
+    year: int
+    country: str
+    session_folder_regex: str = ''
+    data_root: Path = None
+    excluded_sessions: list = []
+
     def __init__(self,
+                 data_collection_name: str,
+                 stimulus_language: str,
+                 country: str,
+                 year: int,
+                 eye_tracker: str,
                  config_file: Path,
                  stimulus_dir: Path,
                  lab_number: int,
@@ -65,7 +99,28 @@ class MultipleyeDataCollection(DataCollection):
                  session_folder_regex: str,
                  # stimuli: list[Stimulus],
                  **kwargs):
-        super().__init__(**kwargs)
+        self.sessions = {}
+        # TODO: in theory this can be multiple languages for the stimuli..
+        self.language = stimulus_language
+        self.country = country
+        self.year = year
+        self.data_collection_name = data_collection_name
+
+        self.include_pilots = kwargs.get('include_pilots', False)
+        self.reports_dir = kwargs.get('output_dir', '')
+        self.pilot_folder = kwargs.get('pilot_folder', '')
+        self.preprocessing_dir = kwargs.get('preprocessing_dir', '')
+
+        for short_name, long_name in EYETRACKER_NAMES.items():
+            if eye_tracker in long_name:
+                self.eye_tracker = short_name
+                self.eye_tracker_name = long_name
+                break
+
+        else:
+            raise ValueError(f'Eye tracker {eye_tracker} not yet supported. '
+                             f'Supported eye trackers are: '
+                             f'{np.array([val for k, val in EYETRACKER_NAMES.items()]).flatten()}')
         self.config_file = config_file
         self.stimulus_dir = stimulus_dir
         self.lab_number = lab_number
@@ -80,9 +135,13 @@ class MultipleyeDataCollection(DataCollection):
 
         open(self.data_root.parent / 'preprocessing_logs.txt', 'w').close()
 
-        if not self.output_dir:
-            self.output_dir = self.data_root.parent / 'quality_reports'
-            self.output_dir.mkdir(exist_ok=True)
+        if not self.reports_dir:
+            self.reports_dir = self.data_root.parent / 'quality_reports'
+            self.reports_dir.mkdir(exist_ok=True)
+
+        if not self.preprocessing_dir:
+            self.preprocessing_dir = self.data_root.parent / 'preprocessing'
+            self.preprocessing_dir.mkdir(exist_ok=True)
 
         self.add_recorded_sessions(
             self.data_root, self.session_folder_regex, convert_to_asc=True)
@@ -108,6 +167,125 @@ class MultipleyeDataCollection(DataCollection):
             print("no overview created yet")
 
         return "\n".join("{}\t{}".format(k, v) for k, v in self.overview.items())
+
+
+    def __iter__(self):
+        for session in sorted(self.sessions):
+            yield self.sessions[session]
+
+
+    def add_recorded_sessions(self,
+                              data_root: Path,
+                              session_folder_regex: str = '',
+                              session_file_suffix: str = '',
+                              convert_to_asc: bool = False) -> None:
+        """
+
+        :param convert_to_asc: If True, the asc files for the recorded sessions are generated. Only works if the eye
+        tracker is an Eyelink.
+        :param data_root: Specifies the root folder where the data is stored
+        :param session_folder_regex: The pattern for the session folder names. It is possible to include infomration in
+        regex groups. Those will be parsed directly and stored in the session object.
+        Those folders should be in the root folder. If '' then the root folder is assumed to contain all files
+        from the sessions.
+        :param session_file_suffix: The pattern for the session file names. If no pattern is given, all files in the
+        session folder are assumed to be the data files depending on the eye tracker.
+        """
+
+        self.data_root = data_root
+        self.session_folder_regex = session_folder_regex
+
+        if not session_file_suffix:
+            # TODO: add configs for each eye tracker such that we don't always have to loop through all eye trackers
+            #  but can write generic code. E.g. self.eye_tracker.session_file_regex
+            if self.eye_tracker == 'eyelink':
+                session_file_suffix = r'.edf'
+
+        # get a list of all folders in the data folder
+        if session_folder_regex:
+
+            items = os.scandir(self.data_root)
+            pilots = []
+            if self.include_pilots:
+                pilots = os.scandir(self.data_root / self.pilot_folder)
+                items = list(items) + list(pilots)
+
+            for item in items:
+                if item.is_dir():
+                    if re.match(session_folder_regex, item.name, re.IGNORECASE):
+
+                        if item.name not in self.excluded_sessions:
+
+                            session_file = list(Path(item.path).glob('*' + session_file_suffix))
+
+                            if len(session_file) == 0:
+                                raise ValueError(f'No files found in folder {item.name} that match the pattern '
+                                                 f'{session_file_suffix}')
+
+                            elif len(session_file) > 1:
+                                raise ValueError(
+                                    f'More than one file found in folder {item.name} that match the pattern '
+                                    f'{session_file_suffix}. Please specify a more specific pattern and check '
+                                    f'your data.')
+                            else:
+                                session_file = session_file[0]
+
+                            # TODO: introduce a session object?
+                            is_pilot = self.include_pilots and (item in pilots)
+
+                            self.sessions[item.name] = {
+                                'session_folder_path': item.path,
+                                'session_file_path': session_file,
+                                'session_file_name': session_file.name,
+                                'session_folder_name': item.name,
+                                'session_stimuli': '',
+                                'is_pilot': is_pilot,
+                            }
+
+                            # check if asc files are already available
+                            if not convert_to_asc and self.eye_tracker == 'eyelink':
+                                asc_file = Path(item.path).glob('*.asc')
+                                if len(list(asc_file)) == 1:
+                                    asc_file = list(asc_file)[0]
+                                    self.sessions[item.name]['asc_path'] = asc_file
+                                    print(f'Found asc file for {item.name}.')
+
+                    else:
+                        print(f'Folder {item.name} does not match the regex pattern {session_folder_regex}. '
+                              f'Not considered as session.')
+
+                # if there are no session folders then we assume that the root folder contains all data files
+                elif item.is_file() and item.name.endswith('.edf'):
+                    self.sessions[item.name] = {
+                        'session_file_path': item.path,
+                        'session_file_name': item.name,
+                    }
+
+        if convert_to_asc:
+            self.convert_edf_to_asc()
+
+    @eyelink
+    def convert_edf_to_asc(self) -> None:
+
+        if not self.sessions:
+            raise ValueError('No sessions added. Please add sessions first.')
+
+        # TODO: make sure that edf2asc is installed on the computer
+        for session in tqdm(self.sessions, desc='Converting EDF to ASC'):
+            path = Path(self.sessions[session]['session_file_path'])
+
+            if not path.with_suffix('.asc').exists():
+
+                subprocess.run(['edf2asc', path])
+
+                asc_path = path.with_suffix('.asc')
+                self.sessions[session]['asc_path'] = asc_path
+            else:
+                asc_path = path.with_suffix('.asc')
+                self.sessions[session]['asc_path'] = asc_path
+                # print(f'ASC file already exists for {session}.')
+
+
 
     @staticmethod
     def load_lab_config(stimulus_dir: Path, lang: str,
@@ -227,11 +405,11 @@ class MultipleyeDataCollection(DataCollection):
                 f'Creating sanity check report for session {session_name}'
             )
 
-            session_results = self.output_dir / session_name
+            session_results = self.reports_dir / session_name
             os.makedirs(session_results, exist_ok=True)
 
-            report_file_path = self.output_dir / \
-                session_name / f"{session_name}_report.txt"
+            report_file_path = self.reports_dir / \
+                               session_name / f"{session_name}_report.txt"
             self.sessions[session_name]['sanity_report_path'] = report_file_path
 
             if not report_file_path.exists() or overwrite:
@@ -266,7 +444,6 @@ class MultipleyeDataCollection(DataCollection):
                 self._check_asc_validation(session_name)
                 self._load_psychometric_tests(session_name)
                 self._extract_question_answers(stimuli, session_name)
-                self._load_psychometric_tests(session_name)
 
                 if plotting:
                     self._create_plots(stimuli, session_name, gaze)
@@ -340,7 +517,8 @@ class MultipleyeDataCollection(DataCollection):
         :return:
         """
 
-        for session in self.sessions.keys():
+        for session in (pbar := tqdm(self.sessions.keys(), total=len(self.sessions))):
+            pbar.set_description(f"Preparing session {session}")
             p_id = session.split('_')[0]
 
             if 'start_after_trial' in session:
@@ -376,23 +554,28 @@ class MultipleyeDataCollection(DataCollection):
         session_keys = self._load_session_names(session)
 
         for session_name in session_keys:
-            gaze_path = self.output_dir / session_name
+            gaze_path = self.preprocessing_dir / session_name
+            events_path = self.preprocessing_dir / session_name
+            metadata_path = self.reports_dir / session_name
 
             # / f"{session_name}_gaze.pkl"
             gaze_path.mkdir(parents=True, exist_ok=True)
+            events_path.mkdir(parents=True, exist_ok=True)
 
-            gaze_path = gaze_path / f"{session_name}_gaze.pkl"
+            gaze_path_file = gaze_path / f"{session_name}_samples.feather"
+            events_path_file = events_path / f"{session_name}_events.feather"
 
-            if gaze_path.exists() and not overwrite:
+            if gaze_path_file.exists() and not overwrite:
                 # make sure gaze path is added if the pkl was created in a previous run
-                self.sessions[session_name]['gaze_path'] = gaze_path
+                self.sessions[session_name]['gaze_path'] = gaze_path_file
                 logging.debug(f"Gaze data already exists for {session_name}.")
                 return
 
-            self.sessions[session_name]['gaze_path'] = gaze_path
+            # if the path exists we just add it to the current session
+            self.sessions[session_name]['gaze_path'] = gaze_path_file
 
             try:
-                gaze = load_data(Path(self.sessions[session_name]['asc_path']), self.lab_configuration,
+                gaze = load_gaze_data(Path(self.sessions[session_name]['asc_path']), self.lab_configuration,
                                  session_idf=session_name)
             except KeyError as e:
                 raise e
@@ -400,18 +583,20 @@ class MultipleyeDataCollection(DataCollection):
                 raise FileNotFoundError(
                     f"No asc file found for session {session_name}. Please create first.")
 
-            logging.warning(
-                f"Preprocessing gaze data for {session_name}. This might take a while.")
-
-            preprocess(gaze)
+            preprocess_gaze_data(gaze)
             # save and load the gaze dataframe to pickle for later usage
             self.sessions[session_name]['gaze_path'] = gaze_path
             self.sessions[session_name]['metadata'] = gaze._metadata
+            # TODO pm: I'd like to save my metadata without having to access a protected argument
 
-            # make sure all dirs haven been created
 
-            with open(gaze_path, "wb") as f:
-                pickle.dump(gaze, f)
+            # TODO pm, this needs to work more smoothly, also why are events here?
+            #  This is not intuitive and I think not good design for eye mov data.
+            #  why can I only save the experiment metadata through this strange method?
+            gaze.save_samples(path=gaze_path_file)
+            gaze.save_events(path=events_path_file)
+            gaze.save(dirpath=metadata_path, save_events=False, save_samples=False)
+
 
     def _load_session_stimuli(self, stimulus_dir: Path, lang: str,
                               country: str, lab_num: int,
@@ -582,6 +767,41 @@ class MultipleyeDataCollection(DataCollection):
             raise ValueError(f"More than one entry found for participant ID {p_id} in stimulus order versions. "
                              f"Please check the stimulus order versions file for duplicates.")
 
+    def get_gaze_frame(self, session_identifier: str,
+                       create_if_not_exists: bool = False,
+                       ) -> Gaze:
+        """
+        Loads and possibly creates the gaze data for the specified session(s).
+        :param create_if_not_exists: The gaze data will be created and stored if True.
+        :param session_identifier: The session identifier to load the gaz data for.
+        :return:
+        """
+
+        if session_identifier not in self.sessions:
+            raise KeyError(f'Session {session_identifier} not found in {self.data_root}.')
+
+        try:
+            gaze_path = self.sessions[session_identifier]['gaze_path']
+        except KeyError:
+            if create_if_not_exists:
+                self.create_gaze_frame(session=session_identifier)
+                gaze_path = self.sessions[session_identifier]['gaze_path']
+            else:
+                raise KeyError(f'Gaze frame not created for session {session_identifier}. Please create first.')
+
+        # TODO pm: how should I load the data that I have previously saved using the pm function as feather file??
+        with open(gaze_path, "rb") as f:
+            gaze = pickle.load(f)
+
+        self.sessions[session_identifier]['metadata'] = gaze._metadata
+
+        return gaze
+
+    # TODO: add method to check whether stimuli are completed
+
+    # TODO: for future: think about how to handle stimuli in the general case
+
+
     def _parse_asc(self, session_identifier: str):
         """
        qick fix for now, should be replaced by the summary experiment frame later on, however the extraction of the
@@ -634,7 +854,7 @@ class MultipleyeDataCollection(DataCollection):
 
         initial_ts = 0
 
-        result_folder = self.output_dir / session_identifier
+        result_folder = self.reports_dir / session_identifier
         in_break = False
 
         with open(asc_file, "r", encoding="utf-8") as f:
@@ -816,7 +1036,7 @@ class MultipleyeDataCollection(DataCollection):
         val_df = pd.DataFrame(validations)
         cal_df = pd.DataFrame(calibrations)
 
-        result_folder = self.output_dir / session_identifier
+        result_folder = self.reports_dir / session_identifier
         val_df.to_csv(result_folder / f'validations_{session_identifier}.tsv',
                       sep='\t', index=False)
         cal_df.to_csv(result_folder / f'calibrations_{session_identifier}.tsv',
@@ -919,7 +1139,7 @@ class MultipleyeDataCollection(DataCollection):
             gaze = self.get_gaze_frame(
                 session_identifier, create_if_not_exists=True)
 
-        plot_dir = self.output_dir / session_identifier / \
+        plot_dir = self.reports_dir / session_identifier / \
             f"{session_identifier}_plots"
         plot_dir.mkdir(exist_ok=True)
 
@@ -932,7 +1152,12 @@ class MultipleyeDataCollection(DataCollection):
         pass
 
     def preprocess_eye_tracking_data(self):
-        pass
+
+        for session_identifier in self.sessions:
+            self.create_gaze_frame(session_identifier)
+
+            self.calculate_reading_measures()
+
 
     def parse_participant_data(self) -> None:
         """

@@ -160,4 +160,6 @@ cython_debug/
 #.idea/
 /data/
 
+.DS_Store
+
 /template_and_notes/output/
