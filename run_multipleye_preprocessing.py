@@ -28,6 +28,8 @@ def run_multipleye_preprocessing(data_collection: str):
         output_folder = preprocessed_data_folder / sess['session_identifier']
         output_folder.mkdir(parents=True, exist_ok=True)
 
+        # TODO pm: it would make a lot more sense if the gaze object was not called gaze but instead session or
+        #  something like that. Because ET preprocessing works on the session level and it is odd that there is no session
         gaze = peyepeline.load_gaze_data(
             asc_file=asc,
             lab_config=sess['lab_config'],
