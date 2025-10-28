@@ -1,4 +1,4 @@
-import logging
+import json
 from pathlib import Path
 
 from preprocessing.data_collection.stimulus import LabConfig
@@ -7,7 +7,48 @@ import pymovements as pm
 import polars as pl
 
 
-def load_gaze_data(asc_file: Path, lab_config: LabConfig, session_idf: str = '') -> pm.Gaze:
+def load_gaze_data(
+        asc_file: Path,
+        lab_config: LabConfig,
+        session_idf: str,
+        save: bool = False,
+        output_dir: str = '',
+) -> pm.Gaze:
+    """
+
+    :param output_dir:
+    :param asc_file:
+    :param lab_config:
+    :param session_idf:
+    :param save:
+    :return:
+    """
+
+    if save and not output_dir:
+        raise ValueError('Please specify an output directory if you want to save the gaze data.')
+
+    output_dir = Path(output_dir)
+
+    trial_cols = ["trial", "stimulus", "screen"]
+
+    # check if gaze already exists, unless we want to save it, in that case, we recreate and save it
+    gaze_path = output_dir / f'{session_idf}_samples.csv'
+
+    if gaze_path.exists():
+        gaze_frame = pl.read_csv(gaze_path)
+        gaze = pm.Gaze(
+            gaze_frame,
+            trial_columns=trial_cols,
+            pixel_columns=['pixel_x', 'pixel_y'],
+        )
+
+        # TODO pm I would like to load the metadata automatically (and also save it)
+        with open(output_dir / 'gaze_metadata.json', 'r', encoding='utf8') as f:
+            gaze_metadata = json.load(f)
+
+        gaze._metadata = gaze_metadata
+
+    else:
         gaze = pm.gaze.from_asc(
             asc_file,
             patterns=[
@@ -43,8 +84,8 @@ def load_gaze_data(asc_file: Path, lab_config: LabConfig, session_idf: str = '')
                 },
                 {"pattern": r"stop_recording_", "column": "practice", "value": None},
             ],
-            trial_columns=["trial", "stimulus", "screen"],
-            add_columns={'session': session_idf} if session_idf else None,
+            trial_columns=trial_cols,
+            add_columns={'session': session_idf},
         )
 
         # Filter out data outside of trials
@@ -53,31 +94,70 @@ def load_gaze_data(asc_file: Path, lab_config: LabConfig, session_idf: str = '')
             pl.col("trial").is_not_null() & pl.col("screen").is_not_null()
         )
 
-        # Extract metadata from stimulus config and ASC file
-        # TODO: Uncomment assertions when experiment implementation is fixed (https://www.sr-research.com/support/thread-9129.html)
-        gaze.experiment = pm.Experiment(
-            sampling_rate=gaze._metadata["sampling_rate"],
-            screen_width_px=lab_config.image_resolution[0],
-            screen_height_px=lab_config.image_resolution[1],
-            screen_width_cm=lab_config.image_size_cm[0],
-            screen_height_cm=lab_config.image_size_cm[1],
-            distance_cm=lab_config.screen_distance_cm,
-        )
+    # Extract metadata from stimulus config and ASC file
+    gaze.experiment = pm.Experiment(
+        sampling_rate=gaze._metadata["sampling_rate"],
+        screen_width_px=lab_config.image_resolution[0],
+        screen_height_px=lab_config.image_resolution[1],
+        screen_width_cm=lab_config.image_size_cm[0],
+        screen_height_cm=lab_config.image_size_cm[1],
+        distance_cm=lab_config.screen_distance_cm,
+    )
 
-        return gaze
+    if save:
+        save_gaze_data(gaze, session_idf, gaze_path, metadata_dir=output_dir)
+
+    return gaze
+
+def save_gaze_data(
+        gaze: pm.Gaze,
+        session_idf: str,
+        gaze_path: Path = '',
+        events_path: Path = '',
+        metadata_dir: Path = '',
+) -> None:
+
+    metadata = gaze._metadata
+    metadata['datetime'] = str(metadata['datetime'])
+    # TODO pm: I'd like to save my metadata without having to access a protected argument
+    with open(metadata_dir / "gaze_metadata.json", "w", encoding='utf8') as f:
+        json.dump(metadata, f)
+
+    # TODO pm, this needs to work more smoothly, also why are events here?
+    #  This is not intuitive and I think not good design for eye mov data.
+    #  why can I only save the experiment metadata through this strange method?
+
+    if gaze_path:
+        gaze.save_samples(path=gaze_path)
+    if events_path:
+        gaze.save_events(path=events_path)
+    if metadata_dir:
+        # TODO pm: this saves the experiment metadata, but there is a lot more metadata as a gaze property,
+        #  this should also be saved
+        gaze.save(dirpath=metadata_dir, save_events=False, save_samples=False)
 
 def preprocess_gaze_data(
-        gaze: pm.Gaze, sg_window_length: int = 50, sg_degree: int = 2
+        gaze: pm.Gaze,
+        sg_window_length: int = 50,
+        sg_degree: int = 2,
+        save: bool = False,
+        output_dir: str | Path = '',
+        session_idf: str | Path = '',
 ) -> None:
     # Savitzky-Golay filter as in https://doi.org/10.3758/BRM.42.1.188
     window_length = round(gaze.experiment.sampling_rate / 1000 * sg_window_length)
+
     if window_length % 2 == 0:  # Must be odd
         window_length += 1
+
     gaze.pix2deg()
     gaze.pos2vel("savitzky_golay", window_length=window_length, degree=sg_degree)
+
+    # TODO pm: I think the problem here is that is is not clear what ivt is.. it is very hidden, what happens
+    #  and for people that are not familiar with ET preprocessing, they also cannot learn anything as it says not
+    #  explicitely that this is about fixations
     gaze.detect("ivt")
     gaze.detect("microsaccades")
-
 
     # TODO pm: this is non-intuitive. Why are these properties?
     for property, kwargs, event_name in [
@@ -95,6 +175,13 @@ def preprocess_gaze_data(
         join_on = gaze.trial_columns + ["name", "onset", "offset"]
         gaze.events.add_event_properties(new_properties, join_on=join_on)
 
+    # TODO pm, I cannot save it if I don't do this.. can we somehow integrate this (lower priority..);
+    #  but I cannot save it anyways, it still complains that it is unnested, also it is really not
+    #  straightforward that I have to unnest gaze and events separately...
+    gaze.unnest()
+    gaze.events.unnest()
 
-
+    if save:
+        events_file = Path(output_dir) / f"{session_idf}_events.csv"
+        save_gaze_data(gaze, session_idf, metadata_dir=Path(output_dir), events_path=events_file)
     # TODO: AOI mapping

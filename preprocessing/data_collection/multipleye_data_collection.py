@@ -129,8 +129,8 @@ class MultipleyeDataCollection:
         self.data_root = data_root
         self.session_folder_regex = session_folder_regex
         self.psychometric_tests = kwargs.get('psychometric_tests', [])
-        # load all the manual corrections from the yaml file
 
+        # load all the manual corrections from the yaml file
         self._load_manual_corrections()
 
         open(self.data_root.parent / 'preprocessing_logs.txt', 'w').close()
@@ -173,6 +173,8 @@ class MultipleyeDataCollection:
         for session in sorted(self.sessions):
             yield self.sessions[session]
 
+    def __getitem__(self, item):
+        return self.sessions[item]
 
     def add_recorded_sessions(self,
                               data_root: Path,
@@ -237,7 +239,7 @@ class MultipleyeDataCollection:
                                 'session_folder_path': item.path,
                                 'session_file_path': session_file,
                                 'session_file_name': session_file.name,
-                                'session_folder_name': item.name,
+                                'session_identifier': item.name,
                                 'session_stimuli': '',
                                 'is_pilot': is_pilot,
                             }
@@ -303,7 +305,7 @@ class MultipleyeDataCollection:
         return LabConfig.load(stimulus_dir, lang, country, labnum, city, year)
 
     @classmethod
-    def create_from_data_folder(cls, data_dir: str,
+    def create_from_data_folder(cls, data_dir: str | Path,
                                 additional_folder: str | None = None,
                                 include_pilots: bool = False) -> "MultipleyeDataCollection":
         """
@@ -527,8 +529,6 @@ class MultipleyeDataCollection:
                     self._write_to_logfile(
                         f"Session {session} started after a trial. Only the completed stimuli will be considered.")
 
-            self.create_gaze_frame(session)
-
             self.sessions[session]['completed_stimuli_ids'], self.sessions[session][
                 'stimuli_trial_mapping'] = self._load_session_completed_stimuli(session)
             self.sessions[session]['messages'] = self._parse_asc(session)
@@ -538,6 +538,9 @@ class MultipleyeDataCollection:
                 session)
             self.sessions[session]['stimuli_order_ids'] = self._load_session_stimulus_order(
                 session, self.sessions[session]['stimulus_order_version'])
+
+            # TODO: lab config should be changeable for each session
+            self.sessions[session]['lab_config'] = self.lab_configuration
 
             if self.sessions[session]['stimuli_order_ids'] != self.sessions[session]['completed_stimuli_ids']:
                 if not p_id in self.crashed_session_ids:
