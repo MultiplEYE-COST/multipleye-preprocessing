@@ -14,18 +14,19 @@ def run_multipleye_preprocessing(data_collection: str):
     this_repo = Path().resolve()
     data_folder_path = this_repo / "data" / data_collection_name
 
-    multipleye_sq = MultipleyeDataCollection.create_from_data_folder(data_folder_path)
+    multipleye = MultipleyeDataCollection.create_from_data_folder(data_folder_path)
 
     preprocessed_data_folder = this_repo / "preprocessed_data" / data_collection_name
     preprocessed_data_folder.mkdir(parents=True, exist_ok=True)
 
-    sessions = [s for s in multipleye_sq]
+    sessions = [s for s in multipleye]
 
-    for sess in (pbar := tqdm(sessions[:3])):
-        pbar.set_description(f'Preprocessing session {sess["session_identifier"]}:')
+    for sess in (pbar := tqdm(sessions[:1])):
+        idf = sess["session_identifier"]
+        pbar.set_description(f'Preprocessing session {idf}:')
 
         asc = sess['asc_path']
-        output_folder = preprocessed_data_folder / sess['session_identifier']
+        output_folder = preprocessed_data_folder / idf
         output_folder.mkdir(parents=True, exist_ok=True)
 
         # TODO pm: it would make a lot more sense if the gaze object was not called gaze but instead session or
@@ -33,7 +34,7 @@ def run_multipleye_preprocessing(data_collection: str):
         gaze = peyepeline.load_gaze_data(
             asc_file=asc,
             lab_config=sess['lab_config'],
-            session_idf=sess['session_identifier'],
+            session_idf=idf,
             output_dir=output_folder,
             save=True
         )
@@ -42,8 +43,19 @@ def run_multipleye_preprocessing(data_collection: str):
             gaze,
             output_dir=output_folder,
             save=True,
-            session_idf=sess['session_identifier'],
+            session_idf=idf,
         )
+
+        peyepeline.map_fixations_to_aois(
+            gaze,
+            idf,
+            sess['stimuli'],
+        )
+
+        multipleye.create_session_overview(sess['session_identifier'], path=output_folder)
+
+
+    multipleye.create_dataset_overview(path=preprocessed_data_folder)
 
 
 
@@ -54,5 +66,5 @@ def parse_args():
 if __name__ == '__main__':
     parse_args()
 
-    data_collection_name = 'MultiplEYE_SL_SI_Ljubljana_1_2025'
+    data_collection_name = 'MultiplEYE_SQ_CH_Zurich_1_2025'
     run_multipleye_preprocessing(data_collection_name)

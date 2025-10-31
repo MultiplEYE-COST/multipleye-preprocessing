@@ -65,7 +65,7 @@ class ComprehensionQuestion:
 class Stimulus:
     id: int
     name: str
-    type: Literal["experiment", "practice"]
+    type: Literal["experiment", "practice", "test_practice", "test_experiment"]
     pages: list[StimulusPage]
     text_stimulus: pm.stimulus.TextStimulus
     questions: list[ComprehensionQuestion]
@@ -127,7 +127,7 @@ class Stimulus:
         )
         text_stimulus = pm.stimulus.text.from_file(
             aoi_path,
-            aoi_column="char",
+            aoi_column="char_idx",
             start_x_column="top_left_x",
             start_y_column="top_left_y",
             width_column="width",

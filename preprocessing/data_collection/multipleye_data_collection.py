@@ -84,6 +84,8 @@ class MultipleyeDataCollection:
     data_root: Path = None
     excluded_sessions: list = []
 
+    # TODO: read instruction excel
+
     def __init__(self,
                  data_collection_name: str,
                  stimulus_language: str,
@@ -293,7 +295,7 @@ class MultipleyeDataCollection:
     def load_lab_config(stimulus_dir: Path, lang: str,
                         country: str, labnum: int, city: str, year: int, ) -> LabConfig:
         """
-        Load the stimuli and lab configuration from the specified directory.
+        Load the lab configuration from the specified directory.
         :param stimulus_dir: The directory where the stimuli are stored.
         :param lang: The language of the stimuli.
         :param country: The country of the stimuli.
@@ -428,11 +430,7 @@ class MultipleyeDataCollection:
 
                 self._document_calibrations(session_name)
 
-                stimuli = self._load_session_stimuli(self.stimulus_dir, self.language, self.country,
-                                                     self.lab_number,
-                                                     self.sessions[session_name]['stimulus_order_version'],
-                                                     session_name,
-                                                     )
+                stimuli = self.sessions[session_name]['stimuli']
 
                 with open(report_file_path, "a+",  encoding="utf-8") as report_file:
                     # set report object
@@ -487,14 +485,18 @@ class MultipleyeDataCollection:
         elif isinstance(session, list):
             return session
 
-    def create_dataset_overview(self) -> dict:
+    def create_dataset_overview(self, path: str | Path = '') -> dict:
         """
         Create an overview of the dataset and save it as a yaml file in the top data folder.
         :return: overview dict
         """
 
-        overview_path = self.data_root.parent / \
+        if not path:
+            overview_path = self.data_root.parent / \
             f"{self.data_collection_name}_overview.yaml"
+
+        else:
+            overview_path = path / f"{self.data_collection_name}_overview.yaml"
 
         num_sessions = len(self.sessions)
         num_pilots = len(
@@ -507,10 +509,13 @@ class MultipleyeDataCollection:
             'num_pilots': num_pilots,
         }
 
-        with open(overview_path, 'w') as f:
+        with open(overview_path, 'w', encoding='utf8') as f:
             yaml.dump(overview, f)
 
         return overview
+
+    def create_session_overview(self, session_idf: str, path: str | Path = '') -> dict:
+        pass
 
     def prepare_session_level_information(self):
         """
@@ -546,6 +551,12 @@ class MultipleyeDataCollection:
                 if not p_id in self.crashed_session_ids:
                     self._write_to_logfile(f"Stimulus order and completed stimuli do not match for session {session}. "
                                            f"Please check the files carefully.")
+
+            self.sessions[session]['stimuli'] = self._load_session_stimuli(self.stimulus_dir, self.language, self.country,
+                                                 self.lab_number,
+                                                 self.sessions[session]['stimulus_order_version'],
+                                                 session,
+                                                 )
 
     def create_gaze_frame(self, session: str | list[str] = '', overwrite: bool = False) -> None:
         """
@@ -858,6 +869,7 @@ class MultipleyeDataCollection:
         initial_ts = 0
 
         result_folder = self.reports_dir / session_identifier
+        os.makedirs(result_folder, exist_ok=True)
         in_break = False
 
         with open(asc_file, "r", encoding="utf-8") as f:

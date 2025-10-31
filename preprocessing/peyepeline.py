@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
 
-from preprocessing.data_collection.stimulus import LabConfig
+from pymovements.stimulus import TextStimulus
+
+from preprocessing.data_collection.stimulus import LabConfig, Stimulus
 
 import pymovements as pm
 import polars as pl
@@ -105,13 +107,12 @@ def load_gaze_data(
     )
 
     if save:
-        save_gaze_data(gaze, session_idf, gaze_path, metadata_dir=output_dir)
+        save_gaze_data(gaze, gaze_path, metadata_dir=output_dir)
 
     return gaze
 
 def save_gaze_data(
         gaze: pm.Gaze,
-        session_idf: str,
         gaze_path: Path = '',
         events_path: Path = '',
         metadata_dir: Path = '',
@@ -164,6 +165,8 @@ def preprocess_gaze_data(
         ("location", dict(position_column="pixel"), "fixation"),
         ("amplitude", dict(), "saccade"),
         ("peak_velocity", dict(), "saccade"),
+        ("dispersion", dict(), "saccade"),
+        ("dispersion", dict(), "fixation"),
     ]:
         processor = pm.EventGazeProcessor((property, kwargs))
         new_properties = processor.process(
@@ -183,5 +186,41 @@ def preprocess_gaze_data(
 
     if save:
         events_file = Path(output_dir) / f"{session_idf}_events.csv"
-        save_gaze_data(gaze, session_idf, metadata_dir=Path(output_dir), events_path=events_file)
-    # TODO: AOI mapping
+        save_gaze_data(gaze, metadata_dir=Path(output_dir), events_path=events_file)
+
+
+def map_fixations_to_aois(
+        gaze: pm.Gaze,
+        session_idf: str,
+        stimuli: list[Stimulus],
+        save: bool = False,
+        output_dir: str = '',
+):
+    all_stimuli = pl.DataFrame()
+    for stimulus in stimuli:
+        text = stimulus.text_stimulus.aois
+        all_stimuli = all_stimuli.vstack(text)
+
+    # TODO pm very ugly work around. I'd like to be able to map to aois for each stimulus separately
+    #  https://github.com/pymovements/pymovements/issues/1125
+    all_stimuli = TextStimulus(
+        all_stimuli,
+        aoi_column="char_idx",
+        start_x_column="top_left_x",
+        start_y_column="top_left_y",
+        width_column="width",
+        height_column="height",
+        page_column="page",
+    )
+
+    # aoi mapping does not work if there are saccades in the file.. because then the
+    gaze.events.frame = gaze.events.fixations
+    gaze.events.map_to_aois(all_stimuli)
+
+    if save:
+        path = Path(output_dir) / f"{session_idf}_scanpath.csv"
+        save_gaze_data(events_path=path, gaze=gaze)
+
+
+def generate_scanpaths():
+    pass
