@@ -118,15 +118,7 @@ def save_gaze_data(
         metadata_dir: Path = '',
 ) -> None:
 
-    metadata = gaze._metadata
-    metadata['datetime'] = str(metadata['datetime'])
-    # TODO pm: I'd like to save my metadata without having to access a protected argument
-    with open(metadata_dir / "gaze_metadata.json", "w", encoding='utf8') as f:
-        json.dump(metadata, f)
 
-    # TODO pm, this needs to work more smoothly, also why are events here?
-    #  This is not intuitive and I think not good design for eye mov data.
-    #  why can I only save the experiment metadata through this strange method?
 
     if gaze_path:
         gaze.save_samples(path=gaze_path)
@@ -136,6 +128,14 @@ def save_gaze_data(
         # TODO pm: this saves the experiment metadata, but there is a lot more metadata as a gaze property,
         #  this should also be saved
         gaze.save(dirpath=metadata_dir, save_events=False, save_samples=False)
+
+        # TODO pm,
+        #  why can I only save the experiment metadata through this strange method?
+        metadata = gaze._metadata
+        metadata['datetime'] = str(metadata['datetime'])
+        # TODO pm: I'd like to save my metadata without having to access a protected argument
+        with open(metadata_dir / "gaze_metadata.json", "w", encoding='utf8') as f:
+            json.dump(metadata, f)
 
 def preprocess_gaze_data(
         gaze: pm.Gaze,

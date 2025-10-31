@@ -127,7 +127,7 @@ class Stimulus:
         )
         text_stimulus = pm.stimulus.text.from_file(
             aoi_path,
-            aoi_column="char_idx",
+            aoi_column="char",
             start_x_column="top_left_x",
             start_y_column="top_left_y",
             width_column="width",

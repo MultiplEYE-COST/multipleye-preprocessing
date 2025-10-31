@@ -21,11 +21,11 @@ def run_multipleye_preprocessing(data_collection: str):
 
     sessions = [s for s in multipleye]
 
-    for sess in (pbar := tqdm(sessions[:1])):
-        idf = sess["session_identifier"]
+    for sess in (pbar := tqdm(sessions[:3])):
+        idf = sess.session_identifier
         pbar.set_description(f'Preprocessing session {idf}:')
 
-        asc = sess['asc_path']
+        asc = sess.asc_path
         output_folder = preprocessed_data_folder / idf
         output_folder.mkdir(parents=True, exist_ok=True)
 
@@ -33,7 +33,7 @@ def run_multipleye_preprocessing(data_collection: str):
         #  something like that. Because ET preprocessing works on the session level and it is odd that there is no session
         gaze = peyepeline.load_gaze_data(
             asc_file=asc,
-            lab_config=sess['lab_config'],
+            lab_config=sess.lab_config,
             session_idf=idf,
             output_dir=output_folder,
             save=True
@@ -49,10 +49,12 @@ def run_multipleye_preprocessing(data_collection: str):
         peyepeline.map_fixations_to_aois(
             gaze,
             idf,
-            sess['stimuli'],
+            sess.stimuli,
+            save=True,
+            output_dir=output_folder,
         )
 
-        multipleye.create_session_overview(sess['session_identifier'], path=output_folder)
+        multipleye.create_session_overview(sess.session_identifier, path=output_folder)
 
 
     multipleye.create_dataset_overview(path=preprocessed_data_folder)

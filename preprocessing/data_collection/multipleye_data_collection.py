@@ -1,23 +1,17 @@
 import json
+import logging
 import os
 import pickle
 import re
 import subprocess
-import warnings
 from functools import partial
 from pathlib import Path
-import pprint
-from turtledemo.penrose import start
 
-import polars as pl
-import re
-import tempfile
 import pandas as pd
-import logging
-
+import polars as pl
 import yaml
 from polars.polars import ComputeError
-from pymovements import GazeDataFrame, Gaze
+from pymovements import Gaze
 from tqdm import tqdm
 
 from preprocessing.checks.et_quality_checks import \
@@ -25,15 +19,13 @@ from preprocessing.checks.et_quality_checks import \
     check_metadata, report_to_file_metadata as report_meta, check_validation_requirements
 from preprocessing.checks.formal_experiment_checks import check_all_screens_logfile, sanity_check_gaze_frame, \
     check_messages
-
-from preprocessing.plotting.plot import plot_gaze, plot_main_sequence
+from preprocessing.data_collection.session import Session
 from preprocessing.data_collection.stimulus import LabConfig, Stimulus
+from preprocessing.peyepeline import load_gaze_data, preprocess_gaze_data
+from preprocessing.plotting.plot import plot_gaze, plot_main_sequence
 from preprocessing.psychometric_tests.preprocess_psychometric_tests import preprocess_plab, preprocess_ran, \
     preprocess_stroop, preprocess_flanker, preprocess_wikivocab, preprocess_lwmc
 from preprocessing.utils.fix_pq_data import remap_wrong_pq_values
-
-from preprocessing.peyepeline import load_gaze_data, preprocess_gaze_data
-
 
 EYETRACKER_NAMES = {
     'eyelink': [
@@ -55,8 +47,8 @@ def eyelink(method):
 
     return wrapper
 
-class MultipleyeDataCollection:
 
+class MultipleyeDataCollection:
     stimulus_names = {
         "PopSci_MultiplEYE": 1,
         "Ins_HumanRights": 2,
@@ -101,7 +93,7 @@ class MultipleyeDataCollection:
                  session_folder_regex: str,
                  # stimuli: list[Stimulus],
                  **kwargs):
-        self.sessions = {}
+        self.sessions: dict[str, Session] = {}
         # TODO: in theory this can be multiple languages for the stimuli..
         self.language = stimulus_language
         self.country = country
@@ -154,7 +146,7 @@ class MultipleyeDataCollection:
 
         # load stimulus order versions to know what stimulus randomization was used for each participant
         stim_order_versions = self.stimulus_dir / 'config' / \
-            f'stimulus_order_versions_{self.language}_{self.country}_{self.lab_number}.csv'
+                              f'stimulus_order_versions_{self.language}_{self.country}_{self.lab_number}.csv'
         stim_order_versions = pd.read_csv(stim_order_versions)
         self.stim_order_versions = stim_order_versions[stim_order_versions['participant_id'].notnull(
         )]
@@ -166,10 +158,9 @@ class MultipleyeDataCollection:
 
     def __repr__(self):
         if not self.overview:
-            print("no overview created yet")
+            self.overview = self.create_dataset_overview()
 
         return "\n".join("{}\t{}".format(k, v) for k, v in self.overview.items())
-
 
     def __iter__(self):
         for session in sorted(self.sessions):
@@ -237,33 +228,28 @@ class MultipleyeDataCollection:
                             # TODO: introduce a session object?
                             is_pilot = self.include_pilots and (item in pilots)
 
-                            self.sessions[item.name] = {
-                                'session_folder_path': item.path,
-                                'session_file_path': session_file,
-                                'session_file_name': session_file.name,
-                                'session_identifier': item.name,
-                                'session_stimuli': '',
-                                'is_pilot': is_pilot,
-                            }
+                            ses = Session(
+                                participant_id=int(item.name.split('_')[0]),
+                                session_identifier=item.name,
+                                session_folder_path=Path(item.path),
+                                session_file_path=session_file,
+                                session_file_name=session_file.name,
+                                is_pilot=is_pilot,
+                            )
+
+                            self.sessions[item.name] = ses
 
                             # check if asc files are already available
                             if not convert_to_asc and self.eye_tracker == 'eyelink':
                                 asc_file = Path(item.path).glob('*.asc')
                                 if len(list(asc_file)) == 1:
                                     asc_file = list(asc_file)[0]
-                                    self.sessions[item.name]['asc_path'] = asc_file
+                                    self.sessions[item.name].asc_path = asc_file
                                     print(f'Found asc file for {item.name}.')
 
                     else:
                         print(f'Folder {item.name} does not match the regex pattern {session_folder_regex}. '
                               f'Not considered as session.')
-
-                # if there are no session folders then we assume that the root folder contains all data files
-                elif item.is_file() and item.name.endswith('.edf'):
-                    self.sessions[item.name] = {
-                        'session_file_path': item.path,
-                        'session_file_name': item.name,
-                    }
 
         if convert_to_asc:
             self.convert_edf_to_asc()
@@ -276,20 +262,18 @@ class MultipleyeDataCollection:
 
         # TODO: make sure that edf2asc is installed on the computer
         for session in tqdm(self.sessions, desc='Converting EDF to ASC'):
-            path = Path(self.sessions[session]['session_file_path'])
+            path = Path(self.sessions[session].session_file_path)
 
             if not path.with_suffix('.asc').exists():
 
                 subprocess.run(['edf2asc', path])
 
                 asc_path = path.with_suffix('.asc')
-                self.sessions[session]['asc_path'] = asc_path
+                self.sessions[session].asc_path = asc_path
             else:
                 asc_path = path.with_suffix('.asc')
-                self.sessions[session]['asc_path'] = asc_path
+                self.sessions[session].asc_path = asc_path
                 # print(f'ASC file already exists for {session}.')
-
-
 
     @staticmethod
     def load_lab_config(stimulus_dir: Path, lang: str,
@@ -346,7 +330,7 @@ class MultipleyeDataCollection:
                              f"language code. It should be a 2 letter code.")
 
         session_folder_regex = r"\d\d\d" + \
-            f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
+                               f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
 
         stimulus_folder_path = data_dir / f'stimuli_{data_folder_name}'
         config_file = (stimulus_folder_path /
@@ -360,9 +344,9 @@ class MultipleyeDataCollection:
         psychometric_tests = lab_configuration_data.psychometric_tests
 
         et_data_path = data_dir / 'eye-tracking-sessions' / \
-            additional_folder if additional_folder else data_dir / 'eye-tracking-sessions'
+                       additional_folder if additional_folder else data_dir / 'eye-tracking-sessions'
         ps_tests_path = data_dir / 'psychometric-tests-sessions' / \
-            additional_folder if additional_folder else data_dir / 'psychometric-tests'
+                        additional_folder if additional_folder else data_dir / 'psychometric-tests'
 
         return cls(
             data_collection_name=data_folder_name,
@@ -383,7 +367,8 @@ class MultipleyeDataCollection:
             ps_tests_path=ps_tests_path,
         )
 
-    def create_sanity_check_report(self, sessions: str | list[str] | None = None, plotting: bool = True, overwrite: bool = False) -> None:
+    def create_sanity_check_report(self, sessions: str | list[str] | None = None, plotting: bool = True,
+                                   overwrite: bool = False) -> None:
         """
         Create the sanity checks and reports if for one or multiple sessions.
         :param sessions: Specifies which sessions to create the report for. Default is None which creates the reports
@@ -414,15 +399,15 @@ class MultipleyeDataCollection:
 
             report_file_path = self.reports_dir / \
                                session_name / f"{session_name}_report.txt"
-            self.sessions[session_name]['sanity_report_path'] = report_file_path
+            self.sessions[session_name].sanity_report_path = report_file_path
 
             if not report_file_path.exists() or overwrite:
 
                 open(report_file_path, "w", encoding="utf-8").close()
 
-                gaze = self.get_gaze_frame(
-                    session_name, create_if_not_exists=True)
-                messages = self.sessions[session_name]['messages']
+                messages = self.sessions[session_name].messages
+                # tODO: load gaze --> or rather, move this outside of the class?
+                gaze = Gaze()
 
                 if not messages:
                     self._write_to_logfile(
@@ -430,13 +415,13 @@ class MultipleyeDataCollection:
 
                 self._document_calibrations(session_name)
 
-                stimuli = self.sessions[session_name]['stimuli']
+                stimuli = self.sessions[session_name].stimuli
 
-                with open(report_file_path, "a+",  encoding="utf-8") as report_file:
+                with open(report_file_path, "a+", encoding="utf-8") as report_file:
                     # set report object
                     report = partial(report_meta, report_file=report_file)
                     check_metadata(
-                        self.sessions[session_name]['metadata'], report)
+                        self.sessions[session_name].pm_gaze_metadata, report)
 
                 self._check_logfiles(stimuli, session_name)
                 self._check_stimuli_gaze_frame(stimuli, session_name, gaze)
@@ -451,7 +436,7 @@ class MultipleyeDataCollection:
     def _load_manual_corrections(self) -> list[str]:
         # read excluded sessions from txt file if it exists in the top data folder
         manual_corrections = self.data_root.parent / \
-            'manual_preprocessing_corrections.yaml'
+                             'manual_preprocessing_corrections.yaml'
         if manual_corrections.exists():
             with open(manual_corrections, 'r') as f:
                 yaml_dict = yaml.load(f, Loader=yaml.SafeLoader)
@@ -493,14 +478,14 @@ class MultipleyeDataCollection:
 
         if not path:
             overview_path = self.data_root.parent / \
-            f"{self.data_collection_name}_overview.yaml"
+                            f"{self.data_collection_name}_overview.yaml"
 
         else:
             overview_path = path / f"{self.data_collection_name}_overview.yaml"
 
         num_sessions = len(self.sessions)
         num_pilots = len(
-            [session for session in self.sessions if self.sessions[session]['is_pilot']])
+            [session for session in self.sessions if self.sessions[session].is_pilot])
 
         # TODO: add more, check metadata scheme, add stats like num read pages, total reading time etc.
         overview = {
@@ -515,7 +500,16 @@ class MultipleyeDataCollection:
         return overview
 
     def create_session_overview(self, session_idf: str, path: str | Path = '') -> dict:
-        pass
+        sess = self.sessions[session_idf]
+
+        if not path:
+            overview_path = self.data_root.parent / \
+                            f"{session_idf}_overview.yaml"
+        else:
+            overview_path = path / f"{session_idf}_overview.yaml"
+
+        with open(overview_path, 'w', encoding='utf8') as f:
+            yaml.dump(sess.__repr__(), f)
 
     def prepare_session_level_information(self):
         """
@@ -534,29 +528,29 @@ class MultipleyeDataCollection:
                     self._write_to_logfile(
                         f"Session {session} started after a trial. Only the completed stimuli will be considered.")
 
-            self.sessions[session]['completed_stimuli_ids'], self.sessions[session][
-                'stimuli_trial_mapping'] = self._load_session_completed_stimuli(session)
-            self.sessions[session]['messages'] = self._parse_asc(session)
-            self.sessions[session]['logfile'] = self._load_session_logfile(
+            self.sessions[session].completed_stimuli_ids, self.sessions[session].stimuli_trial_mapping = self._load_session_completed_stimuli(session)
+            self.sessions[session].messages = self._parse_asc(session)
+            self.sessions[session].logfile = self._load_session_logfile(
                 session)
-            self.sessions[session]['stimulus_order_version'] = self._load_stimulus_order_version_from_logfile(
+            self.sessions[session].randomization_version = self._load_stimulus_order_version_from_logfile(
                 session)
-            self.sessions[session]['stimuli_order_ids'] = self._load_session_stimulus_order(
-                session, self.sessions[session]['stimulus_order_version'])
+            self.sessions[session].stimulus_order_ids = self._load_session_stimulus_order(
+                session, self.sessions[session].randomization_version)
 
             # TODO: lab config should be changeable for each session
-            self.sessions[session]['lab_config'] = self.lab_configuration
+            self.sessions[session].lab_config = self.lab_configuration
 
-            if self.sessions[session]['stimuli_order_ids'] != self.sessions[session]['completed_stimuli_ids']:
+            if self.sessions[session].stimulus_order_ids != self.sessions[session].completed_stimuli_ids:
                 if not p_id in self.crashed_session_ids:
                     self._write_to_logfile(f"Stimulus order and completed stimuli do not match for session {session}. "
                                            f"Please check the files carefully.")
 
-            self.sessions[session]['stimuli'] = self._load_session_stimuli(self.stimulus_dir, self.language, self.country,
-                                                 self.lab_number,
-                                                 self.sessions[session]['stimulus_order_version'],
-                                                 session,
-                                                 )
+            self.sessions[session].stimuli = self._load_session_stimuli(self.stimulus_dir, self.language,
+                                                                           self.country,
+                                                                           self.lab_number,
+                                                                           self.sessions[session].randomization_version,
+                                                                           session,
+                                                                           )
 
     def create_gaze_frame(self, session: str | list[str] = '', overwrite: bool = False) -> None:
         """
@@ -581,16 +575,16 @@ class MultipleyeDataCollection:
 
             if gaze_path_file.exists() and not overwrite:
                 # make sure gaze path is added if the pkl was created in a previous run
-                self.sessions[session_name]['gaze_path'] = gaze_path_file
+                self.sessions[session_name].pm_gaze_path = gaze_path_file
                 logging.debug(f"Gaze data already exists for {session_name}.")
                 return
 
             # if the path exists we just add it to the current session
-            self.sessions[session_name]['gaze_path'] = gaze_path_file
+            self.sessions[session_name].pm_gaze_path = gaze_path_file
 
             try:
-                gaze = load_gaze_data(Path(self.sessions[session_name]['asc_path']), self.lab_configuration,
-                                 session_idf=session_name)
+                gaze = load_gaze_data(Path(self.sessions[session_name].asc_path), self.lab_configuration,
+                                      session_idf=session_name)
             except KeyError as e:
                 raise e
             except FileNotFoundError:
@@ -599,10 +593,9 @@ class MultipleyeDataCollection:
 
             preprocess_gaze_data(gaze)
             # save and load the gaze dataframe to pickle for later usage
-            self.sessions[session_name]['gaze_path'] = gaze_path
-            self.sessions[session_name]['metadata'] = gaze._metadata
+            self.sessions[session_name].pm_gaze_path = gaze_path
+            self.sessions[session_name].pm_gaze_metadata = gaze._metadata
             # TODO pm: I'd like to save my metadata without having to access a protected argument
-
 
             # TODO pm, this needs to work more smoothly, also why are events here?
             #  This is not intuitive and I think not good design for eye mov data.
@@ -610,7 +603,6 @@ class MultipleyeDataCollection:
             gaze.save_samples(path=gaze_path_file)
             gaze.save_events(path=events_path_file)
             gaze.save(dirpath=metadata_path, save_events=False, save_samples=False)
-
 
     def _load_session_stimuli(self, stimulus_dir: Path, lang: str,
                               country: str, lab_num: int,
@@ -633,7 +625,7 @@ class MultipleyeDataCollection:
         stimuli = []
         if stimulus_names is None:
             stimulus_names = [name for name, num in self.stimulus_names.items()
-                              if num in self.sessions[session_identifier]['completed_stimuli_ids']]
+                              if num in self.sessions[session_identifier].completed_stimuli_ids]
 
         for stimulus_name in stimulus_names:
             stimulus = Stimulus.load(
@@ -648,7 +640,7 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier.
         :return: The question order version to correctly map participant, stimulus and question order versions.
         """
-        session_path = self.sessions[session_identifier]['session_folder_path']
+        session_path = self.sessions[session_identifier].session_folder_path
         logfile_path = Path(f'{session_path}/logfiles')
         general_logfile = logfile_path.glob('GENERAL_LOGFILE_*.txt')
         general_logfile = next(general_logfile)
@@ -676,7 +668,7 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier.
         """
 
-        session_path = self.sessions[session_identifier]['session_folder_path']
+        session_path = self.sessions[session_identifier].session_folder_path
         logfile_folder = Path(f'{session_path}/logfiles')
 
         assert logfile_folder.exists(
@@ -686,8 +678,9 @@ class MultipleyeDataCollection:
         logfiles = list(logfile)
 
         if len(logfiles) != 1:
-            raise ValueError(f"More than one or no logfile found in {logfile_folder}. Please check the logfiles carefully. "
-                             f"This can happen if the experiment crashed early and was restarted, in that case the earlier logfiles can be deleted.")
+            raise ValueError(
+                f"More than one or no logfile found in {logfile_folder}. Please check the logfiles carefully. "
+                f"This can happen if the experiment crashed early and was restarted, in that case the earlier logfiles can be deleted.")
 
         try:
             logfile = pl.read_csv(logfiles[0], separator="\t")
@@ -698,7 +691,7 @@ class MultipleyeDataCollection:
 
     def _load_session_completed_stimuli(self, session_identifier):
 
-        session_path = self.sessions[session_identifier]['session_folder_path']
+        session_path = self.sessions[session_identifier].session_folder_path
         logfile_folder = Path(f'{session_path}/logfiles')
         completed_stim_path = logfile_folder / 'completed_stimuli.csv'
 
@@ -732,7 +725,7 @@ class MultipleyeDataCollection:
         p_id = session_identifier.split('_')[0]
         incomplete_order = []
         if p_id in self.crashed_session_ids:
-            incomplete_order = self.sessions[session_identifier]['completed_stimuli_ids']
+            incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
 
         # get the entry where the participant id matches
         stim_order_version = self.stim_order_versions[self.stim_order_versions['participant_id'] == int(
@@ -744,9 +737,10 @@ class MultipleyeDataCollection:
         elif len(stim_order_version) == 1:
             version = stim_order_version['version_number'].values[0]
             if logfile_order_version != version:
-                self._write_to_logfile(f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                                       f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the "
-                                       f"version from the logfile.")
+                self._write_to_logfile(
+                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                    f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the "
+                    f"version from the logfile.")
             stimulus_order = stim_order_version.drop(
                 columns=['version_number', 'participant_id']).values[0].tolist()
 
@@ -781,40 +775,9 @@ class MultipleyeDataCollection:
             raise ValueError(f"More than one entry found for participant ID {p_id} in stimulus order versions. "
                              f"Please check the stimulus order versions file for duplicates.")
 
-    def get_gaze_frame(self, session_identifier: str,
-                       create_if_not_exists: bool = False,
-                       ) -> Gaze:
-        """
-        Loads and possibly creates the gaze data for the specified session(s).
-        :param create_if_not_exists: The gaze data will be created and stored if True.
-        :param session_identifier: The session identifier to load the gaz data for.
-        :return:
-        """
-
-        if session_identifier not in self.sessions:
-            raise KeyError(f'Session {session_identifier} not found in {self.data_root}.')
-
-        try:
-            gaze_path = self.sessions[session_identifier]['gaze_path']
-        except KeyError:
-            if create_if_not_exists:
-                self.create_gaze_frame(session=session_identifier)
-                gaze_path = self.sessions[session_identifier]['gaze_path']
-            else:
-                raise KeyError(f'Gaze frame not created for session {session_identifier}. Please create first.')
-
-        # TODO pm: how should I load the data that I have previously saved using the pm function as feather file??
-        with open(gaze_path, "rb") as f:
-            gaze = pickle.load(f)
-
-        self.sessions[session_identifier]['metadata'] = gaze._metadata
-
-        return gaze
-
     # TODO: add method to check whether stimuli are completed
 
     # TODO: for future: think about how to handle stimuli in the general case
-
 
     def _parse_asc(self, session_identifier: str):
         """
@@ -834,10 +797,10 @@ class MultipleyeDataCollection:
                          'final_validation', 'show_final_screen',
                          'optional_break_screen', 'fixation_trigger:skipped_by_experimenter',
                          'fixation_trigger:experimenter_calibration_triggered',
-                         'recalibration', 'empty_screen', 'obligatory_break', 'optional_break',]
+                         'recalibration', 'empty_screen', 'obligatory_break', 'optional_break', ]
 
-        asc_file = self.sessions[session_identifier]['asc_path']
-        stimuli_trial_mapping = self.sessions[session_identifier]['stimuli_trial_mapping']
+        asc_file = self.sessions[session_identifier].asc_path
+        stimuli_trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
 
         other_screen_appearance = {
             'timestamp': [],
@@ -951,7 +914,7 @@ class MultipleyeDataCollection:
 
     def _document_reading_times(self, initial_ts, reading_times, result_folder, session_identifier):
 
-        stimuli_trial_mapping = self.sessions[session_identifier]['stimuli_trial_mapping']
+        stimuli_trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
         total_reading_duration_ms = 0
 
         for start, stop in zip(reading_times['start_ts'], reading_times['stop_ts']):
@@ -1017,7 +980,7 @@ class MultipleyeDataCollection:
         start_end_per_stimulus = sum_df[['stimulus', 'trial', 'start_ts', 'stop_ts']].dropna()[
             ~sum_df['type'].str.contains('time before')]
 
-        self.sessions[session_identifier]['stimulus_start_end'] = start_end_per_stimulus.to_dict(
+        self.sessions[session_identifier].stimulus_start_end_ts = start_end_per_stimulus.to_dict(
             orient='records')
 
         total_times = pd.DataFrame({
@@ -1043,7 +1006,7 @@ class MultipleyeDataCollection:
 
     def _document_calibrations(self, session_identifier: str):
 
-        metadata = self.sessions[session_identifier]['metadata']
+        metadata = self.sessions[session_identifier].pm_gaze_metadata
 
         validations = metadata['validations']
         calibrations = metadata['calibrations']
@@ -1067,7 +1030,7 @@ class MultipleyeDataCollection:
 
         # sort stimulus times into list by start and end time
         sorted_stimuli = sorted(
-            self.sessions[session_identifier]['stimulus_start_end'], key=lambda x: float(x['start_ts']))
+            self.sessions[session_identifier].stimulus_start_end_ts, key=lambda x: float(x['start_ts']))
         sorted_start_end = []
         for stimulus in sorted_stimuli:
             sorted_start_end.append(
@@ -1075,22 +1038,18 @@ class MultipleyeDataCollection:
             sorted_start_end.append(
                 {'message': f'{stimulus["stimulus"]}_end', 'timestamp': float(stimulus['stop_ts'])})
 
-        check_validation_requirements(self.sessions[session_identifier]['metadata'], self.sessions[session_identifier]['sanity_report_path'],
+        check_validation_requirements(self.sessions[session_identifier].pm_gaze_metadata,
+                                      self.sessions[session_identifier].sanity_report_path,
                                       sorted_start_end)
 
-    def _check_stimuli_gaze_frame(self, stimuli, session_identifier, gaze=None):
+    def _check_stimuli_gaze_frame(self, gaze, stimuli, session_identifier):
         """
         """
         logging.debug(
             f"Checking asc file all screens for {session_identifier} all screens.")
 
-        if not gaze:
-            logging.debug(f"Loading gaze data for {session_identifier}.")
-            gaze = self.get_gaze_frame(
-                session_identifier, create_if_not_exists=True)
-
         sanity_check_gaze_frame(
-            gaze, stimuli, self.sessions[session_identifier]['sanity_report_path'])
+            gaze, stimuli, self.sessions[session_identifier].sanity_report_path)
 
     def _check_asc_messages(self, stimuli, messages, session_identifier: str) -> None:
         """
@@ -1101,8 +1060,8 @@ class MultipleyeDataCollection:
         """
 
         p_id = session_identifier.split('_')[0]
-        check_messages(messages, stimuli, self.sessions[session_identifier]['sanity_report_path'],
-                       self.sessions[session_identifier]["completed_stimuli_ids"],
+        check_messages(messages, stimuli, self.sessions[session_identifier].sanity_report_path,
+                       self.sessions[session_identifier].completed_stimuli_ids,
                        restarted=p_id in self.crashed_session_ids)
 
     def _check_logfiles(self, stimuli, session_identifier):
@@ -1113,14 +1072,14 @@ class MultipleyeDataCollection:
         :return:
         """
 
-        check_all_screens_logfile(self.sessions[session_identifier]["logfile"],
-                                  stimuli, self.sessions[session_identifier]['sanity_report_path'])
+        check_all_screens_logfile(self.sessions[session_identifier].logfile,
+                                  stimuli, self.sessions[session_identifier].sanity_report_path)
 
     def _load_psychometric_tests(self, session_identifier: str):
         if self.psychometric_tests:
             for test in self.psychometric_tests:
                 test_path = self.data_root.parent / \
-                    'psychometric-tests-sessions' / session_identifier
+                            'psychometric-tests-sessions' / session_identifier
                 if not test_path.exists():
                     self._write_to_logfile(
                         f"Psychometric test path {test_path} does not exist for session {session_identifier}.")
@@ -1145,33 +1104,19 @@ class MultipleyeDataCollection:
 
         # TODO: Jana
 
-        check_comprehension_question_answers(self.sessions[session_identifier]["logfile"],
-                                             stimuli, self.sessions[session_identifier]['sanity_report_path'])
+        check_comprehension_question_answers(self.sessions[session_identifier].logfile,
+                                             stimuli, self.sessions[session_identifier].sanity_report_path)
 
-    def _create_plots(self, stimuli, session_identifier, gaze=None):
-
-        if not gaze:
-            gaze = self.get_gaze_frame(
-                session_identifier, create_if_not_exists=True)
+    def _create_plots(self, gaze, stimuli, session_identifier):
 
         plot_dir = self.reports_dir / session_identifier / \
-            f"{session_identifier}_plots"
+                   f"{session_identifier}_plots"
         plot_dir.mkdir(exist_ok=True)
 
         plot_main_sequence(gaze.events, plot_dir)
 
         for stimulus in stimuli:
             plot_gaze(gaze, stimulus, plot_dir)
-
-    def preprocess_psychometric_tests(self):
-        pass
-
-    def preprocess_eye_tracking_data(self):
-
-        for session_identifier in self.sessions:
-            self.create_gaze_frame(session_identifier)
-
-            self.calculate_reading_measures()
 
 
     def parse_participant_data(self) -> None:
@@ -1184,14 +1129,14 @@ class MultipleyeDataCollection:
         for idx, session in (pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))):
             pbar.set_description(f'Parsing participant data : {session}')
             notes = ''
-            folder = Path(self.sessions[session]['session_folder_path'])
+            folder = Path(self.sessions[session].session_folder_path)
             try:
                 participant_id, country, lang, lab, session_id = session.split(
                     '_')
             except ValueError:
                 if 'start_after_trial_' in session:
                     logging.warning(f'Session {session} has been restarted.')
-                    participant_id, country, lang, lab, _, _, _, _, trial = session.split(
+                    participant_id, country, lang, lab, session_id, _, _, _, trial = session.split(
                         '_')
                     notes = f'Session has been restarted after trial {trial}.'
                 else:
@@ -1199,7 +1144,7 @@ class MultipleyeDataCollection:
                         f"Session {session} does not match the expected format.")
 
             pq_file = folder / \
-                f'{participant_id}_{country}_{lang}_{lab}_pq_data.json'
+                      f'{participant_id}_{country}_{lang}_{lab}_pq_data.json'
             if pq_file.exists():
                 with open(pq_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
@@ -1224,7 +1169,7 @@ class MultipleyeDataCollection:
         if not participant_data.empty:
             cols = participant_data.columns.tolist()
             cols = ['participant_id'] + \
-                [col for col in cols if col != 'participant_id']
+                   [col for col in cols if col != 'participant_id']
             participant_data = participant_data[cols]
 
             participant_data.to_csv(
