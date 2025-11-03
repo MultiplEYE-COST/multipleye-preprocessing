@@ -102,7 +102,7 @@ def save_gaze_data(
         gaze.save(dirpath=metadata_dir, save_events=False, save_samples=False)
 
         # TODO pm,
-        #  why can I only save the experiment metadata through this strange method?
+        #  why can I only save the gaze metadata through this method?
         metadata = gaze._metadata
         metadata['datetime'] = str(metadata['datetime'])
         # TODO pm: I'd like to save my metadata without having to access a protected argument
@@ -151,7 +151,7 @@ def preprocess_gaze_data(
 def map_fixations_to_aois(
         gaze: pm.Gaze,
         stimuli: list[Stimulus],
-):
+) -> None:
     all_stimuli = pl.DataFrame()
     for stimulus in stimuli:
         text = stimulus.text_stimulus.aois
@@ -225,6 +225,7 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
         new_data.unnest()
         new_data.events.unnest()
     except Warning:
+        # if the columns are already unnested there is a Warning (which interrupts)
         pass
 
     trials = new_data.events.split(by="trial", as_dict=False)
@@ -244,7 +245,6 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
 
 def load_trial_level_raw_data(
         data_folder: Path,
-        session_idf: str,
         file_pattern: str = '*_raw_data.csv',
 ):
 
@@ -255,6 +255,19 @@ def load_trial_level_raw_data(
         initial_df = initial_df.vstack(trial_df)
 
     return initial_df
+
+def save_session_metadata(gaze: pm.Gaze, path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+
+    metadata = gaze._metadata
+    metadata['datetime'] = str(metadata['datetime'])
+    # TODO pm: I'd like to save my metadata without having to access a protected argument
+    with open(path / "gaze_metadata.json", "w", encoding='utf8') as f:
+        json.dump(metadata, f)
+
+    gaze.save(path, save_events=False, save_samples=False)
+
+
 
 
 

@@ -167,32 +167,3 @@ def plot_main_sequence(events: pm.EventDataFrame, plots_dir: Path) -> None:
         events, show=False, savepath=plots_dir / "main_sequence.png"
     )
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Generate plots for a MultiplEYE session"
-    )
-    parser.add_argument("asc_file", type=Path, help="Path to the ASC file")
-    parser.add_argument(
-        "stimulus_dir", type=Path, help="Path to the stimulus directory"
-    )
-
-    parser.add_argument("--plots-dir", type=Path, required=True, help="Path to save the plots")
-    args = parser.parse_args()
-
-    print("Loading data...")
-    stimuli, lab_config = load_stimuli(
-        args.stimulus_dir,
-        "nl",
-        "nl",
-        1,
-    )
-    gaze = load_data(
-        args.asc_file,
-        lab_config,
-    )
-    print("Preprocessing...")
-    preprocess(gaze)
-    for stimulus in stimuli:
-        print(f"Plotting {stimulus.name}...")
-        plot_gaze(gaze, stimulus, args.plots_dir)

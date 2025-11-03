@@ -17,7 +17,7 @@ def run_multipleye_sanity_checks(data_collection_name: str, full_path: str = Non
         else:
             data_folder_path = Path(full_path) / data_collection_name
 
-    logging.basicConfig(level=logging.INFO, filename=data_folder_path / 'sanity_checks_logfile.log')
+    # logging.basicConfig(level=logging.INFO, filename=data_folder_path / 'sanity_checks_logfile.log')
     multipleye = MultipleyeDataCollection.create_from_data_folder(str(data_folder_path), include_pilots=include_pilots,
                                                                   )
 
