@@ -13,88 +13,63 @@ def load_gaze_data(
         asc_file: Path,
         lab_config: LabConfig,
         session_idf: str,
-        save: bool = False,
-        output_dir: str = '',
-) -> pm.Gaze:
+        gaze_path: str = '',
+) -> (pm.Gaze, dict[str, any]):
     """
 
-    :param output_dir:
+    :param gaze_path: if a gaze_path is provided, the function will try to load the gaze data from there
     :param asc_file:
     :param lab_config:
     :param session_idf:
-    :param save:
     :return:
     """
 
-    if save and not output_dir:
-        raise ValueError('Please specify an output directory if you want to save the gaze data.')
-
-    output_dir = Path(output_dir)
-
     trial_cols = ["trial", "stimulus", "screen"]
 
-    # check if gaze already exists, unless we want to save it, in that case, we recreate and save it
-    gaze_path = output_dir / f'{session_idf}_samples.csv'
+    gaze = pm.gaze.from_asc(
+        asc_file,
+        patterns=[
+            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+)_(?P<screen>.+)",
+            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<screen>familiarity_rating_screen_\d+|subject_difficulty_screen)",
+            {"pattern": r"stop_recording_", "column": "trial", "value": None},
+            {"pattern": r"stop_recording_", "column": "screen", "value": None},
+            {
+                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+_page_\d+",
+                "column": "activity",
+                "value": "reading",
+            },
+            {
+                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+_question_\d+",
+                "column": "activity",
+                "value": "question",
+            },
+            {
+                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_(familiarity_rating_screen_\d+|subject_difficulty_screen)",
+                "column": "activity",
+                "value": "rating",
+            },
+            {"pattern": r"stop_recording_", "column": "activity", "value": None},
+            {
+                "pattern": r"start_recording_PRACTICE_trial_",
+                "column": "practice",
+                "value": True,
+            },
+            {
+                "pattern": r"start_recording_trial_",
+                "column": "practice",
+                "value": False,
+            },
+            {"pattern": r"stop_recording_", "column": "practice", "value": None},
+        ],
+        trial_columns=trial_cols,
+        add_columns={'session': session_idf},
+    )
 
-    if gaze_path.exists():
-        gaze_frame = pl.read_csv(gaze_path)
-        gaze = pm.Gaze(
-            gaze_frame,
-            trial_columns=trial_cols,
-            pixel_columns=['pixel_x', 'pixel_y'],
-        )
-
-        # TODO pm I would like to load the metadata automatically (and also save it)
-        with open(output_dir / 'gaze_metadata.json', 'r', encoding='utf8') as f:
-            gaze_metadata = json.load(f)
-
-        gaze._metadata = gaze_metadata
-
-    else:
-        gaze = pm.gaze.from_asc(
-            asc_file,
-            patterns=[
-                r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+)_(?P<screen>.+)",
-                r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<screen>familiarity_rating_screen_\d+|subject_difficulty_screen)",
-                {"pattern": r"stop_recording_", "column": "trial", "value": None},
-                {"pattern": r"stop_recording_", "column": "screen", "value": None},
-                {
-                    "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+_page_\d+",
-                    "column": "activity",
-                    "value": "reading",
-                },
-                {
-                    "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+_question_\d+",
-                    "column": "activity",
-                    "value": "question",
-                },
-                {
-                    "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_(familiarity_rating_screen_\d+|subject_difficulty_screen)",
-                    "column": "activity",
-                    "value": "rating",
-                },
-                {"pattern": r"stop_recording_", "column": "activity", "value": None},
-                {
-                    "pattern": r"start_recording_PRACTICE_trial_",
-                    "column": "practice",
-                    "value": True,
-                },
-                {
-                    "pattern": r"start_recording_trial_",
-                    "column": "practice",
-                    "value": False,
-                },
-                {"pattern": r"stop_recording_", "column": "practice", "value": None},
-            ],
-            trial_columns=trial_cols,
-            add_columns={'session': session_idf},
-        )
-
-        # Filter out data outside of trials
-        # TODO: Also report time spent outside of trials
-        gaze.frame = gaze.frame.filter(
-            pl.col("trial").is_not_null() & pl.col("screen").is_not_null()
-        )
+    # Filter out data outside of trials
+    # TODO: Also report time spent outside of trials
+    gaze.frame = gaze.frame.filter(
+        pl.col("trial").is_not_null() & pl.col("screen").is_not_null()
+    )
 
     # Extract metadata from stimulus config and ASC file
     gaze.experiment = pm.Experiment(
@@ -106,10 +81,7 @@ def load_gaze_data(
         distance_cm=lab_config.screen_distance_cm,
     )
 
-    if save:
-        save_gaze_data(gaze, gaze_path, metadata_dir=output_dir)
-
-    return gaze
+    return gaze, gaze._metadata
 
 def save_gaze_data(
         gaze: pm.Gaze,
@@ -118,7 +90,7 @@ def save_gaze_data(
         metadata_dir: Path = '',
 ) -> None:
 
-
+    # TODO save metadata properly and also load it properly
 
     if gaze_path:
         gaze.save_samples(path=gaze_path)
@@ -141,9 +113,6 @@ def preprocess_gaze_data(
         gaze: pm.Gaze,
         sg_window_length: int = 50,
         sg_degree: int = 2,
-        save: bool = False,
-        output_dir: str | Path = '',
-        session_idf: str | Path = '',
 ) -> None:
     # Savitzky-Golay filter as in https://doi.org/10.3758/BRM.42.1.188
     window_length = round(gaze.experiment.sampling_rate / 1000 * sg_window_length)
@@ -160,7 +129,6 @@ def preprocess_gaze_data(
     gaze.detect("ivt")
     gaze.detect("microsaccades")
 
-    # TODO pm: this is non-intuitive. Why are these properties?
     for property, kwargs, event_name in [
         ("location", dict(position_column="pixel"), "fixation"),
         ("amplitude", dict(), "saccade"),
@@ -178,23 +146,11 @@ def preprocess_gaze_data(
         join_on = gaze.trial_columns + ["name", "onset", "offset"]
         gaze.events.add_event_properties(new_properties, join_on=join_on)
 
-    # TODO pm, I cannot save it if I don't do this.. can we somehow integrate this (lower priority..);
-    #  but I cannot save it anyways, it still complains that it is unnested, also it is really not
-    #  straightforward that I have to unnest gaze and events separately...
-    gaze.unnest()
-    gaze.events.unnest()
-
-    if save:
-        events_file = Path(output_dir) / f"{session_idf}_events.csv"
-        save_gaze_data(gaze, metadata_dir=Path(output_dir), events_path=events_file)
 
 
 def map_fixations_to_aois(
         gaze: pm.Gaze,
-        session_idf: str,
         stimuli: list[Stimulus],
-        save: bool = False,
-        output_dir: str = '',
 ):
     all_stimuli = pl.DataFrame()
     for stimulus in stimuli:
@@ -217,10 +173,90 @@ def map_fixations_to_aois(
     gaze.events.frame = gaze.events.fixations
     gaze.events.map_to_aois(all_stimuli)
 
-    if save:
-        path = Path(output_dir) / f"{session_idf}_scanpath.csv"
-        save_gaze_data(events_path=path, gaze=gaze)
+
+def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+
+    new_data = data.clone()
+
+    try:
+        new_data.unnest()
+    except Warning:
+        pass
+
+    trials = new_data.split(by="trial", as_dict=False)
+
+    for trial in trials:
+        df = trial.frame
+        trial = df["trial"][0]
+        stimulus = df["stimulus"][0]
+        name = f"{session}_{trial}_{stimulus}_raw_data.csv"
+        df = df['time', 'pixel_x', 'pixel_y', 'pupil', 'screen']
+        df.write_csv(directory / name)
+
+def save_fixation_data(directory: Path, session: str, data: pm.Gaze) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+
+    new_data = data.clone()
+
+    data.unnest()
+    data.events.unnest()
+
+    # TODO pm save only fixations
+    data.events.frame = data.events.fixations
+
+    trials = data.events.split(by="trial", as_dict=False)
+
+    for trial in trials:
+        df = trial.frame
+        trial = df["trial"][0]
+        stimulus = df["stimulus"][0]
+        name = f"{session}_{trial}_{stimulus}_fixations.csv"
+        df = df['onset', 'duration', 'location_x', 'location_y']
+        df.write_csv(directory / name)
 
 
-def generate_scanpaths():
-    pass
+def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+
+    new_data = data.clone()
+
+    try:
+        new_data.unnest()
+        new_data.events.unnest()
+    except Warning:
+        pass
+
+    trials = new_data.events.split(by="trial", as_dict=False)
+
+    for trial in trials:
+        df = trial.frame
+        trial = df["trial"][0]
+        stimulus = df["stimulus"][0]
+        name = f"{session}_{trial}_{stimulus}_scanpath.csv"
+
+        df = df[
+            'onset', 'duration', 'name', 'location_x', 'location_y', 'char_idx', 'char',
+            'top_left_x', 'top_left_y', 'width', 'height', 'char_idx_in_line', 'line_idx',
+            'page', 'word_idx', 'word_idx_in_line', 'word']
+        df.write_csv(directory / name)
+
+
+def load_trial_level_raw_data(
+        data_folder: Path,
+        session_idf: str,
+        file_pattern: str = '*_raw_data.csv',
+):
+
+    initial_df = pl.DataFrame()
+    for file in data_folder.glob(file_pattern):
+        trial_df = pl.read_csv(file)
+
+        initial_df = initial_df.vstack(trial_df)
+
+    return initial_df
+
+
+
+
+

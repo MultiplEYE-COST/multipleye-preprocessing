@@ -66,14 +66,26 @@ class Session:
 
 
     def __repr__(self):
-        dict_repr = asdict(self)
-        dict_repr.pop('stimuli')
-        dict_repr.pop('logfile')
-        dict_repr.pop('messages')
-
-        # TODO: configure paths to be excluded from repr (i.e. make them relative and remove
-        #  the user specific part
-        # dict_repr.pop('trials')
+        dict_repr = {
+            'participant_id': self.participant_id,
+            'session_identifier': self.session_identifier,
+            'is_pilot': self.is_pilot,
+            'session_file_name': self.session_file_name,
+            'question_order': self.question_order,
+            'stimulus_order_ids': self.stimulus_order_ids,
+            'was_session_interrupted': self.interrupted,
+            'lab_config': asdict(self.lab_config) if isinstance(self.lab_config, LabConfig) else self.lab_config,
+            'total_reading_time': self.total_reading_time,
+            'total_session_duration': self.total_session_duration,
+            'obligatory_break_made': self.obligatory_break_made,
+            'num_optional_breaks_made': self.num_optional_breaks_made,
+            'total_break_time': self.total_break_time,
+            'avg_comprehension_score': self.avg_comprehension_score,
+            'avg_calibration_error': self.avg_calibration_error,
+            'num_calibrations': self.num_calibrations,
+            'avg_validation_error': self.avg_validation_error,
+            'pm_gaze_metadata': self.pm_gaze_metadata,
+        }
         return dict_repr
 
 

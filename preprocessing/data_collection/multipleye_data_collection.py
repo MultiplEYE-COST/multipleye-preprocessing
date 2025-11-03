@@ -552,58 +552,6 @@ class MultipleyeDataCollection:
                                                                            session,
                                                                            )
 
-    def create_gaze_frame(self, session: str | list[str] = '', overwrite: bool = False) -> None:
-        """
-        Creates, preprocesses and saves the gaze data for the specified session or all sessions.
-        :param session: If a session identifier is specified only the gaze data for this session is loaded.
-        :param overwrite: If True the gaze data is overwritten if it already exists.
-        :return:
-        """
-        session_keys = self._load_session_names(session)
-
-        for session_name in session_keys:
-            gaze_path = self.preprocessing_dir / session_name
-            events_path = self.preprocessing_dir / session_name
-            metadata_path = self.reports_dir / session_name
-
-            # / f"{session_name}_gaze.pkl"
-            gaze_path.mkdir(parents=True, exist_ok=True)
-            events_path.mkdir(parents=True, exist_ok=True)
-
-            gaze_path_file = gaze_path / f"{session_name}_samples.feather"
-            events_path_file = events_path / f"{session_name}_events.feather"
-
-            if gaze_path_file.exists() and not overwrite:
-                # make sure gaze path is added if the pkl was created in a previous run
-                self.sessions[session_name].pm_gaze_path = gaze_path_file
-                logging.debug(f"Gaze data already exists for {session_name}.")
-                return
-
-            # if the path exists we just add it to the current session
-            self.sessions[session_name].pm_gaze_path = gaze_path_file
-
-            try:
-                gaze = load_gaze_data(Path(self.sessions[session_name].asc_path), self.lab_configuration,
-                                      session_idf=session_name)
-            except KeyError as e:
-                raise e
-            except FileNotFoundError:
-                raise FileNotFoundError(
-                    f"No asc file found for session {session_name}. Please create first.")
-
-            preprocess_gaze_data(gaze)
-            # save and load the gaze dataframe to pickle for later usage
-            self.sessions[session_name].pm_gaze_path = gaze_path
-            self.sessions[session_name].pm_gaze_metadata = gaze._metadata
-            # TODO pm: I'd like to save my metadata without having to access a protected argument
-
-            # TODO pm, this needs to work more smoothly, also why are events here?
-            #  This is not intuitive and I think not good design for eye mov data.
-            #  why can I only save the experiment metadata through this strange method?
-            gaze.save_samples(path=gaze_path_file)
-            gaze.save_events(path=events_path_file)
-            gaze.save(dirpath=metadata_path, save_events=False, save_samples=False)
-
     def _load_session_stimuli(self, stimulus_dir: Path, lang: str,
                               country: str, lab_num: int,
                               stimulus_order_version: int,

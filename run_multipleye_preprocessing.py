@@ -31,28 +31,25 @@ def run_multipleye_preprocessing(data_collection: str):
 
         # TODO pm: it would make a lot more sense if the gaze object was not called gaze but instead session or
         #  something like that. Because ET preprocessing works on the session level and it is odd that there is no session
-        gaze = peyepeline.load_gaze_data(
+        gaze, gaze_metadata = peyepeline.load_gaze_data(
             asc_file=asc,
             lab_config=sess.lab_config,
             session_idf=idf,
-            output_dir=output_folder,
-            save=True
+            gaze_path=output_folder / f'{idf}_samples.csv'
         )
+        peyepeline.save_raw_data(output_folder / 'raw_data', sess.session_identifier, gaze)
+        sess.pm_gaze_metadata = gaze_metadata
 
         peyepeline.preprocess_gaze_data(
             gaze,
-            output_dir=output_folder,
-            save=True,
-            session_idf=idf,
         )
+        peyepeline.save_fixation_data(output_folder / 'fixations', sess.session_identifier, gaze)
 
         peyepeline.map_fixations_to_aois(
             gaze,
-            idf,
             sess.stimuli,
-            save=True,
-            output_dir=output_folder,
         )
+        peyepeline.save_scanpaths(output_folder / 'scanpaths', sess.session_identifier, gaze)
 
         multipleye.create_session_overview(sess.session_identifier, path=output_folder)
 
