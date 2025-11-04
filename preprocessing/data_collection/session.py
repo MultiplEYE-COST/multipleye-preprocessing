@@ -21,6 +21,7 @@ class Session:
     asc_path: Path = field(default='unknown', init=False)
 
     # stimuli
+    # TODO: move stimuli, completed stimuli, stimuli trial mapping to one thing
     stimuli: list[Stimulus] = field(default='unknown', init=False)
     randomization_version: int = field(default='unknown', init=False)
     stimulus_folder_name: str = field(default='unknown', init=False)
@@ -65,13 +66,12 @@ class Session:
             yield trial
 
 
-    def __repr__(self):
-        # TODO make an actual nice repr
+    def create_overview(self):
+
         dict_repr = {
             'participant_id': self.participant_id,
             'session_identifier': self.session_identifier,
             'is_pilot': self.is_pilot,
-            'session_file_name': self.session_file_name,
             'question_order': self.question_order,
             'stimulus_order_ids': self.stimulus_order_ids,
             'was_session_interrupted': self.interrupted,
@@ -85,9 +85,13 @@ class Session:
             'avg_calibration_error': self.avg_calibration_error,
             'num_calibrations': self.num_calibrations,
             'avg_validation_error': self.avg_validation_error,
-            'pm_gaze_metadata': self.pm_gaze_metadata,
+            'data_loss_ratio': self.pm_gaze_metadata['data_loss_ratio'],
+            'Mount_configuration': self.pm_gaze_metadata['mount_configuration'],
+            'Pupil_data_type': self.pm_gaze_metadata['pupil_data_type'],
         }
+
         return dict_repr
+
 
 
 

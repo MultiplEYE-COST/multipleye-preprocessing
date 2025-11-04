@@ -6,6 +6,7 @@ from preprocessing.data_collection.multipleye_data_collection import MultipleyeD
 class Merid(MultipleyeDataCollection):
 
     num_sessions = 2
+    type = 'MeRID'
 
     def _load_session_stimulus_order(self, session_identifier, logfile_order_version: int):
         # if the session crashed, only load the stimuli that were actually completed in that session

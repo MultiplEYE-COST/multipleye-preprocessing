@@ -7,6 +7,7 @@ import subprocess
 from functools import partial
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import polars as pl
 import yaml
@@ -75,6 +76,7 @@ class MultipleyeDataCollection:
     session_folder_regex: str = ''
     data_root: Path = None
     excluded_sessions: list = []
+    type = 'MultiplEYE'
 
     # TODO: read instruction excel
 
@@ -449,7 +451,8 @@ class MultipleyeDataCollection:
 
         else:
             # create the file so that we can write to it later
-            open(manual_corrections, 'w').close()
+            with open(manual_corrections, 'w', encoding='utf8') as f:
+                yaml.dump({'excluded_sessions': []}, f)
 
         return []
 
@@ -489,9 +492,15 @@ class MultipleyeDataCollection:
 
         # TODO: add more, check metadata scheme, add stats like num read pages, total reading time etc.
         overview = {
-            'data_collection_name': self.data_collection_name,
-            'num_sessions': num_sessions,
-            'num_pilots': num_pilots,
+            'Title': self.data_collection_name,
+            'Dataset_type': self.type,
+            'Number_of_sessions': num_sessions,
+            'Number_of_pilots': num_pilots,
+            'Tested_language': self.language,
+            'Country': self.country,
+            'Year': self.year,
+            'Number of eye-tracking (ET) sessions per participant': self.num_sessions,
+
         }
 
         with open(overview_path, 'w', encoding='utf8') as f:
@@ -509,7 +518,7 @@ class MultipleyeDataCollection:
             overview_path = path / f"{session_idf}_overview.yaml"
 
         with open(overview_path, 'w', encoding='utf8') as f:
-            yaml.dump(sess.__repr__(), f)
+            yaml.dump(sess.create_overview(), f)
 
     def prepare_session_level_information(self):
         """
@@ -576,8 +585,15 @@ class MultipleyeDataCollection:
                               if num in self.sessions[session_identifier].completed_stimuli_ids]
 
         for stimulus_name in stimulus_names:
+            trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
+            # get the trial id from the mapping, keys are ids and values are strings
+            trial_id = [key for key, value in trial_mapping.items() if value == stimulus_name]
+            if len(trial_id) == 0:
+                raise KeyError(f"Stimulus name {stimulus_name} not found in the trial mapping for session "
+                               f"{session_identifier}. Please check the completed_stimuli.csv file.")
+
             stimulus = Stimulus.load(
-                stimulus_dir, lang, country, lab_num, stimulus_name, stimulus_order_version)
+                stimulus_dir, lang, country, lab_num, stimulus_name, stimulus_order_version, trial_id[0])
             stimuli.append(stimulus)
 
         return stimuli
@@ -649,6 +665,11 @@ class MultipleyeDataCollection:
 
         # load trial to stimulus mapping
         trial_ids = completed_stimuli['trial_id'].to_list()
+        if 'PRACTICE_1' in trial_ids:
+            trial_ids[trial_ids.index('PRACTICE_1')] = 'PRACTICE_trial_1'
+        if 'PRACTICE_2' in trial_ids:
+            trial_ids[trial_ids.index('PRACTICE_2')] = 'PRACTICE_trial_2'
+
         stimulus_names = completed_stimuli['stimulus_name'].to_list()
         stimuli_trial_mapping = {
             str(trial): name for trial, name in zip(trial_ids, stimulus_names)}

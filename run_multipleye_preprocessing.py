@@ -67,5 +67,5 @@ def parse_args():
 if __name__ == '__main__':
     parse_args()
 
-    data_collection_name = 'MultiplEYE_SQ_CH_Zurich_1_2025'
+    data_collection_name = 'MultiplEYE_DE_DE_Saarbruecken_1_2025'
     run_multipleye_preprocessing(data_collection_name)

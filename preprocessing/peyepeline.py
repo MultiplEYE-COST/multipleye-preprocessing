@@ -24,15 +24,15 @@ def load_gaze_data(
     :return:
     """
 
-    trial_cols = ["trial", "stimulus", "screen"]
+    trial_cols = ["trial", "stimulus", "page"]
 
     gaze = pm.gaze.from_asc(
         asc_file,
         patterns=[
-            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+)_(?P<screen>.+)",
-            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<screen>familiarity_rating_screen_\d+|subject_difficulty_screen)",
+            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+)_(?P<page>.+)",
+            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<page>familiarity_rating_screen_\d+|subject_difficulty_screen)",
             {"pattern": r"stop_recording_", "column": "trial", "value": None},
-            {"pattern": r"stop_recording_", "column": "screen", "value": None},
+            {"pattern": r"stop_recording_", "column": "page", "value": None},
             {
                 "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+_page_\d+",
                 "column": "activity",
@@ -68,7 +68,7 @@ def load_gaze_data(
     # Filter out data outside of trials
     # TODO: Also report time spent outside of trials
     gaze.frame = gaze.frame.filter(
-        pl.col("trial").is_not_null() & pl.col("screen").is_not_null()
+        pl.col("trial").is_not_null() & pl.col("page").is_not_null()
     )
 
     # Extract metadata from stimulus config and ASC file
@@ -161,6 +161,8 @@ def map_fixations_to_aois(
     all_stimuli = pl.DataFrame()
     for stimulus in stimuli:
         text = stimulus.text_stimulus.aois
+        trial = stimulus.trial_id
+        text = text.with_columns(pl.lit(trial).alias("trial"))
         all_stimuli = all_stimuli.vstack(text)
 
     # TODO pm very ugly work around. I'd like to be able to map to aois for each stimulus separately
@@ -173,6 +175,7 @@ def map_fixations_to_aois(
         width_column="width",
         height_column="height",
         page_column="page",
+        trial_column="trial",
     )
 
     # aoi mapping does not work if there are saccades in the file.. because then the
@@ -197,7 +200,7 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
         name = f"{session}_{trial}_{stimulus}_raw_data.csv"
-        df = df['time', 'pixel_x', 'pixel_y', 'pupil', 'screen']
+        df = df['time', 'pixel_x', 'pixel_y', 'pupil', 'page']
         df.write_csv(directory / name)
 
 def save_fixation_data(directory: Path, session: str, data: pm.Gaze) -> None:
@@ -215,6 +218,7 @@ def save_fixation_data(directory: Path, session: str, data: pm.Gaze) -> None:
 
     for trial in trials:
         df = trial.frame
+
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
         name = f"{session}_{trial}_{stimulus}_fixations.csv"
@@ -238,6 +242,10 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
 
     for trial in trials:
         df = trial.frame
+        # drop all rows where there has been no aoi mapped
+        df = df.filter(pl.col("char_idx").is_not_null())
+        if df.is_empty():
+            continue
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
         name = f"{session}_{trial}_{stimulus}_scanpath.csv"

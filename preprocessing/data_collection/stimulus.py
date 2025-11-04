@@ -71,6 +71,7 @@ class Stimulus:
     questions: list[ComprehensionQuestion]
     instructions: list[Instruction]
     ratings: list[Rating]
+    trial_id: str
 
     @classmethod
     def load(
@@ -81,6 +82,7 @@ class Stimulus:
             labnum: int,
             stimulus_name: str,
             question_version: int,
+            trial: str,
     ) -> "Stimulus":
         # assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
         stimulus_df_path = stimulus_dir / f"multipleye_stimuli_experiment_{lang}.xlsx"
@@ -90,6 +92,9 @@ class Stimulus:
         stimulus_row = stimulus_df.row(
             by_predicate=pl.col("stimulus_name") == stimulus_name, named=True
         )
+
+        lang = lang.lower()
+        country = country.lower()
 
         stimulus_id = stimulus_row["stimulus_id"]
         stimulus_type = stimulus_row["stimulus_type"]
@@ -133,6 +138,7 @@ class Stimulus:
             width_column="width",
             height_column="height",
             page_column="page",
+            trial_column="trial",
         )
 
         questions_df_path = (
@@ -217,7 +223,7 @@ class Stimulus:
                     len(questions) == QUESTION_NUMBERS["practice"]
             ), f"{stimulus_id} has {len(questions)} questions instead of 2"
 
-        stimulus = cls(
+        stim = cls(
             id=stimulus_id,
             name=stimulus_name,
             type=stimulus_type,
@@ -226,8 +232,9 @@ class Stimulus:
             questions=questions,
             instructions=instructions,
             ratings=ratings,
+            trial_id=trial,
         )
-        return stimulus
+        return stim
 
 
 @dataclass
