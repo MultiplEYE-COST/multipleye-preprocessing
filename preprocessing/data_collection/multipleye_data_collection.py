@@ -21,7 +21,7 @@ from preprocessing.checks.formal_experiment_checks import check_all_screens_logf
     check_messages
 from preprocessing.data_collection.session import Session
 from preprocessing.data_collection.stimulus import LabConfig, Stimulus
-from preprocessing.peyepeline import load_gaze_data, preprocess_gaze_data
+from preprocessing.peyepeline import load_gaze_data, detect_fixation_and_saccades
 from preprocessing.plotting.plot import plot_gaze, plot_main_sequence
 from preprocessing.psychometric_tests.preprocess_psychometric_tests import preprocess_plab, preprocess_ran, \
     preprocess_stroop, preprocess_flanker, preprocess_wikivocab, preprocess_lwmc

@@ -66,6 +66,7 @@ class Session:
 
 
     def __repr__(self):
+        # TODO make an actual nice repr
         dict_repr = {
             'participant_id': self.participant_id,
             'session_identifier': self.session_identifier,

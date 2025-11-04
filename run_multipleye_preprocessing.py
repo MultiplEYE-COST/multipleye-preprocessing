@@ -38,9 +38,10 @@ def run_multipleye_preprocessing(data_collection: str):
             gaze_path=output_folder / f'{idf}_samples.csv'
         )
         peyepeline.save_raw_data(output_folder / 'raw_data', sess.session_identifier, gaze)
+
         sess.pm_gaze_metadata = gaze_metadata
 
-        peyepeline.preprocess_gaze_data(
+        peyepeline.detect_fixation_and_saccades(
             gaze,
         )
         peyepeline.save_fixation_data(output_folder / 'fixations', sess.session_identifier, gaze)
@@ -51,8 +52,9 @@ def run_multipleye_preprocessing(data_collection: str):
         )
         peyepeline.save_scanpaths(output_folder / 'scanpaths', sess.session_identifier, gaze)
 
-        peyepeline.save_session_metadata()
+        peyepeline.save_session_metadata(gaze, output_folder)
         multipleye.create_session_overview(sess.session_identifier, path=output_folder)
+
 
     multipleye.create_dataset_overview(path=preprocessed_data_folder)
 

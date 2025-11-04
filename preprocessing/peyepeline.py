@@ -109,7 +109,7 @@ def save_gaze_data(
         with open(metadata_dir / "gaze_metadata.json", "w", encoding='utf8') as f:
             json.dump(metadata, f)
 
-def preprocess_gaze_data(
+def detect_fixation_and_saccades(
         gaze: pm.Gaze,
         sg_window_length: int = 50,
         sg_degree: int = 2,
@@ -147,11 +147,17 @@ def preprocess_gaze_data(
         gaze.events.add_event_properties(new_properties, join_on=join_on)
 
 
+def detect_saccades():
+    # TODO Anastassia, move part form fucntion above here and make function above only for fixations
+    pass
+
+
 
 def map_fixations_to_aois(
         gaze: pm.Gaze,
         stimuli: list[Stimulus],
 ) -> None:
+
     all_stimuli = pl.DataFrame()
     for stimulus in stimuli:
         text = stimulus.text_stimulus.aois
@@ -256,16 +262,16 @@ def load_trial_level_raw_data(
 
     return initial_df
 
-def save_session_metadata(gaze: pm.Gaze, path: Path) -> None:
-    path.mkdir(parents=True, exist_ok=True)
+def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
 
     metadata = gaze._metadata
     metadata['datetime'] = str(metadata['datetime'])
     # TODO pm: I'd like to save my metadata without having to access a protected argument
-    with open(path / "gaze_metadata.json", "w", encoding='utf8') as f:
+    with open(directory / "gaze_metadata.json", "w", encoding='utf8') as f:
         json.dump(metadata, f)
 
-    gaze.save(path, save_events=False, save_samples=False)
+    gaze.save(directory, save_events=False, save_samples=False)
 
 
 
