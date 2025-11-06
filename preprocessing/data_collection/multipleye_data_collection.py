@@ -665,10 +665,14 @@ class MultipleyeDataCollection:
 
         # load trial to stimulus mapping
         trial_ids = completed_stimuli['trial_id'].to_list()
-        if 'PRACTICE_1' in trial_ids:
-            trial_ids[trial_ids.index('PRACTICE_1')] = 'PRACTICE_trial_1'
-        if 'PRACTICE_2' in trial_ids:
-            trial_ids[trial_ids.index('PRACTICE_2')] = 'PRACTICE_trial_2'
+
+        for trial in trial_ids:
+            if trial == 'PRACTICE_1':
+                trial_ids[trial_ids.index(trial)] = 'PRACTICE_trial_1'
+            elif trial == 'PRACTICE_2':
+                trial_ids[trial_ids.index(trial)] = 'PRACTICE_trial_2'
+            else:
+                trial_ids[trial_ids.index(trial)] = f'trial_{int(trial)}'
 
         stimulus_names = completed_stimuli['stimulus_name'].to_list()
         stimuli_trial_mapping = {

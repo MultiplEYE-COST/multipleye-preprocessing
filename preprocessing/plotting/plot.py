@@ -44,7 +44,7 @@ def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> No
             alpha=0.3,
         )
 
-        # Plot fixations
+        # Plot fixations, make the rad scaled by the resolution
         for row in page_events.iter_rows(named=True):
             fixation = Circle(
                 (row["pixel_x"], row["pixel_y"]),

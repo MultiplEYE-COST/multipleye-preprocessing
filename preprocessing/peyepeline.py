@@ -13,7 +13,6 @@ def load_gaze_data(
         asc_file: Path,
         lab_config: LabConfig,
         session_idf: str,
-        gaze_path: str = '',
 ) -> (pm.Gaze, dict[str, any]):
     """
 
@@ -158,17 +157,17 @@ def map_fixations_to_aois(
         stimuli: list[Stimulus],
 ) -> None:
 
-    all_stimuli = pl.DataFrame()
+    all_aois = pl.DataFrame()
     for stimulus in stimuli:
-        text = stimulus.text_stimulus.aois
+        aoi = stimulus.text_stimulus.aois
         trial = stimulus.trial_id
-        text = text.with_columns(pl.lit(trial).alias("trial"))
-        all_stimuli = all_stimuli.vstack(text)
+        aoi = aoi.with_columns(pl.lit(trial).alias("trial"))
+        all_aois = all_aois.vstack(aoi)
 
     # TODO pm very ugly work around. I'd like to be able to map to aois for each stimulus separately
     #  https://github.com/pymovements/pymovements/issues/1125
     all_stimuli = TextStimulus(
-        all_stimuli,
+        all_aois,
         aoi_column="char_idx",
         start_x_column="top_left_x",
         start_y_column="top_left_y",
@@ -208,13 +207,13 @@ def save_fixation_data(directory: Path, session: str, data: pm.Gaze) -> None:
 
     new_data = data.clone()
 
-    data.unnest()
-    data.events.unnest()
+    new_data.unnest()
+    new_data.events.unnest()
 
     # TODO pm save only fixations
-    data.events.frame = data.events.fixations
+    new_data.events.frame = new_data.events.fixations
 
-    trials = data.events.split(by="trial", as_dict=False)
+    trials = new_data.events.split(by="trial", as_dict=False)
 
     for trial in trials:
         df = trial.frame
@@ -259,8 +258,10 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
 
 def load_trial_level_raw_data(
         data_folder: Path,
+        trial_columns: list[str],
         file_pattern: str = '*_raw_data.csv',
-):
+        metadata_path: Path = '',
+) -> pm.Gaze:
 
     initial_df = pl.DataFrame()
     for file in data_folder.glob(file_pattern):
@@ -268,7 +269,44 @@ def load_trial_level_raw_data(
 
         initial_df = initial_df.vstack(trial_df)
 
-    return initial_df
+    gaze = pm.Gaze(
+        initial_df,
+        trial_columns=trial_columns,
+    )
+
+    if metadata_path:
+        with open(metadata_path / "gaze_metadata.json", "r", encoding='utf8') as f:
+            metadata = json.load(f)
+        gaze._metadata = metadata
+
+    return gaze
+
+
+def load_trial_level_fixation_data(
+        gaze: pm.Gaze,
+        data_folder: Path,
+        file_pattern: str = '*_fixations.csv',
+        metadata_path: Path = '',
+) -> pm.Gaze:
+
+    initial_df = pl.DataFrame()
+    for file in data_folder.glob(file_pattern):
+        trial_df = pl.read_csv(file)
+
+        initial_df = initial_df.vstack(trial_df)
+
+    gaze.events = pm.Events(
+        initial_df,
+        trial_columns=gaze.trial_columns,
+    )
+
+    if metadata_path:
+        with open(metadata_path / "gaze_metadata.json", "r", encoding='utf8') as f:
+            metadata = json.load(f)
+        gaze._metadata = metadata
+
+    return gaze
+
 
 def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)

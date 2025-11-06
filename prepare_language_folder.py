@@ -4,6 +4,8 @@ import zipfile
 from pathlib import Path
 import tarfile
 
+import pandas as pd
+
 from preprocessing.utils.restructure_psycho_tests import fix_psycho_tests_structure
 
 
@@ -90,6 +92,32 @@ def prepare_language_folder(data_collection_name):
             raise FileNotFoundError(f"The stimulus config folder not found in '{stimulus_folder_path}'. "
                                     "Please check and restructure or possibly unzip the stimulus folder.")
 
+
+    # if aoi files are not yet split into questions and texts, do it here:
+    aoi_path = data_folder_path / stimulus_folder_path / f"aoi_stimuli_{lang}_{country}_{lab_no}"
+
+    # get all aoi files, if there are only 12 files, they are not yet split
+    aoi_files = list(aoi_path.glob("*.csv"))
+    if len(aoi_files) == 12:
+        print("Splitting AOI files into text and question AOIs...")
+        for aoi_file in aoi_files:
+            aoi_df = pd.read_csv(aoi_file)
+            # split the aoi_df into two parts, one for the stimulus and one for the questions
+            aoi_df_texts = aoi_df[~aoi_df['page'].str.contains('question', na=False)]
+            aoi_df_texts.drop(columns=['question_image_version'], inplace=True, errors='ignore')
+            aoi_df_questions = aoi_df[aoi_df['page'].str.contains('question', na=False)]
+
+            aoi_df_texts.to_csv(aoi_file, sep=',', index=False, encoding='UTF-8')
+
+            question_path = aoi_path / (aoi_file.stem + "_questions" + aoi_file.suffix)
+            aoi_df_questions.to_csv(question_path, sep=',', index=False,
+                                    encoding='UTF-8')
+
+    elif len(aoi_files) == 24:
+        pass
+    else:
+        raise ValueError(f"Unexpected number of AOI files ({len(aoi_files)}) found in '{aoi_path}'. "
+                         "Expected 12 (not split) or 24 (already split into texts and questions).")
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Run multipleye preprocessing on an experiment file')

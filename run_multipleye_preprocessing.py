@@ -35,7 +35,6 @@ def run_multipleye_preprocessing(data_collection: str):
             asc_file=asc,
             lab_config=sess.lab_config,
             session_idf=idf,
-            gaze_path=output_folder / f'{idf}_samples.csv'
         )
         peyepeline.save_raw_data(output_folder / 'raw_data', sess.session_identifier, gaze)
 
