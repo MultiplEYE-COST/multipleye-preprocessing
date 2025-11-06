@@ -8,6 +8,7 @@ from preprocessing.data_collection.stimulus import LabConfig, Stimulus
 import pymovements as pm
 import polars as pl
 
+
 DEFAULT_EVENT_PROPERTIES = {
     "fixation": [
         ("location", {"position_column": "pixel"}),
@@ -163,18 +164,51 @@ def detect_fixation_and_saccades(
         gaze.events.add_event_properties(new_properties, join_on=join_on)
 
 
-def _ensure_velocity_computed(gaze: pm.Gaze):
-    """Compute velocity if not already available."""
-    window_ms = 50
-    poly_degree = 2
-    if "velocity" not in gaze.samples.columns:
-        # Savitzky-Golay filter as in https://doi.org/10.3758/BRM.42.1.188
-        window_length = round(gaze.experiment.sampling_rate / 1000 * window_ms)
-        if window_length % 2 == 0:
-            window_length += 1
-        gaze.pix2deg()
-        gaze.pos2vel("savitzky_golay",
-                     window_length=window_length, degree=poly_degree)
+def preprocess_gaze(
+    gaze: pm.Gaze,
+    method: str = "savitzky_golay",
+    window_ms: int = 50,
+    poly_degree: int = 2,
+) -> None:
+    """
+    Convert gaze samples from pixel coordinates to degrees of visual angle (dva),
+    and compute velocity for event detection.
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        The gaze object containing raw gaze samples.
+
+    method : {"preceding", "neighbors", "fivepoint", "smooth", "savitzky_golay"}, optional
+        Velocity estimation method. Default is ``"savitzky_golay"``.
+
+    window_ms : int, optional
+        Length of the smoothing/differentiation window in milliseconds.
+        Only used when ``method="savitzky_golay"``.
+        Default is 50 ms.
+
+    poly_degree : int, optional
+        Polynomial degree used in the Savitzky–Golay filter (default = 2).
+
+    Notes
+    -----
+    This function should be called **before** detecting fixations or saccades,
+    since event detection relies on the velocity signal.
+
+    Available velocity estimation methods:
+      - ``preceding``: difference between current and previous sample.
+      - ``neighbors``: difference between next and previous sample.
+      - ``fivepoint``: mean of two preceding and two following samples.
+      - ``smooth``: alias of ``fivepoint``.
+      - ``savitzky_golay``: fits a local polynomial using a sliding window.
+    """
+    # Savitzky-Golay filter as in https://doi.org/10.3758/BRM.42.1.188
+    window_length = round(gaze.experiment.sampling_rate / 1000 * window_ms)
+    if window_length % 2 == 0:
+        window_length += 1
+
+    gaze.pix2deg()
+    gaze.pos2vel(method, window_length=window_length, degree=poly_degree)
 
 
 def compute_event_properties(
@@ -207,20 +241,88 @@ def compute_event_properties(
         gaze.events.add_event_properties(new_props, join_on=join_on)
 
 
-def detect_fixations(gaze):
-    """Detect fixations (auto-preprocessing included)."""
-    _ensure_velocity_computed(gaze)
-    gaze.detect("ivt")
+def detect_fixations(
+    gaze,
+    method: str = "ivt",
+    minimum_duration: int = 100,
+    velocity_threshold: float = 20.0,
+) -> None:
+    """
+    This function applies a fixation detection method and then computes
+    descriptive properties (such as fixation location).
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        The gaze object containing gaze samples and trial metadata.
+
+    method : {"ivt", "idt"}, optional
+        Event detection method:
+        - ``"ivt"`` (Velocity-Threshold Identification):
+          Samples are classified as fixations when their velocity is below
+          ``velocity_threshold`` degrees/second. Consecutive samples are
+          merged into fixation events. This is the default method.
+        - ``"idt"`` (Dispersion-Threshold Identification):
+          Groups points that remain within a spatial dispersion window for
+          at least ``minimum_duration`` ms.
+
+    minimum_duration : int, optional
+        Minimum duration (in milliseconds) for a group of samples to be
+        classified as a fixation. Default is 100 ms.
+
+    velocity_threshold : float, optional
+        Velocity threshold used by the IVT method (in degrees/second).
+        Default is 20.0 deg/s.
+
+    Notes
+    -----
+    After detection, fixation properties (e.g., fixation location) are
+    computed and added to ``gaze.events``.
+    """
+    gaze.detect(method, minimum_duration=minimum_duration,
+                velocity_threshold=velocity_threshold)
+
     compute_event_properties(
-        gaze, "fixation", DEFAULT_EVENT_PROPERTIES["fixation"])
+        gaze, "fixation", DEFAULT_EVENT_PROPERTIES["fixation"]
+    )
 
 
-def detect_saccades(gaze):
-    """Detect saccades (auto-preprocessing included)."""
-    _ensure_velocity_computed(gaze)
-    gaze.detect("microsaccades")
+def detect_saccades(
+    gaze,
+    minimum_duration: int = 6,
+    threshold_factor: float = 6,
+) -> None:
+    """
+    This function detects saccades (or micro-saccades) using a
+    noise-adaptive velocity threshold and then computes properties such as
+    saccade amplitude and peak velocity.
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        The gaze object containing gaze samples and trial metadata.
+
+    minimum_duration : int, optional
+        Minimum duration (in samples) required for a velocity peak to be
+        considered a saccade. Default is 6 samples (~12 ms at 500 Hz).
+        Shorter events are ignored as noise.
+
+    threshold_factor : float, optional
+        Multiplier that determines the velocity threshold relative to the
+        noise level in the signal. Increasing this value makes detection
+        more conservative (fewer saccades). Default is 6.
+
+    Notes
+    -----
+    After detection, saccade properties (e.g., amplitude and peak velocity)
+    are computed and added to ``gaze.events``.
+    """
+    gaze.detect("microsaccades", minimum_duration=minimum_duration,
+                threshold_factor=threshold_factor)
+
     compute_event_properties(
-        gaze, "saccade", DEFAULT_EVENT_PROPERTIES["saccade"])
+        gaze, "saccade", DEFAULT_EVENT_PROPERTIES["saccade"]
+    )
 
 
 def map_fixations_to_aois(
