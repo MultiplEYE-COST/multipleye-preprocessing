@@ -114,6 +114,8 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
         'no_val_before_stimulus': [],
     'start_after_moderate_val': [],
         'necessary_cals': [],
+        'final_vals': [],
+        'final_cals': [],
     }
 
 
@@ -122,17 +124,22 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
     bad_val = False
     val = False
     moderate_val = False
+    mod_tstamp = None
     in_stimulus = False
     val_count = 0
     good_vals = 0
     moderate_vls = 0
     cal_count = 0
     val_performed = False
+    score = -1
+    num_stimuli = len(stimulus_times)
+    real_num_stimuli = 0
     for m in merged:
         val = False
         if "validation_score_avg" in m:
             val_count += 1
             val = True
+
             if bad_val:
                 time_since_last_val = round((float(m["timestamp"]) - bad_tstamp) / 1000, 3)
                 # if there are more than 2 minutes between bad val and next val, we consider that a calibration should have happened
@@ -140,7 +147,12 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
                     mes['no_cal_after_bad_val'].append(f"⚠️ No calibration at {m['timestamp']} after BAD validation at timestamp {bad_tstamp}")
                     bad_val = False
             score = float(m["validation_score_avg"])
-            if score < 0.305:
+
+            if real_num_stimuli == num_stimuli:
+                mes['final_vals'].append(f'Validation after last stimulus: {m["timestamp"]}, score: {score}')
+                _report_to_file(f'Validation after last stimulus: {m["timestamp"]}, score: {score}', report_file)
+
+            elif score < 0.305:
                 _report_to_file(f"✅ Good validation at {m['timestamp']} with score {m['validation_score_avg']}", report_file)
                 bad_val = False
                 moderate_val = False
@@ -162,18 +174,20 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
 
         elif 'message' in m:
             if 'start' in  m['message']:
+                real_num_stimuli += 1
                 in_stimulus = True
                 _report_to_file(f'{m["message"]} at {m["timestamp"]}', report_file)
                 if bad_val:
-                    mes['start_after_bad_val'].append(f"❌ {m['message']} directly after bad/moderate validation!")
+                    mes['start_after_bad_val'].append(f"❌ {m['message']} directly after bad validation at {bad_tstamp} with score {score}!")
                 elif moderate_val:
-                    mes['start_after_moderate_val'].append(f"⚠️ {m['message']} directly after moderate validation!")
+                    mes['start_after_moderate_val'].append(f"⚠️ {m['message']} directly after moderate validation at {mod_tstamp}  with score {score}!")
                 elif val_performed:
                     val_performed = False
                 elif not val_performed:
                     mes['no_val_before_stimulus'].append(f"⚠️ {m['message']} without prior validation at {m['timestamp']}")
 
             if 'end' in m['message']:
+                real_num_stimuli += 1
                 in_stimulus = False
                 _report_to_file(f'{m["message"]} at {m["timestamp"]}', report_file)
 
@@ -185,6 +199,12 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
                 mes['necessary_cals'].append(f"✅ Calibration at {m['timestamp']} {time_between} seconds after BAD validation")
             if in_stimulus:
                 mes['val_cal_during_stimulus'].append(f"⚠️ Calibration during stimulus at {m['timestamp']}")
+
+            if real_num_stimuli == num_stimuli:
+                mes['final_cals'].append(f'Calibration after last stimulus: {m["timestamp"]}')
+                _report_to_file(f'❌ Calibration after last stimulus: {m["timestamp"]}', report_file)
+
+            score = -1
 
     _report_to_file("\nValidation/Calibration summary\n------------------------------------------", report_file)
     _report_to_file(f"Good validations: {good_vals}/{val_count}", report_file)
@@ -203,6 +223,11 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
     for start in mes['no_cal_after_bad_val']:
         start = '\t' + start
         _report_to_file(start, report_file)
+
+    _report_to_file("Necessary calibrations after bad validations", report_file)
+    for cal in mes['necessary_cals']:
+        cal = '\t' + cal
+        _report_to_file(cal, report_file)
 
     _report_to_file(f"No validation before stimulus start", report_file)
     for start in mes['no_val_before_stimulus']:
