@@ -8,6 +8,18 @@ from preprocessing.data_collection.stimulus import LabConfig, Stimulus
 import pymovements as pm
 import polars as pl
 
+DEFAULT_EVENT_PROPERTIES = {
+    "fixation": [
+        ("location", {"position_column": "pixel"}),
+        ("dispersion", {}),
+    ],
+    "saccade": [
+        ("amplitude", {}),
+        ("peak_velocity", {}),
+        ("dispersion", {}),
+    ],
+}
+
 
 def load_gaze_data(
         asc_file: Path,
@@ -83,6 +95,7 @@ def load_gaze_data(
 
     return gaze, gaze._metadata
 
+
 def save_gaze_data(
         gaze: pm.Gaze,
         gaze_path: Path = '',
@@ -109,19 +122,22 @@ def save_gaze_data(
         with open(metadata_dir / "gaze_metadata.json", "w", encoding='utf8') as f:
             json.dump(metadata, f)
 
+
 def detect_fixation_and_saccades(
         gaze: pm.Gaze,
         sg_window_length: int = 50,
         sg_degree: int = 2,
 ) -> None:
     # Savitzky-Golay filter as in https://doi.org/10.3758/BRM.42.1.188
-    window_length = round(gaze.experiment.sampling_rate / 1000 * sg_window_length)
+    window_length = round(
+        gaze.experiment.sampling_rate / 1000 * sg_window_length)
 
     if window_length % 2 == 0:  # Must be odd
         window_length += 1
 
     gaze.pix2deg()
-    gaze.pos2vel("savitzky_golay", window_length=window_length, degree=sg_degree)
+    gaze.pos2vel("savitzky_golay",
+                 window_length=window_length, degree=sg_degree)
 
     # TODO pm: I think the problem here is that is is not clear what ivt is.. it is very hidden, what happens
     #  and for people that are not familiar with ET preprocessing, they also cannot learn anything as it says not
@@ -147,10 +163,64 @@ def detect_fixation_and_saccades(
         gaze.events.add_event_properties(new_properties, join_on=join_on)
 
 
-def detect_saccades():
-    # TODO Anastassia, move part form fucntion above here and make function above only for fixations
-    pass
+def _ensure_velocity_computed(gaze: pm.Gaze):
+    """Compute velocity if not already available."""
+    window_ms = 50
+    poly_degree = 2
+    if "velocity" not in gaze.samples.columns:
+        # Savitzky-Golay filter as in https://doi.org/10.3758/BRM.42.1.188
+        window_length = round(gaze.experiment.sampling_rate / 1000 * window_ms)
+        if window_length % 2 == 0:
+            window_length += 1
+        gaze.pix2deg()
+        gaze.pos2vel("savitzky_golay",
+                     window_length=window_length, degree=poly_degree)
 
+
+def compute_event_properties(
+    gaze: pm.Gaze,
+    event_name: str,
+    properties: list[tuple[str, dict]],
+) -> None:
+    """
+    Compute and add event properties to `gaze.events`.
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        Gaze object containing detected events.
+    event_name : str
+        Event type ('fixation', 'saccade', ...).
+    properties : list[tuple[str, dict]]
+        Each tuple defines (property_name, kwargs) passed to EventGazeProcessor.
+    """
+    join_on = gaze.trial_columns + ["name", "onset", "offset"]
+
+    for prop_name, kwargs in properties:
+        processor = pm.EventGazeProcessor((prop_name, kwargs))
+        new_props = processor.process(
+            gaze.events,
+            gaze,
+            identifiers=gaze.trial_columns,
+            name=event_name,
+        )
+        gaze.events.add_event_properties(new_props, join_on=join_on)
+
+
+def detect_fixations(gaze):
+    """Detect fixations (auto-preprocessing included)."""
+    _ensure_velocity_computed(gaze)
+    gaze.detect("ivt")
+    compute_event_properties(
+        gaze, "fixation", DEFAULT_EVENT_PROPERTIES["fixation"])
+
+
+def detect_saccades(gaze):
+    """Detect saccades (auto-preprocessing included)."""
+    _ensure_velocity_computed(gaze)
+    gaze.detect("microsaccades")
+    compute_event_properties(
+        gaze, "saccade", DEFAULT_EVENT_PROPERTIES["saccade"])
 
 
 def map_fixations_to_aois(
@@ -200,25 +270,26 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
         df = df['time', 'pixel_x', 'pixel_y', 'pupil', 'screen']
         df.write_csv(directory / name)
 
+
 def save_fixation_data(directory: Path, session: str, data: pm.Gaze) -> None:
     directory.mkdir(parents=True, exist_ok=True)
 
-    new_data = data.clone()
+    # new_data = data.clone()
 
-    data.unnest()
+    # data.unnest()
     data.events.unnest()
 
     # TODO pm save only fixations
-    data.events.frame = data.events.fixations
+    # data.events.frame = data.events.fixations
+    fixations = data.events.frame.filter(pl.col("name") == "fixation")
 
-    trials = data.events.split(by="trial", as_dict=False)
+    # trials = data.events.split(by="trial", as_dict=False)
 
-    for trial in trials:
-        df = trial.frame
-        trial = df["trial"][0]
-        stimulus = df["stimulus"][0]
-        name = f"{session}_{trial}_{stimulus}_fixations.csv"
-        df = df['onset', 'duration', 'location_x', 'location_y']
+    for group in fixations.partition_by("trial"):
+        trial_name = group["trial"][0]
+        stimulus = group["stimulus"][0]
+        name = f"{session}_{trial_name}_{stimulus}_fixations.csv"
+        df = group.select(["onset", "duration", "location_x", "location_y"])
         df.write_csv(directory / name)
 
 
@@ -262,6 +333,7 @@ def load_trial_level_raw_data(
 
     return initial_df
 
+
 def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)
 
@@ -272,10 +344,3 @@ def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
         json.dump(metadata, f)
 
     gaze.save(directory, save_events=False, save_samples=False)
-
-
-
-
-
-
-
