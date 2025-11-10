@@ -295,18 +295,3 @@ def load_stimuli(
     config = LabConfig.load(stimulus_dir, lang, country, labnum, city, year)
 
     return stimuli, config
-
-
-if __name__ == "__main__":
-    stimulus_dir = Path(
-        "C:\\Users\saphi\PycharmProjects\multipleye-preprocessing\data\stimuli_MultiplEYE_HR_CH_Zurich_1_2025")
-    lang = "hr"
-    country = "ch"
-    labnum = 1
-    stimulus_name = "PopSci_MultiplEYE"
-    print(stimulus_dir.exists())
-    stimulus = Stimulus.load(stimulus_dir, lang, country, labnum, stimulus_name, question_version=3)
-    for page in stimulus.questions:
-        print(page.name, page.image_path)
-
-    print(stimulus)

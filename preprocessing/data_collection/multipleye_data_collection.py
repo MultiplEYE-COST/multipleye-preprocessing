@@ -4,6 +4,7 @@ import os
 import pickle
 import re
 import subprocess
+import warnings
 from functools import partial
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from polars.polars import ComputeError
 from pymovements import Gaze
 from tqdm import tqdm
 
+from prepare_language_folder import extract_stimulus_version_number_from_asc
 from preprocessing.checks.et_quality_checks import \
     check_comprehension_question_answers, \
     check_metadata, report_to_file_metadata as report_meta, check_validation_requirements
@@ -152,6 +154,12 @@ class MultipleyeDataCollection:
         stim_order_versions = pd.read_csv(stim_order_versions)
         self.stim_order_versions = stim_order_versions[stim_order_versions['participant_id'].notnull(
         )]
+
+        if self.stim_order_versions.empty:
+            warnings.warn(f"Stimulus order version is not updated with participants numbers.\nPlease ask the team to "
+                          f"upload the correct stimulus folder that has been used and changed during the experiment.\n"
+                          f"Version will be extracted from the asc files.")
+            self.stim_order_versions = stim_order_versions
 
         self.prepare_session_level_information()
         self.parse_participant_data()
@@ -452,7 +460,7 @@ class MultipleyeDataCollection:
         else:
             # create the file so that we can write to it later
             with open(manual_corrections, 'w', encoding='utf8') as f:
-                yaml.dump({'excluded_sessions': []}, f)
+                yaml.dump({'excluded_sessions': {}}, f)
 
         return []
 
@@ -704,10 +712,27 @@ class MultipleyeDataCollection:
         stim_order_version = self.stim_order_versions[self.stim_order_versions['participant_id'] == int(
             p_id)]
         if len(stim_order_version) == 0:
-            raise KeyError(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
+            self._write_to_logfile(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
                            f"participant IDs in the stimulus order versions file. It is possible that the team did not "
-                           f"upload the correct stimulus version from the experiment folder.")
-        elif len(stim_order_version) == 1:
+                           f"upload the correct stimulus version from the experiment folder. Extracting version "
+                          f"from asc file")
+            version = extract_stimulus_version_number_from_asc(self.sessions[session_identifier].asc_path)
+
+            if version == logfile_order_version:
+                self._write_to_logfile(
+                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                    f"extracted from the asc file ({version}) for participant ID {p_id}. Using the "
+                    f"version from the logfile.")
+                stim_order_version = self.stim_order_versions[self.stim_order_versions['version_number'] == version]
+
+            else:
+               self._write_to_logfile(
+                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                    f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
+                    f"Please check the files "
+                    f"carefully.")
+
+        if len(stim_order_version) == 1:
             version = stim_order_version['version_number'].values[0]
             if logfile_order_version != version:
                 self._write_to_logfile(
@@ -745,7 +770,7 @@ class MultipleyeDataCollection:
             return stimulus_order
 
         else:
-            raise ValueError(f"More than one entry found for participant ID {p_id} in stimulus order versions. "
+            raise ValueError(f"More than one or no entry found for participant ID {p_id} in stimulus order versions. "
                              f"Please check the stimulus order versions file for duplicates.")
 
     # TODO: add method to check whether stimuli are completed

@@ -177,7 +177,6 @@ def map_fixations_to_aois(
         trial_column="trial",
     )
 
-    # aoi mapping does not work if there are saccades in the file.. because then the
     gaze.events.frame = gaze.events.fixations
     gaze.events.map_to_aois(all_stimuli)
 

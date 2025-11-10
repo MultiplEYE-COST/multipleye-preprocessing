@@ -1,4 +1,5 @@
 import argparse
+import re
 import shutil
 import zipfile
 from pathlib import Path
@@ -36,15 +37,16 @@ def prepare_language_folder(data_collection_name):
             raise FileNotFoundError(f"The 'eye-tracking-sessions' folder does not exist in '{data_folder_path}'. "
                                 "Please ensure the data collection is correctly structured.")
 
-    # check if there is a core_sessionsfolder and if yes, check if there are any folder inside and then move them up and delete the core_sessions folder
-    core_sessions_path = eye_tracking_sessions_path / "core_sessions"
-    if core_sessions_path.exists():
-        core_folders = list(core_sessions_path.glob("*"))
-        if len(core_folders) > 0:
-            for folder in core_folders:
-                shutil.move(str(folder), str(eye_tracking_sessions_path))
-            shutil.rmtree(core_sessions_path)
-            print(f"Moved folders from 'core_sessions' to 'eye-tracking-sessions' and removed 'core_sessions' folder.")
+    # check if there is a core_sessions folder and if yes, check if there are any folder inside and then move them up and delete the core_sessions folder
+    core_session_paths = [eye_tracking_sessions_path / "core_sessions", eye_tracking_sessions_path / "core_dataset"]
+    for core_session_path in core_session_paths:
+        if core_session_path.exists():
+            core_folders = list(core_session_path.glob("*"))
+            if len(core_folders) > 0:
+                for folder in core_folders:
+                    shutil.move(str(folder), str(eye_tracking_sessions_path))
+                shutil.rmtree(core_session_path)
+                print(f"Moved folders from 'core_sessions' to 'eye-tracking-sessions' and removed 'core_sessions' folder.")
 
     psychometric_tests_path = data_folder_path / "psychometric-tests-sessions"
     if not psychometric_tests_path.exists():
@@ -118,6 +120,18 @@ def prepare_language_folder(data_collection_name):
     else:
         raise ValueError(f"Unexpected number of AOI files ({len(aoi_files)}) found in '{aoi_path}'. "
                          "Expected 12 (not split) or 24 (already split into texts and questions).")
+
+def extract_stimulus_version_number_from_asc(asc_file_path: Path) -> int:
+
+    pattern = r"MSG\s+\d+\s+stimulus_order_version:\s+(?P<version_num>\d\d?\d?)\n"
+
+    with open(asc_file_path) as asc_file:
+        for line in asc_file:
+            if match := re.match(pattern, line):
+                return int(match.group("version_num"))
+
+        return -1
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Run multipleye preprocessing on an experiment file')
