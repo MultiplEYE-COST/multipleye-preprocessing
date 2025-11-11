@@ -16,7 +16,7 @@ import logging
 
 import yaml
 from polars.polars import ComputeError
-from pymovements import GazeDataFrame
+import pymovements as pm
 from tqdm import tqdm
 
 from preprocessing.checks.et_quality_checks import \
@@ -240,6 +240,7 @@ class MultipleyeDataCollection(DataCollection):
 
                 gaze = self.get_gaze_frame(
                     session_name, create_if_not_exists=True)
+
                 messages = self.sessions[session_name]['messages']
 
                 if not messages:
@@ -266,7 +267,7 @@ class MultipleyeDataCollection(DataCollection):
                 self._check_asc_validation(session_name)
                 self._load_psychometric_tests(session_name)
                 self._extract_question_answers(stimuli, session_name)
-                self._load_psychometric_tests(session_name)
+                self._check_avg_fix_durations(session_name, gaze)
 
                 if plotting:
                     self._create_plots(stimuli, session_name, gaze)
@@ -880,6 +881,33 @@ class MultipleyeDataCollection(DataCollection):
 
         check_all_screens_logfile(self.sessions[session_identifier]["logfile"],
                                   stimuli, self.sessions[session_identifier]['sanity_report_path'])
+
+    def _check_avg_fix_durations(self, session_identifier: str, gaze: pm.Gaze) -> None:
+        """
+        Check the average fixation durations for the specified session.
+        :param session_identifier: The session identifier.
+        """
+
+        # for each gaze and page compute the average fixation duration
+        fixation_durations_page_avg = (
+            gaze.events.frame.filter(pl.col("name") == "fixation")
+            .group_by(gaze.trial_columns)
+            .agg([
+                pl.col("duration").mean().alias("mean_fixation_duration_ms"),
+                pl.col("duration").median().alias("median_fixation_duration_ms"),
+                pl.col("duration").max().alias("max_fixation_duration_ms"),
+                pl.col("duration").min().alias("min_fixation_duration_ms"),
+                pl.col("duration").sum().alias("sum_fixation_duration_ms"),
+            ])
+        )
+
+        # write to file
+        fixation_durations_page_avg.write_csv(
+            file=self.output_dir / session_identifier / f"fixation_statistics_per_page_{session_identifier}.tsv",
+            separator='\t',
+        )
+
+
 
     def _load_psychometric_tests(self, session_identifier: str):
         if self.psychometric_tests:

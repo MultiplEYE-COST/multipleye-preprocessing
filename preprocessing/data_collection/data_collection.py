@@ -6,7 +6,7 @@ import warnings
 from pathlib import Path
 
 import numpy as np
-from pymovements import GazeDataFrame
+import pymovements as pm
 from tqdm import tqdm
 
 from preprocessing.data_collection.session import Session
@@ -198,7 +198,7 @@ class DataCollection:
 
     def get_gaze_frame(self, session_identifier: str,
                        create_if_not_exists: bool = False,
-                       ) -> GazeDataFrame:
+                       ) -> pm.Gaze:
         """
         Loads and possibly creates the gaze data for the specified session(s).
         :param create_if_not_exists: The gaze data will be created and stored if True.

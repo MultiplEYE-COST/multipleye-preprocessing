@@ -72,7 +72,7 @@ def load_data(asc_file: Path, lab_config: LabConfig, session_idf: str = '') -> p
 
 
 def preprocess(
-        gaze: pm.GazeDataFrame, sg_window_length: int = 50, sg_degree: int = 2
+        gaze: pm.Gaze, sg_window_length: int = 50, sg_degree: int = 2
 ) -> None:
     # Savitzky-Golay filter as in https://doi.org/10.3758/BRM.42.1.188
     window_length = round(gaze.experiment.sampling_rate / 1000 * sg_window_length)
@@ -96,7 +96,7 @@ def preprocess(
         )
         join_on = gaze.trial_columns + ["name", "onset", "offset"]
         gaze.events.add_event_properties(new_properties, join_on=join_on)
-    # TODO: AOI mapping
+
 
 
 def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> None:
@@ -183,9 +183,10 @@ def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> No
 
         # Plot fixations
         for row in page_events.iter_rows(named=True):
+            radius = math.sqrt(row["duration"])
             fixation = Circle(
                 (row["pixel_x"], row["pixel_y"]),
-                math.sqrt(row["duration"]),
+                radius,
                 color="blue",
                 fill=True,
                 alpha=0.5,
