@@ -673,6 +673,9 @@ class MultipleyeDataCollection:
 
         # load trial to stimulus mapping
         trial_ids = completed_stimuli['trial_id'].to_list()
+        # sometimes there are None values in the trial ids if a session was interrupted. Those are excluded for this step
+        if None in trial_ids:
+            trial_ids.remove(None)
 
         for trial in trial_ids:
             if trial == 'PRACTICE_1':
@@ -680,7 +683,11 @@ class MultipleyeDataCollection:
             elif trial == 'PRACTICE_2':
                 trial_ids[trial_ids.index(trial)] = 'PRACTICE_trial_2'
             else:
-                trial_ids[trial_ids.index(trial)] = f'trial_{int(trial)}'
+                try:
+                   trial_ids[trial_ids.index(trial)] = f'trial_{int(trial)}'
+                except TypeError:
+                    trial_ids = trial_ids
+                    pass
 
         stimulus_names = completed_stimuli['stimulus_name'].to_list()
         stimuli_trial_mapping = {
@@ -1137,6 +1144,11 @@ class MultipleyeDataCollection:
                     participant_id, country, lang, lab, session_id, _, _, _, trial = session.split(
                         '_')
                     notes = f'Session has been restarted after trial {trial}.'
+                elif 'full_restart_' in session:
+                    logging.warning(f'Session {session} has been fully restarted.')
+                    participant_id, country, lang, lab, session_id, _, _, _, = session.split(
+                        '_')
+                    notes = f'Session has been fully restarted.'
                 else:
                     raise ValueError(
                         f"Session {session} does not match the expected format.")

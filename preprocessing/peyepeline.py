@@ -164,8 +164,6 @@ def map_fixations_to_aois(
         aoi = aoi.with_columns(pl.lit(trial).alias("trial"))
         all_aois = all_aois.vstack(aoi)
 
-    # TODO pm very ugly work around. I'd like to be able to map to aois for each stimulus separately
-    #  https://github.com/pymovements/pymovements/issues/1125
     all_stimuli = TextStimulus(
         all_aois,
         aoi_column="char_idx",
