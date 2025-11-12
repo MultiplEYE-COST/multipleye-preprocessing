@@ -6,10 +6,11 @@ We have completed the quality check and attached your Data Quality Report to thi
 We appreciate your commitment to following the MultiplEYE guidelines, and we would like to highlight the following:
 - The mandatory break was taken as required.
 - Participants read all texts thoroughly, without noticeable skipping or skimming.
-- The final validation was conducted before the last stimulus.
+- The final validation was conducted after the last stimulus.
 - The validation and recalibration protocol was followed correctly, with recalibrations performed when validation exceeded the threshold.
 - Optional breaks were taken when tracking quality declined, ensuring better data quality.
 - Participants' comprehension question scores were above chance level, suggesting engagement with the task.
+- Participants look at the dot in the bottom right corner. Please continue to ensure they do so as in the pilots. 
 
 These factors contribute to high data quality, and we appreciate your attention to protocol details!
 
@@ -19,6 +20,7 @@ Gaze stability: [Example: “Some participants showed gaze instability, particul
 Text engagement: [Example: “A few instances of skipped or incomplete text reading were detected. Please ensure participants fully engage with the reading material. See attached plots for reference.”]
 Recalibration consistency: [Example: “Recalibration was not consistently performed when validation errors increased.”]
 Comprehension performance: [Example: "While comprehension question scores were generally above chance, there were fluctuations across participants."]
+Blink ratio: [Example: "We noticed a rather high blink ratio. This could indicate that the participant was feeling uncomfortable and needed more breaks, close their eyes between trials, a better sitting position, or other reasons.]
 Practice vs. real trials: While we initially considered distinguishing between these, the difficulty level should remain consistent across both. However, if you notice discrepancies, please let us know.
 
 Please review the attached report for further details and visualizations. If you have any questions or need clarification, feel free to reach out. 
