@@ -16,6 +16,7 @@ def preprocess_lwmc(path: Path | str):
 def preprocess_ran(path: Path | str):
     pass
 
+
 def preprocess_wikivocab(path: Path | str):
     pass
 

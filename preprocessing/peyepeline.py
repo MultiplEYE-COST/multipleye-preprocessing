@@ -1,12 +1,11 @@
 import json
 from pathlib import Path
 
+import polars as pl
+import pymovements as pm
 from pymovements.stimulus import TextStimulus
 
 from preprocessing.data_collection.stimulus import LabConfig, Stimulus
-
-import pymovements as pm
-import polars as pl
 
 
 def load_gaze_data(
@@ -82,13 +81,13 @@ def load_gaze_data(
 
     return gaze, gaze._metadata
 
+
 def save_gaze_data(
         gaze: pm.Gaze,
         gaze_path: Path = '',
         events_path: Path = '',
         metadata_dir: Path = '',
 ) -> None:
-
     # TODO save metadata properly and also load it properly
 
     if gaze_path:
@@ -107,6 +106,7 @@ def save_gaze_data(
         # TODO pm: I'd like to save my metadata without having to access a protected argument
         with open(metadata_dir / "gaze_metadata.json", "w", encoding='utf8') as f:
             json.dump(metadata, f)
+
 
 def detect_fixation_and_saccades(
         gaze: pm.Gaze,
@@ -151,12 +151,10 @@ def detect_saccades():
     pass
 
 
-
 def map_fixations_to_aois(
         gaze: pm.Gaze,
         stimuli: list[Stimulus],
 ) -> None:
-
     all_aois = pl.DataFrame()
     for stimulus in stimuli:
         aoi = stimulus.text_stimulus.aois
@@ -198,6 +196,7 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
         name = f"{session}_{trial}_{stimulus}_raw_data.csv"
         df = df['time', 'pixel_x', 'pixel_y', 'pupil', 'page']
         df.write_csv(directory / name)
+
 
 def save_fixation_data(directory: Path, session: str, data: pm.Gaze) -> None:
     directory.mkdir(parents=True, exist_ok=True)
@@ -259,7 +258,6 @@ def load_trial_level_raw_data(
         file_pattern: str = '*_raw_data.csv',
         metadata_path: Path = '',
 ) -> pm.Gaze:
-
     initial_df = pl.DataFrame()
     for file in data_folder.glob(file_pattern):
         trial_df = pl.read_csv(file)
@@ -285,7 +283,6 @@ def load_trial_level_fixation_data(
         file_pattern: str = '*_fixations.csv',
         metadata_path: Path = '',
 ) -> pm.Gaze:
-
     initial_df = pl.DataFrame()
     for file in data_folder.glob(file_pattern):
         trial_df = pl.read_csv(file)
@@ -315,10 +312,3 @@ def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
         json.dump(metadata, f)
 
     gaze.save(directory, save_events=False, save_samples=False)
-
-
-
-
-
-
-

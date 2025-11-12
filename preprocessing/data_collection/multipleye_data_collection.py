@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import pickle
 import re
 import subprocess
 import warnings
@@ -11,9 +10,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import polars as pl
+import pymovements as pm
 import yaml
 from polars.polars import ComputeError
-from pymovements import Gaze
 from tqdm import tqdm
 
 from prepare_language_folder import extract_stimulus_version_number_from_asc
@@ -24,7 +23,6 @@ from preprocessing.checks.formal_experiment_checks import check_all_screens_logf
     check_messages
 from preprocessing.data_collection.session import Session
 from preprocessing.data_collection.stimulus import LabConfig, Stimulus
-from preprocessing.peyepeline import load_gaze_data, detect_fixation_and_saccades
 from preprocessing.plotting.plot import plot_gaze, plot_main_sequence
 from preprocessing.psychometric_tests.preprocess_psychometric_tests import preprocess_plab, preprocess_ran, \
     preprocess_stroop, preprocess_flanker, preprocess_wikivocab, preprocess_lwmc
@@ -417,7 +415,7 @@ class MultipleyeDataCollection:
 
                 messages = self.sessions[session_name].messages
                 # tODO: load gaze --> or rather, move this outside of the class?
-                gaze = Gaze()
+                gaze = pm.Gaze()
 
                 if not messages:
                     self._write_to_logfile(
@@ -546,7 +544,8 @@ class MultipleyeDataCollection:
                     self._write_to_logfile(
                         f"Session {session} started after a trial. Only the completed stimuli will be considered.")
 
-            self.sessions[session].completed_stimuli_ids, self.sessions[session].stimuli_trial_mapping = self._load_session_completed_stimuli(session)
+            self.sessions[session].completed_stimuli_ids, self.sessions[
+                session].stimuli_trial_mapping = self._load_session_completed_stimuli(session)
             self.sessions[session].messages = self._parse_asc(session)
             self.sessions[session].logfile = self._load_session_logfile(
                 session)
@@ -564,11 +563,11 @@ class MultipleyeDataCollection:
                                            f"Please check the files carefully.")
 
             self.sessions[session].stimuli = self._load_session_stimuli(self.stimulus_dir, self.language,
-                                                                           self.country,
-                                                                           self.lab_number,
-                                                                           self.sessions[session].randomization_version,
-                                                                           session,
-                                                                           )
+                                                                        self.country,
+                                                                        self.lab_number,
+                                                                        self.sessions[session].randomization_version,
+                                                                        session,
+                                                                        )
 
     def _load_session_stimuli(self, stimulus_dir: Path, lang: str,
                               country: str, lab_num: int,
@@ -685,7 +684,7 @@ class MultipleyeDataCollection:
                 trial_ids[trial_ids.index(trial)] = 'PRACTICE_trial_2'
             else:
                 try:
-                   trial_ids[trial_ids.index(trial)] = f'trial_{int(trial)}'
+                    trial_ids[trial_ids.index(trial)] = f'trial_{int(trial)}'
                 except TypeError:
                     trial_ids = trial_ids
                     pass
@@ -721,9 +720,9 @@ class MultipleyeDataCollection:
             p_id)]
         if len(stim_order_version) == 0:
             self._write_to_logfile(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
-                           f"participant IDs in the stimulus order versions file. It is possible that the team did not "
-                           f"upload the correct stimulus version from the experiment folder. Extracting version "
-                          f"from asc file")
+                                   f"participant IDs in the stimulus order versions file. It is possible that the team did not "
+                                   f"upload the correct stimulus version from the experiment folder. Extracting version "
+                                   f"from asc file")
             version = extract_stimulus_version_number_from_asc(self.sessions[session_identifier].asc_path)
 
             if version == logfile_order_version:
@@ -734,7 +733,7 @@ class MultipleyeDataCollection:
                 stim_order_version = self.stim_order_versions[self.stim_order_versions['version_number'] == version]
 
             else:
-               self._write_to_logfile(
+                self._write_to_logfile(
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
                     f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
                     f"Please check the files "
@@ -1106,8 +1105,6 @@ class MultipleyeDataCollection:
             separator='\t',
         )
 
-
-
     def _load_psychometric_tests(self, session_identifier: str):
         if self.psychometric_tests:
             for test in self.psychometric_tests:
@@ -1150,7 +1147,6 @@ class MultipleyeDataCollection:
 
         for stimulus in stimuli:
             plot_gaze(gaze, stimulus, plot_dir)
-
 
     def parse_participant_data(self) -> None:
         """

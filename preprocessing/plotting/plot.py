@@ -1,4 +1,6 @@
-import argparse
+import math
+from pathlib import Path
+
 import math
 from pathlib import Path
 
@@ -8,11 +10,10 @@ import polars as pl
 import pymovements as pm
 from matplotlib.patches import Circle
 
-from preprocessing.data_collection.stimulus import LabConfig, Stimulus, load_stimuli
+from preprocessing.data_collection.stimulus import Stimulus
 
 
 def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> None:
-
     # pixels per centimeter on this screen
     px_per_cm = gaze.experiment.screen.width_px / gaze.experiment.screen.width_cm
     print(f"px_per_cm = {px_per_cm}")
@@ -176,4 +177,3 @@ def plot_main_sequence(events: pm.EventDataFrame, plots_dir: Path) -> None:
     pm.plotting.main_sequence_plot(
         events, show=False, savepath=plots_dir / "main_sequence.png"
     )
-

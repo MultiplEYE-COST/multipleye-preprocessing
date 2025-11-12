@@ -1,10 +1,9 @@
-from pathlib import Path
 import argparse
 import shutil
+from pathlib import Path
 
 
 def fix_psycho_tests_structure(config_folder: str, data_folder: str):
-
     config_files = Path(config_folder).glob("*.yaml")
     parent_folder = Path(data_folder).parent
 
@@ -53,7 +52,6 @@ def fix_psycho_tests_structure(config_folder: str, data_folder: str):
             print(f"Participant {p_id} is missing some tests: {missing_tests}")
         else:
             print(f"Participant {p_id} has all tests.")
-
 
 
 if __name__ == "__main__":

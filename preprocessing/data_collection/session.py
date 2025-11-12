@@ -7,7 +7,6 @@ from preprocessing.data_collection.trial import Trial
 
 @dataclass
 class Session:
-
     # general info
     participant_id: int
 
@@ -36,7 +35,6 @@ class Session:
     interrupted: bool = field(default='unknown', init=False)
     lab_config: LabConfig = field(default='unknown', init=False)
 
-
     # stats
     total_reading_time: float = field(default='unknown', init=False)
     total_session_duration: float = field(default='unknown', init=False)
@@ -57,17 +55,13 @@ class Session:
     pm_gaze_path: Path = field(default='unknown', init=False)
     pm_gaze_metadata: dict = field(default='unknown', init=False)
 
-
-
     trials = list[Trial]
 
     def __iter__(self):
         for trial in self.trials:
             yield trial
 
-
     def create_overview(self):
-
         dict_repr = {
             'participant_id': self.participant_id,
             'session_identifier': self.session_identifier,
@@ -91,8 +85,3 @@ class Session:
         }
 
         return dict_repr
-
-
-
-
-

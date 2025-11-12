@@ -30,30 +30,29 @@ def remap_wrong_pq_values(pq_data: dict) -> dict:
                 key = f"{lang}_{read}"
                 if read == 'academic_reading_time':
                     corrected_reading_times[key] = pq_data[f'{lang}_magazine_reading_time']
-                    #print(f"Correcting {key} to {lang}_magazine_reading_time")
+                    # print(f"Correcting {key} to {lang}_magazine_reading_time")
                 elif read == 'magazine_reading_time':
                     corrected_reading_times[key] = pq_data[f'{lang}_newspaper_reading_time']
-                    #print(f"Correcting {key} to {lang}_newspaper_reading_time")
+                    # print(f"Correcting {key} to {lang}_newspaper_reading_time")
                 elif read == 'newspaper_reading_time':
                     corrected_reading_times[key] = pq_data[f'{lang}_email_reading_time']
-                    #print(f"Correcting {key} to {lang}_email_reading_time")
+                    # print(f"Correcting {key} to {lang}_email_reading_time")
                 elif read == 'email_reading_time':
                     corrected_reading_times[key] = pq_data[f'{lang}_fiction_reading_time']
-                    #print(f"Correcting {key} to {lang}_fiction_reading_time")
+                    # print(f"Correcting {key} to {lang}_fiction_reading_time")
                 elif read == 'fiction_reading_time':
                     corrected_reading_times[key] = pq_data[f'{lang}_nonfiction_reading_time']
-                    #print(f"Correcting {key} to {lang}_nonfiction_reading_time")
+                    # print(f"Correcting {key} to {lang}_nonfiction_reading_time")
                 elif read == 'nonfiction_reading_time':
                     corrected_reading_times[key] = pq_data[f'{lang}_internet_reading_time']
-                    #print(f"Correcting {key} to {lang}_internet_reading_time")
+                    # print(f"Correcting {key} to {lang}_internet_reading_time")
                 elif read == 'internet_reading_time':
                     corrected_reading_times[key] = pq_data[f'{lang}_other_reading_time']
-                    #print(f"Correcting {key} to {lang}_other_reading_time")
+                    # print(f"Correcting {key} to {lang}_other_reading_time")
                 elif read == 'other_reading_time':
                     corrected_reading_times[key] = pd.NA
-                    #print(f"Setting {key} to pd.NA as it is not available in the data.")
+                    # print(f"Setting {key} to pd.NA as it is not available in the data.")
 
     # Add the corrected reading times to the original data
     pq_data.update(corrected_reading_times)
     return pq_data
-

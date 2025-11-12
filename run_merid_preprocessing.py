@@ -22,7 +22,7 @@ def run_multipleye_preprocessing(data_collection: str):
 
     sessions = [s for s in merid]
 
-    for sess in (pbar := tqdm(sessions[:3])):
+    for sess in (pbar := tqdm(sessions)):
         idf = sess.session_identifier
         pbar.set_description(f'Preprocessing session {idf}:')
 
