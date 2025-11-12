@@ -98,7 +98,17 @@ def preprocess(
         gaze.events.add_event_properties(new_properties, join_on=join_on)
 
 
-def plot_gaze(gaze: pm.Gaze, stimulus: Stimulus, plots_dir: Path) -> None:
+def plot_gaze(
+        gaze: pm.Gaze,
+        stimulus: Stimulus,
+        plots_dir: Path,
+        duration_ms_in_cm: float = 0.03
+) -> None:
+
+    # pixels per centimeter on this screen
+    px_per_cm = gaze.experiment.screen.width_px / gaze.experiment.screen.width_cm
+    print(f"px_per_cm = {px_per_cm}")
+
     for page in stimulus.pages:
         screen_gaze = gaze.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
@@ -132,9 +142,11 @@ def plot_gaze(gaze: pm.Gaze, stimulus: Stimulus, plots_dir: Path) -> None:
 
         # Plot fixations
         for row in page_events.iter_rows(named=True):
+            radius = math.sqrt(row["duration"]) * px_per_cm * duration_ms_in_cm
+
             fixation = Circle(
                 (row["pixel_x"], row["pixel_y"]),
-                math.sqrt(row["duration"]),
+                radius,
                 color="blue",
                 fill=True,
                 alpha=0.5,
@@ -182,7 +194,8 @@ def plot_gaze(gaze: pm.Gaze, stimulus: Stimulus, plots_dir: Path) -> None:
 
         # Plot fixations
         for row in page_events.iter_rows(named=True):
-            radius = math.sqrt(row["duration"])
+            radius = math.sqrt(row["duration"]) * px_per_cm * duration_ms_in_cm
+
             fixation = Circle(
                 (row["pixel_x"], row["pixel_y"]),
                 radius,
@@ -234,9 +247,11 @@ def plot_gaze(gaze: pm.Gaze, stimulus: Stimulus, plots_dir: Path) -> None:
 
         # Plot fixations
         for row in page_events.iter_rows(named=True):
+            radius = math.sqrt(row["duration"]) * px_per_cm * duration_ms_in_cm
+
             fixation = Circle(
                 (row["pixel_x"], row["pixel_y"]),
-                math.sqrt(row["duration"]),
+                radius,
                 color="blue",
                 fill=True,
                 alpha=0.5,
