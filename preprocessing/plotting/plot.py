@@ -98,8 +98,7 @@ def preprocess(
         gaze.events.add_event_properties(new_properties, join_on=join_on)
 
 
-
-def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> None:
+def plot_gaze(gaze: pm.Gaze, stimulus: Stimulus, plots_dir: Path) -> None:
     for page in stimulus.pages:
         screen_gaze = gaze.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")

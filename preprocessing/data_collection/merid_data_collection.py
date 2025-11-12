@@ -68,5 +68,6 @@ class Merid(MultipleyeDataCollection):
         # TODO: make sure that it works with the sessions. I.e. in one session one tests is done,
         #  in the other the others.
 
-        raise NotImplementedError
+        warnings.warn('psychometric test loading not implemented for Merid yet.')
+        pass
 
