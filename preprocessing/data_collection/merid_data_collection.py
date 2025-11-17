@@ -6,6 +6,7 @@ from preprocessing.data_collection.multipleye_data_collection import MultipleyeD
 class Merid(MultipleyeDataCollection):
 
     num_sessions = 2
+    type = 'MeRID'
 
     def _load_session_stimulus_order(self, session_identifier, logfile_order_version: int):
         # if the session crashed, only load the stimuli that were actually completed in that session
@@ -68,5 +69,6 @@ class Merid(MultipleyeDataCollection):
         # TODO: make sure that it works with the sessions. I.e. in one session one tests is done,
         #  in the other the others.
 
-        raise NotImplementedError
+        warnings.warn('Not yet implemented: loading psychometric tests for MeRID data collection.')
+        pass
 

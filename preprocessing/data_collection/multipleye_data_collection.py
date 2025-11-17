@@ -4,9 +4,11 @@ import os
 import pickle
 import re
 import subprocess
+import warnings
 from functools import partial
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import polars as pl
 import yaml
@@ -14,6 +16,7 @@ from polars.polars import ComputeError
 from pymovements import Gaze
 from tqdm import tqdm
 
+from prepare_language_folder import extract_stimulus_version_number_from_asc
 from preprocessing.checks.et_quality_checks import \
     check_comprehension_question_answers, \
     check_metadata, report_to_file_metadata as report_meta, check_validation_requirements
@@ -75,6 +78,7 @@ class MultipleyeDataCollection:
     session_folder_regex: str = ''
     data_root: Path = None
     excluded_sessions: list = []
+    type = 'MultiplEYE'
 
     # TODO: read instruction excel
 
@@ -150,6 +154,12 @@ class MultipleyeDataCollection:
         stim_order_versions = pd.read_csv(stim_order_versions)
         self.stim_order_versions = stim_order_versions[stim_order_versions['participant_id'].notnull(
         )]
+
+        if self.stim_order_versions.empty:
+            warnings.warn(f"Stimulus order version is not updated with participants numbers.\nPlease ask the team to "
+                          f"upload the correct stimulus folder that has been used and changed during the experiment.\n"
+                          f"Version will be extracted from the asc files.")
+            self.stim_order_versions = stim_order_versions
 
         self.prepare_session_level_information()
         self.parse_participant_data()
@@ -429,6 +439,7 @@ class MultipleyeDataCollection:
                 self._check_asc_validation(session_name)
                 self._load_psychometric_tests(session_name)
                 self._extract_question_answers(stimuli, session_name)
+                self._check_avg_fix_durations(session_name, gaze)
 
                 if plotting:
                     self._create_plots(stimuli, session_name, gaze)
@@ -449,7 +460,8 @@ class MultipleyeDataCollection:
 
         else:
             # create the file so that we can write to it later
-            open(manual_corrections, 'w').close()
+            with open(manual_corrections, 'w', encoding='utf8') as f:
+                yaml.dump({'excluded_sessions': {}}, f)
 
         return []
 
@@ -489,9 +501,15 @@ class MultipleyeDataCollection:
 
         # TODO: add more, check metadata scheme, add stats like num read pages, total reading time etc.
         overview = {
-            'data_collection_name': self.data_collection_name,
-            'num_sessions': num_sessions,
-            'num_pilots': num_pilots,
+            'Title': self.data_collection_name,
+            'Dataset_type': self.type,
+            'Number_of_sessions': num_sessions,
+            'Number_of_pilots': num_pilots,
+            'Tested_language': self.language,
+            'Country': self.country,
+            'Year': self.year,
+            'Number of eye-tracking (ET) sessions per participant': self.num_sessions,
+
         }
 
         with open(overview_path, 'w', encoding='utf8') as f:
@@ -509,7 +527,7 @@ class MultipleyeDataCollection:
             overview_path = path / f"{session_idf}_overview.yaml"
 
         with open(overview_path, 'w', encoding='utf8') as f:
-            yaml.dump(sess.__repr__(), f)
+            yaml.dump(sess.create_overview(), f)
 
     def prepare_session_level_information(self):
         """
@@ -576,8 +594,15 @@ class MultipleyeDataCollection:
                               if num in self.sessions[session_identifier].completed_stimuli_ids]
 
         for stimulus_name in stimulus_names:
+            trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
+            # get the trial id from the mapping, keys are ids and values are strings
+            trial_id = [key for key, value in trial_mapping.items() if value == stimulus_name]
+            if len(trial_id) == 0:
+                raise KeyError(f"Stimulus name {stimulus_name} not found in the trial mapping for session "
+                               f"{session_identifier}. Please check the completed_stimuli.csv file.")
+
             stimulus = Stimulus.load(
-                stimulus_dir, lang, country, lab_num, stimulus_name, stimulus_order_version)
+                stimulus_dir, lang, country, lab_num, stimulus_name, stimulus_order_version, trial_id[0])
             stimuli.append(stimulus)
 
         return stimuli
@@ -649,6 +674,22 @@ class MultipleyeDataCollection:
 
         # load trial to stimulus mapping
         trial_ids = completed_stimuli['trial_id'].to_list()
+        # sometimes there are None values in the trial ids if a session was interrupted. Those are excluded for this step
+        if None in trial_ids:
+            trial_ids.remove(None)
+
+        for trial in trial_ids:
+            if trial == 'PRACTICE_1':
+                trial_ids[trial_ids.index(trial)] = 'PRACTICE_trial_1'
+            elif trial == 'PRACTICE_2':
+                trial_ids[trial_ids.index(trial)] = 'PRACTICE_trial_2'
+            else:
+                try:
+                   trial_ids[trial_ids.index(trial)] = f'trial_{int(trial)}'
+                except TypeError:
+                    trial_ids = trial_ids
+                    pass
+
         stimulus_names = completed_stimuli['stimulus_name'].to_list()
         stimuli_trial_mapping = {
             str(trial): name for trial, name in zip(trial_ids, stimulus_names)}
@@ -679,10 +720,27 @@ class MultipleyeDataCollection:
         stim_order_version = self.stim_order_versions[self.stim_order_versions['participant_id'] == int(
             p_id)]
         if len(stim_order_version) == 0:
-            raise KeyError(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
+            self._write_to_logfile(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
                            f"participant IDs in the stimulus order versions file. It is possible that the team did not "
-                           f"upload the correct stimulus version from the experiment folder.")
-        elif len(stim_order_version) == 1:
+                           f"upload the correct stimulus version from the experiment folder. Extracting version "
+                          f"from asc file")
+            version = extract_stimulus_version_number_from_asc(self.sessions[session_identifier].asc_path)
+
+            if version == logfile_order_version:
+                self._write_to_logfile(
+                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                    f"extracted from the asc file ({version}) for participant ID {p_id}. Using the "
+                    f"version from the logfile.")
+                stim_order_version = self.stim_order_versions[self.stim_order_versions['version_number'] == version]
+
+            else:
+               self._write_to_logfile(
+                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                    f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
+                    f"Please check the files "
+                    f"carefully.")
+
+        if len(stim_order_version) == 1:
             version = stim_order_version['version_number'].values[0]
             if logfile_order_version != version:
                 self._write_to_logfile(
@@ -720,7 +778,7 @@ class MultipleyeDataCollection:
             return stimulus_order
 
         else:
-            raise ValueError(f"More than one entry found for participant ID {p_id} in stimulus order versions. "
+            raise ValueError(f"More than one or no entry found for participant ID {p_id} in stimulus order versions. "
                              f"Please check the stimulus order versions file for duplicates.")
 
     # TODO: add method to check whether stimuli are completed
@@ -1023,6 +1081,33 @@ class MultipleyeDataCollection:
         check_all_screens_logfile(self.sessions[session_identifier].logfile,
                                   stimuli, self.sessions[session_identifier].sanity_report_path)
 
+    def _check_avg_fix_durations(self, session_identifier: str, gaze: pm.Gaze) -> None:
+        """
+        Check the average fixation durations for the specified session.
+        :param session_identifier: The session identifier.
+        """
+
+        # for each gaze and page compute the average fixation duration
+        fixation_durations_page_avg = (
+            gaze.events.frame.filter(pl.col("name") == "fixation")
+            .group_by(gaze.trial_columns)
+            .agg([
+                pl.col("duration").mean().alias("mean_fixation_duration_ms"),
+                pl.col("duration").median().alias("median_fixation_duration_ms"),
+                pl.col("duration").max().alias("max_fixation_duration_ms"),
+                pl.col("duration").min().alias("min_fixation_duration_ms"),
+                pl.col("duration").sum().alias("sum_fixation_duration_ms"),
+            ])
+        )
+
+        # write to file
+        fixation_durations_page_avg.write_csv(
+            file=self.output_dir / session_identifier / f"fixation_statistics_per_page_{session_identifier}.tsv",
+            separator='\t',
+        )
+
+
+
     def _load_psychometric_tests(self, session_identifier: str):
         if self.psychometric_tests:
             for test in self.psychometric_tests:
@@ -1087,6 +1172,11 @@ class MultipleyeDataCollection:
                     participant_id, country, lang, lab, session_id, _, _, _, trial = session.split(
                         '_')
                     notes = f'Session has been restarted after trial {trial}.'
+                elif 'full_restart_' in session:
+                    logging.warning(f'Session {session} has been fully restarted.')
+                    participant_id, country, lang, lab, session_id, _, _, _, = session.split(
+                        '_')
+                    notes = f'Session has been fully restarted.'
                 else:
                     raise ValueError(
                         f"Session {session} does not match the expected format.")

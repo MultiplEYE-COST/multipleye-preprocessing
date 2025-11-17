@@ -5,6 +5,7 @@ from tqdm import tqdm
 
 from prepare_language_folder import prepare_language_folder
 from preprocessing import peyepeline
+from preprocessing.data_collection.merid_data_collection import Merid
 from preprocessing.data_collection.multipleye_data_collection import MultipleyeDataCollection
 
 
@@ -14,12 +15,12 @@ def run_multipleye_preprocessing(data_collection: str):
     this_repo = Path().resolve()
     data_folder_path = this_repo / "data" / data_collection_name
 
-    multipleye = MultipleyeDataCollection.create_from_data_folder(data_folder_path, include_pilots=True)
+    merid = Merid.create_from_data_folder(data_folder_path)
 
     preprocessed_data_folder = this_repo / "preprocessed_data" / data_collection_name
     preprocessed_data_folder.mkdir(parents=True, exist_ok=True)
 
-    sessions = [s for s in multipleye]
+    sessions = [s for s in merid]
 
     for sess in (pbar := tqdm(sessions[:3])):
         idf = sess.session_identifier
@@ -52,10 +53,10 @@ def run_multipleye_preprocessing(data_collection: str):
         peyepeline.save_scanpaths(output_folder / 'scanpaths', sess.session_identifier, gaze)
 
         peyepeline.save_session_metadata(gaze, output_folder)
-        multipleye.create_session_overview(sess.session_identifier, path=output_folder)
+        merid.create_session_overview(sess.session_identifier, path=output_folder)
 
 
-    multipleye.create_dataset_overview(path=preprocessed_data_folder)
+    merid.create_dataset_overview(path=preprocessed_data_folder)
 
 
 
@@ -66,5 +67,5 @@ def parse_args():
 if __name__ == '__main__':
     parse_args()
 
-    data_collection_name = 'MultiplEYE_KL_DK_Copenhagen_1_2026'
+    data_collection_name = 'MultiplEYE_ZH_CH_Zurich_1_2025'
     run_multipleye_preprocessing(data_collection_name)

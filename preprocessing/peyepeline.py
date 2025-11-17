@@ -26,7 +26,6 @@ def load_gaze_data(
         asc_file: Path,
         lab_config: LabConfig,
         session_idf: str,
-        gaze_path: str = '',
 ) -> (pm.Gaze, dict[str, any]):
     """
 
@@ -37,15 +36,15 @@ def load_gaze_data(
     :return:
     """
 
-    trial_cols = ["trial", "stimulus", "screen"]
+    trial_cols = ["trial", "stimulus", "page"]
 
     gaze = pm.gaze.from_asc(
         asc_file,
         patterns=[
-            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+)_(?P<screen>.+)",
-            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<screen>familiarity_rating_screen_\d+|subject_difficulty_screen)",
+            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+)_(?P<page>.+)",
+            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<page>familiarity_rating_screen_\d+|subject_difficulty_screen)",
             {"pattern": r"stop_recording_", "column": "trial", "value": None},
-            {"pattern": r"stop_recording_", "column": "screen", "value": None},
+            {"pattern": r"stop_recording_", "column": "page", "value": None},
             {
                 "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+_page_\d+",
                 "column": "activity",
@@ -81,7 +80,7 @@ def load_gaze_data(
     # Filter out data outside of trials
     # TODO: Also report time spent outside of trials
     gaze.frame = gaze.frame.filter(
-        pl.col("trial").is_not_null() & pl.col("screen").is_not_null()
+        pl.col("trial").is_not_null() & pl.col("page").is_not_null()
     )
 
     # Extract metadata from stimulus config and ASC file
@@ -330,24 +329,24 @@ def map_fixations_to_aois(
         stimuli: list[Stimulus],
 ) -> None:
 
-    all_stimuli = pl.DataFrame()
+    all_aois = pl.DataFrame()
     for stimulus in stimuli:
-        text = stimulus.text_stimulus.aois
-        all_stimuli = all_stimuli.vstack(text)
+        aoi = stimulus.text_stimulus.aois
+        trial = stimulus.trial_id
+        aoi = aoi.with_columns(pl.lit(trial).alias("trial"))
+        all_aois = all_aois.vstack(aoi)
 
-    # TODO pm very ugly work around. I'd like to be able to map to aois for each stimulus separately
-    #  https://github.com/pymovements/pymovements/issues/1125
     all_stimuli = TextStimulus(
-        all_stimuli,
+        all_aois,
         aoi_column="char_idx",
         start_x_column="top_left_x",
         start_y_column="top_left_y",
         width_column="width",
         height_column="height",
         page_column="page",
+        trial_column="trial",
     )
 
-    # aoi mapping does not work if there are saccades in the file.. because then the
     gaze.events.frame = gaze.events.fixations
     gaze.events.map_to_aois(all_stimuli)
 
@@ -369,16 +368,13 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
         name = f"{session}_{trial}_{stimulus}_raw_data.csv"
-        df = df['time', 'pixel_x', 'pixel_y', 'pupil', 'screen']
+        df = df['time', 'pixel_x', 'pixel_y', 'pupil', 'page']
         df.write_csv(directory / name)
 
 
 def save_fixation_data(directory: Path, session: str, data: pm.Gaze) -> None:
     directory.mkdir(parents=True, exist_ok=True)
 
-    # new_data = data.clone()
-
-    # data.unnest()
     data.events.unnest()
 
     # TODO pm save only fixations
@@ -411,6 +407,10 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
 
     for trial in trials:
         df = trial.frame
+        # drop all rows where there has been no aoi mapped
+        df = df.filter(pl.col("char_idx").is_not_null())
+        if df.is_empty():
+            continue
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
         name = f"{session}_{trial}_{stimulus}_scanpath.csv"
@@ -424,8 +424,10 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
 
 def load_trial_level_raw_data(
         data_folder: Path,
+        trial_columns: list[str],
         file_pattern: str = '*_raw_data.csv',
-):
+        metadata_path: Path = '',
+) -> pm.Gaze:
 
     initial_df = pl.DataFrame()
     for file in data_folder.glob(file_pattern):
@@ -433,7 +435,44 @@ def load_trial_level_raw_data(
 
         initial_df = initial_df.vstack(trial_df)
 
-    return initial_df
+    gaze = pm.Gaze(
+        initial_df,
+        trial_columns=trial_columns,
+    )
+
+    if metadata_path:
+        with open(metadata_path / "gaze_metadata.json", "r", encoding='utf8') as f:
+            metadata = json.load(f)
+        gaze._metadata = metadata
+
+    return gaze
+
+
+def load_trial_level_fixation_data(
+        gaze: pm.Gaze,
+        data_folder: Path,
+        file_pattern: str = '*_fixations.csv',
+        metadata_path: Path = '',
+) -> pm.Gaze:
+
+    initial_df = pl.DataFrame()
+    for file in data_folder.glob(file_pattern):
+        trial_df = pl.read_csv(file)
+
+        initial_df = initial_df.vstack(trial_df)
+
+    gaze.events = pm.Events(
+        initial_df,
+        trial_columns=gaze.trial_columns,
+    )
+
+    if metadata_path:
+        with open(metadata_path / "gaze_metadata.json", "r", encoding='utf8') as f:
+            metadata = json.load(f)
+        gaze._metadata = metadata
+
+    return gaze
+
 
 
 def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:

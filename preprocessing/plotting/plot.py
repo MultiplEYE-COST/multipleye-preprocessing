@@ -11,8 +11,12 @@ from matplotlib.patches import Circle
 from preprocessing.data_collection.stimulus import LabConfig, Stimulus, load_stimuli
 
 
-
 def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> None:
+
+    # pixels per centimeter on this screen
+    px_per_cm = gaze.experiment.screen.width_px / gaze.experiment.screen.width_cm
+    print(f"px_per_cm = {px_per_cm}")
+
     for page in stimulus.pages:
         screen_gaze = gaze.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
@@ -44,11 +48,13 @@ def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> No
             alpha=0.3,
         )
 
-        # Plot fixations
+        # Plot fixations, make the rad scaled by the resolution
         for row in page_events.iter_rows(named=True):
+            radius = math.sqrt(row["duration"]) * px_per_cm * duration_ms_in_cm
+
             fixation = Circle(
                 (row["pixel_x"], row["pixel_y"]),
-                math.sqrt(row["duration"]),
+                radius,
                 color="blue",
                 fill=True,
                 alpha=0.5,
@@ -96,9 +102,11 @@ def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> No
 
         # Plot fixations
         for row in page_events.iter_rows(named=True):
+            radius = math.sqrt(row["duration"]) * px_per_cm * duration_ms_in_cm
+
             fixation = Circle(
                 (row["pixel_x"], row["pixel_y"]),
-                math.sqrt(row["duration"]),
+                radius,
                 color="blue",
                 fill=True,
                 alpha=0.5,
@@ -147,9 +155,11 @@ def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> No
 
         # Plot fixations
         for row in page_events.iter_rows(named=True):
+            radius = math.sqrt(row["duration"]) * px_per_cm * duration_ms_in_cm
+
             fixation = Circle(
                 (row["pixel_x"], row["pixel_y"]),
-                math.sqrt(row["duration"]),
+                radius,
                 color="blue",
                 fill=True,
                 alpha=0.5,
