@@ -8,8 +8,24 @@ from pymovements.stimulus import TextStimulus
 
 from preprocessing.data_collection.stimulus import LabConfig, Stimulus
 
+import pymovements as pm
+import polars as pl
 
-def create_gaze_data(
+
+DEFAULT_EVENT_PROPERTIES = {
+    "fixation": [
+        ("location", {"position_column": "pixel"}),
+        ("dispersion", {}),
+    ],
+    "saccade": [
+        ("amplitude", {}),
+        ("peak_velocity", {}),
+        ("dispersion", {}),
+    ],
+}
+
+
+def load_gaze_data(
         asc_file: Path,
         lab_config: LabConfig,
         session_idf: str,
@@ -89,6 +105,7 @@ def save_gaze_data(
         events_path: Path = '',
         metadata_dir: Path = '',
 ) -> None:
+
     # TODO save metadata properly and also load it properly
 
     if gaze_path:
@@ -115,13 +132,15 @@ def detect_fixation_and_saccades(
         sg_degree: int = 2,
 ) -> None:
     # Savitzky-Golay filter as in https://doi.org/10.3758/BRM.42.1.188
-    window_length = round(gaze.experiment.sampling_rate / 1000 * sg_window_length)
+    window_length = round(
+        gaze.experiment.sampling_rate / 1000 * sg_window_length)
 
     if window_length % 2 == 0:  # Must be odd
         window_length += 1
 
     gaze.pix2deg()
-    gaze.pos2vel("savitzky_golay", window_length=window_length, degree=sg_degree)
+    gaze.pos2vel("savitzky_golay",
+                 window_length=window_length, degree=sg_degree)
 
     # TODO pm: I think the problem here is that is is not clear what ivt is.. it is very hidden, what happens
     #  and for people that are not familiar with ET preprocessing, they also cannot learn anything as it says not
@@ -147,9 +166,165 @@ def detect_fixation_and_saccades(
         gaze.events.add_event_properties(new_properties, join_on=join_on)
 
 
-def detect_saccades():
-    # TODO Anastassia, move part form fucntion above here and make function above only for fixations
-    pass
+def preprocess_gaze(
+    gaze: pm.Gaze,
+    method: str = "savitzky_golay",
+    window_ms: int = 50,
+    poly_degree: int = 2,
+) -> None:
+    """
+    Convert gaze samples from pixel coordinates to degrees of visual angle (dva),
+    and compute velocity for event detection.
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        The gaze object containing raw gaze samples.
+
+    method : {"preceding", "neighbors", "fivepoint", "smooth", "savitzky_golay"}, optional
+        Velocity estimation method. Default is ``"savitzky_golay"``.
+
+    window_ms : int, optional
+        Length of the smoothing/differentiation window in milliseconds.
+        Only used when ``method="savitzky_golay"``.
+        Default is 50 ms.
+
+    poly_degree : int, optional
+        Polynomial degree used in the Savitzky–Golay filter (default = 2).
+
+    Notes
+    -----
+    This function should be called **before** detecting fixations or saccades,
+    since event detection relies on the velocity signal.
+
+    Available velocity estimation methods:
+      - ``preceding``: difference between current and previous sample.
+      - ``neighbors``: difference between next and previous sample.
+      - ``fivepoint``: mean of two preceding and two following samples.
+      - ``smooth``: alias of ``fivepoint``.
+      - ``savitzky_golay``: fits a local polynomial using a sliding window.
+    """
+    # Savitzky-Golay filter as in https://doi.org/10.3758/BRM.42.1.188
+    window_length = round(gaze.experiment.sampling_rate / 1000 * window_ms)
+    if window_length % 2 == 0:
+        window_length += 1
+
+    gaze.pix2deg()
+    gaze.pos2vel(method, window_length=window_length, degree=poly_degree)
+
+
+def compute_event_properties(
+    gaze: pm.Gaze,
+    event_name: str,
+    properties: list[tuple[str, dict]],
+) -> None:
+    """
+    Compute and add event properties to `gaze.events`.
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        Gaze object containing detected events.
+    event_name : str
+        Event type ('fixation', 'saccade', ...).
+    properties : list[tuple[str, dict]]
+        Each tuple defines (property_name, kwargs) passed to EventGazeProcessor.
+    """
+    join_on = gaze.trial_columns + ["name", "onset", "offset"]
+
+    for prop_name, kwargs in properties:
+        processor = pm.EventGazeProcessor((prop_name, kwargs))
+        new_props = processor.process(
+            gaze.events,
+            gaze,
+            identifiers=gaze.trial_columns,
+            name=event_name,
+        )
+        gaze.events.add_event_properties(new_props, join_on=join_on)
+
+
+def detect_fixations(
+    gaze,
+    method: str = "ivt",
+    minimum_duration: int = 100,
+    velocity_threshold: float = 20.0,
+) -> None:
+    """
+    This function applies a fixation detection method and then computes
+    descriptive properties (such as fixation location).
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        The gaze object containing gaze samples and trial metadata.
+
+    method : {"ivt", "idt"}, optional
+        Event detection method:
+        - ``"ivt"`` (Velocity-Threshold Identification):
+          Samples are classified as fixations when their velocity is below
+          ``velocity_threshold`` degrees/second. Consecutive samples are
+          merged into fixation events. This is the default method.
+        - ``"idt"`` (Dispersion-Threshold Identification):
+          Groups points that remain within a spatial dispersion window for
+          at least ``minimum_duration`` ms.
+
+    minimum_duration : int, optional
+        Minimum duration (in milliseconds) for a group of samples to be
+        classified as a fixation. Default is 100 ms.
+
+    velocity_threshold : float, optional
+        Velocity threshold used by the IVT method (in degrees/second).
+        Default is 20.0 deg/s.
+
+    Notes
+    -----
+    After detection, fixation properties (e.g., fixation location) are
+    computed and added to ``gaze.events``.
+    """
+    gaze.detect(method, minimum_duration=minimum_duration,
+                velocity_threshold=velocity_threshold)
+
+    compute_event_properties(
+        gaze, "fixation", DEFAULT_EVENT_PROPERTIES["fixation"]
+    )
+
+
+def detect_saccades(
+    gaze,
+    minimum_duration: int = 6,
+    threshold_factor: float = 6,
+) -> None:
+    """
+    This function detects saccades (or micro-saccades) using a
+    noise-adaptive velocity threshold and then computes properties such as
+    saccade amplitude and peak velocity.
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        The gaze object containing gaze samples and trial metadata.
+
+    minimum_duration : int, optional
+        Minimum duration (in samples) required for a velocity peak to be
+        considered a saccade. Default is 6 samples (~12 ms at 500 Hz).
+        Shorter events are ignored as noise.
+
+    threshold_factor : float, optional
+        Multiplier that determines the velocity threshold relative to the
+        noise level in the signal. Increasing this value makes detection
+        more conservative (fewer saccades). Default is 6.
+
+    Notes
+    -----
+    After detection, saccade properties (e.g., amplitude and peak velocity)
+    are computed and added to ``gaze.events``.
+    """
+    gaze.detect("microsaccades", minimum_duration=minimum_duration,
+                threshold_factor=threshold_factor)
+
+    compute_event_properties(
+        gaze, "saccade", DEFAULT_EVENT_PROPERTIES["saccade"]
+    )
 
 
 def map_fixations_to_aois(
@@ -206,28 +381,24 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
 def save_fixation_data(directory: Path, session: str, data: pm.Gaze) -> None:
     directory.mkdir(parents=True, exist_ok=True)
 
-    new_data = data.clone()
-
-    new_data.unnest()
-    new_data.events.unnest()
+    data.events.unnest()
 
     # TODO pm save only fixations
-    new_data.events.frame = new_data.events.fixations
+    # data.events.frame = data.events.fixations
+    fixations = data.events.frame.filter(pl.col("name") == "fixation")
 
-    trials = new_data.events.split(by="trial", as_dict=False)
+    # trials = data.events.split(by="trial", as_dict=False)
 
-    for trial in trials:
-        df = trial.frame
-
-        trial = df["trial"][0]
-        stimulus = df["stimulus"][0]
+    for group in fixations.partition_by("trial"):
+        trial_name = group["trial"][0]
+        stimulus = group["stimulus"][0]
         # this is a bit of a hack to make the session names consistent for the file names as the multipleye
         # session names contain infos when it was restarted
         session = session.split("_")[:5]
         session = "_".join(session)
 
-        name = f"{session}_{trial}_{stimulus}_fixations.csv"
-        df = df['onset', 'duration', 'location_x', 'location_y', 'page']
+        name = f"{session}_{trial_name}_{stimulus}_fixations.csv"
+        df = group.select(["onset", "duration", "location_x", "location_y", "page"])
         df.write_csv(directory / name)
 
 
@@ -336,6 +507,7 @@ def load_trial_level_fixation_data(
     )
 
     return gaze
+
 
 
 def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
