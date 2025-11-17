@@ -34,7 +34,7 @@ def prepare_language_folder(data_collection_name):
             raise FileNotFoundError(f"The 'eye-tracking-sessions' folder does not exist in '{data_folder_path}'. "
                                 "Please ensure the data collection is correctly structured.")
 
-    # check if there is a core_sessionsfolder and if yes, check if there are any folder inside and then move them up and delete the core_sessions folder
+    # check if there is a core_sessions folder and if yes, check if there are any folder inside and then move them up and delete the core_sessions folder
     core_sessions_path = eye_tracking_sessions_path / "core_sessions"
     if core_sessions_path.exists():
         core_folders = list(core_sessions_path.glob("*"))

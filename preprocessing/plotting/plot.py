@@ -107,7 +107,6 @@ def plot_gaze(
 
     # pixels per centimeter on this screen
     px_per_cm = gaze.experiment.screen.width_px / gaze.experiment.screen.width_cm
-    print(f"px_per_cm = {px_per_cm}")
 
     for page in stimulus.pages:
         screen_gaze = gaze.frame.filter(

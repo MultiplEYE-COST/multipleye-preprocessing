@@ -7,7 +7,7 @@ from preprocessing.data_collection.multipleye_data_collection import MultipleyeD
 
 
 def run_multipleye_sanity_checks(data_collection_name: str, full_path: str = None, create_plots: bool = True,
-                                 include_pilots: bool = False, sessions_to_check: list = None):
+                                 include_pilots: bool = True, sessions_to_check: list = None):
     if full_path is None:
         this_repo = Path().resolve()
         data_folder_path = this_repo / "data" / data_collection_name
