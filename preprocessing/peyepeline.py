@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import polars as pl
@@ -8,21 +9,21 @@ from pymovements.stimulus import TextStimulus
 from preprocessing.data_collection.stimulus import LabConfig, Stimulus
 
 
-def load_gaze_data(
+def create_gaze_data(
         asc_file: Path,
         lab_config: LabConfig,
         session_idf: str,
-) -> (pm.Gaze, dict[str, any]):
+        trial_cols: list[str] = None,
+) -> pm.Gaze:
     """
 
+    :param trial_cols:
     :param gaze_path: if a gaze_path is provided, the function will try to load the gaze data from there
     :param asc_file:
     :param lab_config:
     :param session_idf:
     :return:
     """
-
-    trial_cols = ["trial", "stimulus", "page"]
 
     gaze = pm.gaze.from_asc(
         asc_file,
@@ -79,7 +80,7 @@ def load_gaze_data(
         distance_cm=lab_config.screen_distance_cm,
     )
 
-    return gaze, gaze._metadata
+    return gaze
 
 
 def save_gaze_data(
@@ -193,6 +194,10 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
         df = trial.frame
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
+        # this is a bit of a hack to make the session names consistent for the file names as the multipleye
+        # session names contain infos when it was restarted
+        session = session.split("_")[:5]
+        session = "_".join(session)
         name = f"{session}_{trial}_{stimulus}_raw_data.csv"
         df = df['time', 'pixel_x', 'pixel_y', 'pupil', 'page']
         df.write_csv(directory / name)
@@ -216,8 +221,13 @@ def save_fixation_data(directory: Path, session: str, data: pm.Gaze) -> None:
 
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
+        # this is a bit of a hack to make the session names consistent for the file names as the multipleye
+        # session names contain infos when it was restarted
+        session = session.split("_")[:5]
+        session = "_".join(session)
+
         name = f"{session}_{trial}_{stimulus}_fixations.csv"
-        df = df['onset', 'duration', 'location_x', 'location_y']
+        df = df['onset', 'duration', 'location_x', 'location_y', 'page']
         df.write_csv(directory / name)
 
 
@@ -243,6 +253,11 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
             continue
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
+        # this is a bit of a hack to make the session names consistent for the file names as the multipleye
+        # session names contain infos when it was restarted
+        session = session.split("_")[:5]
+        session = "_".join(session)
+
         name = f"{session}_{trial}_{stimulus}_scanpath.csv"
 
         df = df[
@@ -255,12 +270,29 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
 def load_trial_level_raw_data(
         data_folder: Path,
         trial_columns: list[str],
+        session_idf,
         file_pattern: str = '*_raw_data.csv',
         metadata_path: Path = '',
 ) -> pm.Gaze:
+    regex_name = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_raw_data"
+
     initial_df = pl.DataFrame()
     for file in data_folder.glob(file_pattern):
-        trial_df = pl.read_csv(file)
+        trial_df = pl.read_csv(
+            file,
+            schema_overrides={
+                'time': pl.Float64,
+                'pupil': pl.Float64,
+                'pixel_x': pl.Float64,
+                'pixel_y': pl.Float64,
+                'page': pl.Utf8,
+            },
+        )
+        match = re.match(regex_name, file.stem)
+        trial_df = trial_df.with_columns(
+            pl.lit(match.group("trial")).alias("trial"),
+            pl.lit(match.group("stimulus")).alias("stimulus"),
+        )
 
         initial_df = initial_df.vstack(trial_df)
 
@@ -281,23 +313,27 @@ def load_trial_level_fixation_data(
         gaze: pm.Gaze,
         data_folder: Path,
         file_pattern: str = '*_fixations.csv',
-        metadata_path: Path = '',
 ) -> pm.Gaze:
+
+    regex_name = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_fixations"
+
     initial_df = pl.DataFrame()
     for file in data_folder.glob(file_pattern):
         trial_df = pl.read_csv(file)
 
+        match = re.match(regex_name, file.stem)
+        trial_df = trial_df.with_columns(
+            pl.lit(match.group("trial")).alias("trial"),
+            pl.lit(match.group("stimulus")).alias("stimulus"),
+        )
+
         initial_df = initial_df.vstack(trial_df)
+
 
     gaze.events = pm.Events(
         initial_df,
         trial_columns=gaze.trial_columns,
     )
-
-    if metadata_path:
-        with open(metadata_path / "gaze_metadata.json", "r", encoding='utf8') as f:
-            metadata = json.load(f)
-        gaze._metadata = metadata
 
     return gaze
 

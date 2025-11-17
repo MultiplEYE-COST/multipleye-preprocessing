@@ -15,7 +15,7 @@ import yaml
 from polars.polars import ComputeError
 from tqdm import tqdm
 
-from prepare_language_folder import extract_stimulus_version_number_from_asc
+from preprocessing.utils.prepare_language_folder import extract_stimulus_version_number_from_asc
 from preprocessing.checks.et_quality_checks import \
     check_comprehension_question_answers, \
     check_metadata, report_to_file_metadata as report_meta, check_validation_requirements
@@ -375,10 +375,17 @@ class MultipleyeDataCollection:
             ps_tests_path=ps_tests_path,
         )
 
-    def create_sanity_check_report(self, sessions: str | list[str] | None = None, plotting: bool = True,
-                                   overwrite: bool = False) -> None:
+    def create_sanity_check_report(
+            self,
+            gaze: pm.Gaze,
+            sessions: str | list[str] | None = None,
+            plotting: bool = True,
+            overwrite: bool = False,
+
+    ) -> None:
         """
         Create the sanity checks and reports if for one or multiple sessions.
+        :param gaze:
         :param sessions: Specifies which sessions to create the report for. Default is None which creates the reports
         for all sessions.
         :param plotting: If True, all plots are also created for all the sessions.
@@ -414,8 +421,6 @@ class MultipleyeDataCollection:
                 open(report_file_path, "w", encoding="utf-8").close()
 
                 messages = self.sessions[session_name].messages
-                # tODO: load gaze --> or rather, move this outside of the class?
-                gaze = pm.Gaze()
 
                 if not messages:
                     self._write_to_logfile(
@@ -440,7 +445,7 @@ class MultipleyeDataCollection:
                 self._check_avg_fix_durations(session_name, gaze)
 
                 if plotting:
-                    self._create_plots(stimuli, session_name, gaze)
+                    self._create_plots(gaze, stimuli, session_name)
 
     def _load_manual_corrections(self) -> list[str]:
         # read excluded sessions from txt file if it exists in the top data folder
@@ -1168,9 +1173,9 @@ class MultipleyeDataCollection:
                     participant_id, country, lang, lab, session_id, _, _, _, trial = session.split(
                         '_')
                     notes = f'Session has been restarted after trial {trial}.'
-                elif 'full_restart_' in session:
+                elif 'full_restart' in session:
                     logging.warning(f'Session {session} has been fully restarted.')
-                    participant_id, country, lang, lab, session_id, _, _, _, = session.split(
+                    participant_id, country, lang, lab, session_id, _, _, = session.split(
                         '_')
                     notes = f'Session has been fully restarted.'
                 else:

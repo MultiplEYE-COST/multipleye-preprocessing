@@ -3,29 +3,33 @@ import logging
 import warnings
 from pathlib import Path
 
+from tqdm import tqdm
+
 from preprocessing.data_collection.multipleye_data_collection import MultipleyeDataCollection
+from preprocessing.utils.prepare_language_folder import prepare_language_folder
 
 
-def run_multipleye_sanity_checks(data_collection_name: str, full_path: str = None, create_plots: bool = True,
-                                 include_pilots: bool = False, sessions_to_check: list = None):
-    if full_path is None:
-        this_repo = Path().resolve()
-        data_folder_path = this_repo / "data" / data_collection_name
-    else:
-        if full_path.endswith(data_collection_name):
-            data_folder_path = Path(full_path)
-        else:
-            data_folder_path = Path(full_path) / data_collection_name
+def run_multipleye_sanity_checks(data_collection_name: str):
 
-    multipleye = MultipleyeDataCollection.create_from_data_folder(
-        str(data_folder_path),
-        include_pilots=include_pilots,
-    )
+    prepare_language_folder(data_collection_name)
 
-    multipleye.create_sanity_check_report(
-        plotting=create_plots,
-        sessions=sessions_to_check,
-        overwrite=True)
+    this_repo = Path().resolve()
+    data_folder_path = this_repo / "data" / data_collection_name
+
+    multipleye = MultipleyeDataCollection.create_from_data_folder(data_folder_path, include_pilots=True)
+
+    sanity_checks_folder = this_repo / "sanity_checks" / data_collection_name
+    sanity_checks_folder.mkdir(parents=True, exist_ok=True)
+
+    sessions = [s for s in multipleye]
+
+    for sess in (pbar := tqdm(sessions)):
+        idf = sess.session_identifier
+        pbar.set_description(f'Creating sanity checks for {idf}:')
+
+
+
+
 
     if len(multipleye.excluded_sessions) >= 1:
         warnings.warn(f"Don't forget, those sessions have been excluded from the analysis: {multipleye.excluded_sessions}. "

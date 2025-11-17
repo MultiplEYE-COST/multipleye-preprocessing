@@ -3,10 +3,9 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from prepare_language_folder import prepare_language_folder
+from preprocessing.utils.prepare_language_folder import prepare_language_folder
 from preprocessing import peyepeline
 from preprocessing.data_collection.merid_data_collection import Merid
-from preprocessing.data_collection.multipleye_data_collection import MultipleyeDataCollection
 
 
 def run_multipleye_preprocessing(data_collection: str):
@@ -32,7 +31,7 @@ def run_multipleye_preprocessing(data_collection: str):
 
         # TODO pm: it would make a lot more sense if the gaze object was not called gaze but instead session or
         #  something like that. Because ET preprocessing works on the session level and it is odd that there is no session
-        gaze, gaze_metadata = peyepeline.load_gaze_data(
+        gaze, gaze_metadata = peyepeline.create_gaze_data(
             asc_file=asc,
             lab_config=sess.lab_config,
             session_idf=idf,

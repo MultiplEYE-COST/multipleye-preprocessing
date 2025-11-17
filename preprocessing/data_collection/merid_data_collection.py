@@ -1,6 +1,6 @@
 import warnings
 
-from prepare_language_folder import extract_stimulus_version_number_from_asc
+from preprocessing.utils.prepare_language_folder import extract_stimulus_version_number_from_asc
 from preprocessing.data_collection.multipleye_data_collection import MultipleyeDataCollection
 
 
