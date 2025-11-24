@@ -1,9 +1,6 @@
 import math
 from pathlib import Path
 
-import math
-from pathlib import Path
-
 import PIL
 import matplotlib.pyplot as plt
 import polars as pl

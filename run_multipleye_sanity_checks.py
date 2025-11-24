@@ -1,6 +1,4 @@
 import argparse
-import logging
-import warnings
 from pathlib import Path
 
 from tqdm import tqdm
@@ -10,7 +8,6 @@ from preprocessing.utils.prepare_language_folder import prepare_language_folder
 
 
 def run_multipleye_sanity_checks(data_collection_name: str):
-
     prepare_language_folder(data_collection_name)
 
     this_repo = Path().resolve()
@@ -26,14 +23,6 @@ def run_multipleye_sanity_checks(data_collection_name: str):
     for sess in (pbar := tqdm(sessions)):
         idf = sess.session_identifier
         pbar.set_description(f'Creating sanity checks for {idf}:')
-
-
-
-
-
-    if len(multipleye.excluded_sessions) >= 1:
-        warnings.warn(f"Don't forget, those sessions have been excluded from the analysis: {multipleye.excluded_sessions}. "
-                      f"Specified 'excluded_sessions.txt'.")
 
 
 def parse_args():

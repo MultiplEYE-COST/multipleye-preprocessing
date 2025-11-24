@@ -3,9 +3,9 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from preprocessing.utils.prepare_language_folder import prepare_language_folder
 from preprocessing import peyepeline
 from preprocessing.data_collection.multipleye_data_collection import MultipleyeDataCollection
+from preprocessing.utils.prepare_language_folder import prepare_language_folder
 
 
 def run_multipleye_preprocessing(data_collection: str):
@@ -36,13 +36,12 @@ def run_multipleye_preprocessing(data_collection: str):
             gaze = peyepeline.load_trial_level_raw_data(
                 raw_data_folder,
                 trial_columns=["trial", "stimulus", "page"],
-                session_idf= sess.session_identifier,
                 metadata_path=output_folder,
             )
 
         else:
             pbar.set_description(f'Extracting samples {idf}:')
-            gaze = peyepeline.create_gaze_data(
+            gaze = peyepeline.load_gaze_data(
                 asc_file=asc,
                 lab_config=sess.lab_config,
                 session_idf=idf,
@@ -76,11 +75,11 @@ def run_multipleye_preprocessing(data_collection: str):
         peyepeline.save_scanpaths(output_folder / 'scanpaths', sess.session_identifier, gaze)
 
         peyepeline.save_session_metadata(gaze, output_folder)
+
         multipleye.create_session_overview(sess.session_identifier, path=output_folder)
 
-
     multipleye.create_dataset_overview(path=preprocessed_data_folder)
-
+    multipleye.parse_participant_data(preprocessed_data_folder / "participant_data.csv")
 
 
 def parse_args():
@@ -90,5 +89,5 @@ def parse_args():
 if __name__ == '__main__':
     parse_args()
 
-    data_collection_name = 'MultiplEYE_KL_DK_Copenhagen_1_2026'
+    data_collection_name = 'MultiplEYE_SQ_CH_Zurich_1_2025'
     run_multipleye_preprocessing(data_collection_name)

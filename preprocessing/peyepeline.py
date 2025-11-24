@@ -4,13 +4,10 @@ from pathlib import Path
 
 import polars as pl
 import pymovements as pm
+import yaml
 from pymovements.stimulus import TextStimulus
 
 from preprocessing.data_collection.stimulus import LabConfig, Stimulus
-
-import pymovements as pm
-import polars as pl
-
 
 DEFAULT_EVENT_PROPERTIES = {
     "fixation": [
@@ -105,7 +102,6 @@ def save_gaze_data(
         events_path: Path = '',
         metadata_dir: Path = '',
 ) -> None:
-
     # TODO save metadata properly and also load it properly
 
     if gaze_path:
@@ -132,6 +128,7 @@ def detect_fixation_and_saccades(
         sg_degree: int = 2,
 ) -> None:
     # Savitzky-Golay filter as in https://doi.org/10.3758/BRM.42.1.188
+
     window_length = round(
         gaze.experiment.sampling_rate / 1000 * sg_window_length)
 
@@ -167,10 +164,10 @@ def detect_fixation_and_saccades(
 
 
 def preprocess_gaze(
-    gaze: pm.Gaze,
-    method: str = "savitzky_golay",
-    window_ms: int = 50,
-    poly_degree: int = 2,
+        gaze: pm.Gaze,
+        method: str = "savitzky_golay",
+        window_ms: int = 50,
+        poly_degree: int = 2,
 ) -> None:
     """
     Convert gaze samples from pixel coordinates to degrees of visual angle (dva),
@@ -214,9 +211,9 @@ def preprocess_gaze(
 
 
 def compute_event_properties(
-    gaze: pm.Gaze,
-    event_name: str,
-    properties: list[tuple[str, dict]],
+        gaze: pm.Gaze,
+        event_name: str,
+        properties: list[tuple[str, dict]],
 ) -> None:
     """
     Compute and add event properties to `gaze.events`.
@@ -244,10 +241,10 @@ def compute_event_properties(
 
 
 def detect_fixations(
-    gaze,
-    method: str = "ivt",
-    minimum_duration: int = 100,
-    velocity_threshold: float = 20.0,
+        gaze,
+        method: str = "ivt",
+        minimum_duration: int = 100,
+        velocity_threshold: float = 20.0,
 ) -> None:
     """
     This function applies a fixation detection method and then computes
@@ -290,9 +287,9 @@ def detect_fixations(
 
 
 def detect_saccades(
-    gaze,
-    minimum_duration: int = 6,
-    threshold_factor: float = 6,
+        gaze,
+        minimum_duration: int = 6,
+        threshold_factor: float = 6,
 ) -> None:
     """
     This function detects saccades (or micro-saccades) using a
@@ -338,7 +335,7 @@ def map_fixations_to_aois(
         aoi = aoi.with_columns(pl.lit(trial).alias("trial"))
         all_aois = all_aois.vstack(aoi)
 
-    all_stimuli = TextStimulus(
+    all_aois = TextStimulus(
         all_aois,
         aoi_column="char_idx",
         start_x_column="top_left_x",
@@ -349,8 +346,7 @@ def map_fixations_to_aois(
         trial_column="trial",
     )
 
-    gaze.events.frame = gaze.events.fixations
-    gaze.events.map_to_aois(all_stimuli)
+    gaze.events.map_to_aois(all_aois, verbose=False)
 
 
 def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
@@ -441,13 +437,13 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
 def load_trial_level_raw_data(
         data_folder: Path,
         trial_columns: list[str],
-        session_idf,
         file_pattern: str = '*_raw_data.csv',
-        metadata_path: Path = '',
+        metadata_path: Path = None,
 ) -> pm.Gaze:
     regex_name = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_raw_data"
 
     initial_df = pl.DataFrame()
+
     for file in data_folder.glob(file_pattern):
         trial_df = pl.read_csv(
             file,
@@ -470,12 +466,21 @@ def load_trial_level_raw_data(
     gaze = pm.Gaze(
         initial_df,
         trial_columns=trial_columns,
+        pixel_columns=['pixel_x', 'pixel_y'],
     )
 
     if metadata_path:
         with open(metadata_path / "gaze_metadata.json", "r", encoding='utf8') as f:
             metadata = json.load(f)
+
         gaze._metadata = metadata
+
+        with open(metadata_path / 'experiment.yaml', "r") as f:
+            exp = yaml.safe_load(f)
+
+        exp = pm.Experiment.from_dict(exp)
+
+        gaze.experiment = exp
 
     return gaze
 
@@ -485,7 +490,6 @@ def load_trial_level_fixation_data(
         data_folder: Path,
         file_pattern: str = '*_fixations.csv',
 ) -> pm.Gaze:
-
     regex_name = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_fixations"
 
     initial_df = pl.DataFrame()
@@ -500,14 +504,16 @@ def load_trial_level_fixation_data(
 
         initial_df = initial_df.vstack(trial_df)
 
-
     gaze.events = pm.Events(
         initial_df,
         trial_columns=gaze.trial_columns,
     )
 
-    return gaze
+    gaze.events.frame = gaze.events.frame.with_columns(
+        pl.lit("fixation").alias("name")
+    )
 
+    return gaze
 
 
 def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
@@ -515,7 +521,7 @@ def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
 
     metadata = gaze._metadata
     metadata['datetime'] = str(metadata['datetime'])
-    # TODO pm: I'd like to save my metadata without having to access a protected argument
+
     with open(directory / "gaze_metadata.json", "w", encoding='utf8') as f:
         json.dump(metadata, f)
 

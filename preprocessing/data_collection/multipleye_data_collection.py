@@ -15,7 +15,6 @@ import yaml
 from polars.polars import ComputeError
 from tqdm import tqdm
 
-from preprocessing.utils.prepare_language_folder import extract_stimulus_version_number_from_asc
 from preprocessing.checks.et_quality_checks import \
     check_comprehension_question_answers, \
     check_metadata, report_to_file_metadata as report_meta, check_validation_requirements
@@ -27,6 +26,7 @@ from preprocessing.plotting.plot import plot_gaze, plot_main_sequence
 from preprocessing.psychometric_tests.preprocess_psychometric_tests import preprocess_plab, preprocess_ran, \
     preprocess_stroop, preprocess_flanker, preprocess_wikivocab, preprocess_lwmc
 from preprocessing.utils.fix_pq_data import remap_wrong_pq_values
+from preprocessing.utils.prepare_language_folder import extract_stimulus_version_number_from_asc
 
 EYETRACKER_NAMES = {
     'eyelink': [
@@ -160,7 +160,6 @@ class MultipleyeDataCollection:
             self.stim_order_versions = stim_order_versions
 
         self.prepare_session_level_information()
-        self.parse_participant_data()
 
         self.overview = self.create_dataset_overview()
 
@@ -170,9 +169,18 @@ class MultipleyeDataCollection:
 
         return "\n".join("{}\t{}".format(k, v) for k, v in self.overview.items())
 
+    # TODO: check these chatgpt functions :D
     def __iter__(self):
-        for session in sorted(self.sessions):
-            yield self.sessions[session]
+        self._iter_keys = sorted(self.sessions)
+        self._iter_index = 0
+        return self
+
+    def __next__(self):
+        if self._iter_index >= len(self._iter_keys):
+            raise StopIteration
+        key = self._iter_keys[self._iter_index]
+        self._iter_index += 1
+        return self.sessions[key]
 
     def __getitem__(self, item):
         return self.sessions[item]
@@ -1153,7 +1161,7 @@ class MultipleyeDataCollection:
         for stimulus in stimuli:
             plot_gaze(gaze, stimulus, plot_dir)
 
-    def parse_participant_data(self) -> None:
+    def parse_participant_data(self, path: Path | str) -> None:
         """
         Load the participant data for all participants.
         """
@@ -1211,9 +1219,13 @@ class MultipleyeDataCollection:
                    [col for col in cols if col != 'participant_id']
             participant_data = participant_data[cols]
 
+            if not path:
+                self.participant_data_path = self.data_root.parent / 'participant_data.csv'
+            else:
+                self.participant_data_path = path
+
             participant_data.to_csv(
-                self.data_root.parent / 'participant_data.csv', index=False)
-            self.participant_data_path = self.data_root.parent / 'participant_data.csv'
+                self.participant_data_path, index=False)
 
     def _write_to_logfile(self, message: str) -> None:
 

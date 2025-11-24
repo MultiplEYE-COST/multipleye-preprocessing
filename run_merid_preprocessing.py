@@ -3,9 +3,9 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from preprocessing.utils.prepare_language_folder import prepare_language_folder
 from preprocessing import peyepeline
 from preprocessing.data_collection.merid_data_collection import Merid
+from preprocessing.utils.prepare_language_folder import prepare_language_folder
 
 
 def run_multipleye_preprocessing(data_collection: str):
@@ -54,9 +54,7 @@ def run_multipleye_preprocessing(data_collection: str):
         peyepeline.save_session_metadata(gaze, output_folder)
         merid.create_session_overview(sess.session_identifier, path=output_folder)
 
-
     merid.create_dataset_overview(path=preprocessed_data_folder)
-
 
 
 def parse_args():
