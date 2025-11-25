@@ -1,13 +1,14 @@
 import argparse
+import os
 import shutil
 from pathlib import Path
 
 
 def fix_psycho_tests_structure(config_folder: str, data_folder: str):
     config_files = Path(config_folder).glob("*.yaml")
-    parent_folder = Path(data_folder).parent
+    parent_folder = Path(data_folder).parent.parent
 
-    tests = Path(data_folder).glob("*", )
+    tests = Path(data_folder).glob("*")
     all_tests = []
 
     for test_folder in tests:
@@ -19,9 +20,13 @@ def fix_psycho_tests_structure(config_folder: str, data_folder: str):
     for config_file in config_files:
 
         # check if there is a corresponding data file
-        data_file = data_folder
         name = config_file.stem
         p_id = name.split("_")[0]
+
+        if name.endswith('S1'):
+            name = name.replace('S1', 'PT1')
+        elif name.endswith('S2'):
+            name = name.replace('S2', 'PT2')
 
         if p_id not in participant_ids:
             participant_ids[p_id] = []
@@ -33,12 +38,15 @@ def fix_psycho_tests_structure(config_folder: str, data_folder: str):
             new_path = parent_folder / test
 
             old_path = Path(data_folder) / test / name
+            print(old_path)
             # find participant folder in old path and move to new session folder in a subfolder
             if old_path.exists():
                 participant_ids[p_id].append(test)
                 new_participant_path = session_folder / test
+                print(new_participant_path)
                 new_participant_path.mkdir(parents=True, exist_ok=True)
                 shutil.copytree(old_path, new_participant_path, dirs_exist_ok=True)
+
 
         # copy the config file to the new session folder
         new_config_path = session_folder / config_file.name
