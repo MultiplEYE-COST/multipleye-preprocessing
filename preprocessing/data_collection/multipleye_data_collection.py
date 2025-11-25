@@ -386,74 +386,71 @@ class MultipleyeDataCollection:
     def create_sanity_check_report(
             self,
             gaze: pm.Gaze,
-            sessions: str | list[str] | None = None,
+            session_name: str,
+            output_dir: Path | str = '',
             plotting: bool = True,
             overwrite: bool = False,
 
     ) -> None:
         """
         Create the sanity checks and reports if for one or multiple sessions.
+        :param output_dir:
         :param gaze:
-        :param sessions: Specifies which sessions to create the report for. Default is None which creates the reports
-        for all sessions.
+        :param session_name: Specifies which session to create the report for.
         :param plotting: If True, all plots are also created for all the sessions.
         :param overwrite: If True, the sanity check report is overwritten if it already exists.
         """
 
-        if sessions is None:
-            sessions = [session_name for session_name in self.sessions.keys()]
-        elif isinstance(sessions, str):
-            sessions = [sessions]
-        elif isinstance(sessions, list):
-            sessions = sessions
+        if session_name in self.excluded_sessions:
+            logging.info(
+                f"Session {session_name} is excluded from the analysis. Skipping sanity check report.")
+            return
 
-        # TODO: check if all session names are available in self.session, before we enter the loop to avoid a key error
-        for session_name in (pbar := tqdm(sessions, total=len(sessions))):
+        if not output_dir:
+            output_dir = self.reports_dir
 
-            if session_name in self.excluded_sessions:
-                continue
+        session_results = output_dir / session_name
+        os.makedirs(session_results, exist_ok=True)
 
-            pbar.set_description(
-                f'Creating sanity check report for session {session_name}'
+        report_file_path = output_dir / \
+                           session_name / f"{session_name}_report.txt"
+        self.sessions[session_name].sanity_report_path = report_file_path
+
+        if not report_file_path.exists() or overwrite:
+
+            open(report_file_path, "w", encoding="utf-8").close()
+
+            messages = self.sessions[session_name].messages
+
+            if not messages:
+                self._write_to_logfile(
+                    f"No messages found in asc file of {session_name}.")
+
+            self._document_calibrations(session_name)
+
+            stimuli = self.sessions[session_name].stimuli
+
+            with open(report_file_path, "a+", encoding="utf-8") as report_file:
+                # set report object
+                report = partial(report_meta, report_file=report_file)
+                check_metadata(
+                    self.sessions[session_name].pm_gaze_metadata, report)
+
+            self._check_logfiles(stimuli, session_name)
+            self._check_stimuli_gaze_frame(gaze, stimuli, session_name)
+            self._check_asc_messages(stimuli, messages, session_name)
+            self._check_asc_validation(session_name)
+            self._load_psychometric_tests(session_name)
+            self._extract_question_answers(stimuli, session_name)
+            fix_report = self._check_avg_fix_durations(gaze)
+
+            fix_report.write_csv(
+                file=self.reports_dir / session_name / f"fixation_statistics_per_page_{session_name}.tsv",
+                separator='\t',
             )
 
-            session_results = self.reports_dir / session_name
-            os.makedirs(session_results, exist_ok=True)
-
-            report_file_path = self.reports_dir / \
-                               session_name / f"{session_name}_report.txt"
-            self.sessions[session_name].sanity_report_path = report_file_path
-
-            if not report_file_path.exists() or overwrite:
-
-                open(report_file_path, "w", encoding="utf-8").close()
-
-                messages = self.sessions[session_name].messages
-
-                if not messages:
-                    self._write_to_logfile(
-                        f"No messages found in asc file of {session_name}.")
-
-                self._document_calibrations(session_name)
-
-                stimuli = self.sessions[session_name].stimuli
-
-                with open(report_file_path, "a+", encoding="utf-8") as report_file:
-                    # set report object
-                    report = partial(report_meta, report_file=report_file)
-                    check_metadata(
-                        self.sessions[session_name].pm_gaze_metadata, report)
-
-                self._check_logfiles(stimuli, session_name)
-                self._check_stimuli_gaze_frame(stimuli, session_name, gaze)
-                self._check_asc_messages(stimuli, messages, session_name)
-                self._check_asc_validation(session_name)
-                self._load_psychometric_tests(session_name)
-                self._extract_question_answers(stimuli, session_name)
-                self._check_avg_fix_durations(session_name, gaze)
-
-                if plotting:
-                    self._create_plots(gaze, stimuli, session_name)
+            if plotting:
+                self._create_plots(gaze, stimuli, session_name)
 
     def _load_manual_corrections(self) -> list[str]:
         # read excluded sessions from txt file if it exists in the top data folder
@@ -793,9 +790,6 @@ class MultipleyeDataCollection:
             raise ValueError(f"More than one or no entry found for participant ID {p_id} in stimulus order versions. "
                              f"Please check the stimulus order versions file for duplicates.")
 
-    # TODO: add method to check whether stimuli are completed
-
-    # TODO: for future: think about how to handle stimuli in the general case
 
     def _parse_asc(self, session_identifier: str):
         """
@@ -931,6 +925,14 @@ class MultipleyeDataCollection:
         return messages
 
     def _document_reading_times(self, initial_ts, reading_times, result_folder, session_identifier):
+        """
+        TODO: improve this function!! this is terrible and buggy
+        :param initial_ts:
+        :param reading_times:
+        :param result_folder:
+        :param session_identifier:
+        :return:
+        """
 
         stimuli_trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
         total_reading_duration_ms = 0
@@ -1093,10 +1095,11 @@ class MultipleyeDataCollection:
         check_all_screens_logfile(self.sessions[session_identifier].logfile,
                                   stimuli, self.sessions[session_identifier].sanity_report_path)
 
-    def _check_avg_fix_durations(self, session_identifier: str, gaze: pm.Gaze) -> None:
+    @staticmethod
+    def _check_avg_fix_durations(gaze: pm.Gaze) -> pl.DataFrame:
         """
         Check the average fixation durations for the specified session.
-        :param session_identifier: The session identifier.
+        :param gaze: Gaze object for this session.
         """
 
         # for each gaze and page compute the average fixation duration
@@ -1113,10 +1116,8 @@ class MultipleyeDataCollection:
         )
 
         # write to file
-        fixation_durations_page_avg.write_csv(
-            file=self.output_dir / session_identifier / f"fixation_statistics_per_page_{session_identifier}.tsv",
-            separator='\t',
-        )
+        return fixation_durations_page_avg
+
 
     def _load_psychometric_tests(self, session_identifier: str):
         if self.psychometric_tests:

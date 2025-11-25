@@ -82,21 +82,21 @@ def sanity_check_gaze_frame(gaze, stimuli, report_file):
         # print(f"Checking {stimulus.name}")
         stimulus_frame = gaze.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
-        ).unique("screen")
+        ).unique("page")
         # check if all pages are present
         for page in stimulus.pages:
-            if f"page_{page.number}" not in stimulus_frame["screen"].to_list():
+            if f"page_{page.number}" not in stimulus_frame["page"].to_list():
                 # print(f"Missing page {page.number}")
                 _report_warning(f"Missing page {page.number} in asc file", report_file)
         # check if all questions are present
         for question in stimulus.questions:
             if f"question_{question.id}" not in stimulus_frame[
-                "screen"].to_list() and f"question_{question.id[1:]}" not in stimulus_frame["screen"].to_list():
+                "page"].to_list() and f"question_{question.id[1:]}" not in stimulus_frame["page"].to_list():
                 _report_warning(f"Missing question_{question.name} in asc file or in experiment frame", report_file)
             # print(stimulus_frame["screen"])
 
         for rating in stimulus.ratings:
-            if f"{rating.name}" not in stimulus_frame["screen"].to_list():
+            if f"{rating.name}" not in stimulus_frame["page"].to_list():
                 # print(f"Missing instruction {rating.name}")
                 _report_warning(f"Missing rating {rating.name} in asc file", report_file)
 

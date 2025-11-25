@@ -31,7 +31,6 @@ def load_gaze_data(
     """
 
     :param trial_cols:
-    :param gaze_path: if a gaze_path is provided, the function will try to load the gaze data from there
     :param asc_file:
     :param lab_config:
     :param session_idf:
@@ -120,47 +119,6 @@ def save_gaze_data(
         # TODO pm: I'd like to save my metadata without having to access a protected argument
         with open(metadata_dir / "gaze_metadata.json", "w", encoding='utf8') as f:
             json.dump(metadata, f)
-
-
-def detect_fixation_and_saccades(
-        gaze: pm.Gaze,
-        sg_window_length: int = 50,
-        sg_degree: int = 2,
-) -> None:
-    # Savitzky-Golay filter as in https://doi.org/10.3758/BRM.42.1.188
-
-    window_length = round(
-        gaze.experiment.sampling_rate / 1000 * sg_window_length)
-
-    if window_length % 2 == 0:  # Must be odd
-        window_length += 1
-
-    gaze.pix2deg()
-    gaze.pos2vel("savitzky_golay",
-                 window_length=window_length, degree=sg_degree)
-
-    # TODO pm: I think the problem here is that is is not clear what ivt is.. it is very hidden, what happens
-    #  and for people that are not familiar with ET preprocessing, they also cannot learn anything as it says not
-    #  explicitely that this is about fixations
-    gaze.detect("ivt")
-    gaze.detect("microsaccades")
-
-    for property, kwargs, event_name in [
-        ("location", dict(position_column="pixel"), "fixation"),
-        ("amplitude", dict(), "saccade"),
-        ("peak_velocity", dict(), "saccade"),
-        ("dispersion", dict(), "saccade"),
-        ("dispersion", dict(), "fixation"),
-    ]:
-        processor = pm.EventGazeProcessor((property, kwargs))
-        new_properties = processor.process(
-            gaze.events,
-            gaze,
-            identifiers=gaze.trial_columns,
-            name=event_name,
-        )
-        join_on = gaze.trial_columns + ["name", "onset", "offset"]
-        gaze.events.add_event_properties(new_properties, join_on=join_on)
 
 
 def preprocess_gaze(
@@ -365,36 +323,37 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
         df = trial.frame
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
-        # this is a bit of a hack to make the session names consistent for the file names as the multipleye
-        # session names contain infos when it was restarted
-        session = session.split("_")[:5]
-        session = "_".join(session)
         name = f"{session}_{trial}_{stimulus}_raw_data.csv"
         df = df['time', 'pixel_x', 'pixel_y', 'pupil', 'page']
         df.write_csv(directory / name)
 
 
-def save_fixation_data(directory: Path, session: str, data: pm.Gaze) -> None:
+def save_events_data(
+        event_type: str,
+        directory: Path,
+        session: str,
+        split_column: str,
+        name_columns: list[str],
+        file_columns: list[str],
+        data: pm.Gaze) -> None:
+
     directory.mkdir(parents=True, exist_ok=True)
 
-    data.events.unnest()
+    data_copy = data.clone()
+    data_copy.events.unnest()
 
-    # TODO pm save only fixations
-    # data.events.frame = data.events.fixations
-    fixations = data.events.frame.filter(pl.col("name") == "fixation")
+    events = data_copy.events.frame.filter(pl.col("name") == event_type)
 
-    # trials = data.events.split(by="trial", as_dict=False)
+    for group in events.partition_by(split_column):
+        name = f'{session}'
+        for col in name_columns:
+            if col not in group.columns:
+                raise ValueError(f"Column {col} not found in events data.")
+            name += f'_{group[col][0]}'
 
-    for group in fixations.partition_by("trial"):
-        trial_name = group["trial"][0]
-        stimulus = group["stimulus"][0]
-        # this is a bit of a hack to make the session names consistent for the file names as the multipleye
-        # session names contain infos when it was restarted
-        session = session.split("_")[:5]
-        session = "_".join(session)
+        name += f"_{event_type}.csv"
 
-        name = f"{session}_{trial_name}_{stimulus}_fixations.csv"
-        df = group.select(["onset", "duration", "location_x", "location_y", "page"])
+        df = group.select(file_columns)
         df.write_csv(directory / name)
 
 
@@ -415,16 +374,12 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
     for trial in trials:
         df = trial.frame
         # drop all rows where there has been no aoi mapped
+        # TODO: what to do about fixations were no aoi is mapped?
         df = df.filter(pl.col("char_idx").is_not_null())
         if df.is_empty():
             continue
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
-        # this is a bit of a hack to make the session names consistent for the file names as the multipleye
-        # session names contain infos when it was restarted
-        session = session.split("_")[:5]
-        session = "_".join(session)
-
         name = f"{session}_{trial}_{stimulus}_scanpath.csv"
 
         df = df[
@@ -485,22 +440,30 @@ def load_trial_level_raw_data(
     return gaze
 
 
-def load_trial_level_fixation_data(
+def load_trial_level_events_data(
         gaze: pm.Gaze,
         data_folder: Path,
-        file_pattern: str = '*_fixations.csv',
+        event_type: str,
+        file_pattern: str = '*_fixation',
 ) -> pm.Gaze:
-    regex_name = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_fixations"
+
+    if event_type not in DEFAULT_EVENT_PROPERTIES.keys():
+        raise ValueError(f"event_type must be {DEFAULT_EVENT_PROPERTIES.keys()}, got {event_type}")
 
     initial_df = pl.DataFrame()
-    for file in data_folder.glob(file_pattern):
+    for file in data_folder.glob('*.csv'):
         trial_df = pl.read_csv(file)
 
-        match = re.match(regex_name, file.stem)
-        trial_df = trial_df.with_columns(
-            pl.lit(match.group("trial")).alias("trial"),
-            pl.lit(match.group("stimulus")).alias("stimulus"),
-        )
+        match = re.match(file_pattern, file.name)
+        # go over groups in the name regex and add them as columns
+        if match is None:
+            print(file.name)
+        else:
+            for group_name in match.groupdict().keys():
+                if group_name not in trial_df.columns:
+                    trial_df = trial_df.with_columns(
+                        pl.lit(match.group(group_name)).alias(group_name)
+                    )
 
         initial_df = initial_df.vstack(trial_df)
 
@@ -510,7 +473,7 @@ def load_trial_level_fixation_data(
     )
 
     gaze.events.frame = gaze.events.frame.with_columns(
-        pl.lit("fixation").alias("name")
+        pl.lit(event_type).alias("name")
     )
 
     return gaze

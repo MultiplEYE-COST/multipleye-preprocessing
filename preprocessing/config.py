@@ -2,11 +2,17 @@ import math
 
 infinity = math.inf
 
-# Fixation detection (Savitzky-Golay)
+# GENERAL SETTINGS
+TRIAL_COLS = ["trial", "stimulus", "page"]
+
+
+# PREPROCESSING PARAMETERS
+## Fixation detection (Savitzky-Golay)
 SG_WINDOW_LENGTH = 50  # milliseconds
 SG_DEGREE = 2
 
-# Acceptable thresholds
+# SANITY CHECKS
+## Acceptable thresholds for sanity checks
 ACCEPTABLE_NUM_CALIBRATIONS = [3, 30]
 ACCEPTABLE_NUM_VALIDATION = (13, 30)
 ACCEPTABLE_AVG_VALIDATION_SCORES = (0.0, 0.8)
@@ -17,6 +23,7 @@ ACCEPTABLE_RECORDING_DURATIONS = (600, 7200)  # seconds
 ACCEPTABLE_NUM_PRACTICE_TRIALS = 2
 ACCEPTABLE_NUM_TRIALS = 10
 
+# TODO change this: this depends in the ET device and should be read from the metadata
 EXPECTED_SAMPLING_RATE_HZ = 1000  # Hz
 
 TRACKED_EYE = ["L", "R", "RIGHT", "LEFT"]

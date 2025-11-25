@@ -38,12 +38,10 @@ def fix_psycho_tests_structure(config_folder: str, data_folder: str):
             new_path = parent_folder / test
 
             old_path = Path(data_folder) / test / name
-            print(old_path)
             # find participant folder in old path and move to new session folder in a subfolder
             if old_path.exists():
                 participant_ids[p_id].append(test)
                 new_participant_path = session_folder / test
-                print(new_participant_path)
                 new_participant_path.mkdir(parents=True, exist_ok=True)
                 shutil.copytree(old_path, new_participant_path, dirs_exist_ok=True)
 

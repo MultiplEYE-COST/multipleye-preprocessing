@@ -13,24 +13,24 @@ from preprocessing.data_collection.stimulus import Stimulus
 def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> None:
     # pixels per centimeter on this screen
     px_per_cm = gaze.experiment.screen.width_px / gaze.experiment.screen.width_cm
-    print(f"px_per_cm = {px_per_cm}")
+    duration_ms_in_cm = 0.3  # 0.3 cm per 100 ms
 
     for page in stimulus.pages:
         screen_gaze = gaze.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
-            & (pl.col("screen") == f"page_{page.number}")
+            & (pl.col("page") == f"page_{page.number}")
         ).select(
             pl.col("pixel").list.get(0).alias("pixel_x"),
             pl.col("pixel").list.get(1).alias("pixel_y"),
         )
         page_events = gaze.events.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
-            & (pl.col("screen") == f"page_{page.number}")
+            & (pl.col("page") == f"page_{page.number}")
             & (pl.col("name") == "fixation")
         ).select(
             pl.col("duration"),
-            pl.col("location").list.get(0).alias("pixel_x"),
-            pl.col("location").list.get(1).alias("pixel_y"),
+            pl.col("location_x"),
+            pl.col("location_y"),
         )
 
         fig, ax = plt.subplots()
@@ -70,19 +70,19 @@ def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> No
         )
         screen_gaze = gaze.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
-            & (pl.col("screen") == screen_name)
+            & (pl.col("page") == screen_name)
         ).select(
-            pl.col("pixel").list.get(0).alias("pixel_x"),
-            pl.col("pixel").list.get(1).alias("pixel_y"),
+            pl.col("pixel_x"),
+            pl.col("pixel_y"),
         )
         page_events = gaze.events.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
-            & (pl.col("screen") == screen_name)
+            & (pl.col("page") == screen_name)
             & (pl.col("name") == "fixation")
         ).select(
             pl.col("duration"),
-            pl.col("location").list.get(0).alias("pixel_x"),
-            pl.col("location").list.get(1).alias("pixel_y"),
+            pl.col("location_x"),
+            pl.col("location_y"),
         )
 
         fig, ax = plt.subplots()
@@ -122,20 +122,19 @@ def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> No
         )
         screen_gaze = gaze.frame.filter(
             (pl.col("trial") == f"trial_{stimulus.id}")
-            & (pl.col("screen") == screen_name)
+            & (pl.col("page") == screen_name)
         ).select(
-            pl.col("pixel").list.get(0).alias("pixel_x"),
-
-            pl.col("pixel").list.get(1).alias("pixel_y"),
+            pl.col("pixel_x"),
+            pl.col("pixel_y"),
         )
         page_events = gaze.events.frame.filter(
             (pl.col("stimulus") == f"trial_{stimulus.id}")
-            & (pl.col("screen") == screen_name)
+            & (pl.col("page") == screen_name)
             & (pl.col("name") == "fixation")
         ).select(
             pl.col("duration"),
-            pl.col("location").list.get(0).alias("pixel_x"),
-            pl.col("location").list.get(1).alias("pixel_y"),
+            pl.col("location_x"),
+            pl.col("location_y"),
         )
 
         fig, ax = plt.subplots()

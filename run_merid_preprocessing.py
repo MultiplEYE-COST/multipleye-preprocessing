@@ -40,10 +40,15 @@ def run_multipleye_preprocessing(data_collection: str):
 
         sess.pm_gaze_metadata = gaze_metadata
 
-        peyepeline.detect_fixation_and_saccades(
+        peyepeline.detect_fixations(
             gaze,
         )
-        peyepeline.save_fixation_data(output_folder / 'fixations', sess.session_identifier, gaze)
+
+        peyepeline.detect_saccades(
+            gaze,
+        )
+        # note that saccades are not yet saved
+        peyepeline.save_events_data(output_folder / 'fixations', sess.session_identifier, gaze)
 
         peyepeline.map_fixations_to_aois(
             gaze,
