@@ -1,8 +1,0 @@
-pymovements
-matplotlib~=3.8.4
-polars>=1.28.0
-pandas~=2.2.2
-numpy~=1.26.4
-tqdm~=4.66.4
-pillow==10.4.0
-fastexcel==0.12.0
