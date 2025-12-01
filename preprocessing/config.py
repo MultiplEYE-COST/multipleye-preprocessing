@@ -23,7 +23,7 @@ ACCEPTABLE_RECORDING_DURATIONS = (600, 7200)  # seconds
 ACCEPTABLE_NUM_PRACTICE_TRIALS = 2
 ACCEPTABLE_NUM_TRIALS = 10
 
-# TODO change this: this depends in the ET device and should be read from the metadata
+# TODO change this: this depends on the ET device and should be read from the metadata
 EXPECTED_SAMPLING_RATE_HZ = 1000  # Hz
 
 TRACKED_EYE = ["L", "R", "RIGHT", "LEFT"]
