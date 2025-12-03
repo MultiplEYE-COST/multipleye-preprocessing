@@ -1,9 +1,26 @@
+"""Utilities to preprocess psychometric test outputs into simple summary metrics.
+
+This module provides small helpers to load raw CSV exports for several common
+psychometric tasks and compute concise summaries such as mean reaction time and
+accuracy, optionally grouped by condition where applicable.
+
+Covered tasks:
+- Lewandowsky WMC battery
+- Rapid Automatised Naming (RAN)
+- Stroop
+- Flanker
+- PLAB (Pimsleur Language Aptitude Battery)
+- WikiVocab (incl. mention of LexTALE availability for some languages)
+
+Background and task descriptions:
+https://github.com/MultiplEYE-COST/MultiplEYE-psychometric-tests#readme
+"""
+
 import warnings
 from math import nan
 from pathlib import Path
 
-from pandas import read_csv, DataFrame, to_numeric
-from pandas.core.roperator import rand_
+from pandas import read_csv, DataFrame
 
 from preprocessing.config import PSYCHOMETRIC_TESTS_DIR, PSYM_LWMC_DIR, PSYM_RAN_DIR, \
     PSYM_STROOP_FLANKER_DIR, PSYM_WIKIVOCAB_DIR, PSYM_PLAB_DIR
@@ -92,12 +109,15 @@ def _is_valid_folder(folder: Path) -> bool:
 
 
 def preprocess_stroop(stroop_flanker_dir: Path):
-    """
-    
-    Extract 'stim_type', 'stroop_key.rt' and 'stroop_key.corr',
-    to calculate reaction time and accuracy, grouped by stimulus type.
-    
-    
+    """Preprocess Stroop test CSVs and return RT and accuracy by stimulus type.
+
+    Extract 'stim_type', 'stroop_key.rt' and 'stroop_key.corr', then compute
+    reaction time and accuracy grouped by stimulus type.
+
+    **Stroop**: The Stroop test is a test of cognitive control that measures the ability to inhibit
+    automatic responses. The test consists of three parts:
+    a color naming task, a word reading task, and a color-word naming task.
+
     Parameters
     ----------
     stroop_flanker_dir : Path
@@ -105,7 +125,9 @@ def preprocess_stroop(stroop_flanker_dir: Path):
  
     Returns
     -------
-    
+    DataFrame
+        A DataFrame indexed by ``stim_type`` with columns ``rt_mean`` and
+        ``accuracy``.
     """
     df = _find_one_filetype_with_columns(
         stroop_flanker_dir, ['stim_type', 'stroop_key.rt', 'stroop_key.corr']
@@ -119,11 +141,15 @@ def preprocess_stroop(stroop_flanker_dir: Path):
 
 
 def preprocess_flanker(stroop_flanker_dir: Path):
-    """
+    """Preprocess Flanker test CSVs and return RT and accuracy by stimulus type.
 
-    Extract 'stim_type', 'flanker_key.rt' and 'flanker_key.corr',
-    to calculate reaction time and accuracy, grouped by stimulus type.
+    Extract 'stim_type', 'flanker_key.rt' and 'flanker_key.corr', then compute
+    reaction time and accuracy grouped by stimulus type.
 
+    **Flanker**: The Flanker test is a test of cognitive control that measures the ability to
+    inhibit irrelevant information.
+    The test consists of a series of trials in which participants must respond to a central target
+    while ignoring flanking distractors.
 
     Parameters
     ----------
@@ -132,7 +158,9 @@ def preprocess_flanker(stroop_flanker_dir: Path):
 
     Returns
     -------
-
+    DataFrame
+        A DataFrame indexed by ``stim_type`` with columns ``rt_mean`` and
+        ``accuracy``.
     """
     df = _find_one_filetype_with_columns(
         stroop_flanker_dir, ['stim_type', 'Flanker_key.rt', 'Flanker_key.corr']
@@ -146,14 +174,29 @@ def preprocess_flanker(stroop_flanker_dir: Path):
 
 
 def preprocess_lwmc(lwmc_dir: Path):
+    """
+
+    **Lewandowsky WMC battery**:
+    Working Memory Capacity (WMC) is a measure of the amount of information that can be held in mind
+    and processed at one time.
+    It is a key component of cognitive control and is strongly related to general intelligence.
+    The Lewandowsky WMC battery is a set of tasks that measure WMC.
+    The battery consists of four tasks:
+    Memory Update, Operation Span, Sentence Span, and Spatial Short-Term Memory.
+    """
     raise NotImplementedError
 
 
 def preprocess_ran(ran_dir: Path):
-    """
+    """Preprocess RAN task output and return the trials with their reading times.
 
     Finds the only .csv in the folder and extracts the 'Trial' and 'Reading_Time' columns.
-    The sudio files and logs are kept untouched.
+    The audio files and logs are kept untouched.
+
+    **RAN task**:
+    The Rapid Automatised Naming (RAN) task is a test of the speed and efficiency of naming digits.
+    It is used to assess the speed of processing and
+    the ability to quickly retrieve information from memory.
 
     Parameters
     ----------
@@ -174,10 +217,15 @@ def preprocess_ran(ran_dir: Path):
 
 
 def preprocess_wikivocab(wv_dir: Path):
-    """
+    """Preprocess WikiVocab task output and compute mean RT and accuracy.
 
     Extract 'correct_answer', 'real_answer' and 'RT' columns, infer a 'correctness' column,
     and return the mean reaction time and accuracy.
+
+    **WikiVocab**:
+    The WikiVocab test is a test of vocabulary knowledge that is based on the Wikipedia corpus.
+    It is designed to measure the breadth of an individual's vocabulary knowledge.
+    For English, German, Dutch, Chinese, the LexTALE test is also available.
 
     Parameters
     ----------
@@ -199,11 +247,14 @@ def preprocess_lextale(lt_dir: Path):
 
 
 def preprocess_plab(plab_dir: Path):
-    """
+    """Preprocess PLAB task output and compute mean RT and overall accuracy.
 
     Extract the 'correctness' and 'rt' column to calculate the mean and accuracy.
-    
-    
+
+    **PLAB test**: The PLAB test is Pimsleur Language Aptitude Battery test.
+    It is a test of language aptitude that is designed to measure an individual's ability to learn
+    a foreign language.
+
     Parameters
     ----------
     plab_dir : Path
