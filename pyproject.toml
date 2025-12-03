@@ -19,3 +19,8 @@ pymovements = { git = "https://github.com/pymovements/pymovements.git", branch =
 
 [tool.setuptools.packages.find]
 include = ["preprocessing"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]

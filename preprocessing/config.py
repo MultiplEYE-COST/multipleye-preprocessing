@@ -16,7 +16,7 @@ DATASET_DIR = DATA_DIR / 'MultiplEYE_SQ_CH_Zurich_1_2025'
 PSYCHOMETRIC_TESTS_DIR = DATASET_DIR / 'psychometric-tests-sessions'
 PSYM_CORE_DATA = PSYCHOMETRIC_TESTS_DIR / 'core_data'
 PSYM_PARTICIPANT_CONFIGS = PSYM_CORE_DATA / 'participant_configs_SQ_CH_1'
-#### Tests - folder names inside core_data folder / per-participant folder after restructuring
+#### Tests - folder names inside PSYCHOMETRIC_TESTS_DIR folder / per-participant folder after restructuring
 PSYM_LWMC_DIR = Path('WMC/')
 PSYM_RAN_DIR = Path('RAN/')
 PSYM_STROOP_FLANKER_DIR = Path('Stroop_Flanker/')
