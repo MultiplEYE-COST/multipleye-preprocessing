@@ -166,3 +166,7 @@ cython_debug/
 
 /template_and_notes/output/
 /preprocessed_data/
+
+# outputs
+public/*
+jupyter_execute/*
