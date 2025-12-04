@@ -120,8 +120,8 @@ def run_multipleye_preprocessing(data_collection: str):
 
         # perform the multipleye specific stuff
         multipleye.create_session_overview(sess.session_identifier, path=output_folder)
-        # pbar.set_description(f'Creating sanity check {idf}:')
-        # multipleye.create_sanity_check_report(gaze, sess.session_identifier)
+        pbar.set_description(f'Creating sanity check {idf}:')
+        multipleye.create_sanity_check_report(gaze, sess.session_identifier)
 
     multipleye.create_dataset_overview(path=preprocessed_data_folder)
     multipleye.parse_participant_data(preprocessed_data_folder / "participant_data.csv")
@@ -131,8 +131,9 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
 
+
 if __name__ == '__main__':
     parse_args()
 
-    data_collection_name = 'MultiplEYE_SQ_CH_Zurich_1_2025'
+    data_collection_name = 'MultiplEYE_PL_PL_Warsaw_1_2025'
     run_multipleye_preprocessing(data_collection_name)
