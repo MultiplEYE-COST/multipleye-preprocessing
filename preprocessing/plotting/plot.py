@@ -10,10 +10,14 @@ from matplotlib.patches import Circle
 from preprocessing.data_collection.stimulus import Stimulus
 
 
-def plot_gaze(gaze: pm.GazeDataFrame, stimulus: Stimulus, plots_dir: Path) -> None:
+def plot_gaze(
+        gaze: pm.Gaze,
+        stimulus: Stimulus,
+        plots_dir: Path,
+        duration_ms_in_cm: float = 0.03
+) -> None:
     # pixels per centimeter on this screen
     px_per_cm = gaze.experiment.screen.width_px / gaze.experiment.screen.width_cm
-    duration_ms_in_cm = 0.3  # 0.3 cm per 100 ms
 
     for page in stimulus.pages:
         screen_gaze = gaze.frame.filter(
