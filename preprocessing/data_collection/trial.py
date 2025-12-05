@@ -3,7 +3,6 @@ from dataclasses import dataclass
 
 @dataclass
 class Trial:
-
     participant_id: int
     session_id: int
     stimulus_id: str
@@ -17,4 +16,6 @@ class Trial:
     familiarity_rating_1: int
     familiarity_rating_2: int
     difficulty_rating: int
-
+    validation_before_start: bool
+    calibration_before_start: bool
+    validation_before_start_score: float

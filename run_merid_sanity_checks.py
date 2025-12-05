@@ -4,7 +4,6 @@ import warnings
 from pathlib import Path
 
 from preprocessing.data_collection.merid_data_collection import Merid
-from preprocessing.data_collection.multipleye_data_collection import MultipleyeDataCollection
 
 
 def run_merid_sanity_checks(data_collection_name: str, full_path: str = None, create_plots: bool = True,

@@ -1,0 +1,9 @@
+- separate sanity checks from the preprocessing steps
+- go through TODOS!!
+- decide if gaze is consistently nested or unnested
+
+sanity checks:
+  - use the pm messages attribute
+  -
+- TESTS!!!
+	- the ones that are there atm were just a first draft

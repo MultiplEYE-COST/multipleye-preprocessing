@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 
 import polars as pl
@@ -22,7 +21,7 @@ OPTIONAL_SCREENS = ['optional_break_screen', 'fixation_trigger:skipped_by_experi
                     'obligatory_break', 'recalibration']
 
 RATING_SCREENS = ['showing_subject_difficulty_screen', 'showing_familiarity_rating_screen_1',
-                       'showing_familiarity_rating_screen_2']
+                  'showing_familiarity_rating_screen_2']
 
 
 def _report_warning(message: str, report_file: Path):
@@ -83,21 +82,21 @@ def sanity_check_gaze_frame(gaze, stimuli, report_file):
         # print(f"Checking {stimulus.name}")
         stimulus_frame = gaze.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
-        ).unique("screen")
+        ).unique("page")
         # check if all pages are present
         for page in stimulus.pages:
-            if f"page_{page.number}" not in stimulus_frame["screen"].to_list():
-               # print(f"Missing page {page.number}")
+            if f"page_{page.number}" not in stimulus_frame["page"].to_list():
+                # print(f"Missing page {page.number}")
                 _report_warning(f"Missing page {page.number} in asc file", report_file)
         # check if all questions are present
         for question in stimulus.questions:
             if f"question_{question.id}" not in stimulus_frame[
-                "screen"].to_list() and f"question_{question.id[1:]}" not in stimulus_frame["screen"].to_list():
+                "page"].to_list() and f"question_{question.id[1:]}" not in stimulus_frame["page"].to_list():
                 _report_warning(f"Missing question_{question.name} in asc file or in experiment frame", report_file)
-               # print(stimulus_frame["screen"])
+            # print(stimulus_frame["screen"])
 
         for rating in stimulus.ratings:
-            if f"{rating.name}" not in stimulus_frame["screen"].to_list():
+            if f"{rating.name}" not in stimulus_frame["page"].to_list():
                 # print(f"Missing instruction {rating.name}")
                 _report_warning(f"Missing rating {rating.name} in asc file", report_file)
 
@@ -126,7 +125,6 @@ def check_messages(
 
     if 7 in stimuli_order:
         stimuli_order.remove(7)
-
 
     trial = 0
     for stim_id in stimuli_order:
@@ -162,7 +160,7 @@ def check_messages(
             # if the session has been restarted, there might be a mismatch between trial numbers and stimulus ids
             if restarted:
                 while updated_trial <= 12:
-                    updated_trial +=1
+                    updated_trial += 1
                     pattern = f"_trial_{updated_trial}_stimulus_{current_stimulus.name}_{current_stimulus.id}"
                     pattern = f"start_recording{pattern}_page_1"
                     if pattern in messages_only:
@@ -174,7 +172,6 @@ def check_messages(
                 raise e
 
         last_msg_timestamp = messages[last_msg_index].get("timestamp")
-
 
         # if it is not the last stimulus, check until the next stimulus start
         if next_stimulus:
@@ -199,7 +196,8 @@ def check_messages(
                     current_pattern = f"{msg}{pattern}_page_{page.number}"
 
                 if current_pattern not in trial_messages_only:
-                    _report_warning(f"{current_stimulus.name}: Missing {current_pattern} Messages in ASC file", report_file)
+                    _report_warning(f"{current_stimulus.name}: Missing {current_pattern} Messages in ASC file",
+                                    report_file)
 
                 else:
                     last_msg_index = trial_messages_only.index(current_pattern) + last_msg_index
@@ -232,15 +230,18 @@ def _check_optional_screens(messages, messages_only, report_file):
                         temp_index += 1
                         if temp_index < len(messages):
                             msg = messages[temp_index]
-                            if 'optional_break_duration' in msg['message'] or 'obligatory_break_duration' in msg['message']:
+                            if 'optional_break_duration' in msg['message'] or 'obligatory_break_duration' in msg[
+                                'message']:
                                 text = msg['message'].split(' ', )[0]
                                 duration = float(msg['message'].split(' ', )[1]) / 1000
-                                _report_information(f"{text} lasting {duration:.2f} seconds found at {msg['timestamp']}",
-                                                    report_file)
+                                _report_information(
+                                    f"{text} lasting {duration:.2f} seconds found at {msg['timestamp']}",
+                                    report_file)
                                 break
                     else:
-                        _report_warning(f"{optional_screen} found at {messages[index]['timestamp']} but no duration found",
-                                        report_file)
+                        _report_warning(
+                            f"{optional_screen} found at {messages[index]['timestamp']} but no duration found",
+                            report_file)
 
                 else:
                     msg = messages[index]
@@ -281,45 +282,38 @@ def _check_question_screens(current_stimulus, messages, msg_to_find, pattern, re
 
 def _extract_reading_time(stimulus_name, index_obligatory_break, last_msg_index, last_msg_timestamp, messages,
                           index_next, report_file, trial):
+    # if there was an obligatory break in between two trials, check the time for the break and the time for the stimulus
+    if index_next > index_obligatory_break > last_msg_index:
+        break_timestamp = messages[index_obligatory_break].get("timestamp")
 
-        # if there was an obligatory break in between two trials, check the time for the break and the time for the stimulus
-        if index_next > index_obligatory_break > last_msg_index:
-            break_timestamp = messages[index_obligatory_break].get("timestamp")
+        trial_duration = round(((float(break_timestamp) - float(last_msg_timestamp)) / 60000), 2)
+        _report_information(f"{trial}: {stimulus_name}: {trial_duration} minutes",
+                            report_file)
 
-            trial_duration = round(((float(break_timestamp) - float(last_msg_timestamp)) / 60000), 2)
-            _report_information(f"{trial}: {stimulus_name}: {trial_duration} minutes",
-                                report_file)
+        next_timestamp = messages[index_next].get("timestamp")
 
-            next_timestamp = messages[index_next].get("timestamp")
+        break_duration = round(((float(next_timestamp) - float(break_timestamp)) / 60000), 2)
+        _report_information(
+            f"obligatory break: {break_duration} minutes",
+            report_file
+        )
 
-            break_duration = round(((float(next_timestamp) - float(break_timestamp)) / 60000), 2)
-            _report_information(
-                f"obligatory break: {break_duration} minutes",
-                report_file
-            )
-
-        else:
-            next_timestamp = messages[index_next].get("timestamp")
-            trial_duration = round(((float(next_timestamp) - float(last_msg_timestamp)) / 60000), 2)
-            _report_information(
-                f"{trial}:  {stimulus_name}: {trial_duration} minutes",
-                report_file)
+    else:
+        next_timestamp = messages[index_next].get("timestamp")
+        trial_duration = round(((float(next_timestamp) - float(last_msg_timestamp)) / 60000), 2)
+        _report_information(
+            f"{trial}:  {stimulus_name}: {trial_duration} minutes",
+            report_file)
 
 
 def _check_validation_screen(messages, file, stimulus_name):
     # print(last_index, index_next_stimulus)
     if "validation_before_stimulus" not in messages and "final_validation" not in messages:
-
         _report_warning(f"{stimulus_name}: Missing validation_before_stimulus screen in asc file", file)
+
 
 def _check_rating_screens(messages, file):
     for rating in RATING_SCREENS:
         if f"{rating}" not in messages:
             # print(f"Missing instruction {instruction}")
             _report_warning(f"Missing rating {rating} in asc file", file)
-
-
-
-
-
-

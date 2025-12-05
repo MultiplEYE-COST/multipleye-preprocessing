@@ -1,5 +1,4 @@
-git+https://github.com/aeye-lab/pymovements@180d7e5f4535221a87fe9b8a44cfb1406231a0bc
-
+pymovements
 matplotlib~=3.8.4
 polars>=1.28.0
 pandas~=2.2.2

@@ -1,16 +1,16 @@
 import argparse
+import re
 import shutil
-import zipfile
-from pathlib import Path
 import tarfile
+from pathlib import Path
+
+import pandas as pd
 
 from preprocessing.utils.restructure_psycho_tests import fix_psycho_tests_structure
 
 
 def prepare_language_folder(data_collection_name):
-
     _, lang, country, city, lab_no, year = data_collection_name.split("_")
-
 
     # Check if the data collection folder exists
     this_repo = Path().resolve()
@@ -32,17 +32,19 @@ def prepare_language_folder(data_collection_name):
             print(f"Extracted 'eye-tracking-sessions' from '{zipped_path}'")
         else:
             raise FileNotFoundError(f"The 'eye-tracking-sessions' folder does not exist in '{data_folder_path}'. "
-                                "Please ensure the data collection is correctly structured.")
+                                    "Please ensure the data collection is correctly structured.")
 
     # check if there is a core_sessions folder and if yes, check if there are any folder inside and then move them up and delete the core_sessions folder
-    core_sessions_path = eye_tracking_sessions_path / "core_sessions"
-    if core_sessions_path.exists():
-        core_folders = list(core_sessions_path.glob("*"))
-        if len(core_folders) > 0:
-            for folder in core_folders:
-                shutil.move(str(folder), str(eye_tracking_sessions_path))
-            shutil.rmtree(core_sessions_path)
-            print(f"Moved folders from 'core_sessions' to 'eye-tracking-sessions' and removed 'core_sessions' folder.")
+    core_session_paths = [eye_tracking_sessions_path / "core_sessions", eye_tracking_sessions_path / "core_dataset"]
+    for core_session_path in core_session_paths:
+        if core_session_path.exists():
+            core_folders = list(core_session_path.glob("*"))
+            if len(core_folders) > 0:
+                for folder in core_folders:
+                    shutil.move(str(folder), str(eye_tracking_sessions_path))
+                shutil.rmtree(core_session_path)
+                print(
+                    f"Moved folders from 'core_sessions' to 'eye-tracking-sessions' and removed 'core_sessions' folder.")
 
     psychometric_tests_path = data_folder_path / "psychometric-tests-sessions"
     if not psychometric_tests_path.exists():
@@ -83,12 +85,50 @@ def prepare_language_folder(data_collection_name):
     stimulus_folder_path = data_folder_path / f"stimuli_{data_collection_name}"
 
     if not stimulus_folder_path.exists():
-        print(f'The stimulus folder stimuli_{data_collection_name} does not exist. Check and if necessary, ask team to upload.')
+        print(
+            f'The stimulus folder stimuli_{data_collection_name} does not exist. Check and if necessary, ask team to upload.')
     else:
         config_path = stimulus_folder_path / "config"
         if not config_path.exists():
             raise FileNotFoundError(f"The stimulus config folder not found in '{stimulus_folder_path}'. "
                                     "Please check and restructure or possibly unzip the stimulus folder.")
+
+    # if aoi files are not yet split into questions and texts, do it here:
+    aoi_path = data_folder_path / stimulus_folder_path / f"aoi_stimuli_{lang}_{country}_{lab_no}"
+
+    # get all aoi files, if there are only 12 files, they are not yet split
+    aoi_files = list(aoi_path.glob("*.csv"))
+    if len(aoi_files) == 12:
+        print("Splitting AOI files into text and question AOIs...")
+        for aoi_file in aoi_files:
+            aoi_df = pd.read_csv(aoi_file)
+            # split the aoi_df into two parts, one for the stimulus and one for the questions
+            aoi_df_texts = aoi_df[~aoi_df['page'].str.contains('question', na=False)]
+            aoi_df_texts.drop(columns=['question_image_version'], inplace=True, errors='ignore')
+            aoi_df_questions = aoi_df[aoi_df['page'].str.contains('question', na=False)]
+
+            aoi_df_texts.to_csv(aoi_file, sep=',', index=False, encoding='UTF-8')
+
+            question_path = aoi_path / (aoi_file.stem + "_questions" + aoi_file.suffix)
+            aoi_df_questions.to_csv(question_path, sep=',', index=False,
+                                    encoding='UTF-8')
+
+    elif len(aoi_files) == 24:
+        pass
+    else:
+        raise ValueError(f"Unexpected number of AOI files ({len(aoi_files)}) found in '{aoi_path}'. "
+                         "Expected 12 (not split) or 24 (already split into texts and questions).")
+
+
+def extract_stimulus_version_number_from_asc(asc_file_path: Path) -> int:
+    pattern = r"MSG\s+\d+\s+stimulus_order_version:\s+(?P<version_num>\d\d?\d?)\n"
+
+    with open(asc_file_path) as asc_file:
+        for line in asc_file:
+            if match := re.match(pattern, line):
+                return int(match.group("version_num"))
+
+        return -1
 
 
 def parse_args():

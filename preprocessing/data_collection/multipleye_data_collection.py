@@ -1,22 +1,18 @@
 import json
+import logging
 import os
-import pickle
 import re
+import subprocess
 import warnings
 from functools import partial
 from pathlib import Path
-import pprint
-from turtledemo.penrose import start
 
-import polars as pl
-import re
-import tempfile
+import numpy as np
 import pandas as pd
-import logging
-
+import polars as pl
+import pymovements as pm
 import yaml
 from polars.polars import ComputeError
-import pymovements as pm
 from tqdm import tqdm
 
 from preprocessing.checks.et_quality_checks import \
@@ -24,17 +20,36 @@ from preprocessing.checks.et_quality_checks import \
     check_metadata, report_to_file_metadata as report_meta, check_validation_requirements
 from preprocessing.checks.formal_experiment_checks import check_all_screens_logfile, sanity_check_gaze_frame, \
     check_messages
-
-from preprocessing.data_collection.data_collection import DataCollection
-from preprocessing.plotting.plot import load_data, preprocess, plot_gaze, plot_main_sequence
+from preprocessing.data_collection.session import Session
 from preprocessing.data_collection.stimulus import LabConfig, Stimulus
+from preprocessing.plotting.plot import plot_gaze, plot_main_sequence
 from preprocessing.psychometric_tests.preprocess_psychometric_tests import preprocess_plab, preprocess_ran, \
     preprocess_stroop, preprocess_flanker, preprocess_wikivocab, preprocess_lwmc
 from preprocessing.utils.fix_pq_data import remap_wrong_pq_values
+from preprocessing.utils.prepare_language_folder import extract_stimulus_version_number_from_asc
+
+EYETRACKER_NAMES = {
+    'eyelink': [
+        'EyeLink 1000 Plus',
+        'EyeLink II',
+        'EyeLink 1000',
+        'EyeLink Portable Duo',
+    ],
+}
 
 
-class MultipleyeDataCollection(DataCollection):
+def eyelink(method):
+    def wrapper(self):
+        if self.eye_tracker == 'eyelink':
+            return method(self)
+        else:
+            raise ValueError(f'Function {method.__name__} is only supported for EyeLink data. '
+                             f'You are using {self.eye_tracker}')
 
+    return wrapper
+
+
+class MultipleyeDataCollection:
     stimulus_names = {
         "PopSci_MultiplEYE": 1,
         "Ins_HumanRights": 2,
@@ -55,7 +70,22 @@ class MultipleyeDataCollection(DataCollection):
     num_sessions = 1
     overview = {}
 
+    data_collection_name: str
+    year: int
+    country: str
+    session_folder_regex: str = ''
+    data_root: Path = None
+    excluded_sessions: list = []
+    type = 'MultiplEYE'
+
+    # TODO: read instruction excel
+
     def __init__(self,
+                 data_collection_name: str,
+                 stimulus_language: str,
+                 country: str,
+                 year: int,
+                 eye_tracker: str,
                  config_file: Path,
                  stimulus_dir: Path,
                  lab_number: int,
@@ -65,7 +95,28 @@ class MultipleyeDataCollection(DataCollection):
                  session_folder_regex: str,
                  # stimuli: list[Stimulus],
                  **kwargs):
-        super().__init__(**kwargs)
+        self.sessions: dict[str, Session] = {}
+        # TODO: in theory this can be multiple languages for the stimuli..
+        self.language = stimulus_language
+        self.country = country
+        self.year = year
+        self.data_collection_name = data_collection_name
+
+        self.include_pilots = kwargs.get('include_pilots', False)
+        self.reports_dir = kwargs.get('output_dir', '')
+        self.pilot_folder = kwargs.get('pilot_folder', '')
+        self.preprocessing_dir = kwargs.get('preprocessing_dir', '')
+
+        for short_name, long_name in EYETRACKER_NAMES.items():
+            if eye_tracker in long_name:
+                self.eye_tracker = short_name
+                self.eye_tracker_name = long_name
+                break
+
+        else:
+            raise ValueError(f'Eye tracker {eye_tracker} not yet supported. '
+                             f'Supported eye trackers are: '
+                             f'{np.array([val for k, val in EYETRACKER_NAMES.items()]).flatten()}')
         self.config_file = config_file
         self.stimulus_dir = stimulus_dir
         self.lab_number = lab_number
@@ -74,15 +125,19 @@ class MultipleyeDataCollection(DataCollection):
         self.data_root = data_root
         self.session_folder_regex = session_folder_regex
         self.psychometric_tests = kwargs.get('psychometric_tests', [])
-        # load all the manual corrections from the yaml file
 
+        # load all the manual corrections from the yaml file
         self._load_manual_corrections()
 
         open(self.data_root.parent / 'preprocessing_logs.txt', 'w').close()
 
-        if not self.output_dir:
-            self.output_dir = self.data_root.parent / 'quality_reports'
-            self.output_dir.mkdir(exist_ok=True)
+        if not self.reports_dir:
+            self.reports_dir = self.data_root.parent / 'quality_reports'
+            self.reports_dir.mkdir(exist_ok=True)
+
+        if not self.preprocessing_dir:
+            self.preprocessing_dir = self.data_root.parent / 'preprocessing'
+            self.preprocessing_dir.mkdir(exist_ok=True)
 
         self.add_recorded_sessions(
             self.data_root, self.session_folder_regex, convert_to_asc=True)
@@ -93,27 +148,154 @@ class MultipleyeDataCollection(DataCollection):
 
         # load stimulus order versions to know what stimulus randomization was used for each participant
         stim_order_versions = self.stimulus_dir / 'config' / \
-            f'stimulus_order_versions_{self.language}_{self.country}_{self.lab_number}.csv'
+                              f'stimulus_order_versions_{self.language}_{self.country}_{self.lab_number}.csv'
         stim_order_versions = pd.read_csv(stim_order_versions)
         self.stim_order_versions = stim_order_versions[stim_order_versions['participant_id'].notnull(
         )]
 
+        if self.stim_order_versions.empty:
+            warnings.warn(f"Stimulus order version is not updated with participants numbers.\nPlease ask the team to "
+                          f"upload the correct stimulus folder that has been used and changed during the experiment.\n"
+                          f"Version will be extracted from the asc files.")
+            self.stim_order_versions = stim_order_versions
+
         self.prepare_session_level_information()
-        self.parse_participant_data()
 
         self.overview = self.create_dataset_overview()
 
     def __repr__(self):
         if not self.overview:
-            print("no overview created yet")
+            self.overview = self.create_dataset_overview()
 
         return "\n".join("{}\t{}".format(k, v) for k, v in self.overview.items())
+
+    # TODO: check these chatgpt functions :D
+    def __iter__(self):
+        self._iter_keys = sorted(self.sessions)
+        self._iter_index = 0
+        return self
+
+    def __next__(self):
+        if self._iter_index >= len(self._iter_keys):
+            raise StopIteration
+        key = self._iter_keys[self._iter_index]
+        self._iter_index += 1
+        return self.sessions[key]
+
+    def __getitem__(self, item):
+        return self.sessions[item]
+
+    def add_recorded_sessions(self,
+                              data_root: Path,
+                              session_folder_regex: str = '',
+                              session_file_suffix: str = '',
+                              convert_to_asc: bool = False) -> None:
+        """
+
+        :param convert_to_asc: If True, the asc files for the recorded sessions are generated. Only works if the eye
+        tracker is an Eyelink.
+        :param data_root: Specifies the root folder where the data is stored
+        :param session_folder_regex: The pattern for the session folder names. It is possible to include infomration in
+        regex groups. Those will be parsed directly and stored in the session object.
+        Those folders should be in the root folder. If '' then the root folder is assumed to contain all files
+        from the sessions.
+        :param session_file_suffix: The pattern for the session file names. If no pattern is given, all files in the
+        session folder are assumed to be the data files depending on the eye tracker.
+        """
+
+        self.data_root = data_root
+        self.session_folder_regex = session_folder_regex
+
+        if not session_file_suffix:
+            # TODO: add configs for each eye tracker such that we don't always have to loop through all eye trackers
+            #  but can write generic code. E.g. self.eye_tracker.session_file_regex
+            if self.eye_tracker == 'eyelink':
+                session_file_suffix = r'.edf'
+
+        # get a list of all folders in the data folder
+        if session_folder_regex:
+
+            items = os.scandir(self.data_root)
+            pilots = []
+            if self.include_pilots:
+                pilots = os.scandir(self.data_root / self.pilot_folder)
+                items = list(items) + list(pilots)
+
+            for item in items:
+                if item.is_dir():
+                    if re.match(session_folder_regex, item.name, re.IGNORECASE):
+
+                        if item.name not in self.excluded_sessions:
+
+                            session_file = list(Path(item.path).glob('*' + session_file_suffix))
+
+                            if len(session_file) == 0:
+                                raise ValueError(f'No files found in folder {item.name} that match the pattern '
+                                                 f'{session_file_suffix}')
+
+                            elif len(session_file) > 1:
+                                raise ValueError(
+                                    f'More than one file found in folder {item.name} that match the pattern '
+                                    f'{session_file_suffix}. Please specify a more specific pattern and check '
+                                    f'your data.')
+                            else:
+                                session_file = session_file[0]
+
+                            # TODO: introduce a session object?
+                            is_pilot = self.include_pilots and (item in pilots)
+
+                            ses = Session(
+                                participant_id=int(item.name.split('_')[0]),
+                                session_identifier=item.name,
+                                session_folder_path=Path(item.path),
+                                session_file_path=session_file,
+                                session_file_name=session_file.name,
+                                is_pilot=is_pilot,
+                            )
+
+                            self.sessions[item.name] = ses
+
+                            # check if asc files are already available
+                            if not convert_to_asc and self.eye_tracker == 'eyelink':
+                                asc_file = Path(item.path).glob('*.asc')
+                                if len(list(asc_file)) == 1:
+                                    asc_file = list(asc_file)[0]
+                                    self.sessions[item.name].asc_path = asc_file
+                                    print(f'Found asc file for {item.name}.')
+
+                    else:
+                        print(f'Folder {item.name} does not match the regex pattern {session_folder_regex}. '
+                              f'Not considered as session.')
+
+        if convert_to_asc:
+            self.convert_edf_to_asc()
+
+    @eyelink
+    def convert_edf_to_asc(self) -> None:
+
+        if not self.sessions:
+            raise ValueError('No sessions added. Please add sessions first.')
+
+        # TODO: make sure that edf2asc is installed on the computer
+        for session in tqdm(self.sessions, desc='Converting EDF to ASC'):
+            path = Path(self.sessions[session].session_file_path)
+
+            if not path.with_suffix('.asc').exists():
+
+                subprocess.run(['edf2asc', path])
+
+                asc_path = path.with_suffix('.asc')
+                self.sessions[session].asc_path = asc_path
+            else:
+                asc_path = path.with_suffix('.asc')
+                self.sessions[session].asc_path = asc_path
+                # print(f'ASC file already exists for {session}.')
 
     @staticmethod
     def load_lab_config(stimulus_dir: Path, lang: str,
                         country: str, labnum: int, city: str, year: int, ) -> LabConfig:
         """
-        Load the stimuli and lab configuration from the specified directory.
+        Load the lab configuration from the specified directory.
         :param stimulus_dir: The directory where the stimuli are stored.
         :param lang: The language of the stimuli.
         :param country: The country of the stimuli.
@@ -125,7 +307,7 @@ class MultipleyeDataCollection(DataCollection):
         return LabConfig.load(stimulus_dir, lang, country, labnum, city, year)
 
     @classmethod
-    def create_from_data_folder(cls, data_dir: str,
+    def create_from_data_folder(cls, data_dir: str | Path,
                                 additional_folder: str | None = None,
                                 include_pilots: bool = False) -> "MultipleyeDataCollection":
         """
@@ -164,7 +346,7 @@ class MultipleyeDataCollection(DataCollection):
                              f"language code. It should be a 2 letter code.")
 
         session_folder_regex = r"\d\d\d" + \
-            f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
+                               f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
 
         stimulus_folder_path = data_dir / f'stimuli_{data_folder_name}'
         config_file = (stimulus_folder_path /
@@ -178,9 +360,9 @@ class MultipleyeDataCollection(DataCollection):
         psychometric_tests = lab_configuration_data.psychometric_tests
 
         et_data_path = data_dir / 'eye-tracking-sessions' / \
-            additional_folder if additional_folder else data_dir / 'eye-tracking-sessions'
+                       additional_folder if additional_folder else data_dir / 'eye-tracking-sessions'
         ps_tests_path = data_dir / 'psychometric-tests-sessions' / \
-            additional_folder if additional_folder else data_dir / 'psychometric-tests'
+                        additional_folder if additional_folder else data_dir / 'psychometric-tests'
 
         return cls(
             data_collection_name=data_folder_name,
@@ -201,81 +383,79 @@ class MultipleyeDataCollection(DataCollection):
             ps_tests_path=ps_tests_path,
         )
 
-    def create_sanity_check_report(self, sessions: str | list[str] | None = None, plotting: bool = True, overwrite: bool = False) -> None:
+    def create_sanity_check_report(
+            self,
+            gaze: pm.Gaze,
+            session_name: str,
+            output_dir: Path | str = '',
+            plotting: bool = True,
+            overwrite: bool = False,
+
+    ) -> None:
         """
         Create the sanity checks and reports if for one or multiple sessions.
-        :param sessions: Specifies which sessions to create the report for. Default is None which creates the reports
-        for all sessions.
+        :param output_dir:
+        :param gaze:
+        :param session_name: Specifies which session to create the report for.
         :param plotting: If True, all plots are also created for all the sessions.
         :param overwrite: If True, the sanity check report is overwritten if it already exists.
         """
 
-        if sessions is None:
-            sessions = [session_name for session_name in self.sessions.keys()]
-        elif isinstance(sessions, str):
-            sessions = [sessions]
-        elif isinstance(sessions, list):
-            sessions = sessions
+        if session_name in self.excluded_sessions:
+            logging.info(
+                f"Session {session_name} is excluded from the analysis. Skipping sanity check report.")
+            return
 
-        # TODO: check if all session names are available in self.session, before we enter the loop to avoid a key error
-        for session_name in (pbar := tqdm(sessions, total=len(sessions))):
+        if not output_dir:
+            output_dir = self.reports_dir
 
-            if session_name in self.excluded_sessions:
-                continue
+        session_results = output_dir / session_name
+        os.makedirs(session_results, exist_ok=True)
 
-            pbar.set_description(
-                f'Creating sanity check report for session {session_name}'
+        report_file_path = output_dir / \
+                           session_name / f"{session_name}_report.txt"
+        self.sessions[session_name].sanity_report_path = report_file_path
+
+        if not report_file_path.exists() or overwrite:
+
+            open(report_file_path, "w", encoding="utf-8").close()
+
+            messages = self.sessions[session_name].messages
+
+            if not messages:
+                self._write_to_logfile(
+                    f"No messages found in asc file of {session_name}.")
+
+            self._document_calibrations(session_name)
+
+            stimuli = self.sessions[session_name].stimuli
+
+            with open(report_file_path, "a+", encoding="utf-8") as report_file:
+                # set report object
+                report = partial(report_meta, report_file=report_file)
+                check_metadata(
+                    self.sessions[session_name].pm_gaze_metadata, report)
+
+            self._check_logfiles(stimuli, session_name)
+            self._check_stimuli_gaze_frame(gaze, stimuli, session_name)
+            self._check_asc_messages(stimuli, messages, session_name)
+            self._check_asc_validation(session_name)
+            self._load_psychometric_tests(session_name)
+            self._extract_question_answers(stimuli, session_name)
+            fix_report = self._check_avg_fix_durations(gaze)
+
+            fix_report.write_csv(
+                file=self.reports_dir / session_name / f"fixation_statistics_per_page_{session_name}.tsv",
+                separator='\t',
             )
 
-            session_results = self.output_dir / session_name
-            os.makedirs(session_results, exist_ok=True)
-
-            report_file_path = self.output_dir / \
-                session_name / f"{session_name}_report.txt"
-            self.sessions[session_name]['sanity_report_path'] = report_file_path
-
-            if not report_file_path.exists() or overwrite:
-
-                open(report_file_path, "w", encoding="utf-8").close()
-
-                gaze = self.get_gaze_frame(
-                    session_name, create_if_not_exists=True)
-
-                messages = self.sessions[session_name]['messages']
-
-                if not messages:
-                    self._write_to_logfile(
-                        f"No messages found in asc file of {session_name}.")
-
-                self._document_calibrations(session_name)
-
-                stimuli = self._load_session_stimuli(self.stimulus_dir, self.language, self.country,
-                                                     self.lab_number,
-                                                     self.sessions[session_name]['stimulus_order_version'],
-                                                     session_name,
-                                                     )
-
-                with open(report_file_path, "a+",  encoding="utf-8") as report_file:
-                    # set report object
-                    report = partial(report_meta, report_file=report_file)
-                    check_metadata(
-                        self.sessions[session_name]['metadata'], report)
-
-                self._check_logfiles(stimuli, session_name)
-                self._check_stimuli_gaze_frame(stimuli, session_name, gaze)
-                self._check_asc_messages(stimuli, messages, session_name)
-                self._check_asc_validation(session_name)
-                self._load_psychometric_tests(session_name)
-                self._extract_question_answers(stimuli, session_name)
-                self._check_avg_fix_durations(session_name, gaze)
-
-                if plotting:
-                    self._create_plots(stimuli, session_name, gaze)
+            if plotting:
+                self._create_plots(gaze, stimuli, session_name)
 
     def _load_manual_corrections(self) -> list[str]:
         # read excluded sessions from txt file if it exists in the top data folder
         manual_corrections = self.data_root.parent / \
-            'manual_preprocessing_corrections.yaml'
+                             'manual_preprocessing_corrections.yaml'
         if manual_corrections.exists():
             with open(manual_corrections, 'r') as f:
                 yaml_dict = yaml.load(f, Loader=yaml.SafeLoader)
@@ -288,7 +468,8 @@ class MultipleyeDataCollection(DataCollection):
 
         else:
             # create the file so that we can write to it later
-            open(manual_corrections, 'w').close()
+            with open(manual_corrections, 'w', encoding='utf8') as f:
+                yaml.dump({'excluded_sessions': {}}, f)
 
         return []
 
@@ -309,30 +490,52 @@ class MultipleyeDataCollection(DataCollection):
         elif isinstance(session, list):
             return session
 
-    def create_dataset_overview(self) -> dict:
+    def create_dataset_overview(self, path: str | Path = '') -> dict:
         """
         Create an overview of the dataset and save it as a yaml file in the top data folder.
         :return: overview dict
         """
 
-        overview_path = self.data_root.parent / \
-            f"{self.data_collection_name}_overview.yaml"
+        if not path:
+            overview_path = self.data_root.parent / \
+                            f"{self.data_collection_name}_overview.yaml"
+
+        else:
+            overview_path = path / f"{self.data_collection_name}_overview.yaml"
 
         num_sessions = len(self.sessions)
         num_pilots = len(
-            [session for session in self.sessions if self.sessions[session]['is_pilot']])
+            [session for session in self.sessions if self.sessions[session].is_pilot])
 
         # TODO: add more, check metadata scheme, add stats like num read pages, total reading time etc.
         overview = {
-            'data_collection_name': self.data_collection_name,
-            'num_sessions': num_sessions,
-            'num_pilots': num_pilots,
+            'Title': self.data_collection_name,
+            'Dataset_type': self.type,
+            'Number_of_sessions': num_sessions,
+            'Number_of_pilots': num_pilots,
+            'Tested_language': self.language,
+            'Country': self.country,
+            'Year': self.year,
+            'Number of eye-tracking (ET) sessions per participant': self.num_sessions,
+
         }
 
-        with open(overview_path, 'w') as f:
+        with open(overview_path, 'w', encoding='utf8') as f:
             yaml.dump(overview, f)
 
         return overview
+
+    def create_session_overview(self, session_idf: str, path: str | Path = '') -> dict:
+        sess = self.sessions[session_idf]
+
+        if not path:
+            overview_path = self.data_root.parent / \
+                            f"{session_idf}_overview.yaml"
+        else:
+            overview_path = path / f"{session_idf}_overview.yaml"
+
+        with open(overview_path, 'w', encoding='utf8') as f:
+            yaml.dump(sess.create_overview(), f)
 
     def prepare_session_level_information(self):
         """
@@ -341,7 +544,8 @@ class MultipleyeDataCollection(DataCollection):
         :return:
         """
 
-        for session in self.sessions.keys():
+        for session in (pbar := tqdm(self.sessions.keys(), total=len(self.sessions))):
+            pbar.set_description(f"Preparing session {session}")
             p_id = session.split('_')[0]
 
             if 'start_after_trial' in session:
@@ -350,69 +554,30 @@ class MultipleyeDataCollection(DataCollection):
                     self._write_to_logfile(
                         f"Session {session} started after a trial. Only the completed stimuli will be considered.")
 
-            self.create_gaze_frame(session)
-
-            self.sessions[session]['completed_stimuli_ids'], self.sessions[session][
-                'stimuli_trial_mapping'] = self._load_session_completed_stimuli(session)
-            self.sessions[session]['messages'] = self._parse_asc(session)
-            self.sessions[session]['logfile'] = self._load_session_logfile(
+            self.sessions[session].completed_stimuli_ids, self.sessions[
+                session].stimuli_trial_mapping = self._load_session_completed_stimuli(session)
+            self.sessions[session].messages = self._parse_asc(session)
+            self.sessions[session].logfile = self._load_session_logfile(
                 session)
-            self.sessions[session]['stimulus_order_version'] = self._load_stimulus_order_version_from_logfile(
+            self.sessions[session].randomization_version = self._load_stimulus_order_version_from_logfile(
                 session)
-            self.sessions[session]['stimuli_order_ids'] = self._load_session_stimulus_order(
-                session, self.sessions[session]['stimulus_order_version'])
+            self.sessions[session].stimulus_order_ids = self._load_session_stimulus_order(
+                session, self.sessions[session].randomization_version)
 
-            if self.sessions[session]['stimuli_order_ids'] != self.sessions[session]['completed_stimuli_ids']:
+            # TODO: lab config should be changeable for each session
+            self.sessions[session].lab_config = self.lab_configuration
+
+            if self.sessions[session].stimulus_order_ids != self.sessions[session].completed_stimuli_ids:
                 if not p_id in self.crashed_session_ids:
                     self._write_to_logfile(f"Stimulus order and completed stimuli do not match for session {session}. "
                                            f"Please check the files carefully.")
 
-    def create_gaze_frame(self, session: str | list[str] = '', overwrite: bool = False) -> None:
-        """
-        Creates, preprocesses and saves the gaze data for the specified session or all sessions.
-        :param session: If a session identifier is specified only the gaze data for this session is loaded.
-        :param overwrite: If True the gaze data is overwritten if it already exists.
-        :return:
-        """
-        session_keys = self._load_session_names(session)
-
-        for session_name in session_keys:
-            gaze_path = self.output_dir / session_name
-
-            # / f"{session_name}_gaze.pkl"
-            gaze_path.mkdir(parents=True, exist_ok=True)
-
-            gaze_path = gaze_path / f"{session_name}_gaze.pkl"
-
-            if gaze_path.exists() and not overwrite:
-                # make sure gaze path is added if the pkl was created in a previous run
-                self.sessions[session_name]['gaze_path'] = gaze_path
-                logging.debug(f"Gaze data already exists for {session_name}.")
-                return
-
-            self.sessions[session_name]['gaze_path'] = gaze_path
-
-            try:
-                gaze = load_data(Path(self.sessions[session_name]['asc_path']), self.lab_configuration,
-                                 session_idf=session_name)
-            except KeyError as e:
-                raise e
-            except FileNotFoundError:
-                raise FileNotFoundError(
-                    f"No asc file found for session {session_name}. Please create first.")
-
-            logging.warning(
-                f"Preprocessing gaze data for {session_name}. This might take a while.")
-
-            preprocess(gaze)
-            # save and load the gaze dataframe to pickle for later usage
-            self.sessions[session_name]['gaze_path'] = gaze_path
-            self.sessions[session_name]['metadata'] = gaze._metadata
-
-            # make sure all dirs haven been created
-
-            with open(gaze_path, "wb") as f:
-                pickle.dump(gaze, f)
+            self.sessions[session].stimuli = self._load_session_stimuli(self.stimulus_dir, self.language,
+                                                                        self.country,
+                                                                        self.lab_number,
+                                                                        self.sessions[session].randomization_version,
+                                                                        session,
+                                                                        )
 
     def _load_session_stimuli(self, stimulus_dir: Path, lang: str,
                               country: str, lab_num: int,
@@ -435,11 +600,18 @@ class MultipleyeDataCollection(DataCollection):
         stimuli = []
         if stimulus_names is None:
             stimulus_names = [name for name, num in self.stimulus_names.items()
-                              if num in self.sessions[session_identifier]['completed_stimuli_ids']]
+                              if num in self.sessions[session_identifier].completed_stimuli_ids]
 
         for stimulus_name in stimulus_names:
+            trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
+            # get the trial id from the mapping, keys are ids and values are strings
+            trial_id = [key for key, value in trial_mapping.items() if value == stimulus_name]
+            if len(trial_id) == 0:
+                raise KeyError(f"Stimulus name {stimulus_name} not found in the trial mapping for session "
+                               f"{session_identifier}. Please check the completed_stimuli.csv file.")
+
             stimulus = Stimulus.load(
-                stimulus_dir, lang, country, lab_num, stimulus_name, stimulus_order_version)
+                stimulus_dir, lang, country, lab_num, stimulus_name, stimulus_order_version, trial_id[0])
             stimuli.append(stimulus)
 
         return stimuli
@@ -450,7 +622,7 @@ class MultipleyeDataCollection(DataCollection):
         :param session_identifier: The session identifier.
         :return: The question order version to correctly map participant, stimulus and question order versions.
         """
-        session_path = self.sessions[session_identifier]['session_folder_path']
+        session_path = self.sessions[session_identifier].session_folder_path
         logfile_path = Path(f'{session_path}/logfiles')
         general_logfile = logfile_path.glob('GENERAL_LOGFILE_*.txt')
         general_logfile = next(general_logfile)
@@ -478,7 +650,7 @@ class MultipleyeDataCollection(DataCollection):
         :param session_identifier: The session identifier.
         """
 
-        session_path = self.sessions[session_identifier]['session_folder_path']
+        session_path = self.sessions[session_identifier].session_folder_path
         logfile_folder = Path(f'{session_path}/logfiles')
 
         assert logfile_folder.exists(
@@ -488,8 +660,9 @@ class MultipleyeDataCollection(DataCollection):
         logfiles = list(logfile)
 
         if len(logfiles) != 1:
-            raise ValueError(f"More than one or no logfile found in {logfile_folder}. Please check the logfiles carefully. "
-                             f"This can happen if the experiment crashed early and was restarted, in that case the earlier logfiles can be deleted.")
+            raise ValueError(
+                f"More than one or no logfile found in {logfile_folder}. Please check the logfiles carefully. "
+                f"This can happen if the experiment crashed early and was restarted, in that case the earlier logfiles can be deleted.")
 
         try:
             logfile = pl.read_csv(logfiles[0], separator="\t")
@@ -500,7 +673,7 @@ class MultipleyeDataCollection(DataCollection):
 
     def _load_session_completed_stimuli(self, session_identifier):
 
-        session_path = self.sessions[session_identifier]['session_folder_path']
+        session_path = self.sessions[session_identifier].session_folder_path
         logfile_folder = Path(f'{session_path}/logfiles')
         completed_stim_path = logfile_folder / 'completed_stimuli.csv'
 
@@ -510,6 +683,22 @@ class MultipleyeDataCollection(DataCollection):
 
         # load trial to stimulus mapping
         trial_ids = completed_stimuli['trial_id'].to_list()
+        # sometimes there are None values in the trial ids if a session was interrupted. Those are excluded for this step
+        if None in trial_ids:
+            trial_ids.remove(None)
+
+        for trial in trial_ids:
+            if trial == 'PRACTICE_1':
+                trial_ids[trial_ids.index(trial)] = 'PRACTICE_trial_1'
+            elif trial == 'PRACTICE_2':
+                trial_ids[trial_ids.index(trial)] = 'PRACTICE_trial_2'
+            else:
+                try:
+                    trial_ids[trial_ids.index(trial)] = f'trial_{int(trial)}'
+                except TypeError:
+                    trial_ids = trial_ids
+                    pass
+
         stimulus_names = completed_stimuli['stimulus_name'].to_list()
         stimuli_trial_mapping = {
             str(trial): name for trial, name in zip(trial_ids, stimulus_names)}
@@ -534,21 +723,39 @@ class MultipleyeDataCollection(DataCollection):
         p_id = session_identifier.split('_')[0]
         incomplete_order = []
         if p_id in self.crashed_session_ids:
-            incomplete_order = self.sessions[session_identifier]['completed_stimuli_ids']
+            incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
 
         # get the entry where the participant id matches
         stim_order_version = self.stim_order_versions[self.stim_order_versions['participant_id'] == int(
             p_id)]
         if len(stim_order_version) == 0:
-            raise KeyError(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
-                           f"participant IDs in the stimulus order versions file. It is possible that the team did not "
-                           f"upload the correct stimulus version from the experiment folder.")
-        elif len(stim_order_version) == 1:
+            self._write_to_logfile(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
+                                   f"participant IDs in the stimulus order versions file. It is possible that the team did not "
+                                   f"upload the correct stimulus version from the experiment folder. Extracting version "
+                                   f"from asc file")
+            version = extract_stimulus_version_number_from_asc(self.sessions[session_identifier].asc_path)
+
+            if version == logfile_order_version:
+                self._write_to_logfile(
+                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                    f"extracted from the asc file ({version}) for participant ID {p_id}. Using the "
+                    f"version from the logfile.")
+                stim_order_version = self.stim_order_versions[self.stim_order_versions['version_number'] == version]
+
+            else:
+                self._write_to_logfile(
+                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                    f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
+                    f"Please check the files "
+                    f"carefully.")
+
+        if len(stim_order_version) == 1:
             version = stim_order_version['version_number'].values[0]
             if logfile_order_version != version:
-                self._write_to_logfile(f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                                       f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the "
-                                       f"version from the logfile.")
+                self._write_to_logfile(
+                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                    f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the "
+                    f"version from the logfile.")
             stimulus_order = stim_order_version.drop(
                 columns=['version_number', 'participant_id']).values[0].tolist()
 
@@ -580,8 +787,9 @@ class MultipleyeDataCollection(DataCollection):
             return stimulus_order
 
         else:
-            raise ValueError(f"More than one entry found for participant ID {p_id} in stimulus order versions. "
+            raise ValueError(f"More than one or no entry found for participant ID {p_id} in stimulus order versions. "
                              f"Please check the stimulus order versions file for duplicates.")
+
 
     def _parse_asc(self, session_identifier: str):
         """
@@ -601,10 +809,10 @@ class MultipleyeDataCollection(DataCollection):
                          'final_validation', 'show_final_screen',
                          'optional_break_screen', 'fixation_trigger:skipped_by_experimenter',
                          'fixation_trigger:experimenter_calibration_triggered',
-                         'recalibration', 'empty_screen', 'obligatory_break', 'optional_break',]
+                         'recalibration', 'empty_screen', 'obligatory_break', 'optional_break', ]
 
-        asc_file = self.sessions[session_identifier]['asc_path']
-        stimuli_trial_mapping = self.sessions[session_identifier]['stimuli_trial_mapping']
+        asc_file = self.sessions[session_identifier].asc_path
+        stimuli_trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
 
         other_screen_appearance = {
             'timestamp': [],
@@ -635,7 +843,8 @@ class MultipleyeDataCollection(DataCollection):
 
         initial_ts = 0
 
-        result_folder = self.output_dir / session_identifier
+        result_folder = self.reports_dir / session_identifier
+        os.makedirs(result_folder, exist_ok=True)
         in_break = False
 
         with open(asc_file, "r", encoding="utf-8") as f:
@@ -716,8 +925,16 @@ class MultipleyeDataCollection(DataCollection):
         return messages
 
     def _document_reading_times(self, initial_ts, reading_times, result_folder, session_identifier):
+        """
+        TODO: improve this function!! this is terrible and buggy
+        :param initial_ts:
+        :param reading_times:
+        :param result_folder:
+        :param session_identifier:
+        :return:
+        """
 
-        stimuli_trial_mapping = self.sessions[session_identifier]['stimuli_trial_mapping']
+        stimuli_trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
         total_reading_duration_ms = 0
 
         for start, stop in zip(reading_times['start_ts'], reading_times['stop_ts']):
@@ -783,7 +1000,7 @@ class MultipleyeDataCollection(DataCollection):
         start_end_per_stimulus = sum_df[['stimulus', 'trial', 'start_ts', 'stop_ts']].dropna()[
             ~sum_df['type'].str.contains('time before')]
 
-        self.sessions[session_identifier]['stimulus_start_end'] = start_end_per_stimulus.to_dict(
+        self.sessions[session_identifier].stimulus_start_end_ts = start_end_per_stimulus.to_dict(
             orient='records')
 
         total_times = pd.DataFrame({
@@ -809,7 +1026,7 @@ class MultipleyeDataCollection(DataCollection):
 
     def _document_calibrations(self, session_identifier: str):
 
-        metadata = self.sessions[session_identifier]['metadata']
+        metadata = self.sessions[session_identifier].pm_gaze_metadata
 
         validations = metadata['validations']
         calibrations = metadata['calibrations']
@@ -817,7 +1034,7 @@ class MultipleyeDataCollection(DataCollection):
         val_df = pd.DataFrame(validations)
         cal_df = pd.DataFrame(calibrations)
 
-        result_folder = self.output_dir / session_identifier
+        result_folder = self.reports_dir / session_identifier
         val_df.to_csv(result_folder / f'validations_{session_identifier}.tsv',
                       sep='\t', index=False)
         cal_df.to_csv(result_folder / f'calibrations_{session_identifier}.tsv',
@@ -833,7 +1050,7 @@ class MultipleyeDataCollection(DataCollection):
 
         # sort stimulus times into list by start and end time
         sorted_stimuli = sorted(
-            self.sessions[session_identifier]['stimulus_start_end'], key=lambda x: float(x['start_ts']))
+            self.sessions[session_identifier].stimulus_start_end_ts, key=lambda x: float(x['start_ts']))
         sorted_start_end = []
         for stimulus in sorted_stimuli:
             sorted_start_end.append(
@@ -841,22 +1058,18 @@ class MultipleyeDataCollection(DataCollection):
             sorted_start_end.append(
                 {'message': f'{stimulus["stimulus"]}_end', 'timestamp': float(stimulus['stop_ts'])})
 
-        check_validation_requirements(self.sessions[session_identifier]['metadata'], self.sessions[session_identifier]['sanity_report_path'],
+        check_validation_requirements(self.sessions[session_identifier].pm_gaze_metadata,
+                                      self.sessions[session_identifier].sanity_report_path,
                                       sorted_start_end)
 
-    def _check_stimuli_gaze_frame(self, stimuli, session_identifier, gaze=None):
+    def _check_stimuli_gaze_frame(self, gaze, stimuli, session_identifier):
         """
         """
         logging.debug(
             f"Checking asc file all screens for {session_identifier} all screens.")
 
-        if not gaze:
-            logging.debug(f"Loading gaze data for {session_identifier}.")
-            gaze = self.get_gaze_frame(
-                session_identifier, create_if_not_exists=True)
-
         sanity_check_gaze_frame(
-            gaze, stimuli, self.sessions[session_identifier]['sanity_report_path'])
+            gaze, stimuli, self.sessions[session_identifier].sanity_report_path)
 
     def _check_asc_messages(self, stimuli, messages, session_identifier: str) -> None:
         """
@@ -867,8 +1080,8 @@ class MultipleyeDataCollection(DataCollection):
         """
 
         p_id = session_identifier.split('_')[0]
-        check_messages(messages, stimuli, self.sessions[session_identifier]['sanity_report_path'],
-                       self.sessions[session_identifier]["completed_stimuli_ids"],
+        check_messages(messages, stimuli, self.sessions[session_identifier].sanity_report_path,
+                       self.sessions[session_identifier].completed_stimuli_ids,
                        restarted=p_id in self.crashed_session_ids)
 
     def _check_logfiles(self, stimuli, session_identifier):
@@ -879,13 +1092,14 @@ class MultipleyeDataCollection(DataCollection):
         :return:
         """
 
-        check_all_screens_logfile(self.sessions[session_identifier]["logfile"],
-                                  stimuli, self.sessions[session_identifier]['sanity_report_path'])
+        check_all_screens_logfile(self.sessions[session_identifier].logfile,
+                                  stimuli, self.sessions[session_identifier].sanity_report_path)
 
-    def _check_avg_fix_durations(self, session_identifier: str, gaze: pm.Gaze) -> None:
+    @staticmethod
+    def _check_avg_fix_durations(gaze: pm.Gaze) -> pl.DataFrame:
         """
         Check the average fixation durations for the specified session.
-        :param session_identifier: The session identifier.
+        :param gaze: Gaze object for this session.
         """
 
         # for each gaze and page compute the average fixation duration
@@ -902,18 +1116,14 @@ class MultipleyeDataCollection(DataCollection):
         )
 
         # write to file
-        fixation_durations_page_avg.write_csv(
-            file=self.output_dir / session_identifier / f"fixation_statistics_per_page_{session_identifier}.tsv",
-            separator='\t',
-        )
-
+        return fixation_durations_page_avg
 
 
     def _load_psychometric_tests(self, session_identifier: str):
         if self.psychometric_tests:
             for test in self.psychometric_tests:
                 test_path = self.data_root.parent / \
-                    'psychometric-tests-sessions' / session_identifier
+                            'psychometric-tests-sessions' / session_identifier
                 if not test_path.exists():
                     self._write_to_logfile(
                         f"Psychometric test path {test_path} does not exist for session {session_identifier}.")
@@ -938,17 +1148,13 @@ class MultipleyeDataCollection(DataCollection):
 
         # TODO: Jana
 
-        check_comprehension_question_answers(self.sessions[session_identifier]["logfile"],
-                                             stimuli, self.sessions[session_identifier]['sanity_report_path'])
+        check_comprehension_question_answers(self.sessions[session_identifier].logfile,
+                                             stimuli, self.sessions[session_identifier].sanity_report_path)
 
-    def _create_plots(self, stimuli, session_identifier, gaze=None):
+    def _create_plots(self, gaze, stimuli, session_identifier):
 
-        if not gaze:
-            gaze = self.get_gaze_frame(
-                session_identifier, create_if_not_exists=True)
-
-        plot_dir = self.output_dir / session_identifier / \
-            f"{session_identifier}_plots"
+        plot_dir = self.reports_dir / session_identifier / \
+                   f"{session_identifier}_plots"
         plot_dir.mkdir(exist_ok=True)
 
         plot_main_sequence(gaze.events, plot_dir)
@@ -956,13 +1162,7 @@ class MultipleyeDataCollection(DataCollection):
         for stimulus in stimuli:
             plot_gaze(gaze, stimulus, plot_dir)
 
-    def preprocess_psychometric_tests(self):
-        pass
-
-    def preprocess_eye_tracking_data(self):
-        pass
-
-    def parse_participant_data(self) -> None:
+    def parse_participant_data(self, path: Path | str) -> None:
         """
         Load the participant data for all participants.
         """
@@ -972,22 +1172,27 @@ class MultipleyeDataCollection(DataCollection):
         for idx, session in (pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))):
             pbar.set_description(f'Parsing participant data : {session}')
             notes = ''
-            folder = Path(self.sessions[session]['session_folder_path'])
+            folder = Path(self.sessions[session].session_folder_path)
             try:
                 participant_id, country, lang, lab, session_id = session.split(
                     '_')
             except ValueError:
                 if 'start_after_trial_' in session:
                     logging.warning(f'Session {session} has been restarted.')
-                    participant_id, country, lang, lab, _, _, _, _, trial = session.split(
+                    participant_id, country, lang, lab, session_id, _, _, _, trial = session.split(
                         '_')
                     notes = f'Session has been restarted after trial {trial}.'
+                elif 'full_restart' in session:
+                    logging.warning(f'Session {session} has been fully restarted.')
+                    participant_id, country, lang, lab, session_id, _, _, = session.split(
+                        '_')
+                    notes = f'Session has been fully restarted.'
                 else:
                     raise ValueError(
                         f"Session {session} does not match the expected format.")
 
             pq_file = folder / \
-                f'{participant_id}_{country}_{lang}_{lab}_pq_data.json'
+                      f'{participant_id}_{country}_{lang}_{lab}_pq_data.json'
             if pq_file.exists():
                 with open(pq_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
@@ -1012,12 +1217,16 @@ class MultipleyeDataCollection(DataCollection):
         if not participant_data.empty:
             cols = participant_data.columns.tolist()
             cols = ['participant_id'] + \
-                [col for col in cols if col != 'participant_id']
+                   [col for col in cols if col != 'participant_id']
             participant_data = participant_data[cols]
 
+            if not path:
+                self.participant_data_path = self.data_root.parent / 'participant_data.csv'
+            else:
+                self.participant_data_path = path
+
             participant_data.to_csv(
-                self.data_root.parent / 'participant_data.csv', index=False)
-            self.participant_data_path = self.data_root.parent / 'participant_data.csv'
+                self.participant_data_path, index=False)
 
     def _write_to_logfile(self, message: str) -> None:
 

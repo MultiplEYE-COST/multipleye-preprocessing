@@ -1,16 +1,7 @@
-import logging
-import math
-import os
-import re
 from pathlib import Path
-from typing import Any, Callable, TextIO, Union
+from typing import Any, Callable, TextIO
 
-import PIL
-import matplotlib.pyplot as plt
-import pandas as pd
 import polars as pl
-import pymovements as pm
-from matplotlib.patches import Circle
 
 from preprocessing import config
 from preprocessing.data_collection.stimulus import Stimulus
@@ -95,29 +86,26 @@ def check_comprehension_question_answers(logfile: pl.DataFrame, stimuli: Stimulu
 
 
 def check_validation_requirements(metadata: dict[str, Any], report_file, stimulus_times):
-
     # sort validations and calibrations by timestamp, merge into one list
     vals = sorted(metadata["validations"], key=lambda x: float(x["timestamp"]))
     cals = sorted(metadata["calibrations"], key=lambda x: float(x["timestamp"]))
 
     # prepare lists
 
-
     mes = {
         'val_cal_during_stimulus': [],
-    'good_vals':  [],
-    'no_cal_after_bad_val':  [],
-    'moderate_vals': [],
-    'bad_vals': [],
-    'others': [],
-    'start_after_bad_val': [],
+        'good_vals': [],
+        'no_cal_after_bad_val': [],
+        'moderate_vals': [],
+        'bad_vals': [],
+        'others': [],
+        'start_after_bad_val': [],
         'no_val_before_stimulus': [],
-    'start_after_moderate_val': [],
+        'start_after_moderate_val': [],
         'necessary_cals': [],
         'final_vals': [],
         'final_cals': [],
     }
-
 
     merged = sorted(vals + cals + stimulus_times, key=lambda x: float(x["timestamp"]))
     bad_tstamp = None
@@ -144,7 +132,8 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
                 time_since_last_val = round((float(m["timestamp"]) - bad_tstamp) / 1000, 3)
                 # if there are more than 2 minutes between bad val and next val, we consider that a calibration should have happened
                 if time_since_last_val > 120:
-                    mes['no_cal_after_bad_val'].append(f"⚠️ No calibration at {m['timestamp']} after BAD validation at timestamp {bad_tstamp}")
+                    mes['no_cal_after_bad_val'].append(
+                        f"⚠️ No calibration at {m['timestamp']} after BAD validation at timestamp {bad_tstamp}")
                     bad_val = False
             score = float(m["validation_score_avg"])
 
@@ -153,13 +142,15 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
                 _report_to_file(f'Validation after last stimulus: {m["timestamp"]}, score: {score}', report_file)
 
             elif score < 0.305:
-                _report_to_file(f"✅ Good validation at {m['timestamp']} with score {m['validation_score_avg']}", report_file)
+                _report_to_file(f"✅ Good validation at {m['timestamp']} with score {m['validation_score_avg']}",
+                                report_file)
                 bad_val = False
                 moderate_val = False
                 val_performed = True
                 good_vals += 1
             elif 0.45 > score >= 0.305:
-                mes['moderate_vals'].append(f"⚠️ Moderate validation at {m['timestamp']} with score {m['validation_score_avg']}")
+                mes['moderate_vals'].append(
+                    f"⚠️ Moderate validation at {m['timestamp']} with score {m['validation_score_avg']}")
                 moderate_val = True
                 bad_val = False
                 moderate_vls += 1
@@ -170,21 +161,25 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
                 moderate_val = False
                 bad_tstamp = int(m["timestamp"])
             if in_stimulus:
-                mes['val_cal_during_stimulus'].append(f"⚠️ Validation during stimulus at {m['timestamp']} with score {m['validation_score_avg']}")
+                mes['val_cal_during_stimulus'].append(
+                    f"⚠️ Validation during stimulus at {m['timestamp']} with score {m['validation_score_avg']}")
 
         elif 'message' in m:
-            if 'start' in  m['message']:
+            if 'start' in m['message']:
                 real_num_stimuli += 1
                 in_stimulus = True
                 _report_to_file(f'{m["message"]} at {m["timestamp"]}', report_file)
                 if bad_val:
-                    mes['start_after_bad_val'].append(f"❌ {m['message']} directly after bad validation at {bad_tstamp} with score {score}!")
+                    mes['start_after_bad_val'].append(
+                        f"❌ {m['message']} directly after bad validation at {bad_tstamp} with score {score}!")
                 elif moderate_val:
-                    mes['start_after_moderate_val'].append(f"⚠️ {m['message']} directly after moderate validation at {mod_tstamp}  with score {score}!")
+                    mes['start_after_moderate_val'].append(
+                        f"⚠️ {m['message']} directly after moderate validation at {mod_tstamp}  with score {score}!")
                 elif val_performed:
                     val_performed = False
                 elif not val_performed:
-                    mes['no_val_before_stimulus'].append(f"⚠️ {m['message']} without prior validation at {m['timestamp']}")
+                    mes['no_val_before_stimulus'].append(
+                        f"⚠️ {m['message']} without prior validation at {m['timestamp']}")
 
             if 'end' in m['message']:
                 real_num_stimuli += 1
@@ -196,7 +191,8 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
             if bad_val:
                 bad_val = False
                 time_between = round((float(m["timestamp"]) - bad_tstamp) / 1000, 3)
-                mes['necessary_cals'].append(f"✅ Calibration at {m['timestamp']} {time_between} seconds after BAD validation")
+                mes['necessary_cals'].append(
+                    f"✅ Calibration at {m['timestamp']} {time_between} seconds after BAD validation")
             if in_stimulus:
                 mes['val_cal_during_stimulus'].append(f"⚠️ Calibration during stimulus at {m['timestamp']}")
 

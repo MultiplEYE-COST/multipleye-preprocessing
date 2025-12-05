@@ -71,7 +71,7 @@ def test_create_gaze_frame(mock_pickle, mock_open_file, mock_preprocess, mock_lo
 
     # Setup test instance
 
-    data_collection.output_dir = Path("/fake/output")
+    data_collection.reports_dir = Path("/fake/output")
     data_collection.data_root = Path("/fake/data")
     data_collection.lab_configuration = {}  # or whatever is needed
 
