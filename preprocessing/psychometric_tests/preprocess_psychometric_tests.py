@@ -109,10 +109,15 @@ def _is_valid_folder(folder: Path) -> bool:
 
 
 def preprocess_stroop(stroop_flanker_dir: Path):
-    """Preprocess Stroop test CSVs and return RT and accuracy by stimulus type.
+    """Preprocess Stroop test CSVs and return incongruent−congruent effects.
 
-    Extract 'stim_type', 'stroop_key.rt' and 'stroop_key.corr', then compute
-    reaction time and accuracy grouped by stimulus type.
+    Extract 'stim_type', 'stroop_key.rt' and 'stroop_key.corr', compute reaction time
+    and accuracy grouped by stimulus type, then return the difference between
+    incongruent and congruent conditions.
+
+    The returned effects are defined as:
+    - ``StroopRTEffect`` = RT_mean(incongruent) − RT_mean(congruent)
+    - ``StroopAccuracyEffect`` = Accuracy(incongruent) − Accuracy(congruent)
 
     **Stroop**: The Stroop test is a test of cognitive control that measures the ability to inhibit
     automatic responses. The test consists of three parts:
@@ -122,29 +127,50 @@ def preprocess_stroop(stroop_flanker_dir: Path):
     ----------
     stroop_flanker_dir : Path
         Path to the folder containing the participants' stroop and flanker data.
- 
+
     Returns
     -------
-    DataFrame
-        A DataFrame indexed by ``stim_type`` with columns ``rt_mean`` and
-        ``accuracy``.
+    dict[str, float]
+        A dictionary with keys ``'StroopAccuracyEffect'`` and ``'StroopRTEffect'``.
     """
     df = _find_one_filetype_with_columns(
         stroop_flanker_dir, ['stim_type', 'stroop_key.rt', 'stroop_key.corr']
     )
-    return _reaction_time_accuracy(
+    grouped = _reaction_time_accuracy(
         df,
         reaction_time_col='stroop_key.rt',
         correctness_col='stroop_key.corr',
         group_by_col='stim_type'
     )
 
+    # Ensure both conditions are present
+    required = {'congruent', 'incongruent'}
+    missing = required.difference(grouped.index.astype(str))
+    if missing:
+        raise ValueError(
+            f"Missing required stim_type levels for Stroop: {sorted(missing)}"
+        )
+
+    return {
+        'StroopAccuracyEffect': float(
+            grouped.loc['incongruent', 'accuracy'] - grouped.loc['congruent', 'accuracy']
+        ),
+        'StroopRTEffect': float(
+            grouped.loc['incongruent', 'rt_mean'] - grouped.loc['congruent', 'rt_mean']
+        ),
+    }
+
 
 def preprocess_flanker(stroop_flanker_dir: Path):
-    """Preprocess Flanker test CSVs and return RT and accuracy by stimulus type.
+    """Preprocess Flanker test CSVs and return incongruent−congruent effects.
 
-    Extract 'stim_type', 'flanker_key.rt' and 'flanker_key.corr', then compute
-    reaction time and accuracy grouped by stimulus type.
+    Extract 'stim_type', 'Flanker_key.rt' and 'Flanker_key.corr', compute reaction time
+    and accuracy grouped by stimulus type, then return the difference between
+    incongruent and congruent conditions.
+
+    The returned effects are defined as:
+    - ``FlankerRTEffect`` = RT_mean(incongruent) − RT_mean(congruent)
+    - ``FlankerAccuracyEffect`` = Accuracy(incongruent) − Accuracy(congruent)
 
     **Flanker**: The Flanker test is a test of cognitive control that measures the ability to
     inhibit irrelevant information.
@@ -158,19 +184,35 @@ def preprocess_flanker(stroop_flanker_dir: Path):
 
     Returns
     -------
-    DataFrame
-        A DataFrame indexed by ``stim_type`` with columns ``rt_mean`` and
-        ``accuracy``.
+    dict[str, float]
+        A dictionary with keys ``'FlankerAccuracyEffect'`` and ``'FlankerRTEffect'``.
     """
     df = _find_one_filetype_with_columns(
         stroop_flanker_dir, ['stim_type', 'Flanker_key.rt', 'Flanker_key.corr']
     )
-    return _reaction_time_accuracy(
+    grouped = _reaction_time_accuracy(
         df,
         reaction_time_col='Flanker_key.rt',
         correctness_col='Flanker_key.corr',
         group_by_col='stim_type'
     )
+
+    # Ensure both conditions are present
+    required = {'congruent', 'incongruent'}
+    missing = required.difference(grouped.index.astype(str))
+    if missing:
+        raise ValueError(
+            f"Missing required stim_type levels for Flanker: {sorted(missing)}"
+        )
+
+    return {
+        'FlankerAccuracyEffect': float(
+            grouped.loc['incongruent', 'accuracy'] - grouped.loc['congruent', 'accuracy']
+        ),
+        'FlankerRTEffect': float(
+            grouped.loc['incongruent', 'rt_mean'] - grouped.loc['congruent', 'rt_mean']
+        ),
+    }
 
 
 def preprocess_lwmc(lwmc_dir: Path):
