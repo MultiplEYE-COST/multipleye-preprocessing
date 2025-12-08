@@ -376,56 +376,83 @@ def preprocess_lwmc(lwmc_dir: Path):
     """Preprocess Lewandowsky WMC battery and compute task scores.
 
     Tasks:
-    - MU (Memory Update): proportion of items recalled correctly across trials.
-    - OS (Operation Span): proportion of items recalled in the correct list position.
-    - SS (Sentence Span): proportion of items recalled in the correct list position.
-    - SSTM (Spatial Short-Term Memory): overall score normalized by 240.
 
-    Scoring logic adapted from Laura Stahlhut's Python implementation (2022) of the
-    Lewandowsky WMC battery (see https://github.com/l-stahlhut/wmc-analysis/).
-    Reference: Lewandowsky, S., et al. (2010). "A working memory test battery for MATLAB."
+    - MU (Memory Update): proportion of items recalled correctly (per-trial mean, then mean over trials).
+    - OS (Operation Span): mean of per-trial recall correctness (unweighted by list length).
+    - SS (Sentence Span): mean of per-trial recall correctness (unweighted by list length).
+    - SSTM (Spatial Short-Term Memory): overall score normalised by 240 from ``SSTM-<id>.dat``.
+
+    Implementation notes:
+
+    - MU/OS/SS data are taken from the CSV export (not the .dat files).
+      We compute a trial index from ``base_text_intertrial.started`` and then, for each task,
+      compute the mean of the per-trial mean correctness values. This avoids overweighting
+      trials with more items.
+    - SSTM continues to be read from the original ``.dat`` file.
+
+    Attribution: Scoring concept adapted from Laura Stahlhut's Python implementation (2022)
+    of the Lewandowsky WMC battery (wmc-analysis). Reference: Lewandowsky, S., et al. (2010).
     Behavior Research Methods, 42(2), 571–585.
-
-    Notes:
-    - Strict behavior: raises ValueError when required files are missing or malformed.
-    - No rounding is applied to the returned float values.
-    - LWMC_Total includes SSTM in the arithmetic mean (MU, OS, SS, SSTM) — TODO: confirm
-      whether SSTM should be included in the mean total.
-
-    Parameters
-    ----------
-    lwmc_dir : Path
-        Participant-specific directory containing WMC `.dat` files.
 
     Returns
     -------
     dict
-        Dictionary with keys: 'LWMC_MU', 'LWMC_OS', 'LWMC_SS', 'LWMC_SSTM', 'LWMC_Total'.
+        Dictionary with keys: 'LWMC_MU_score', 'LWMC_MU_time', 'LWMC_OS_score', 'LWMC_OS_time',
+        'LWMC_SS_score', 'LWMC_SS_time', 'LWMC_SSTM_score', and 'LWMC_Total_score_mean'.
     """
 
+    # 1) Load the single WMC CSV that contains the relevant columns
+    required_cols = [
+        'is_practice',  # Filter out practice trials
+        'base_text_intertrial.started',  # Marker to separate trials
+        'mu_key_resp_recall.is_correct', 'mu_key_resp_recall.rt',  # MU columns
+        'os_key_resp_recall.corr', 'os_key_resp_recall.rt',  # OS columns
+        'ss_key_resp_recall.corr', 'ss_key_resp_recall.rt',  # SS columns
+    ]
+    df = _find_one_filetype_with_columns(lwmc_dir, required_cols, allow_nan=True)
+
+    # Create a trial identifier using the inter-trial text onset markers
+    # Each non-NaN in base_text_intertrial.started indicates a new trial boundary.
+    df['trial_id'] = df['base_text_intertrial.started'].notna().cumsum()
+
+    df = df[df['is_practice'] == False].copy()  # remove all practice trials
+    if df.empty:
+        raise ValueError("No non-practice trials found in WMC CSV")
+
+    def _per_trial_mean_then_mean(correctness_col: str, time_col: str, label: str) -> float:
+        if correctness_col not in df.columns:
+            raise ValueError(f"Missing column '{correctness_col}' for {label}")
+        # Select only rows with a value for the specific task's correctness column
+        mask = df[correctness_col].notna()
+        if not mask.any():
+            raise ValueError(f"No valid {label} trials found (no non-NaN entries in {correctness_col})")
+        # Use the in-frame 'trial_id' column to avoid index alignment issues
+        sub = df.loc[mask, [correctness_col, time_col, 'trial_id']].copy()
+        # Ensure correctness is numeric (0/1 or NaN)
+        sub[correctness_col] = pd.to_numeric(sub[correctness_col], errors='coerce')
+        # Compute mean correctness per trial_id, then mean of these per-trial means
+        corr_per_trial = sub.groupby('trial_id', dropna=True)[correctness_col].mean()
+        time_per_trial = sub.groupby('trial_id', dropna=True)[time_col].mean()
+        if corr_per_trial.empty:
+            raise ValueError(f"No valid {label} trials found after grouping")
+        return float(corr_per_trial.mean()), float(time_per_trial.mean())
+
+    # 2) Compute MU/OS/SS from CSV columns
+    mu_score, mu_time = _per_trial_mean_then_mean('mu_key_resp_recall.is_correct', 'mu_key_resp_recall.rt', 'MU')
+    os_score, os_time = _per_trial_mean_then_mean('os_key_resp_recall.corr', 'os_key_resp_recall.rt', 'OS')
+    ss_score, ss_time = _per_trial_mean_then_mean('ss_key_resp_recall.corr', 'ss_key_resp_recall.rt', 'SS' )
+
+    # 3) SSTM from legacy .dat
     def _participant_id_from_dir(d: Path) -> str:
-        stem = d.parent.stem  # e.g., "010_SQ_CH_1_PT2"
+        stem = d.parent.stem
         if len(stem) < 3 or not stem[:3].isdigit():
             raise ValueError(f"Cannot infer participant id from folder name: {stem}")
-        # Files use non-zero-padded ids (e.g., MU-10.dat for 010)
         return str(int(stem[:3]))
 
-    def _require_file(path: Path):
-        if not path.exists():
-            raise ValueError(f"Missing required WMC file: {path}")
-        if not path.is_file():
-            raise ValueError(f"WMC path is not a file: {path}")
-
     pid = _participant_id_from_dir(lwmc_dir)
-
-    mu_file = lwmc_dir / f"MU-{pid}.dat"
-    os_file = lwmc_dir / f"OS-{pid}.dat"
-    ss_file = lwmc_dir / f"SS-{pid}.dat"
     sstm_file = lwmc_dir / f"SSTM-{pid}.dat"
-
-    # Strict presence checks
-    for f in (mu_file, os_file, ss_file, sstm_file):
-        _require_file(f)
+    if not sstm_file.exists() or not sstm_file.is_file():
+        raise ValueError(f"Missing required WMC file: {sstm_file}")
 
     def _read_lines(p: Path) -> list[str]:
         try:
@@ -434,68 +461,6 @@ def preprocess_lwmc(lwmc_dir: Path):
         except Exception as exc:
             raise ValueError(f"Failed to read WMC file {p}: {exc}") from exc
 
-    # MU scoring
-    mu_lines = _read_lines(mu_file)
-    mu_num = 0
-    mu_den = 0
-    for line in mu_lines:
-        if not line.strip():
-            continue
-        try:
-            vals = [int(x) for x in line.rstrip("\n").split(" ") if x != ""]
-        except ValueError as exc:
-            raise ValueError(f"Non-integer token in MU file {mu_file}: {line}") from exc
-        # correctness flags are at indices 7..11, with -1 padding
-        flags = vals[7:12]
-        flags = [v for v in flags if v != -1]
-        if not flags:
-            continue
-        # sum positives; denominator is count of valid flags
-        mu_num += sum(1 for v in flags if v == 1)
-        mu_den += len(flags)
-    # If no valid MU flags are present (all entries padded with -1), treat MU as missing
-    # instead of aborting the entire LWMC computation. This scenario appears in our data
-    # where MU files exist but contain only padding (-1). We proceed with OS/SS/SSTM.
-    mu_score = mu_num / mu_den if mu_den > 0 else nan
-
-    # Helper for OS/SS scoring
-    def _os_ss_score(lines: list[str], label: str) -> float:
-        total_num = 0
-        total_den = 0
-        for line in lines:
-            if not line.strip():
-                continue
-            parts = [x for x in line.rstrip("\n").split(" ") if x != ""]
-            # Expect at least indexes up to typed letters
-            if len(parts) < 18:
-                # skip placeholder/short lines
-                continue
-            try:
-                max_trial = int(parts[1])
-            except ValueError:
-                # skip lines with placeholder in trial-length (e.g., '?')
-                continue
-            if max_trial <= 0:
-                continue
-            presented = [x for x in parts[2:9] if x != '%']
-            typed = [x for x in parts[10:17] if x != '%']
-            if not presented:
-                continue
-            # Count position-correct items up to the shorter of the two lists
-            correct = 0
-            for a, b in zip(presented, typed):
-                if a == b:
-                    correct += 1
-            total_num += correct
-            total_den += max_trial
-        if total_den == 0:
-            return nan
-        return total_num / total_den
-
-    os_score = _os_ss_score(_read_lines(os_file), 'OS')
-    ss_score = _os_ss_score(_read_lines(ss_file), 'SS')
-
-    # SSTM scoring (score on 2nd line, 2nd token)
     sstm_lines = _read_lines(sstm_file)
     if len(sstm_lines) < 2:
         raise ValueError(f"Malformed SSTM file (too few lines): {sstm_file}")
@@ -508,19 +473,18 @@ def preprocess_lwmc(lwmc_dir: Path):
         raise ValueError(f"Invalid SSTM score token: {sstm_tokens[1]}") from exc
     sstm_score = sstm_raw / 240.0
 
-    # Compute total over available (non-NaN) task scores. TODO: confirm inclusion of SSTM
-    scores = [mu_score, os_score, ss_score, sstm_score]
-    valid_scores = [s for s in scores if s == s]  # filter out NaNs
-    if not valid_scores:
-        raise ValueError("No valid LWMC task scores computed")
-    total = sum(valid_scores) / len(valid_scores)
+    # 4) Total mean
+    total = (mu_score + os_score + ss_score + sstm_score) / 4.0
 
     return {
-        'LWMC_MU': mu_score,
-        'LWMC_OS': os_score,
-        'LWMC_SS': ss_score,
-        'LWMC_SSTM': sstm_score,
-        'LWMC_Total': total,
+        'LWMC_MU_score': mu_score,
+        'LWMC_MU_time': mu_time,
+        'LWMC_OS_score': os_score,
+        'LWMC_OS_time': os_time,
+        'LWMC_SS_score': ss_score,
+        'LWMC_SS_time': ss_time,
+        'LWMC_SSTM_score': sstm_score,
+        'LWMC_Total_score_mean': total,
     }
 
 
