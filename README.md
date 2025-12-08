@@ -1,6 +1,6 @@
 # multipleye-preprocessing
 
-This is an inoffical, work-in-progress repo. Feel free to experiment and commit/push whatever you like. We will later put it to a proper clean repo. 
+This is an inoffical, work-in-progress repo. Feel free to experiment and commit/push whatever you like. We will later put it to a proper clean repo.
 
 ## Goals
 
@@ -19,48 +19,54 @@ All input and output files (except for the original EDF/ASC files) are to be inc
 ### 1. Conversion to sample-level CSV files
 
 **Input:**
+
 - EDF/ASC files (for EyeLink)  
-  Use the following command to generate the ASC file:  
+  Use the following command to generate the ASC file:
   ```bash
   $ ./edf2asc in.edf -input -ftime
   ```
 
 **Output:**
+
 - Sample-level CSV file for each trial
-  - File name: `{participant-id}_{stimulus-id}-samples.csv`
-  - Columns: `screen`, `time`, `pixel_x`, `pixel_y`, `pupil`
+    - File name: `{participant-id}_{stimulus-id}-samples.csv`
+    - Columns: `screen`, `time`, `pixel_x`, `pixel_y`, `pupil`
 - Session-level metadata
-  - File name: `session-metadata.json` (?)
-  - Content: calibrations, which eye for which trial, ...
+    - File name: `session-metadata.json` (?)
+    - Content: calibrations, which eye for which trial, ...
 
 ### 2. Fixation and saccade detection, AOI mapping
 
 **Input:**
+
 - `{participant-id}_{stimulus-id}-samples.csv`
 - Character-level AOI definitions
-  - File name: `aoi-char.csv` (?)
-  - Columns: `id`, `stimulus_id`, `screen`, `top_left_x`, `top_left_y`, `width`, `height`, `text`
+    - File name: `aoi-char.csv` (?)
+    - Columns: `id`, `stimulus_id`, `screen`, `top_left_x`, `top_left_y`, `width`, `height`, `text`
 - Token-level AOI definitions
-  - File name: `aoi-token.csv` (?)
-  - Columns: `id`, `stimulus_id`, `screen`, `top_left_x`, `top_left_y`, `width`, `height`, `text`
+    - File name: `aoi-token.csv` (?)
+    - Columns: `id`, `stimulus_id`, `screen`, `top_left_x`, `top_left_y`, `width`, `height`, `text`
 
 **Output:**
+
 - Fixation-level CSV file for each trial
-  - File name: `{participant-id}_{stimulus-id}_fixations.csv`
-  - Columns: `screen`, `onset`, `offset`, `pixel_x`, `pixel_y`, `char_aoi_id`, `token_aoi_id`
+    - File name: `{participant-id}_{stimulus-id}_fixations.csv`
+    - Columns: `screen`, `onset`, `offset`, `pixel_x`, `pixel_y`, `char_aoi_id`, `token_aoi_id`
 - Saccade-level CSV file for each trial
-  - File name: `{participant-id}_{stimulus-id}_saccades.csv`
-  - Columns: `screen`, `onset`, `offset`, `start_pixel_x`, `start_pixel_y`, `char_aoi_id`, `token_aoi_id`
+    - File name: `{participant-id}_{stimulus-id}_saccades.csv`
+    - Columns: `screen`, `onset`, `offset`, `start_pixel_x`, `start_pixel_y`, `char_aoi_id`, `token_aoi_id`
 
 ### 3. Reading measures
 
 **Input:**
+
 - `{participant-id}_{stimulus-id}_fixations.csv`
-  
+
 **Output:**
+
 - AOI-level CSV file containing reading measures
-  - File name: `{participant-id}_{stimulus-id}_measures.csv`
-  - Columns: `screen`, `token_aoi_id`, `tft`, `fpr`, ...
+    - File name: `{participant-id}_{stimulus-id}_measures.csv`
+    - Columns: `screen`, `token_aoi_id`, `tft`, `fpr`, ...
 
 ### 4. Quality checks
 
@@ -82,39 +88,60 @@ All input and output files (except for the original EDF/ASC files) are to be inc
 - [ ] Reading EDF directly (https://github.com/aeye-lab/pymovements/issues/509)
 - [ ] Reading measures (https://github.com/aeye-lab/pymovements/issues/701, https://github.com/aeye-lab/pymovements/issues/33)
 
- ### Folder structure
+### Folder structure
+
 as described in [MultiplEYE Experimenter Script - Eye-Tracking Session](https://docs.google.com/document/d/1fMb3Z75wRkeidi3hn0jgWMaKC0HgYfhXXQRg45ioiRI/edit?tab=t.0)
-Transfer (i.e., copy + paste) the complete data folder from experiment_implementation > data > eye_tracking_data_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER] > core_dataset > folder name with participant ID to your password-protected SWITCHdrive folder and in that folder to the folder named eye-tracking-sessions.
+Transfer (i.e., copy + paste) the complete data folder from experiment_implementation > data > eye_tracking_data_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER] > core_dataset > folder name with
+participant ID to your password-protected SWITCHdrive folder and in that folder to the folder named eye-tracking-sessions.
 
 - MultiplEYE_[languageISOcode]_[countryISOcode]_[city]_[identifier]_
-[yearDataCollectionEnd]
-  - stimuli_MultiplEYE_[LANGUAGE_CODE]_[COUNTRY_CODE]_[City]_[Experiment_number]_[Year]
-  - eye-tracking-sessions
-    - pilot_sessions
-    - test_session
-    - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]
-       - logfiles
-         - completed_stimuli.csv
-         - DATA_LOGFILE_1_[Participant_ID]_[Date]_[some number].txt
-         - EXPERIMENT_LOGFILE_1_[Participant_ID]_[Date]_[some number].txt
-         - GENERAL_LOGFILE_1_[Participant_ID]_[Date]_[some number].txt
-         - question_order_versions.csv
-       - [participant_id]_[language_code]_[country_code]_[Lab_number]_pq_data.json
-       - [participant_id][language_code][country_code][lab_number].edf
-       - [participant_id][language_code][country_code][lab_number].asc (generated by us)
-    - 001_…_…_…_ET1
-    - 002_…_…_…_ET1
-    - 005_…_…_…_ET1
-    - quality_reports (generated by us)
-      - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]
-        - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]_gaze.pkl
-        - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]_report.txt
-        - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]_plots
-          - plot1
-          - plot2
-      - 001_…_…_…_ET1
-      - 002_…_…_…_ET1
-      - 005_…_…_…_ET1
-  - psychometric-tests-sessions
-  - participant_questionnaire_[languageISOcode]_[countryISOcode]_[identifier]
-  - documentation
+  [yearDataCollectionEnd]
+    - stimuli_MultiplEYE_[LANGUAGE_CODE]_[COUNTRY_CODE]_[City]_[Experiment_number]_[Year]
+    - eye-tracking-sessions
+        - pilot_sessions
+        - test_session
+        - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]
+            - logfiles
+                - completed_stimuli.csv
+                - DATA_LOGFILE_1_[Participant_ID]_[Date]_[some number].txt
+                - EXPERIMENT_LOGFILE_1_[Participant_ID]_[Date]_[some number].txt
+                - GENERAL_LOGFILE_1_[Participant_ID]_[Date]_[some number].txt
+                - question_order_versions.csv
+            - [participant_id]_[language_code]_[country_code]_[Lab_number]_pq_data.json
+            - [participant_id][language_code][country_code][lab_number].edf
+            - [participant_id][language_code][country_code][lab_number].asc (generated by us)
+        - 001_…_…_…_ET1
+        - 002_…_…_…_ET1
+        - 005_…_…_…_ET1
+        - quality_reports (generated by us)
+            - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]
+                - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]_gaze.pkl
+                - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]_report.txt
+                - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]_plots
+                    - plot1
+                    - plot2
+            - 001_…_…_…_ET1
+            - 002_…_…_…_ET1
+            - 005_…_…_…_ET1
+    - psychometric-tests-sessions
+    - participant_questionnaire_[languageISOcode]_[countryISOcode]_[identifier]
+    - documentation
+
+## Building the documentation
+
+When writing, building the documentation is important to see your changes.
+For this, ensure the documentation dependencies are installed.
+To build the pages once, from the root of the repository, run:
+
+```bash
+sphinx-build docs/ public -b dirhtml
+```
+
+Alternatively, using `sphinx-autobuild` is helpful, as it automatically starts a server to show the
+documentation pages and for every saved change, the documentation is rebuilt and reloaded automatically.
+
+```bash
+sphinx-autobuild docs/ public -b dirhtml
+```
+
+It runs until you close it with `ctrl+c`.
