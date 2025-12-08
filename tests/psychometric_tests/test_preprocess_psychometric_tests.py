@@ -9,7 +9,9 @@ import pytest
 from numpy import float64
 
 from preprocessing.psychometric_tests.preprocess_psychometric_tests import \
-    _reaction_time_accuracy, _find_one_filetype_with_columns
+    _reaction_time_accuracy, _find_one_filetype_with_columns, \
+    preprocess_stroop, preprocess_flanker, preprocess_plab, \
+    preprocess_ran, preprocess_wikivocab, preprocess_lwmc
 
 
 @pytest.mark.parametrize(
@@ -269,3 +271,439 @@ def test__find_one_filetype_with_columns(
     else:
         df = _find_one_filetype_with_columns(folder, required_cols, allow_nan=allow_nan)
         assert check(df)
+
+
+@pytest.mark.parametrize(
+    "rows, expected",
+    [
+        # Two groups, one item each
+        (
+            [
+                ("congruent", 100, 1),
+                ("incongruent", 200, 0),
+            ],
+            {
+                ("congruent", "rt_mean"): 100.0,
+                ("congruent", "accuracy"): 1.0,
+                ("congruent", "num_items"): 1,
+                ("incongruent", "rt_mean"): 200.0,
+                ("incongruent", "accuracy"): 0.0,
+                ("incongruent", "num_items"): 1,
+            },
+        ),
+        # Multiple per group
+        (
+            [
+                ("A", 100, 1),
+                ("A", 200, 0),
+                ("B", 300, 1),
+                ("B", 500, 1),
+            ],
+            {
+                ("A", "rt_mean"): 150.0,
+                ("A", "accuracy"): 0.5,
+                ("A", "num_items"): 2,
+                ("B", "rt_mean"): 400.0,
+                ("B", "accuracy"): 1.0,
+                ("B", "num_items"): 2,
+            },
+        ),
+    ],
+)
+def test_preprocess_stroop_basic(tmp_path: Path, make_text_file, rows, expected):
+    folder = tmp_path / "session" / "SF"
+    header = "stim_type,stroop_key.rt,stroop_key.corr\n"
+    body = "".join(f"{s},{rt},{corr}\n" for s, rt, corr in rows)
+    make_text_file(folder / "stroop.csv", header=header, body=body)
+
+    res = preprocess_stroop(folder)
+    assert list(res.columns) == ["rt_mean", "accuracy", "num_items"]
+    for (grp, col), exp in expected.items():
+        val = res.loc[grp, col]
+        if isinstance(exp, float):
+            assert val == pytest.approx(exp)
+        else:
+            assert val == exp
+
+
+@pytest.mark.parametrize(
+    "header, body, error_msg",
+    [
+        # Missing required columns
+        ("stim_type,rt,corr\n", "A,100,1\n", "No .csv files with columns"),
+        # NaN mismatch between rt and corr -> validation error
+        (
+            "stim_type,stroop_key.rt,stroop_key.corr\n",
+            "A,,1\n",
+            "NaN positions in correctness and reaction time columns do not match",
+        ),
+        # Non-numeric rt
+        (
+            "stim_type,stroop_key.rt,stroop_key.corr\n",
+            "A,fast,1\n",
+            "Reaction time column contains non-numeric values",
+        ),
+    ],
+)
+def test_preprocess_stroop_errors(tmp_path: Path, make_text_file, header, body, error_msg):
+    folder = tmp_path / "p1" / "SF"
+    make_text_file(folder / "data.csv", header=header, body=body)
+    if error_msg.startswith("No .csv files with columns"):
+        with pytest.raises(ValueError, match="No .csv files with columns"):
+            preprocess_stroop(folder)
+    else:
+        with pytest.raises(ValueError, match=error_msg):
+            preprocess_stroop(folder)
+
+
+@pytest.mark.parametrize(
+    "rows, expected",
+    [
+        (
+            [("Congruent", 100, 1), ("Incongruent", 300, 0), ("Congruent", 200, 1)],
+            {
+                ("Congruent", "rt_mean"): 150.0,
+                ("Congruent", "accuracy"): 1.0,
+                ("Congruent", "num_items"): 2,
+                ("Incongruent", "rt_mean"): 300.0,
+                ("Incongruent", "accuracy"): 0.0,
+                ("Incongruent", "num_items"): 1,
+            },
+        ),
+    ],
+)
+def test_preprocess_flanker_basic(tmp_path: Path, make_text_file, rows, expected):
+    folder = tmp_path / "session" / "SF"
+    header = "stim_type,Flanker_key.rt,Flanker_key.corr\n"
+    body = "".join(f"{s},{rt},{corr}\n" for s, rt, corr in rows)
+    make_text_file(folder / "flanker.csv", header=header, body=body)
+
+    res = preprocess_flanker(folder)
+    assert list(res.columns) == ["rt_mean", "accuracy", "num_items"]
+    for (grp, col), exp in expected.items():
+        val = res.loc[grp, col]
+        if isinstance(exp, float):
+            assert val == pytest.approx(exp)
+        else:
+            assert val == exp
+
+
+@pytest.mark.parametrize(
+    "header, body, error_msg",
+    [
+        ("stim_type,rt,corr\n", "A,100,1\n", "No .csv files with columns"),
+        (
+            "stim_type,Flanker_key.rt,Flanker_key.corr\n",
+            "A,,1\n",
+            "NaN positions in correctness and reaction time columns do not match",
+        ),
+        (
+            "stim_type,Flanker_key.rt,Flanker_key.corr\n",
+            "A,slow,1\n",
+            "Reaction time column contains non-numeric values",
+        ),
+    ],
+)
+def test_preprocess_flanker_errors(tmp_path: Path, make_text_file, header, body, error_msg):
+    folder = tmp_path / "p2" / "SF"
+    make_text_file(folder / "data.csv", header=header, body=body)
+    if error_msg.startswith("No .csv files with columns"):
+        with pytest.raises(ValueError, match="No .csv files with columns"):
+            preprocess_flanker(folder)
+    else:
+        with pytest.raises(ValueError, match=error_msg):
+            preprocess_flanker(folder)
+
+
+@pytest.mark.parametrize(
+    "rows, expected",
+    [
+        ([(100, 1), (200, 0), (300, 1)], (200.0, 2/3, 3)),
+        ([(1, 1)], (1.0, 1.0, 1)),
+    ],
+)
+def test_preprocess_plab_basic(tmp_path: Path, make_text_file, rows, expected):
+    folder = tmp_path / "session" / "PLAB"
+    header = "rt,correctness\n"
+    body = "".join(f"{rt},{corr}\n" for rt, corr in rows)
+    make_text_file(folder / "plab.csv", header=header, body=body)
+    out = preprocess_plab(folder)
+    assert out[0] == pytest.approx(expected[0])
+    assert out[1] == pytest.approx(expected[1])
+    assert out[2] == expected[2]
+
+
+@pytest.mark.parametrize(
+    "header, body, error_msg",
+    [
+        ("rt,corr\n", "100,1\n", "No .csv files with columns"),
+        ("rt,correctness\n", ",1\n", "NaN positions in correctness and reaction time columns do not match"),
+        ("rt,correctness\n", "fast,1\n", "Reaction time column contains non-numeric values"),
+    ],
+)
+def test_preprocess_plab_errors(tmp_path: Path, make_text_file, header, body, error_msg):
+    folder = tmp_path / "p3" / "PLAB"
+    make_text_file(folder / "plab.csv", header=header, body=body)
+    if error_msg.startswith("No .csv files with columns"):
+        with pytest.raises(ValueError, match="No .csv files with columns"):
+            preprocess_plab(folder)
+    else:
+        with pytest.raises(ValueError, match=error_msg):
+            preprocess_plab(folder)
+
+
+def test_preprocess_ran_basic(tmp_path: Path, make_text_file):
+    folder = tmp_path / "session" / "RAN"
+    header = "Trial,Reading_Time\n"
+    body = "1,2.5\n2,3.5\n"
+    make_text_file(folder / "ran.csv", header=header, body=body)
+    df = preprocess_ran(folder)
+    assert list(df.columns) == ["Trial", "Reading_Time"]
+    assert df.equals(pd.DataFrame({"Trial": [1, 2], "Reading_Time": [2.5, 3.5]}))
+
+
+@pytest.mark.parametrize(
+    "header, body, error_msg",
+    [
+        ("Trial,RT\n", "1,2\n", "No .csv files with columns"),
+        ("Trial,Reading_Time\n", "1,\n", "NaN values found in required columns"),
+        # Multiple files with required columns
+        ("Trial,Reading_Time\n", "1,2\n", "Multiple .csv files with columns"),
+    ],
+)
+def test_preprocess_ran_errors(tmp_path: Path, make_text_file, header, body, error_msg):
+    folder = tmp_path / "p4" / "RAN"
+    # Create one or two files depending on error
+    make_text_file(folder / "ran1.csv", header=header, body=body)
+    if error_msg.startswith("Multiple"):
+        make_text_file(folder / "ran2.csv", header=header, body=body)
+    with pytest.raises(ValueError, match=error_msg):
+        preprocess_ran(folder)
+
+
+@pytest.mark.parametrize(
+    "rows, expected",
+    [
+        (
+            # 4 rows, 2 real (1) and 2 sudo (0)
+            [
+                (1, 1, 100),  # correct real
+                (1, 0, 200),  # incorrect real
+                (0, 0, 300),  # correct sudo
+                (0, 1, 400),  # incorrect sudo
+            ],
+            {
+                "rt_mean": 250.0,
+                "accuracy": 0.5,
+                "num_items": 4,
+                "num_sudo_words": 2,
+                "num_real_words": 2,
+                "incorrect_correct_score": 0.5,
+                "sudo_correct": 0.5,
+                "real_correct": 0.5,
+                "overall_correct": 0.5,
+            },
+        ),
+        (
+            # Only sudo words (no real words)
+            [
+                (0, 0, 100),
+                (0, 1, 200),
+            ],
+            {
+                "rt_mean": 150.0,
+                "accuracy": 0.5,
+                "num_items": 2,
+                "num_sudo_words": 2,
+                "num_real_words": 0,
+                "incorrect_correct_score": math.nan,
+                "sudo_correct": 0.5,
+                "real_correct": math.nan,
+                "overall_correct": 0.5,
+            },
+        ),
+    ],
+)
+def test_preprocess_wikivocab_basic(tmp_path: Path, make_text_file, rows, expected):
+    folder = tmp_path / "session" / "WV"
+    header = "correct_answer,real_answer,RT\n"
+    body = "".join(f"{c},{r},{rt}\n" for c, r, rt in rows)
+    make_text_file(folder / "wv.csv", header=header, body=body)
+
+    out = preprocess_wikivocab(folder)
+    for key, exp in expected.items():
+        val = out[key]
+        if isinstance(exp, float) and math.isnan(exp):
+            assert math.isnan(val)
+        elif isinstance(exp, float):
+            assert val == pytest.approx(exp)
+        else:
+            assert val == exp
+
+
+@pytest.mark.parametrize(
+    "header, body, error_msg",
+    [
+        ("c,real_answer,RT\n", "1,1,100\n", "No .csv files with columns"),
+        ("correct_answer,real_answer,RT\n", "1,1,\n", "NaN values found in required columns"),
+        # Non-numeric RT should raise a validation error
+        ("correct_answer,real_answer,RT\n", "1,1,fast\n", "Reaction time column contains non-numeric values"),
+    ],
+)
+def test_preprocess_wikivocab_errors(tmp_path: Path, make_text_file, header, body, error_msg):
+    folder = tmp_path / "p5" / "WV"
+    make_text_file(folder / "wv.csv", header=header, body=body)
+    if error_msg.startswith("No .csv files with columns") or error_msg.startswith("NaN values found") or error_msg.startswith("Reaction time column contains"):
+        with pytest.raises(ValueError, match=error_msg):
+            preprocess_wikivocab(folder)
+    else:
+        # In this case, CSV loads but reaction time accuracy validation triggers
+        with pytest.raises(ValueError):
+            preprocess_wikivocab(folder)
+
+
+def _make_wmc_csv(folder: Path, make_text_file):
+    header = (
+        "is_practice,base_text_intertrial.started,"
+        "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
+        "os_key_resp_recall.corr,os_key_resp_recall.rt,"
+        "ss_key_resp_recall.corr,ss_key_resp_recall.rt\n"
+    )
+    body = "".join(
+        [
+            # Trial 1
+            "False,1,1,100,1,10,0,5\n",
+            "False,,0,200,,,1,15\n",
+            # Trial 2
+            "False,2,1,300,0,30,1,25\n",
+            "False,,1,400,,,0,35\n",
+        ]
+    )
+    make_text_file(folder / "wmc.csv", header=header, body=body)
+
+
+def _make_sstm_file(lwmc_dir: Path, make_text_file, pid: str = "1", token: str = "120"):
+    # File must be named SSTM-<pid>.dat, where pid is int(stem[:3]) of parent folder
+    make_text_file(lwmc_dir / f"SSTM-{pid}.dat", body=f"header\nScore {token}\n")
+
+
+def test_preprocess_lwmc_basic(tmp_path: Path, make_text_file):
+    # Create folder structure: <tmp>/<participant>/WMC
+    participant = tmp_path / "001_AB"  # stem[:3] -> "001" -> pid "1"
+    lwmc_dir = participant / "WMC"
+    lwmc_dir.mkdir(parents=True)
+
+    _make_wmc_csv(lwmc_dir, make_text_file)
+    _make_sstm_file(lwmc_dir, make_text_file, pid="1", token="120")
+
+    out = preprocess_lwmc(lwmc_dir)
+
+    assert out["LWMC_MU_score"] == pytest.approx(0.75)
+    assert out["LWMC_MU_time"] == pytest.approx(250.0)
+    assert out["LWMC_OS_score"] == pytest.approx(0.5)
+    assert out["LWMC_OS_time"] == pytest.approx(20.0)
+    assert out["LWMC_SS_score"] == pytest.approx(0.5)
+    assert out["LWMC_SS_time"] == pytest.approx(20.0)
+    assert out["LWMC_SSTM_score"] == pytest.approx(0.5)
+    assert out["LWMC_Total_score_mean"] == pytest.approx((0.75 + 0.5 + 0.5 + 0.5) / 4)
+
+
+@pytest.mark.parametrize(
+    "prep, error_msg",
+    [
+        # All practice -> no non-practice trials
+        (
+            lambda d, mk: mk(
+                d / "wmc.csv",
+                header=(
+                    "is_practice,base_text_intertrial.started,"
+                    "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
+                    "os_key_resp_recall.corr,os_key_resp_recall.rt,"
+                    "ss_key_resp_recall.corr,ss_key_resp_recall.rt\n"
+                ),
+                body="""True,1,1,100,1,10,1,5\nTrue,,1,100,1,10,1,5\n""",
+            ),
+            "No non-practice trials found",
+        ),
+        # Missing SSTM file
+        (
+            lambda d, mk: _make_wmc_csv(d, mk),
+            "Missing required WMC file",
+        ),
+        # Malformed SSTM: too few lines
+        (
+            lambda d, mk: (
+                _make_wmc_csv(d, mk),
+                mk(d / "SSTM-1.dat", body="only one line\n"),
+            ),
+            "Malformed SSTM file",
+        ),
+        # Malformed SSTM: too few tokens
+        (
+            lambda d, mk: (
+                _make_wmc_csv(d, mk),
+                mk(d / "SSTM-1.dat", body="h\n\n"),
+            ),
+            "Malformed SSTM line",
+        ),
+        # Malformed SSTM: invalid token
+        (
+            lambda d, mk: (
+                _make_wmc_csv(d, mk),
+                mk(d / "SSTM-1.dat", body="h\nScore abc\n"),
+            ),
+            "Invalid SSTM score token",
+        ),
+        # No valid MU trials (all NaN in MU correctness)
+        (
+            lambda d, mk: mk(
+                d / "wmc.csv",
+                header=(
+                    "is_practice,base_text_intertrial.started,"
+                    "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
+                    "os_key_resp_recall.corr,os_key_resp_recall.rt,"
+                    "ss_key_resp_recall.corr,ss_key_resp_recall.rt\n"
+                ),
+                body=(
+                    "False,1,,100,1,10,1,5\n"
+                    "False,,,200,,,1,15\n"
+                ),
+            ),
+            "No valid MU trials found",
+        ),
+        # Cannot infer participant id (parent stem without 3 leading digits)
+        (
+            lambda d, mk: _make_wmc_csv(d, mk),
+            "Cannot infer participant id",
+        ),
+    ],
+)
+def test_preprocess_lwmc_errors(tmp_path: Path, make_text_file, prep, error_msg):
+    # Intentionally choose a parent without three leading digits to trigger id error in one case
+    participant = tmp_path / "XXY"  # no leading digits
+    lwmc_dir = participant / "WMC"
+    lwmc_dir.mkdir(parents=True)
+
+    prep(lwmc_dir, make_text_file)
+
+    if "Cannot infer participant id" in error_msg:
+        with pytest.raises(ValueError, match=error_msg):
+            preprocess_lwmc(lwmc_dir)
+    else:
+        # For other cases, use a valid participant id so pid derivation works
+        participant_ok = tmp_path / "001_OK"
+        lwmc_ok = participant_ok / "WMC"
+        lwmc_ok.mkdir(parents=True)
+        # Copy the prepared csv if present
+        src_csv = lwmc_dir / "wmc.csv"
+        if src_csv.exists():
+            text = src_csv.read_text()
+            make_text_file(lwmc_ok / "wmc.csv", body=text)
+        # If a prepared SSTM file exists in the source, copy its contents to the valid folder
+        src_sstm = lwmc_dir / "SSTM-1.dat"
+        if src_sstm.exists():
+            sstm_text = src_sstm.read_text()
+            make_text_file(lwmc_ok / "SSTM-1.dat", body=sstm_text)
+        # Now run and expect error
+        with pytest.raises(ValueError, match=error_msg):
+            preprocess_lwmc(lwmc_ok)
