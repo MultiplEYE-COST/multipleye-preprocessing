@@ -27,89 +27,6 @@ from preprocessing.config import PSYCHOMETRIC_TESTS_DIR, PSYM_LWMC_DIR, PSYM_RAN
     PSYM_STROOP_FLANKER_DIR, PSYM_WIKIVOCAB_DIR, PSYM_PLAB_DIR
 
 
-def preprocess_all_participants_and_print(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR):
-    r"""Preprocess all available participants and tests.
-
-    This script looks into ``test_session_folder`` and iterates over each folder of the pattern
-    '\d{3}_.+' (any folder starting with a three-digit number, followed by an underscore.
-    """
-
-    participant_folders = test_session_folder.iterdir()
-    # Filter for participant folders starting with three digits and underscore
-    participant_folders = [folder for folder in participant_folders if _is_valid_folder(folder)]
-    # Order
-    participant_folders = sorted(participant_folders, key=lambda x: x.name)
-
-    for participant in participant_folders:
-        print(f"Participant: {participant.stem}")
-
-        # LWMC (Lewandowsky Working Memory Capacity battery)
-        lwmc_dir = participant / PSYM_LWMC_DIR
-        if lwmc_dir.exists():
-            try:
-                lwmc_res = preprocess_lwmc(lwmc_dir)
-                print("LWMC:\n", lwmc_res)
-            except ValueError as err:
-                warnings.warn(
-                    f"Failed to process LWMC test for {participant.stem}: {str(err)}",
-                    category=UserWarning,
-                )
-
-        # RAN
-        ran_dir = participant / PSYM_RAN_DIR
-        if ran_dir.exists():
-            print("RAN:\n", preprocess_ran(ran_dir))
-
-        # Stroop & Flanker
-        stroop_flanker_dir = participant / PSYM_STROOP_FLANKER_DIR
-        if stroop_flanker_dir.exists():
-            try:
-                stroop_res = preprocess_stroop(stroop_flanker_dir)
-            except ValueError as err:
-                warnings.warn(
-                    f"Failed to process Stroop test for {participant.stem}: {str(err)}",
-                    category=UserWarning,
-                )
-                continue
-            print("Stroop:\n", stroop_res)
-
-            try:
-                flanker_res = preprocess_flanker(stroop_flanker_dir)
-            except ValueError as err:
-                warnings.warn(
-                    f"Failed to process Flanker test for {participant.stem}: {str(err)}",
-                    category=UserWarning,
-                )
-                continue
-            print("Flanker:\n", flanker_res)
-
-            # preprocess_flanker(participant)
-        wikivocab_dir = participant / PSYM_WIKIVOCAB_DIR
-        if wikivocab_dir.exists():
-            try:
-                wikivocab_res = preprocess_wikivocab(wikivocab_dir)
-            except ValueError as err:
-                warnings.warn(
-                    f"Failed to process WikiVocab test for {participant.stem}: {str(err)}",
-                    category=UserWarning,
-                )
-                continue
-            print(f"WikiVocab: {wikivocab_res}")
-
-        # PLAB
-        plab_dir = participant / PSYM_PLAB_DIR
-        if plab_dir.exists():
-            try:
-                plab_res = preprocess_plab(plab_dir)
-            except ValueError as err:
-                warnings.warn(
-                    f"Failed to process PLAB test for {participant.stem}: {str(err)}",
-                    category=UserWarning,
-                )
-                continue
-            print(f"PLAB: {plab_res[0]:.2f} sec, {plab_res[1]*100:.2f} %, {plab_res[2]} words")
-
-
 def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) -> Path:
     """Preprocess all participants and write two types of outputs:
 
@@ -120,7 +37,8 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
        - LWMC: scores only (no times)
        - Stroop & Flanker: AccuracyEffect and TREffect only
        - WikiVocab: rt_mean, accuracy, incorrect_correct_score
-       - RAN/PLAB: same aggregation as before
+       - RAN: Reaction time for two trials
+       - PLAB: RT mean and accuracy
 
     2) Per-participant detailed CSV placed in each participant folder with all
        available detailed metrics in a readable, wide format (namespaced
@@ -573,7 +491,7 @@ def preprocess_wikivocab(wv_dir: Path):
 
     LexTALE generalisation:
 
-    - Add num_sudo_words / num_real_words 
+    - Add num_sudo_words / num_real_words
     - Incorrect minus correct (number of existing words correct/number of existing words in list) + (number of nonwords correct/nonwords in list)) / 2
     - Percentages correct sudo / correct / overall
 
@@ -598,8 +516,9 @@ def preprocess_wikivocab(wv_dir: Path):
         - rt_mean: Mean reaction time
         - accuracy: Overall accuracy
         - num_sudo: Number of sudo words
-        - num_real: Number of real words 
+        - num_real: Number of real words
         - incorrect_correct_score: Balanced accuracy score (averaged % correct)
+          https://www.lextale.com/scoring.html
         - sudo_correct: Fraction of correct sudo words
         - real_correct: Fraction of correct real words
         - overall_correct: Overall fraction correct
@@ -618,7 +537,7 @@ def preprocess_wikivocab(wv_dir: Path):
     real_correct = df[(df['correct_answer'] == 1) & (df['correctness'])].shape[0] / num_real if num_real > 0 else float('nan')
     overall_correct = df['correctness'].mean()
 
-    # Calculate incorrect minus correct score
+    # Calculate incorrect_correct score
     incorrect_correct = (real_correct + sudo_correct) / 2
 
     rt_acc = _reaction_time_accuracy(df, reaction_time_col='RT', correctness_col='correctness')
@@ -691,7 +610,7 @@ def _reaction_time_accuracy(
     -------
     DataFrame | tuple[float, float, int]
         If ``group_by_col`` is None, returns a tuple of (mean reaction time, accuracy, num_items).
-        If ``group_by_col`` is provided, returns a DataFrame indexed by the group values 
+        If ``group_by_col`` is provided, returns a DataFrame indexed by the group values
         with three columns: ``rt_mean``, ``accuracy``, and ``num_items``, where
         num_items shows the number of non-NaN reaction time values per group.
 
@@ -723,7 +642,7 @@ def _reaction_time_accuracy(
 
         # Get the grouped data
         grouped = df.groupby(group_by_col, dropna=True)
-        
+
         # Accuracy per group
         acc = grouped[correctness_col].mean().rename('accuracy')
 
