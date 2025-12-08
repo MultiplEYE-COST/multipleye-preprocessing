@@ -111,39 +111,44 @@ def preprocess_all_participants_and_print(test_session_folder: Path = PSYCHOMETR
 
 
 def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) -> Path:
-    """Preprocess all participants and persist results in a wide, tabular CSV.
+    """Preprocess all participants and write two types of outputs:
 
-    Requirements:
-    - One row per participant.
-    - One column per returned value (no nested payloads/JSON).
-    - Do not compute any new statistics - simply place the function returns into
-      descriptive columns as-is.
+    1) Overview CSV (one row per participant) saved directly under the
+       psychometric-tests-sessions folder. The filename is descriptive and
+       includes the study/session tag (e.g. "SQ_CH_1_PT2"). The overview
+       contains only the requested summary metrics:
+       - LWMC: scores only (no times)
+       - Stroop & Flanker: AccuracyEffect and TREffect only
+       - WikiVocab: rt_mean, accuracy, incorrect_correct_score
+       - RAN/PLAB: same aggregation as before
 
-    Column mapping (values as returned by the respective functions):
-    - LWMC -> expand dict keys: LWMC_MU, LWMC_OS, LWMC_SS, LWMC_SSTM, LWMC_Total
-    - RAN -> expand DataFrame rows into columns: RAN_Trial{n}_Reading_Time
-    - Stroop -> expand dict keys: StroopAccuracyEffect, StroopRTEffect
-    - Flanker -> expand dict keys: FlankerAccuracyEffect, FlankerRTEffect
-    - WikiVocab -> tuple(rt_mean, accuracy) -> WikiVocab_RT_mean, WikiVocab_Accuracy
-    - PLAB -> tuple(rt_mean, accuracy) -> PLAB_RT_mean, PLAB_Accuracy
+    2) Per-participant detailed CSV placed in each participant folder with all
+       available detailed metrics in a readable, wide format (namespaced
+       columns). For example, grouped RT/accuracy for Stroop/Flanker are stored
+       as columns like ``Stroop_congruent_rt_mean``.
 
-    The output file overwrites psychometric_results/psychometric_outputs_all.csv
-    in the provided test_session_folder.
+    Notes:
+    - All computations are performed once per participant and then split into
+      overview vs. detailed outputs (no duplicate calculations).
+    - Returns the path to the written overview CSV.
     """
     # Collect participant folders
     participant_folders = test_session_folder.iterdir()
     participant_folders = [p for p in participant_folders if _is_valid_folder(p)]
     participant_folders = sorted(participant_folders, key=lambda p: p.name)
 
-    rows: list[dict] = []
+    overview_rows: list[dict] = []
+
 
     def _pid_from_folder(folder: Path) -> str:
         return folder.stem[:3]
 
+    session_tag = test_session_folder.parent.stem.split('_', maxsplit=1)[1]
+
     for participant in participant_folders:
         pid = _pid_from_folder(participant)
-        # Initialise row with participant and per-test calculated flags (0/1)
-        row: dict = {
+        # Initialise overview row with participant and per-test calculated flags (0/1)
+        overview_row: dict = {
             'participant_id': pid,
             'LWMC_Calculated': 0,
             'RAN_Calculated': 0,
@@ -153,14 +158,23 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
             'PLAB_Calculated': 0,
         }
 
+        # Detailed row: single CSV per participant with namespaced, readable columns
+        detailed_row: dict = {
+            'participant_id': pid,
+        }
+
         # LWMC
         lwmc_dir = participant / PSYM_LWMC_DIR
         if lwmc_dir.exists():
             try:
                 res = preprocess_lwmc(lwmc_dir)  # dict
-                # place dict keys as columns
-                row.update(res)
-                row['LWMC_Calculated'] = 1
+                # detailed: all LWMC metrics
+                detailed_row.update(res)
+                # overview: LWMC scores only
+                for k in ['LWMC_MU_score', 'LWMC_OS_score', 'LWMC_SS_score', 'LWMC_SSTM_score', 'LWMC_Total_score_mean']:
+                    if k in res:
+                        overview_row[k] = res[k]
+                overview_row['LWMC_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process LWMC test for {participant.stem}: {str(err)}",
@@ -173,7 +187,7 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
             try:
                 df_ran = preprocess_ran(ran_dir)
                 # Mark calculated on successful preprocessing regardless of emptiness
-                row['RAN_Calculated'] = 1
+                overview_row['RAN_Calculated'] = 1
                 if isinstance(df_ran, DataFrame) and not df_ran.empty:
                     # For each trial, create a dedicated column
                     for _, r in df_ran.iterrows():
@@ -183,7 +197,9 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
                             # Fallback to string if not castable
                             trial = r['Trial']
                         col = f"RAN_Trial{trial}_Reading_Time"
-                        row[col] = r['Reading_Time']
+                        # both detailed and overview get the trial reading times
+                        detailed_row[col] = r['Reading_Time']
+                        overview_row[col] = r['Reading_Time']
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process RAN test for {participant.stem}: {str(err)}",
@@ -195,9 +211,6 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
         if sf_dir.exists():
             try:
                 stroop_res = preprocess_stroop(sf_dir)  # DataFrame
-
-                # TODO: only return grouped rt mean and corr
-
                 # Ensure both conditions are present
                 required = {'congruent', 'incongruent'}
                 missing = required.difference(stroop_res.index.astype(str))
@@ -205,8 +218,8 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
                     raise ValueError(
                         f"Missing required stim_type levels for Stroop: {sorted(missing)}"
                     )
-
-                row.update({
+                # overview: only effects
+                overview_row.update({
                     'StroopAccuracyEffect': float(
                         stroop_res.loc['incongruent', 'accuracy'] - stroop_res.loc['congruent', 'accuracy']
                     ),
@@ -214,8 +227,13 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
                         stroop_res.loc['incongruent', 'rt_mean'] - stroop_res.loc['congruent', 'rt_mean']
                     ),
                 })
-
-                row['Stroop_Calculated'] = 1
+                # detailed: effects + grouped metrics per condition
+                detailed_row['StroopAccuracyEffect'] = overview_row['StroopAccuracyEffect']
+                detailed_row['StroopRTEffect'] = overview_row['StroopRTEffect']
+                for cond in stroop_res.index.astype(str):
+                    for metric in ('rt_mean', 'accuracy', 'num_items'):
+                        detailed_row[f"Stroop_{cond}_{metric}"] = float(stroop_res.loc[cond, metric])
+                overview_row['Stroop_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process Stroop test for {participant.stem}: {str(err)}",
@@ -230,8 +248,8 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
                     raise ValueError(
                         f"Missing required stim_type levels for Flanker: {sorted(missing)}"
                     )
-
-                row.update({
+                # overview: only effects
+                overview_row.update({
                     'FlankerAccuracyEffect': float(
                         flanker_res.loc['incongruent', 'accuracy'] - flanker_res.loc['congruent', 'accuracy']
                     ),
@@ -239,7 +257,13 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
                         flanker_res.loc['incongruent', 'rt_mean'] - flanker_res.loc['congruent', 'rt_mean']
                     ),
                 })
-                row['Flanker_Calculated'] = 1
+                # detailed: effects + grouped metrics per condition
+                detailed_row['FlankerAccuracyEffect'] = overview_row['FlankerAccuracyEffect']
+                detailed_row['FlankerRTEffect'] = overview_row['FlankerRTEffect']
+                for cond in flanker_res.index.astype(str):
+                    for metric in ('rt_mean', 'accuracy', 'num_items'):
+                        detailed_row[f"Flanker_{cond}_{metric}"] = float(flanker_res.loc[cond, metric])
+                overview_row['Flanker_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process Flanker test for {participant.stem}: {str(err)}",
@@ -251,10 +275,17 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
         if wv_dir.exists():
             try:
                 wv = preprocess_wikivocab(wv_dir)
-                if isinstance(wv, tuple) and len(wv) == 2:
-                    row['WikiVocab_RT_mean'] = wv[0]
-                    row['WikiVocab_Accuracy'] = wv[1]
-                row['WikiVocab_Calculated'] = 1
+                if isinstance(wv, dict):
+                    # detailed: all computed fields
+                    detailed_row.update({f"WikiVocab_{k}": v for k, v in wv.items()})
+                    # overview: only selected
+                    if 'rt_mean' in wv:
+                        overview_row['WikiVocab_RT_mean'] = wv['rt_mean']
+                    if 'accuracy' in wv:
+                        overview_row['WikiVocab_Accuracy'] = wv['accuracy']
+                    if 'incorrect_correct_score' in wv:
+                        overview_row['WikiVocab_IncorrectCorrectScore'] = wv['incorrect_correct_score']
+                overview_row['WikiVocab_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process WikiVocab test for {participant.stem}: {str(err)}",
@@ -267,22 +298,42 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
             try:
                 plab = preprocess_plab(plab_dir)
                 if isinstance(plab, tuple) and len(plab) == 2:
-                    row['PLAB_RT_mean'] = plab[0]
-                    row['PLAB_Accuracy'] = plab[1]
-                row['PLAB_Calculated'] = 1
+                    # detailed & overview
+                    detailed_row['PLAB_RT_mean'] = plab[0]
+                    detailed_row['PLAB_Accuracy'] = plab[1]
+                    overview_row['PLAB_RT_mean'] = plab[0]
+                    overview_row['PLAB_Accuracy'] = plab[1]
+                elif isinstance(plab, tuple) and len(plab) == 3:
+                    # if function returns num_items as third element
+                    detailed_row['PLAB_RT_mean'] = plab[0]
+                    detailed_row['PLAB_Accuracy'] = plab[1]
+                    detailed_row['PLAB_Num_Items'] = plab[2]
+                    overview_row['PLAB_RT_mean'] = plab[0]
+                    overview_row['PLAB_Accuracy'] = plab[1]
+                overview_row['PLAB_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process PLAB test for {participant.stem}: {str(err)}",
                     category=UserWarning,
                 )
 
-        rows.append(row)
+        # Write per-participant detailed CSV inside the participant folder
+        try:
+            detailed_path = participant / f"psychometric_details_{participant.stem}.csv"
+            pd.DataFrame([detailed_row]).to_csv(detailed_path, index=False)
+        except Exception as exc:
+            warnings.warn(
+                f"Failed to write detailed CSV for {participant.stem}: {exc}",
+                category=UserWarning,
+            )
 
-    # Write CSV (wide format)
-    out_dir = test_session_folder / 'psychometric_results'
+        overview_rows.append(overview_row)
+
+    # Write overview CSV (wide format) directly into psychometric-tests-sessions folder
+    out_dir = test_session_folder
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / 'psychometric_outputs_all.csv'
-    df = pd.DataFrame(rows)
+    out_path = out_dir / f'psychometric_overview_{session_tag}.csv'
+    df = pd.DataFrame(overview_rows)
     # Ensure columns order: participant_id, then flags, then the rest
     flag_cols = [
         'LWMC_Calculated',
@@ -299,7 +350,7 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
     df = df[['participant_id'] + flag_cols + remaining]
     df.to_csv(out_path, index=False)
 
-    print(f"Wrote: {out_path}")
+    print(f"Wrote overview: {out_path}")
     return out_path
 
 
