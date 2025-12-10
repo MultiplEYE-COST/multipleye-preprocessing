@@ -27,7 +27,8 @@ from preprocessing.config import PSYCHOMETRIC_TESTS_DIR, PSYM_LWMC_DIR, PSYM_RAN
     PSYM_STROOP_FLANKER_DIR, PSYM_WIKIVOCAB_DIR, PSYM_PLAB_DIR
 
 
-def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) -> Path:
+def preprocess_all_participants(
+        test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) -> Path:
     """Preprocess all participants and write two types of outputs:
 
     1) Overview CSV (one row per participant) saved directly under the
@@ -56,7 +57,6 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
     participant_folders = sorted(participant_folders, key=lambda p: p.name)
 
     overview_rows: list[dict] = []
-
 
     def _pid_from_folder(folder: Path) -> str:
         return folder.stem[:3]
@@ -89,7 +89,8 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
                 # detailed: all LWMC metrics
                 detailed_row.update(res)
                 # overview: LWMC scores only
-                for k in ['LWMC_MU_score', 'LWMC_OS_score', 'LWMC_SS_score', 'LWMC_SSTM_score', 'LWMC_Total_score_mean']:
+                for k in ['LWMC_MU_score', 'LWMC_OS_score', 'LWMC_SS_score',
+                          'LWMC_SSTM_score', 'LWMC_Total_score_mean']:
                     if k in res:
                         overview_row[k] = res[k]
                 overview_row['LWMC_Calculated'] = 1
@@ -139,18 +140,22 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
                 # overview: only effects
                 overview_row.update({
                     'StroopAccuracyEffect': float(
-                        stroop_res.loc['incongruent', 'accuracy'] - stroop_res.loc['congruent', 'accuracy']
+                        stroop_res.loc['incongruent', 'accuracy'] - stroop_res.loc[
+                            'congruent', 'accuracy']
                     ),
                     'StroopRTEffect': float(
-                        stroop_res.loc['incongruent', 'rt_mean'] - stroop_res.loc['congruent', 'rt_mean']
+                        stroop_res.loc['incongruent', 'rt_mean'] - stroop_res.loc[
+                            'congruent', 'rt_mean']
                     ),
                 })
                 # detailed: effects + grouped metrics per condition
-                detailed_row['StroopAccuracyEffect'] = overview_row['StroopAccuracyEffect']
+                detailed_row['StroopAccuracyEffect'] = overview_row[
+                    'StroopAccuracyEffect']
                 detailed_row['StroopRTEffect'] = overview_row['StroopRTEffect']
                 for cond in stroop_res.index.astype(str):
                     for metric in ('rt_mean', 'accuracy', 'num_items'):
-                        detailed_row[f"Stroop_{cond}_{metric}"] = float(stroop_res.loc[cond, metric])
+                        detailed_row[f"Stroop_{cond}_{metric}"] = float(
+                            stroop_res.loc[cond, metric])
                 overview_row['Stroop_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
@@ -169,18 +174,22 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
                 # overview: only effects
                 overview_row.update({
                     'FlankerAccuracyEffect': float(
-                        flanker_res.loc['incongruent', 'accuracy'] - flanker_res.loc['congruent', 'accuracy']
+                        flanker_res.loc['incongruent', 'accuracy'] - flanker_res.loc[
+                            'congruent', 'accuracy']
                     ),
                     'FlankerRTEffect': float(
-                        flanker_res.loc['incongruent', 'rt_mean'] - flanker_res.loc['congruent', 'rt_mean']
+                        flanker_res.loc['incongruent', 'rt_mean'] - flanker_res.loc[
+                            'congruent', 'rt_mean']
                     ),
                 })
                 # detailed: effects + grouped metrics per condition
-                detailed_row['FlankerAccuracyEffect'] = overview_row['FlankerAccuracyEffect']
+                detailed_row['FlankerAccuracyEffect'] = overview_row[
+                    'FlankerAccuracyEffect']
                 detailed_row['FlankerRTEffect'] = overview_row['FlankerRTEffect']
                 for cond in flanker_res.index.astype(str):
                     for metric in ('rt_mean', 'accuracy', 'num_items'):
-                        detailed_row[f"Flanker_{cond}_{metric}"] = float(flanker_res.loc[cond, metric])
+                        detailed_row[f"Flanker_{cond}_{metric}"] = float(
+                            flanker_res.loc[cond, metric])
                 overview_row['Flanker_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
@@ -202,7 +211,8 @@ def preprocess_all_participants(test_session_folder: Path = PSYCHOMETRIC_TESTS_D
                     if 'accuracy' in wv:
                         overview_row['WikiVocab_Accuracy'] = wv['accuracy']
                     if 'incorrect_correct_score' in wv:
-                        overview_row['WikiVocab_IncorrectCorrectScore'] = wv['incorrect_correct_score']
+                        overview_row['WikiVocab_IncorrectCorrectScore'] = wv[
+                            'incorrect_correct_score']
                 overview_row['WikiVocab_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
@@ -298,7 +308,8 @@ def preprocess_stroop(stroop_flanker_dir: Path):
         and ``num_items``.
     """
     df = _find_one_filetype_with_columns(
-        stroop_flanker_dir, ['stim_type', 'stroop_key.rt', 'stroop_key.corr'], allow_nan=True
+        stroop_flanker_dir, ['stim_type', 'stroop_key.rt', 'stroop_key.corr'],
+        allow_nan=True
     )
     return _reaction_time_accuracy(
         df,
@@ -331,7 +342,8 @@ def preprocess_flanker(stroop_flanker_dir: Path):
         and ``num_items``.
     """
     df = _find_one_filetype_with_columns(
-        stroop_flanker_dir, ['stim_type', 'Flanker_key.rt', 'Flanker_key.corr'], allow_nan=True
+        stroop_flanker_dir, ['stim_type', 'Flanker_key.rt', 'Flanker_key.corr'],
+        allow_nan=True
     )
     return _reaction_time_accuracy(
         df,
@@ -388,13 +400,15 @@ def preprocess_lwmc(lwmc_dir: Path):
     if df.empty:
         raise ValueError("No non-practice trials found in WMC CSV")
 
-    def _per_trial_mean_then_mean(correctness_col: str, time_col: str, label: str) -> float:
+    def _per_trial_mean_then_mean(correctness_col: str, time_col: str,
+                                  label: str) -> float:
         if correctness_col not in df.columns:
             raise ValueError(f"Missing column '{correctness_col}' for {label}")
         # Select only rows with a value for the specific task's correctness column
         mask = df[correctness_col].notna()
         if not mask.any():
-            raise ValueError(f"No valid {label} trials found (no non-NaN entries in {correctness_col})")
+            raise ValueError(
+                f"No valid {label} trials found (no non-NaN entries in {correctness_col})")
         # Use the in-frame 'trial_id' column to avoid index alignment issues
         sub = df.loc[mask, [correctness_col, time_col, 'trial_id']].copy()
         # Ensure correctness is numeric (0/1 or NaN)
@@ -407,9 +421,12 @@ def preprocess_lwmc(lwmc_dir: Path):
         return float(corr_per_trial.mean()), float(time_per_trial.mean())
 
     # 2) Compute MU/OS/SS from CSV columns
-    mu_score, mu_time = _per_trial_mean_then_mean('mu_key_resp_recall.is_correct', 'mu_key_resp_recall.rt', 'MU')
-    os_score, os_time = _per_trial_mean_then_mean('os_key_resp_recall.corr', 'os_key_resp_recall.rt', 'OS')
-    ss_score, ss_time = _per_trial_mean_then_mean('ss_key_resp_recall.corr', 'ss_key_resp_recall.rt', 'SS' )
+    mu_score, mu_time = _per_trial_mean_then_mean('mu_key_resp_recall.is_correct',
+                                                  'mu_key_resp_recall.rt', 'MU')
+    os_score, os_time = _per_trial_mean_then_mean('os_key_resp_recall.corr',
+                                                  'os_key_resp_recall.rt', 'OS')
+    ss_score, ss_time = _per_trial_mean_then_mean('ss_key_resp_recall.corr',
+                                                  'ss_key_resp_recall.rt', 'SS')
 
     # 3) SSTM from legacy .dat
     def _participant_id_from_dir(d: Path) -> str:
@@ -483,7 +500,8 @@ def preprocess_ran(ran_dir: Path):
     ValueError
         If not exactly one .csv file is found in the directory.
     """
-    return _find_one_filetype_with_columns(ran_dir, ['Trial', 'Reading_Time'], allow_nan=False)
+    return _find_one_filetype_with_columns(ran_dir, ['Trial', 'Reading_Time'],
+                                           allow_nan=False)
 
 
 def preprocess_wikivocab(wv_dir: Path):
@@ -491,9 +509,9 @@ def preprocess_wikivocab(wv_dir: Path):
 
     LexTALE generalisation:
 
-    - Add num_sudo_words / num_real_words
+    - Add num_pseudo_words / num_real_words
     - Incorrect minus correct (number of existing words correct/number of existing words in list) + (number of nonwords correct/nonwords in list)) / 2
-    - Percentages correct sudo / correct / overall
+    - Percentages correct pseudo / correct / overall
 
     Extract 'correct_answer', 'real_answer' and 'RT' columns, infer a 'correctness' column,
     and return the mean reaction time and accuracy.
@@ -515,11 +533,11 @@ def preprocess_wikivocab(wv_dir: Path):
 
         - rt_mean: Mean reaction time
         - accuracy: Overall accuracy
-        - num_sudo: Number of sudo words
+        - num_pseudo: Number of pseudo words
         - num_real: Number of real words
         - incorrect_correct_score: Balanced accuracy score (averaged % correct)
           https://www.lextale.com/scoring.html
-        - sudo_correct: Fraction of correct sudo words
+        - pseudo_correct: Fraction of correct pseudo words
         - real_correct: Fraction of correct real words
         - overall_correct: Overall fraction correct
     """
@@ -529,31 +547,33 @@ def preprocess_wikivocab(wv_dir: Path):
     df['correctness'] = df['correct_answer'] == df['real_answer']
 
     # Calculate additional metrics
-    num_sudo = len(df[df['correct_answer'] == 0])
+    num_pseudo = len(df[df['correct_answer'] == 0])
     num_real = len(df[df['correct_answer'] == 1])
 
     # Calculate correct fractions
-    sudo_correct = df[(df['correct_answer'] == 0) & (df['correctness'])].shape[0] / num_sudo if num_sudo > 0 else float('nan')
-    real_correct = df[(df['correct_answer'] == 1) & (df['correctness'])].shape[0] / num_real if num_real > 0 else float('nan')
+    pseudo_correct = df[(df['correct_answer'] == 0) & (df['correctness'])].shape[
+                         0] / num_pseudo if num_pseudo > 0 else float('nan')
+    real_correct = df[(df['correct_answer'] == 1) & (df['correctness'])].shape[
+                       0] / num_real if num_real > 0 else float('nan')
     overall_correct = df['correctness'].mean()
 
     # Calculate incorrect_correct score
-    incorrect_correct = (real_correct + sudo_correct) / 2
+    incorrect_correct = (real_correct + pseudo_correct) / 2
 
-    rt_acc = _reaction_time_accuracy(df, reaction_time_col='RT', correctness_col='correctness')
+    rt_acc = _reaction_time_accuracy(df, reaction_time_col='RT',
+                                     correctness_col='correctness')
 
     return {
         'rt_mean': rt_acc[0],
         'accuracy': rt_acc[1],
         'num_items': rt_acc[2],
-        'num_sudo_words': num_sudo,
+        'num_pseudo_words': num_pseudo,
         'num_real_words': num_real,
         'incorrect_correct_score': incorrect_correct,
-        'sudo_correct': sudo_correct,
+        'pseudo_correct': pseudo_correct,
         'real_correct': real_correct,
         'overall_correct': overall_correct
     }
-
 
 
 def preprocess_plab(plab_dir: Path):
@@ -576,8 +596,11 @@ def preprocess_plab(plab_dir: Path):
         Mean reaction time, accuracy and number of items.
 
     """
-    df = _find_one_filetype_with_columns(plab_dir, ['rt', 'correctness'], allow_nan=True)
-    return _reaction_time_accuracy(df, reaction_time_col='rt', correctness_col='correctness')
+    df = _find_one_filetype_with_columns(plab_dir, ['rt', 'correctness'],
+                                         allow_nan=True)
+    return _reaction_time_accuracy(df, reaction_time_col='rt',
+                                   correctness_col='correctness')
+
 
 def _reaction_time_accuracy(
         df: DataFrame,
@@ -638,7 +661,8 @@ def _reaction_time_accuracy(
     # Grouped case: vectorised aggregations
     if group_by_col is not None:
         if group_by_col not in df.columns:
-            raise ValueError(f"DataFrame must contain group_by column '{group_by_col}'.")
+            raise ValueError(
+                f"DataFrame must contain group_by column '{group_by_col}'.")
 
         # Get the grouped data
         grouped = df.groupby(group_by_col, dropna=True)
@@ -685,7 +709,8 @@ def __validate_rt_acc_inputs(
         raise ValueError("DataFrame is empty")
     # NaN positions must match between correctness and reaction time
     if df[correctness_col].isna().ne(df[reaction_time_col].isna()).any():
-        raise ValueError("NaN positions in correctness and reaction time columns do not match")
+        raise ValueError(
+            "NaN positions in correctness and reaction time columns do not match")
     # Reaction time must be numeric dtype (NaNs allowed)
     if df[reaction_time_col].dtype not in ['float64', 'float32', 'int64', 'int32']:
         raise ValueError("Reaction time column contains non-numeric values")
@@ -694,8 +719,8 @@ def __validate_rt_acc_inputs(
         raise ValueError("Correctness column contains non-boolean values")
 
 
-
-def _find_one_filetype_with_columns(folder: Path, columns: list[str], allow_nan=False) -> DataFrame:
+def _find_one_filetype_with_columns(folder: Path, columns: list[str],
+                                    allow_nan=False) -> DataFrame:
     """Find a single CSV file containing specific columns and return it as DataFrame.
 
     This function searches a specified folder for CSV files and ensures that exactly one file
@@ -739,10 +764,11 @@ def _find_one_filetype_with_columns(folder: Path, columns: list[str], allow_nan=
     if not valid_csvs:
         raise ValueError(f"No .csv files with columns {columns} found in {folder}")
     if len(valid_csvs) > 1:
-        raise ValueError(f"Multiple .csv files with columns {columns} found in {folder}")
+        raise ValueError(
+            f"Multiple .csv files with columns {columns} found in {folder}")
 
     df = read_csv(valid_csvs[0], usecols=columns)
     if not allow_nan and df.isna().any().any():
-        raise ValueError(f"NaN values found in required columns {columns} in {valid_csvs[0]}")
+        raise ValueError(
+            f"NaN values found in required columns {columns} in {valid_csvs[0]}")
     return df
-
