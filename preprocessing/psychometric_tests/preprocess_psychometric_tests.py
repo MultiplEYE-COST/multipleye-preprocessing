@@ -61,8 +61,6 @@ def preprocess_all_participants(
     def _pid_from_folder(folder: Path) -> str:
         return folder.stem[:3]
 
-    session_tag = test_session_folder.parent.stem.split('_', maxsplit=1)[1]
-
     for participant in participant_folders:
         pid = _pid_from_folder(participant)
         # Initialise overview row with participant and per-test calculated flags (0/1)
@@ -258,9 +256,7 @@ def preprocess_all_participants(
         overview_rows.append(overview_row)
 
     # Write overview CSV (wide format) directly into psychometric-tests-sessions folder
-    out_dir = test_session_folder
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f'psychometric_overview_{session_tag}.csv'
+    out_path = test_session_folder / f'psychometric_overview_{test_session_folder.parent.stem}.csv'
     df = pd.DataFrame(overview_rows)
     # Ensure columns order: participant_id, then flags, then the rest
     flag_cols = [
