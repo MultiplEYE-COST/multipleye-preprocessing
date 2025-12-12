@@ -25,6 +25,7 @@ import pandas as pd
 
 from preprocessing.config import PSYCHOMETRIC_TESTS_DIR, PSYM_LWMC_DIR, PSYM_RAN_DIR, \
     PSYM_STROOP_FLANKER_DIR, PSYM_WIKIVOCAB_DIR, PSYM_PLAB_DIR
+from preprocessing.utils.data_path_utils import pid_from_session
 
 
 def preprocess_all_sessions(
@@ -58,11 +59,8 @@ def preprocess_all_sessions(
 
     overview_rows: list[dict] = []
 
-    def _pid_from_folder(folder: Path) -> str:
-        return folder.stem[:3]
-
     for session in session_folders:
-        pid = _pid_from_folder(session)
+        pid = pid_from_session(session)
         # Initialise an overview row with participant and per-test calculated flags (0/1)
         overview_row: dict = {
             'participant_id': pid,
