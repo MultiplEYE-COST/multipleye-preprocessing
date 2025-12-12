@@ -48,7 +48,7 @@ def preprocess_all_participants(
 
     Notes:
     - All computations are performed once per participant and then split into
-      overview vs. detailed outputs (no duplicate calculations).
+      overview vs. detailed outputs.
     - Returns the path to the written overview CSV.
     """
     # Collect participant folders
@@ -83,14 +83,14 @@ def preprocess_all_participants(
         lwmc_dir = participant / PSYM_LWMC_DIR
         if lwmc_dir.exists():
             try:
-                res = preprocess_lwmc(lwmc_dir)  # dict
+                res_lwmc = preprocess_lwmc(lwmc_dir)  # dict
                 # detailed: all LWMC metrics
-                detailed_row.update(res)
+                detailed_row.update(res_lwmc)
                 # overview: LWMC scores only
                 for k in ['LWMC_MU_score', 'LWMC_OS_score', 'LWMC_SS_score',
                           'LWMC_SSTM_score', 'LWMC_Total_score_mean']:
-                    if k in res:
-                        overview_row[k] = res[k]
+                    if k in res_lwmc:
+                        overview_row[k] = res_lwmc[k]
                 overview_row['LWMC_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
@@ -98,25 +98,16 @@ def preprocess_all_participants(
                     category=UserWarning,
                 )
 
-        # RAN (DataFrame with columns Trial, Reading_Time)
+        # RAN
         ran_dir = participant / PSYM_RAN_DIR
         if ran_dir.exists():
             try:
-                df_ran = preprocess_ran(ran_dir)
+                res_ran = preprocess_ran(ran_dir)
+                # both detailed and overview get all RAN metrics
+                detailed_row.update(res_ran)
+                overview_row.update(res_ran)
                 # Mark calculated on successful preprocessing regardless of emptiness
                 overview_row['RAN_Calculated'] = 1
-                if isinstance(df_ran, DataFrame) and not df_ran.empty:
-                    # For each trial, create a dedicated column
-                    for _, r in df_ran.iterrows():
-                        try:
-                            trial = int(r['Trial'])
-                        except Exception:
-                            # Fallback to string if not castable
-                            trial = r['Trial']
-                        col = f"RAN_Trial{trial}_Reading_Time"
-                        # both detailed and overview get the trial reading times
-                        detailed_row[col] = r['Reading_Time']
-                        overview_row[col] = r['Reading_Time']
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process RAN test for {participant.stem}: {str(err)}",
@@ -127,33 +118,20 @@ def preprocess_all_participants(
         sf_dir = participant / PSYM_STROOP_FLANKER_DIR
         if sf_dir.exists():
             try:
-                stroop_res = preprocess_stroop(sf_dir)  # DataFrame
-                # Ensure both conditions are present
-                required = {'congruent', 'incongruent'}
-                missing = required.difference(stroop_res.index.astype(str))
-                if missing:
-                    raise ValueError(
-                        f"Missing required stim_type levels for Stroop: {sorted(missing)}"
-                    )
+                res_stroop = preprocess_stroop(sf_dir)  # DataFrame
+                stroop_effects = {
+                    'StroopAccuracyEffect':
+                        res_stroop['Stroop_incongruent_accuracy'] -
+                        res_stroop['Stroop_congruent_accuracy'],
+                    'StroopRTEffect':
+                        res_stroop['Stroop_incongruent_rt_mean'] -
+                        res_stroop['Stroop_congruent_rt_mean'],
+                }
                 # overview: only effects
-                overview_row.update({
-                    'StroopAccuracyEffect': float(
-                        stroop_res.loc['incongruent', 'accuracy'] - stroop_res.loc[
-                            'congruent', 'accuracy']
-                    ),
-                    'StroopRTEffect': float(
-                        stroop_res.loc['incongruent', 'rt_mean'] - stroop_res.loc[
-                            'congruent', 'rt_mean']
-                    ),
-                })
+                overview_row.update(stroop_effects)
                 # detailed: effects + grouped metrics per condition
-                detailed_row['StroopAccuracyEffect'] = overview_row[
-                    'StroopAccuracyEffect']
-                detailed_row['StroopRTEffect'] = overview_row['StroopRTEffect']
-                for cond in stroop_res.index.astype(str):
-                    for metric in ('rt_mean', 'accuracy', 'num_items'):
-                        detailed_row[f"Stroop_{cond}_{metric}"] = float(
-                            stroop_res.loc[cond, metric])
+                detailed_row.update(stroop_effects)
+                detailed_row.update(res_stroop)
                 overview_row['Stroop_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
@@ -161,33 +139,26 @@ def preprocess_all_participants(
                     category=UserWarning,
                 )
             try:
-                flanker_res = preprocess_flanker(sf_dir)  # DataFrame
-                # Ensure both conditions are present
-                required = {'congruent', 'incongruent'}
-                missing = required.difference(flanker_res.index.astype(str))
-                if missing:
-                    raise ValueError(
-                        f"Missing required stim_type levels for Flanker: {sorted(missing)}"
-                    )
+                res_flanker = preprocess_flanker(sf_dir)  # DataFrame
+                flanker_effects = {
+                    'FlankerAccuracyEffect':
+                        res_flanker['Flanker_incongruent_accuracy'] -
+                        res_flanker['Flanker_congruent_accuracy'],
+                    'FlankerRTEffect':
+                        res_flanker['Flanker_incongruent_rt_mean'] -
+                        res_flanker['Flanker_congruent_rt_mean'],
+                }
                 # overview: only effects
-                overview_row.update({
-                    'FlankerAccuracyEffect': float(
-                        flanker_res.loc['incongruent', 'accuracy'] - flanker_res.loc[
-                            'congruent', 'accuracy']
-                    ),
-                    'FlankerRTEffect': float(
-                        flanker_res.loc['incongruent', 'rt_mean'] - flanker_res.loc[
-                            'congruent', 'rt_mean']
-                    ),
-                })
+                overview_row.update(flanker_effects)
                 # detailed: effects + grouped metrics per condition
-                detailed_row['FlankerAccuracyEffect'] = overview_row[
-                    'FlankerAccuracyEffect']
-                detailed_row['FlankerRTEffect'] = overview_row['FlankerRTEffect']
-                for cond in flanker_res.index.astype(str):
-                    for metric in ('rt_mean', 'accuracy', 'num_items'):
-                        detailed_row[f"Flanker_{cond}_{metric}"] = float(
-                            flanker_res.loc[cond, metric])
+                detailed_row.update(flanker_effects)
+                detailed_row.update(res_flanker)
+                overview_row['Flanker_Calculated'] = 1
+            except ValueError as err:
+                warnings.warn(
+                    f"Failed to process Flanker test for {participant.stem}: {str(err)}",
+                    category=UserWarning,
+                )
                 overview_row['Flanker_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
@@ -199,18 +170,14 @@ def preprocess_all_participants(
         wv_dir = participant / PSYM_WIKIVOCAB_DIR
         if wv_dir.exists():
             try:
-                wv = preprocess_wikivocab(wv_dir)
-                if isinstance(wv, dict):
-                    # detailed: all computed fields
-                    detailed_row.update({f"WikiVocab_{k}": v for k, v in wv.items()})
-                    # overview: only selected
-                    if 'rt_mean' in wv:
-                        overview_row['WikiVocab_RT_mean'] = wv['rt_mean']
-                    if 'accuracy' in wv:
-                        overview_row['WikiVocab_Accuracy'] = wv['accuracy']
-                    if 'incorrect_correct_score' in wv:
-                        overview_row['WikiVocab_IncorrectCorrectScore'] = wv[
-                            'incorrect_correct_score']
+                res_wv = preprocess_wikivocab(wv_dir)
+                # detailed: all computed fields
+                # detailed_row.update({f"WikiVocab_{k}": v for k, v in wv.items()})
+                detailed_row.update(res_wv)
+                # overview: only selected
+                for key in ['WikiVocab_rt_mean', 'WikiVocab_accuracy',
+                            'WikiVocab_incorrect_correct_score']:
+                    overview_row[key] = res_wv[key]
                 overview_row['WikiVocab_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
@@ -222,20 +189,10 @@ def preprocess_all_participants(
         plab_dir = participant / PSYM_PLAB_DIR
         if plab_dir.exists():
             try:
-                plab = preprocess_plab(plab_dir)
-                if isinstance(plab, tuple) and len(plab) == 2:
-                    # detailed & overview
-                    detailed_row['PLAB_RT_mean'] = plab[0]
-                    detailed_row['PLAB_Accuracy'] = plab[1]
-                    overview_row['PLAB_RT_mean'] = plab[0]
-                    overview_row['PLAB_Accuracy'] = plab[1]
-                elif isinstance(plab, tuple) and len(plab) == 3:
-                    # if function returns num_items as third element
-                    detailed_row['PLAB_RT_mean'] = plab[0]
-                    detailed_row['PLAB_Accuracy'] = plab[1]
-                    detailed_row['PLAB_Num_Items'] = plab[2]
-                    overview_row['PLAB_RT_mean'] = plab[0]
-                    overview_row['PLAB_Accuracy'] = plab[1]
+                res_plab = preprocess_plab(plab_dir)
+                detailed_row.update(res_plab)
+                overview_row['PLAB_rt_mean'] = res_plab['PLAB_rt_mean']
+                overview_row['PLAB_accuracy'] = res_plab['PLAB_accuracy']
                 overview_row['PLAB_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
@@ -299,20 +256,29 @@ def preprocess_stroop(stroop_flanker_dir: Path):
 
     Returns
     -------
-    DataFrame
-        A DataFrame indexed by ``stim_type`` with columns ``rt_mean``, ``accuracy``
-        and ``num_items``.
+    dict
+        A dictionary with keys 'Stroop_incongruent_rt_mean', 'Stroop_incongruent_accuracy',
+        'Stroop_incongruent_num_items', 'Stroop_congruent_rt_mean', 'Stroop_congruent_accuracy',
+        'Stroop_congruent_num_items', 'Stroop_neutral_rt_mean', 'Stroop_neutral_accuracy',
+        and 'Stroop_neutral_num_items'.
     """
     df = _find_one_filetype_with_columns(
         stroop_flanker_dir, ['stim_type', 'stroop_key.rt', 'stroop_key.corr'],
         allow_nan=True
     )
-    return _reaction_time_accuracy(
+    result_df = _reaction_time_accuracy(
         df,
         reaction_time_col='stroop_key.rt',
         correctness_col='stroop_key.corr',
         group_by_col='stim_type'
     )
+
+    result_dict = {}
+    for cond in ['incongruent', 'congruent', 'neutral']:
+        for metric in ('rt_mean', 'accuracy', 'num_items'):
+            result_dict[f"Stroop_{cond}_{metric}"] = float(result_df.loc[cond, metric])
+
+    return result_dict
 
 
 def preprocess_flanker(stroop_flanker_dir: Path):
@@ -333,20 +299,28 @@ def preprocess_flanker(stroop_flanker_dir: Path):
 
     Returns
     -------
-    DataFrame
-        A DataFrame indexed by ``stim_type`` with columns ``rt_mean``, ``accuracy``
-        and ``num_items``.
+    dict
+        A dictionary with keys 'Flanker_incongruent_rt_mean', 'Flanker_incongruent_accuracy',
+        'Flanker_incongruent_num_items', 'Flanker_congruent_rt_mean', 'Flanker_congruent_accuracy',
+        and 'Flanker_congruent_num_items'.
     """
     df = _find_one_filetype_with_columns(
         stroop_flanker_dir, ['stim_type', 'Flanker_key.rt', 'Flanker_key.corr'],
         allow_nan=True
     )
-    return _reaction_time_accuracy(
+    result_df = _reaction_time_accuracy(
         df,
         reaction_time_col='Flanker_key.rt',
         correctness_col='Flanker_key.corr',
         group_by_col='stim_type'
     )
+
+    result_dict = {}
+    for cond in ['incongruent', 'congruent']:
+        for metric in ('rt_mean', 'accuracy', 'num_items'):
+            result_dict[f"Flanker_{cond}_{metric}"] = float(result_df.loc[cond, metric])
+
+    return result_dict
 
 
 def preprocess_lwmc(lwmc_dir: Path):
@@ -471,7 +445,7 @@ def preprocess_lwmc(lwmc_dir: Path):
 
 
 def preprocess_ran(ran_dir: Path):
-    """Preprocess RAN task output and return the trials with their reading times.
+    """Preprocess RAN task output and return the reaction times for practice and experimental trials.
 
     Finds the only .csv in the folder and extracts the 'Trial' and 'Reading_Time' columns.
     The audio files and logs are kept untouched.
@@ -488,16 +462,26 @@ def preprocess_ran(ran_dir: Path):
 
     Returns
     -------
-    tuple[float, float]
-        Mean reaction time and accuracy.
+    dict
+        Dictionary with keys 'RAN_practice_rt' and 'RAN_experimental_rt' containing the
+        reaction times.
 
     Raises
     ------
     ValueError
         If not exactly one .csv file is found in the directory.
     """
-    return _find_one_filetype_with_columns(ran_dir, ['Trial', 'Reading_Time'],
-                                           allow_nan=False)
+    df = _find_one_filetype_with_columns(ran_dir, ['Trial', 'Reading_Time'],
+                                         allow_nan=False)
+
+    # Extract practice and experimental trial reaction times
+    practice_rt = df[df['Trial'] == 1]['Reading_Time']
+    experimental_rt = df[df['Trial'] == 2]['Reading_Time']
+
+    return {
+        'RAN_practice_rt': float(practice_rt),
+        'RAN_experimental_rt': float(experimental_rt)
+    }
 
 
 def preprocess_wikivocab(wv_dir: Path):
@@ -527,15 +511,15 @@ def preprocess_wikivocab(wv_dir: Path):
     dict
         Dictionary containing:
 
-        - rt_mean: Mean reaction time
-        - accuracy: Overall accuracy
-        - num_pseudo: Number of pseudo words
-        - num_real: Number of real words
-        - incorrect_correct_score: Balanced accuracy score (averaged % correct)
+        - WikiVocab_rt_mean: Mean reaction time
+        - WikiVocab_accuracy: Overall accuracy
+        - WikiVocab_num_pseudo: Number of pseudo words
+        - WikiVocab_num_real: Number of real words
+        - WikiVocab_incorrect_correct_score: Balanced accuracy score (averaged % correct)
           https://www.lextale.com/scoring.html
-        - pseudo_correct: Fraction of correct pseudo words
-        - real_correct: Fraction of correct real words
-        - overall_correct: Overall fraction correct
+        - WikiVocab_pseudo_correct: Fraction of correct pseudo words
+        - WikiVocab_real_correct: Fraction of correct real words
+        - WikiVocab_overall_correct: Overall fraction correct
     """
     df = _find_one_filetype_with_columns(
         wv_dir, ['correct_answer', 'real_answer', 'RT'], allow_nan=False
@@ -560,15 +544,15 @@ def preprocess_wikivocab(wv_dir: Path):
                                      correctness_col='correctness')
 
     return {
-        'rt_mean': rt_acc[0],
-        'accuracy': rt_acc[1],
-        'num_items': rt_acc[2],
-        'num_pseudo_words': num_pseudo,
-        'num_real_words': num_real,
-        'incorrect_correct_score': incorrect_correct,
-        'pseudo_correct': pseudo_correct,
-        'real_correct': real_correct,
-        'overall_correct': overall_correct
+        'WikiVocab_rt_mean': rt_acc[0],
+        'WikiVocab_accuracy': rt_acc[1],
+        'WikiVocab_num_items': rt_acc[2],
+        'WikiVocab_num_pseudo_words': num_pseudo,
+        'WikiVocab_num_real_words': num_real,
+        'WikiVocab_incorrect_correct_score': incorrect_correct,
+        'WikiVocab_pseudo_correct': pseudo_correct,
+        'WikiVocab_real_correct': real_correct,
+        'WikiVocab_overall_correct': overall_correct
     }
 
 
@@ -588,14 +572,19 @@ def preprocess_plab(plab_dir: Path):
 
     Returns
     -------
-    tuple[float, float, int]
-        Mean reaction time, accuracy and number of items.
+    dict
+        Dictionary with keys 'PLAB_rt_mean', 'PLAB_accuracy', and 'PLAB_num_items'.
 
     """
     df = _find_one_filetype_with_columns(plab_dir, ['rt', 'correctness'],
                                          allow_nan=True)
-    return _reaction_time_accuracy(df, reaction_time_col='rt',
-                                   correctness_col='correctness')
+    rt_mean, accuracy, num_items = _reaction_time_accuracy(df, reaction_time_col='rt',
+                                                           correctness_col='correctness')
+    return {
+        'PLAB_rt_mean': rt_mean,
+        'PLAB_accuracy': accuracy,
+        'PLAB_num_items': num_items
+    }
 
 
 def _reaction_time_accuracy(
