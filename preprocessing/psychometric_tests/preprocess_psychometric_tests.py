@@ -479,8 +479,8 @@ def preprocess_ran(ran_dir: Path):
     experimental_rt = df[df['Trial'] == 2]['Reading_Time']
 
     return {
-        'RAN_practice_rt': float(practice_rt),
-        'RAN_experimental_rt': float(experimental_rt)
+        'RAN_practice_rt': float(practice_rt.iloc[0]),
+        'RAN_experimental_rt': float(experimental_rt.iloc[0])
     }
 
 

@@ -288,36 +288,44 @@ def test__find_one_filetype_with_columns(
 @pytest.mark.parametrize(
     "rows, expected",
     [
-        # Two groups, one item each
+        # Three groups present (congruent, incongruent, neutral)
         (
                 [
                     ("congruent", 100, 1),
                     ("incongruent", 200, 0),
+                    ("neutral", 150, 1),
                 ],
                 {
-                    ("congruent", "rt_mean"): 100.0,
-                    ("congruent", "accuracy"): 1.0,
-                    ("congruent", "num_items"): 1,
-                    ("incongruent", "rt_mean"): 200.0,
-                    ("incongruent", "accuracy"): 0.0,
-                    ("incongruent", "num_items"): 1,
+                    "Stroop_congruent_rt_mean": 100.0,
+                    "Stroop_congruent_accuracy": 1.0,
+                    "Stroop_congruent_num_items": 1,
+                    "Stroop_incongruent_rt_mean": 200.0,
+                    "Stroop_incongruent_accuracy": 0.0,
+                    "Stroop_incongruent_num_items": 1,
+                    "Stroop_neutral_rt_mean": 150.0,
+                    "Stroop_neutral_accuracy": 1.0,
+                    "Stroop_neutral_num_items": 1,
                 },
         ),
-        # Multiple per group
+        # Multiple per group (use canonical labels congruent/incongruent/neutral)
         (
                 [
-                    ("A", 100, 1),
-                    ("A", 200, 0),
-                    ("B", 300, 1),
-                    ("B", 500, 1),
+                    ("congruent", 100, 1),
+                    ("congruent", 200, 0),
+                    ("incongruent", 300, 1),
+                    ("incongruent", 500, 1),
+                    ("neutral", 250, 1),
                 ],
                 {
-                    ("A", "rt_mean"): 150.0,
-                    ("A", "accuracy"): 0.5,
-                    ("A", "num_items"): 2,
-                    ("B", "rt_mean"): 400.0,
-                    ("B", "accuracy"): 1.0,
-                    ("B", "num_items"): 2,
+                    "Stroop_congruent_rt_mean": 150.0,
+                    "Stroop_congruent_accuracy": 0.5,
+                    "Stroop_congruent_num_items": 2,
+                    "Stroop_incongruent_rt_mean": 400.0,
+                    "Stroop_incongruent_accuracy": 1.0,
+                    "Stroop_incongruent_num_items": 2,
+                    "Stroop_neutral_rt_mean": 250.0,
+                    "Stroop_neutral_accuracy": 1.0,
+                    "Stroop_neutral_num_items": 1,
                 },
         ),
     ],
@@ -329,9 +337,9 @@ def test_preprocess_stroop_basic(tmp_path: Path, make_text_file, rows, expected)
     make_text_file(folder / "stroop.csv", header=header, body=body)
 
     res = preprocess_stroop(folder)
-    assert list(res.columns) == ["rt_mean", "accuracy", "num_items"]
-    for (grp, col), exp in expected.items():
-        val = res.loc[grp, col]
+    # res is a dict with namespaced keys
+    for key, exp in expected.items():
+        val = res[key]
         if isinstance(exp, float):
             assert val == pytest.approx(exp)
         else:
@@ -373,14 +381,14 @@ def test_preprocess_stroop_errors(tmp_path: Path, make_text_file, header, body,
     "rows, expected",
     [
         (
-                [("Congruent", 100, 1), ("Incongruent", 300, 0), ("Congruent", 200, 1)],
+                [("congruent", 100, 1), ("incongruent", 300, 0), ("congruent", 200, 1)],
                 {
-                    ("Congruent", "rt_mean"): 150.0,
-                    ("Congruent", "accuracy"): 1.0,
-                    ("Congruent", "num_items"): 2,
-                    ("Incongruent", "rt_mean"): 300.0,
-                    ("Incongruent", "accuracy"): 0.0,
-                    ("Incongruent", "num_items"): 1,
+                    "Flanker_congruent_rt_mean": 150.0,
+                    "Flanker_congruent_accuracy": 1.0,
+                    "Flanker_congruent_num_items": 2,
+                    "Flanker_incongruent_rt_mean": 300.0,
+                    "Flanker_incongruent_accuracy": 0.0,
+                    "Flanker_incongruent_num_items": 1,
                 },
         ),
     ],
@@ -392,9 +400,9 @@ def test_preprocess_flanker_basic(tmp_path: Path, make_text_file, rows, expected
     make_text_file(folder / "flanker.csv", header=header, body=body)
 
     res = preprocess_flanker(folder)
-    assert list(res.columns) == ["rt_mean", "accuracy", "num_items"]
-    for (grp, col), exp in expected.items():
-        val = res.loc[grp, col]
+    # res is a dict with namespaced keys
+    for key, exp in expected.items():
+        val = res[key]
         if isinstance(exp, float):
             assert val == pytest.approx(exp)
         else:
@@ -442,9 +450,9 @@ def test_preprocess_plab_basic(tmp_path: Path, make_text_file, rows, expected):
     body = "".join(f"{rt},{corr}\n" for rt, corr in rows)
     make_text_file(folder / "plab.csv", header=header, body=body)
     out = preprocess_plab(folder)
-    assert out[0] == pytest.approx(expected[0])
-    assert out[1] == pytest.approx(expected[1])
-    assert out[2] == expected[2]
+    assert out["PLAB_rt_mean"] == pytest.approx(expected[0])
+    assert out["PLAB_accuracy"] == pytest.approx(expected[1])
+    assert out["PLAB_num_items"] == expected[2]
 
 
 @pytest.mark.parametrize(
@@ -474,9 +482,10 @@ def test_preprocess_ran_basic(tmp_path: Path, make_text_file):
     header = "Trial,Reading_Time\n"
     body = "1,2.5\n2,3.5\n"
     make_text_file(folder / "ran.csv", header=header, body=body)
-    df = preprocess_ran(folder)
-    assert list(df.columns) == ["Trial", "Reading_Time"]
-    assert df.equals(pd.DataFrame({"Trial": [1, 2], "Reading_Time": [2.5, 3.5]}))
+    out = preprocess_ran(folder)
+    assert set(out.keys()) == {"RAN_practice_rt", "RAN_experimental_rt"}
+    assert out["RAN_practice_rt"] == pytest.approx(2.5)
+    assert out["RAN_experimental_rt"] == pytest.approx(3.5)
 
 
 @pytest.mark.parametrize(
@@ -510,15 +519,15 @@ def test_preprocess_ran_errors(tmp_path: Path, make_text_file, header, body, err
                     (0, 1, 400),  # incorrect pseudo
                 ],
                 {
-                    "rt_mean": 250.0,
-                    "accuracy": 0.5,
-                    "num_items": 4,
-                    "num_pseudo_words": 2,
-                    "num_real_words": 2,
-                    "incorrect_correct_score": 0.5,
-                    "pseudo_correct": 0.5,
-                    "real_correct": 0.5,
-                    "overall_correct": 0.5,
+                    "WikiVocab_rt_mean": 250.0,
+                    "WikiVocab_accuracy": 0.5,
+                    "WikiVocab_num_items": 4,
+                    "WikiVocab_num_pseudo_words": 2,
+                    "WikiVocab_num_real_words": 2,
+                    "WikiVocab_incorrect_correct_score": 0.5,
+                    "WikiVocab_pseudo_correct": 0.5,
+                    "WikiVocab_real_correct": 0.5,
+                    "WikiVocab_overall_correct": 0.5,
                 },
         ),
         (
@@ -528,15 +537,15 @@ def test_preprocess_ran_errors(tmp_path: Path, make_text_file, header, body, err
                     (0, 1, 200),
                 ],
                 {
-                    "rt_mean": 150.0,
-                    "accuracy": 0.5,
-                    "num_items": 2,
-                    "num_pseudo_words": 2,
-                    "num_real_words": 0,
-                    "incorrect_correct_score": math.nan,
-                    "pseudo_correct": 0.5,
-                    "real_correct": math.nan,
-                    "overall_correct": 0.5,
+                    "WikiVocab_rt_mean": 150.0,
+                    "WikiVocab_accuracy": 0.5,
+                    "WikiVocab_num_items": 2,
+                    "WikiVocab_num_pseudo_words": 2,
+                    "WikiVocab_num_real_words": 0,
+                    "WikiVocab_incorrect_correct_score": math.nan,
+                    "WikiVocab_pseudo_correct": 0.5,
+                    "WikiVocab_real_correct": math.nan,
+                    "WikiVocab_overall_correct": 0.5,
                 },
         ),
     ],
@@ -575,7 +584,7 @@ def test_preprocess_wikivocab_errors(tmp_path: Path, make_text_file, header, bod
     make_text_file(folder / "wv.csv", header=header, body=body)
     if error_msg.startswith("No .csv files with columns") or error_msg.startswith(
             "NaN values found") or error_msg.startswith(
-            "Reaction time column contains"):
+        "Reaction time column contains"):
         with pytest.raises(ValueError, match=error_msg):
             preprocess_wikivocab(folder)
     else:
