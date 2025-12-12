@@ -27,11 +27,11 @@ from preprocessing.config import PSYCHOMETRIC_TESTS_DIR, PSYM_LWMC_DIR, PSYM_RAN
     PSYM_STROOP_FLANKER_DIR, PSYM_WIKIVOCAB_DIR, PSYM_PLAB_DIR
 
 
-def preprocess_all_participants(
+def preprocess_all_sessions(
         test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) -> Path:
-    """Preprocess all participants and write two types of outputs:
+    """Preprocess all sessions and write two types of outputs:
 
-    1) Overview CSV (one row per participant) saved directly under the
+    1) Overview CSV (one row per session) saved directly under the
        psychometric-tests-sessions folder. The filename is descriptive and
        includes the study/session tag (e.g. "SQ_CH_1_PT2"). The overview
        contains only the requested summary metrics:
@@ -41,29 +41,29 @@ def preprocess_all_participants(
        - RAN: Reaction time for two trials
        - PLAB: RT mean and accuracy
 
-    2) Per-participant detailed CSV placed in each participant folder with all
+    2) Per-session detailed CSV placed in each session folder with all
        available detailed metrics in a readable, wide format (namespaced
        columns). For example, grouped RT/accuracy for Stroop/Flanker are stored
        as columns like ``Stroop_congruent_rt_mean``.
 
     Notes:
-    - All computations are performed once per participant and then split into
+    - All computations are performed once per session and then split into
       overview vs. detailed outputs.
     - Returns the path to the written overview CSV.
     """
-    # Collect participant folders
-    participant_folders = test_session_folder.iterdir()
-    participant_folders = [p for p in participant_folders if _is_valid_folder(p)]
-    participant_folders = sorted(participant_folders, key=lambda p: p.name)
+    # Collect session folders
+    session_folders = test_session_folder.iterdir()
+    session_folders = [p for p in session_folders if _is_valid_folder(p)]
+    session_folders = sorted(session_folders, key=lambda p: p.name)
 
     overview_rows: list[dict] = []
 
     def _pid_from_folder(folder: Path) -> str:
         return folder.stem[:3]
 
-    for participant in participant_folders:
-        pid = _pid_from_folder(participant)
-        # Initialise overview row with participant and per-test calculated flags (0/1)
+    for session in session_folders:
+        pid = _pid_from_folder(session)
+        # Initialise an overview row with participant and per-test calculated flags (0/1)
         overview_row: dict = {
             'participant_id': pid,
             'LWMC_Calculated': 0,
@@ -80,7 +80,7 @@ def preprocess_all_participants(
         }
 
         # LWMC
-        lwmc_dir = participant / PSYM_LWMC_DIR
+        lwmc_dir = session / PSYM_LWMC_DIR
         if lwmc_dir.exists():
             try:
                 res_lwmc = preprocess_lwmc(lwmc_dir)  # dict
@@ -94,12 +94,12 @@ def preprocess_all_participants(
                 overview_row['LWMC_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process LWMC test for {participant.stem}: {str(err)}",
+                    f"Failed to process LWMC test for {session.stem}: {str(err)}",
                     category=UserWarning,
                 )
 
         # RAN
-        ran_dir = participant / PSYM_RAN_DIR
+        ran_dir = session / PSYM_RAN_DIR
         if ran_dir.exists():
             try:
                 res_ran = preprocess_ran(ran_dir)
@@ -110,12 +110,12 @@ def preprocess_all_participants(
                 overview_row['RAN_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process RAN test for {participant.stem}: {str(err)}",
+                    f"Failed to process RAN test for {session.stem}: {str(err)}",
                     category=UserWarning,
                 )
 
         # Stroop & Flanker
-        sf_dir = participant / PSYM_STROOP_FLANKER_DIR
+        sf_dir = session / PSYM_STROOP_FLANKER_DIR
         if sf_dir.exists():
             try:
                 res_stroop = preprocess_stroop(sf_dir)  # DataFrame
@@ -135,7 +135,7 @@ def preprocess_all_participants(
                 overview_row['Stroop_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process Stroop test for {participant.stem}: {str(err)}",
+                    f"Failed to process Stroop test for {session.stem}: {str(err)}",
                     category=UserWarning,
                 )
             try:
@@ -156,18 +156,18 @@ def preprocess_all_participants(
                 overview_row['Flanker_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process Flanker test for {participant.stem}: {str(err)}",
+                    f"Failed to process Flanker test for {session.stem}: {str(err)}",
                     category=UserWarning,
                 )
                 overview_row['Flanker_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process Flanker test for {participant.stem}: {str(err)}",
+                    f"Failed to process Flanker test for {session.stem}: {str(err)}",
                     category=UserWarning,
                 )
 
         # WikiVocab (tuple[rt_mean, accuracy])
-        wv_dir = participant / PSYM_WIKIVOCAB_DIR
+        wv_dir = session / PSYM_WIKIVOCAB_DIR
         if wv_dir.exists():
             try:
                 res_wv = preprocess_wikivocab(wv_dir)
@@ -181,12 +181,12 @@ def preprocess_all_participants(
                 overview_row['WikiVocab_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process WikiVocab test for {participant.stem}: {str(err)}",
+                    f"Failed to process WikiVocab test for {session.stem}: {str(err)}",
                     category=UserWarning,
                 )
 
         # PLAB (tuple[rt_mean, accuracy])
-        plab_dir = participant / PSYM_PLAB_DIR
+        plab_dir = session / PSYM_PLAB_DIR
         if plab_dir.exists():
             try:
                 res_plab = preprocess_plab(plab_dir)
@@ -196,17 +196,17 @@ def preprocess_all_participants(
                 overview_row['PLAB_Calculated'] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process PLAB test for {participant.stem}: {str(err)}",
+                    f"Failed to process PLAB test for {session.stem}: {str(err)}",
                     category=UserWarning,
                 )
 
-        # Write per-participant detailed CSV inside the participant folder
+        # Write per-session detailed CSV inside the session folder
         try:
-            detailed_path = participant / f"psychometric_details_{participant.stem}.csv"
+            detailed_path = session / f"psychometric_details_{session.stem}.csv"
             pd.DataFrame([detailed_row]).to_csv(detailed_path, index=False)
         except Exception as exc:
             warnings.warn(
-                f"Failed to write detailed CSV for {participant.stem}: {exc}",
+                f"Failed to write detailed CSV for {session.stem}: {exc}",
                 category=UserWarning,
             )
 
@@ -252,7 +252,7 @@ def preprocess_stroop(stroop_flanker_dir: Path):
     Parameters
     ----------
     stroop_flanker_dir : Path
-        Path to the folder containing the participants' stroop and flanker data.
+        Path to the folder containing the session's stroop and flanker data.
 
     Returns
     -------
@@ -295,7 +295,7 @@ def preprocess_flanker(stroop_flanker_dir: Path):
     Parameters
     ----------
     stroop_flanker_dir : Path
-        Path to the folder containing the participants' stroop and flanker data.
+        Path to the folder containing the session's stroop and flanker data.
 
     Returns
     -------

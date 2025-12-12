@@ -602,7 +602,7 @@ class MultipleyeDataCollection:
                 self.lab_number,
                 self.sessions[session].randomization_version,
                 session,
-                )
+            )
 
     def _load_session_stimuli(self, stimulus_dir: Path, lang: str,
                               country: str, lab_num: int,
@@ -1044,8 +1044,8 @@ class MultipleyeDataCollection:
             sep='\t')
 
         start_end_per_stimulus = \
-        sum_df[['stimulus', 'trial', 'start_ts', 'stop_ts']].dropna()[
-            ~sum_df['type'].str.contains('time before')]
+            sum_df[['stimulus', 'trial', 'start_ts', 'stop_ts']].dropna()[
+                ~sum_df['type'].str.contains('time before')]
 
         self.sessions[
             session_identifier].stimulus_start_end_ts = start_end_per_stimulus.to_dict(
@@ -1181,7 +1181,7 @@ class MultipleyeDataCollection:
                 if not test_path.exists():
                     self._write_to_logfile(
                         f"Psychometric test path {test_path} does not exist for session {session_identifier}.")
-                else:  # TODO: just use preprocess_all_participants(), this calculates all tests if possible
+                else:  # TODO: just use preprocess_all_sessions(), this calculates all tests if possible
                     if test == 'PLAB':
                         preprocess_plab(path=test_path)
                     elif test == 'RAN':
@@ -1227,7 +1227,7 @@ class MultipleyeDataCollection:
         participant_data = pd.DataFrame()
 
         for idx, session in (
-        pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))):
+                pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))):
             pbar.set_description(f'Parsing participant data : {session}')
             notes = ''
             folder = Path(self.sessions[session].session_folder_path)
