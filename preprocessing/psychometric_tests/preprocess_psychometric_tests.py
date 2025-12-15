@@ -61,15 +61,15 @@ def preprocess_all_sessions(
 
     for session in session_folders:
         pid = pid_from_session(session)
-        # Initialise an overview row with participant and per-test calculated flags (0/1)
+        # Initialise an overview row with participant and per-test Done flags (0/1)
         overview_row: dict = {
             'participant_id': pid,
-            'LWMC_Calculated': 0,
-            'RAN_Calculated': 0,
-            'Stroop_Calculated': 0,
-            'Flanker_Calculated': 0,
-            'WikiVocab_Calculated': 0,
-            'PLAB_Calculated': 0,
+            'LWMC_Done': 0,
+            'RAN_Done': 0,
+            'Stroop_Done': 0,
+            'Flanker_Done': 0,
+            'WikiVocab_Done': 0,
+            'PLAB_Done': 0,
         }
 
         # Detailed row: single CSV per participant with namespaced, readable columns
@@ -89,7 +89,7 @@ def preprocess_all_sessions(
                           'LWMC_SSTM_score', 'LWMC_Total_score_mean']:
                     if k in res_lwmc:
                         overview_row[k] = res_lwmc[k]
-                overview_row['LWMC_Calculated'] = 1
+                overview_row['LWMC_Done'] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process LWMC test for {session.stem}: {str(err)}",
@@ -104,8 +104,8 @@ def preprocess_all_sessions(
                 # both detailed and overview get all RAN metrics
                 detailed_row.update(res_ran)
                 overview_row.update(res_ran)
-                # Mark calculated on successful preprocessing regardless of emptiness
-                overview_row['RAN_Calculated'] = 1
+                # Mark Done on successful preprocessing regardless of emptiness
+                overview_row['RAN_Done'] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process RAN test for {session.stem}: {str(err)}",
@@ -121,16 +121,16 @@ def preprocess_all_sessions(
                     'StroopAccuracyEffect':
                         res_stroop['Stroop_incongruent_accuracy'] -
                         res_stroop['Stroop_congruent_accuracy'],
-                    'StroopRTEffect':
-                        res_stroop['Stroop_incongruent_rt_mean'] -
-                        res_stroop['Stroop_congruent_rt_mean'],
+                    'StroopRTEffect_sec':
+                        res_stroop['Stroop_incongruent_rt_mean_sec'] -
+                        res_stroop['Stroop_congruent_rt_mean_sec'],
                 }
                 # overview: only effects
                 overview_row.update(stroop_effects)
                 # detailed: effects + grouped metrics per condition
                 detailed_row.update(stroop_effects)
                 detailed_row.update(res_stroop)
-                overview_row['Stroop_Calculated'] = 1
+                overview_row['Stroop_Done'] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process Stroop test for {session.stem}: {str(err)}",
@@ -142,22 +142,22 @@ def preprocess_all_sessions(
                     'FlankerAccuracyEffect':
                         res_flanker['Flanker_incongruent_accuracy'] -
                         res_flanker['Flanker_congruent_accuracy'],
-                    'FlankerRTEffect':
-                        res_flanker['Flanker_incongruent_rt_mean'] -
-                        res_flanker['Flanker_congruent_rt_mean'],
+                    'FlankerRTEffect_sec':
+                        res_flanker['Flanker_incongruent_rt_mean_sec'] -
+                        res_flanker['Flanker_congruent_rt_mean_sec'],
                 }
                 # overview: only effects
                 overview_row.update(flanker_effects)
                 # detailed: effects + grouped metrics per condition
                 detailed_row.update(flanker_effects)
                 detailed_row.update(res_flanker)
-                overview_row['Flanker_Calculated'] = 1
+                overview_row['Flanker_Done'] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process Flanker test for {session.stem}: {str(err)}",
                     category=UserWarning,
                 )
-                overview_row['Flanker_Calculated'] = 1
+                overview_row['Flanker_Done'] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process Flanker test for {session.stem}: {str(err)}",
@@ -173,10 +173,10 @@ def preprocess_all_sessions(
                 # detailed_row.update({f"WikiVocab_{k}": v for k, v in wv.items()})
                 detailed_row.update(res_wv)
                 # overview: only selected
-                for key in ['WikiVocab_rt_mean', 'WikiVocab_accuracy',
+                for key in ['WikiVocab_rt_mean_sec', 'WikiVocab_accuracy',
                             'WikiVocab_incorrect_correct_score']:
                     overview_row[key] = res_wv[key]
-                overview_row['WikiVocab_Calculated'] = 1
+                overview_row['WikiVocab_Done'] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process WikiVocab test for {session.stem}: {str(err)}",
@@ -189,9 +189,9 @@ def preprocess_all_sessions(
             try:
                 res_plab = preprocess_plab(plab_dir)
                 detailed_row.update(res_plab)
-                overview_row['PLAB_rt_mean'] = res_plab['PLAB_rt_mean']
+                overview_row['PLAB_rt_mean_sec'] = res_plab['PLAB_rt_mean_sec']
                 overview_row['PLAB_accuracy'] = res_plab['PLAB_accuracy']
-                overview_row['PLAB_Calculated'] = 1
+                overview_row['PLAB_Done'] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process PLAB test for {session.stem}: {str(err)}",
@@ -215,12 +215,12 @@ def preprocess_all_sessions(
     df = pd.DataFrame(overview_rows)
     # Ensure columns order: participant_id, then flags, then the rest
     flag_cols = [
-        'LWMC_Calculated',
-        'RAN_Calculated',
-        'Stroop_Calculated',
-        'Flanker_Calculated',
-        'WikiVocab_Calculated',
-        'PLAB_Calculated',
+        'LWMC_Done',
+        'RAN_Done',
+        'Stroop_Done',
+        'Flanker_Done',
+        'WikiVocab_Done',
+        'PLAB_Done',
     ]
     for col in flag_cols:
         if col not in df.columns:
@@ -271,9 +271,11 @@ def preprocess_stroop(stroop_flanker_dir: Path):
         group_by_col='stim_type'
     )
 
+    result_df.rename(columns={'rt_mean': 'rt_mean_sec'}, inplace=True)
+
     result_dict = {}
     for cond in ['incongruent', 'congruent', 'neutral']:
-        for metric in ('rt_mean', 'accuracy', 'num_items'):
+        for metric in ('rt_mean_sec', 'accuracy', 'num_items'):
             result_dict[f"Stroop_{cond}_{metric}"] = float(result_df.loc[cond, metric])
 
     return result_dict
@@ -313,9 +315,11 @@ def preprocess_flanker(stroop_flanker_dir: Path):
         group_by_col='stim_type'
     )
 
+    result_df.rename(columns={'rt_mean': 'rt_mean_sec'}, inplace=True)
+
     result_dict = {}
     for cond in ['incongruent', 'congruent']:
-        for metric in ('rt_mean', 'accuracy', 'num_items'):
+        for metric in ('rt_mean_sec', 'accuracy', 'num_items'):
             result_dict[f"Flanker_{cond}_{metric}"] = float(result_df.loc[cond, metric])
 
     return result_dict
@@ -346,8 +350,8 @@ def preprocess_lwmc(lwmc_dir: Path):
     Returns
     -------
     dict
-        Dictionary with keys: 'LWMC_MU_score', 'LWMC_MU_time', 'LWMC_OS_score', 'LWMC_OS_time',
-        'LWMC_SS_score', 'LWMC_SS_time', 'LWMC_SSTM_score', and 'LWMC_Total_score_mean'.
+        Dictionary with keys: 'LWMC_MU_score', 'LWMC_MU_time_sec', 'LWMC_OS_score', 'LWMC_OS_time_sec',
+        'LWMC_SS_score', 'LWMC_SS_time_sec', 'LWMC_SSTM_score', and 'LWMC_Total_score_mean'.
     """
 
     # 1) Load the single WMC CSV that contains the relevant columns
@@ -432,11 +436,11 @@ def preprocess_lwmc(lwmc_dir: Path):
 
     return {
         'LWMC_MU_score': mu_score,
-        'LWMC_MU_time': mu_time,
+        'LWMC_MU_time_sec': mu_time,
         'LWMC_OS_score': os_score,
-        'LWMC_OS_time': os_time,
+        'LWMC_OS_time_sec': os_time,
         'LWMC_SS_score': ss_score,
-        'LWMC_SS_time': ss_time,
+        'LWMC_SS_time_sec': ss_time,
         'LWMC_SSTM_score': sstm_score,
         'LWMC_Total_score_mean': total,
     }
@@ -461,7 +465,7 @@ def preprocess_ran(ran_dir: Path):
     Returns
     -------
     dict
-        Dictionary with keys 'RAN_practice_rt' and 'RAN_experimental_rt' containing the
+        Dictionary with keys 'RAN_practice_rt_sec' and 'RAN_experimental_rt_sec' containing the
         reaction times.
 
     Raises
@@ -477,8 +481,8 @@ def preprocess_ran(ran_dir: Path):
     experimental_rt = df[df['Trial'] == 2]['Reading_Time']
 
     return {
-        'RAN_practice_rt': float(practice_rt.iloc[0]),
-        'RAN_experimental_rt': float(experimental_rt.iloc[0])
+        'RAN_practice_rt_sec': float(practice_rt.iloc[0]),
+        'RAN_experimental_rt_sec': float(experimental_rt.iloc[0])
     }
 
 
@@ -509,7 +513,7 @@ def preprocess_wikivocab(wv_dir: Path):
     dict
         Dictionary containing:
 
-        - WikiVocab_rt_mean: Mean reaction time
+        - WikiVocab_rt_mean_sec: Mean reaction time
         - WikiVocab_accuracy: Overall accuracy
         - WikiVocab_num_pseudo: Number of pseudo words
         - WikiVocab_num_real: Number of real words
@@ -542,7 +546,7 @@ def preprocess_wikivocab(wv_dir: Path):
                                      correctness_col='correctness')
 
     return {
-        'WikiVocab_rt_mean': rt_acc[0],
+        'WikiVocab_rt_mean_sec': rt_acc[0],
         'WikiVocab_accuracy': rt_acc[1],
         'WikiVocab_num_items': rt_acc[2],
         'WikiVocab_num_pseudo_words': num_pseudo,
@@ -571,7 +575,7 @@ def preprocess_plab(plab_dir: Path):
     Returns
     -------
     dict
-        Dictionary with keys 'PLAB_rt_mean', 'PLAB_accuracy', and 'PLAB_num_items'.
+        Dictionary with keys 'PLAB_rt_mean_sec', 'PLAB_accuracy', and 'PLAB_num_items'.
 
     """
     df = _find_one_filetype_with_columns(plab_dir, ['rt', 'correctness'],
@@ -579,7 +583,7 @@ def preprocess_plab(plab_dir: Path):
     rt_mean, accuracy, num_items = _reaction_time_accuracy(df, reaction_time_col='rt',
                                                            correctness_col='correctness')
     return {
-        'PLAB_rt_mean': rt_mean,
+        'PLAB_rt_mean_sec': rt_mean,
         'PLAB_accuracy': accuracy,
         'PLAB_num_items': num_items
     }
