@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
+import polars as pl
+
 from preprocessing.data_collection.stimulus import Stimulus, LabConfig
 from preprocessing.data_collection.trial import Trial
 
@@ -43,6 +45,8 @@ class Session:
     total_break_time: float = field(default='unknown', init=False)
 
     # calibrations & validations
+    calibrations: pl.DataFrame = field(default='unknown', init=False)
+    validations: pl.DataFrame = field(default='unknown', init=False)
     avg_comprehension_score: float = field(default='unknown', init=False)
     avg_calibration_error: float = field(default='unknown', init=False)
     num_calibrations: int = field(default='unknown', init=False)
@@ -57,9 +61,6 @@ class Session:
 
     trials = list[Trial]
 
-    def __iter__(self):
-        for trial in self.trials:
-            yield trial
 
     def create_overview(self):
         dict_repr = {

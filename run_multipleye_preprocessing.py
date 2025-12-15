@@ -57,12 +57,17 @@ def run_multipleye_preprocessing(data_collection: str):
             peyepeline.save_session_metadata(gaze, output_folder)
 
         sess.pm_gaze_metadata = gaze._metadata
+        sess.calibrations = gaze.calibrations
+        sess.validations = gaze.validations
 
         # preprocess gaze data
         pbar.set_description(f'Preprocessing samples {idf}:')
         peyepeline.preprocess_gaze(
             gaze,
         )
+
+        # to simplify later processing, we unnest the pixel, position and velocity data here
+        gaze.unnest(['pixel', 'position', 'velocity'])
 
         # create or load fixation data
         fixation_data_folder = output_folder / "fixations"
@@ -121,7 +126,7 @@ def run_multipleye_preprocessing(data_collection: str):
         # perform the multipleye specific stuff
         multipleye.create_session_overview(sess.session_identifier, path=output_folder)
         pbar.set_description(f'Creating sanity check {idf}:')
-        multipleye.create_sanity_check_report(gaze, sess.session_identifier)
+        multipleye.create_sanity_check_report(gaze, sess.session_identifier, plotting=True, overwrite=True)
 
     multipleye.create_dataset_overview(path=preprocessed_data_folder)
     multipleye.parse_participant_data(preprocessed_data_folder / "participant_data.csv")

@@ -433,6 +433,16 @@ def load_trial_level_raw_data(
         with open(metadata_path / 'experiment.yaml', "r") as f:
             exp = yaml.safe_load(f)
 
+        with open(metadata_path / f'validations.tsv', 'r', encoding='utf8') as f:
+            validations_df = pl.read_csv(f, separator='\t')
+
+        gaze.validations = validations_df
+
+        with open(metadata_path / f'calibrations.tsv', 'r', encoding='utf8') as f:
+            calibrations_df = pl.read_csv(f, separator='\t')
+
+        gaze.calibrations = calibrations_df
+
         exp = pm.Experiment.from_dict(exp)
 
         gaze.experiment = exp
@@ -450,7 +460,7 @@ def load_trial_level_events_data(
     if event_type not in DEFAULT_EVENT_PROPERTIES.keys():
         raise ValueError(f"event_type must be {DEFAULT_EVENT_PROPERTIES.keys()}, got {event_type}")
 
-    initial_df = pl.DataFrame()
+    all_events = pl.DataFrame()
     for file in data_folder.glob('*.csv'):
         trial_df = pl.read_csv(file)
 
@@ -465,15 +475,46 @@ def load_trial_level_events_data(
                         pl.lit(match.group(group_name)).alias(group_name)
                     )
 
-        initial_df = initial_df.vstack(trial_df)
+        all_events = all_events.vstack(trial_df)
+
+    all_events = all_events.with_columns(pl.lit(event_type).alias("name"))
+
+    # if there have already been events detected, keep them
+    if not gaze.events.frame.is_empty():
+        original_events = gaze.events.frame
+
+        new_events = pm.Events(
+            all_events,
+            trial_columns=gaze.trial_columns,
+        )
+
+        new_events = new_events.frame.with_columns(
+            pl.lit(event_type).alias("name")
+        )
+
+        # if one df has more columns than the other, add the missing columns with same column type!
+        for col in original_events.columns:
+            if col not in new_events.columns:
+                dtype = original_events[col].dtype
+                new_events = new_events.with_columns(
+                    pl.lit(None).cast(dtype).alias(col)
+                )
+        for col in new_events.columns:
+            if col not in original_events.columns:
+                dtype = new_events[col].dtype
+                original_events = original_events.with_columns(
+                    pl.lit(None).cast(dtype).alias(col)
+                )
+        # sort columns to be in the same order
+        new_events = new_events.select(original_events.columns)
+
+        all_events = original_events.vstack(
+            new_events
+        )
 
     gaze.events = pm.Events(
-        initial_df,
+        all_events,
         trial_columns=gaze.trial_columns,
-    )
-
-    gaze.events.frame = gaze.events.frame.with_columns(
-        pl.lit(event_type).alias("name")
     )
 
     return gaze
@@ -485,7 +526,20 @@ def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
     metadata = gaze._metadata
     metadata['datetime'] = str(metadata['datetime'])
 
+    # remove validations and calibrations because they are already saved in separate files
+    metadata.pop('calibrations', None)
+    metadata.pop('validations', None)
+
     with open(directory / "gaze_metadata.json", "w", encoding='utf8') as f:
         json.dump(metadata, f)
 
     gaze.save(directory, save_events=False, save_samples=False)
+
+    # both are dfs
+    validations = gaze.validations
+    calibrations = gaze.calibrations
+
+    validations.write_csv(directory / f'validations.tsv',
+                  separator='\t')
+    calibrations.write_csv(directory / f'calibrations.tsv',
+                  separator='\t')

@@ -426,7 +426,6 @@ class MultipleyeDataCollection:
                 self._write_to_logfile(
                     f"No messages found in asc file of {session_name}.")
 
-            self._document_calibrations(session_name)
 
             stimuli = self.sessions[session_name].stimuli
 
@@ -434,7 +433,10 @@ class MultipleyeDataCollection:
                 # set report object
                 report = partial(report_meta, report_file=report_file)
                 check_metadata(
-                    self.sessions[session_name].pm_gaze_metadata, report)
+                    self.sessions[session_name].pm_gaze_metadata,
+                    self.sessions[session_name].calibrations,
+                    self.sessions[session_name].validations,
+                    report)
 
             self._check_logfiles(stimuli, session_name)
             self._check_stimuli_gaze_frame(gaze, stimuli, session_name)
@@ -450,7 +452,7 @@ class MultipleyeDataCollection:
             )
 
             if plotting:
-                self._create_plots(gaze, stimuli, session_name)
+                self._create_plots(gaze, stimuli, session_name, aoi=True)
 
     def _load_manual_corrections(self) -> list[str]:
         # read excluded sessions from txt file if it exists in the top data folder
@@ -891,7 +893,7 @@ class MultipleyeDataCollection:
                         match.groupdict()['type'])
 
                     trial = match.groupdict()['trial']
-                    trial = trial.replace('trial_', '')
+                    # trial = trial.replace('trial_', '')
                     reading_times['trials'].append(trial)
 
                     if trial in stimuli_trial_mapping:
@@ -1024,21 +1026,6 @@ class MultipleyeDataCollection:
         total_times.to_csv(self.data_root.parent /
                            'total_reading_times.tsv', sep='\t', index=False)
 
-    def _document_calibrations(self, session_identifier: str):
-
-        metadata = self.sessions[session_identifier].pm_gaze_metadata
-
-        validations = metadata['validations']
-        calibrations = metadata['calibrations']
-
-        val_df = pd.DataFrame(validations)
-        cal_df = pd.DataFrame(calibrations)
-
-        result_folder = self.reports_dir / session_identifier
-        val_df.to_csv(result_folder / f'validations_{session_identifier}.tsv',
-                      sep='\t', index=False)
-        cal_df.to_csv(result_folder / f'calibrations_{session_identifier}.tsv',
-                      sep='\t', index=False)
 
     def _check_asc_validation(self, session_identifier: str) -> None:
         """
@@ -1054,11 +1041,12 @@ class MultipleyeDataCollection:
         sorted_start_end = []
         for stimulus in sorted_stimuli:
             sorted_start_end.append(
-                {'message': f'{stimulus["stimulus"]}_start', 'timestamp': float(stimulus['start_ts'])})
+                {'message': f'{stimulus["stimulus"]}_start', 'time': float(stimulus['start_ts'])})
             sorted_start_end.append(
-                {'message': f'{stimulus["stimulus"]}_end', 'timestamp': float(stimulus['stop_ts'])})
+                {'message': f'{stimulus["stimulus"]}_end', 'time': float(stimulus['stop_ts'])})
 
-        check_validation_requirements(self.sessions[session_identifier].pm_gaze_metadata,
+        check_validation_requirements(self.sessions[session_identifier].validations,
+                                      self.sessions[session_identifier].calibrations,
                                       self.sessions[session_identifier].sanity_report_path,
                                       sorted_start_end)
 
@@ -1151,7 +1139,7 @@ class MultipleyeDataCollection:
         check_comprehension_question_answers(self.sessions[session_identifier].logfile,
                                              stimuli, self.sessions[session_identifier].sanity_report_path)
 
-    def _create_plots(self, gaze, stimuli, session_identifier):
+    def _create_plots(self, gaze, stimuli, session_identifier, aoi=False):
 
         plot_dir = self.reports_dir / session_identifier / \
                    f"{session_identifier}_plots"
@@ -1160,7 +1148,7 @@ class MultipleyeDataCollection:
         plot_main_sequence(gaze.events, plot_dir)
 
         for stimulus in stimuli:
-            plot_gaze(gaze, stimulus, plot_dir)
+            plot_gaze(gaze, stimulus, plot_dir, aoi_image=aoi)
 
     def parse_participant_data(self, path: Path | str) -> None:
         """

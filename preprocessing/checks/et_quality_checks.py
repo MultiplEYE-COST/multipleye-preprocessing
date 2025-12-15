@@ -85,10 +85,10 @@ def check_comprehension_question_answers(logfile: pl.DataFrame, stimuli: Stimulu
             report_file)
 
 
-def check_validation_requirements(metadata: dict[str, Any], report_file, stimulus_times):
+def check_validation_requirements(validations: pl.DataFrame, calibrations: pl.DataFrame, report_file, stimulus_times):
     # sort validations and calibrations by timestamp, merge into one list
-    vals = sorted(metadata["validations"], key=lambda x: float(x["timestamp"]))
-    cals = sorted(metadata["calibrations"], key=lambda x: float(x["timestamp"]))
+    vals = validations.sort('time').to_dicts()
+    cals = calibrations.sort('time').to_dicts()
 
     # prepare lists
 
@@ -107,7 +107,7 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
         'final_cals': [],
     }
 
-    merged = sorted(vals + cals + stimulus_times, key=lambda x: float(x["timestamp"]))
+    merged = sorted(vals + cals + stimulus_times, key=lambda x: float(x["time"]))
     bad_tstamp = None
     bad_val = False
     val = False
@@ -124,25 +124,25 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
     real_num_stimuli = 0
     for m in merged:
         val = False
-        if "validation_score_avg" in m:
+        if "accuracy_avg" in m:
             val_count += 1
             val = True
 
             if bad_val:
-                time_since_last_val = round((float(m["timestamp"]) - bad_tstamp) / 1000, 3)
+                time_since_last_val = round((float(m["time"]) - bad_tstamp) / 1000, 3)
                 # if there are more than 2 minutes between bad val and next val, we consider that a calibration should have happened
                 if time_since_last_val > 120:
                     mes['no_cal_after_bad_val'].append(
-                        f"⚠️ No calibration at {m['timestamp']} after BAD validation at timestamp {bad_tstamp}")
+                        f"⚠️ No calibration at {m['time']} after BAD validation at timestamp {bad_tstamp}")
                     bad_val = False
-            score = float(m["validation_score_avg"])
+            score = float(m["accuracy_avg"])
 
             if real_num_stimuli == num_stimuli:
-                mes['final_vals'].append(f'Validation after last stimulus: {m["timestamp"]}, score: {score}')
-                _report_to_file(f'Validation after last stimulus: {m["timestamp"]}, score: {score}', report_file)
+                mes['final_vals'].append(f'Validation after last stimulus: {m["time"]}, score: {score}')
+                _report_to_file(f'Validation after last stimulus: {m["time"]}, score: {score}', report_file)
 
             elif score < 0.305:
-                _report_to_file(f"✅ Good validation at {m['timestamp']} with score {m['validation_score_avg']}",
+                _report_to_file(f"✅ Good validation at {m['time']} with score {m['accuracy_avg']}",
                                 report_file)
                 bad_val = False
                 moderate_val = False
@@ -150,25 +150,25 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
                 good_vals += 1
             elif 0.45 > score >= 0.305:
                 mes['moderate_vals'].append(
-                    f"⚠️ Moderate validation at {m['timestamp']} with score {m['validation_score_avg']}")
+                    f"⚠️ Moderate validation at {m['time']} with score {m['accuracy_avg']}")
                 moderate_val = True
                 bad_val = False
                 moderate_vls += 1
-                mod_tstamp = int(m["timestamp"])
+                mod_tstamp = int(m["time"])
             elif score >= 0.45:
-                mes['bad_vals'].append(f"❌ BAD Validation at {m['timestamp']} with score {m['validation_score_avg']}")
+                mes['bad_vals'].append(f"❌ BAD Validation at {m['time']} with score {m['accuracy_avg']}")
                 bad_val = True
                 moderate_val = False
-                bad_tstamp = int(m["timestamp"])
+                bad_tstamp = int(m["time"])
             if in_stimulus:
                 mes['val_cal_during_stimulus'].append(
-                    f"⚠️ Validation during stimulus at {m['timestamp']} with score {m['validation_score_avg']}")
+                    f"⚠️ Validation during stimulus at {m['time']} with score {m['accuracy_avg']}")
 
         elif 'message' in m:
             if 'start' in m['message']:
                 real_num_stimuli += 1
                 in_stimulus = True
-                _report_to_file(f'{m["message"]} at {m["timestamp"]}', report_file)
+                _report_to_file(f'{m["message"]} at {m["time"]}', report_file)
                 if bad_val:
                     mes['start_after_bad_val'].append(
                         f"❌ {m['message']} directly after bad validation at {bad_tstamp} with score {score}!")
@@ -179,26 +179,26 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
                     val_performed = False
                 elif not val_performed:
                     mes['no_val_before_stimulus'].append(
-                        f"⚠️ {m['message']} without prior validation at {m['timestamp']}")
+                        f"⚠️ {m['message']} without prior validation at {m['time']}")
 
             if 'end' in m['message']:
                 real_num_stimuli += 1
                 in_stimulus = False
-                _report_to_file(f'{m["message"]} at {m["timestamp"]}', report_file)
+                _report_to_file(f'{m["message"]} at {m["time"]}', report_file)
 
         else:
             cal_count += 1
             if bad_val:
                 bad_val = False
-                time_between = round((float(m["timestamp"]) - bad_tstamp) / 1000, 3)
+                time_between = round((float(m["time"]) - bad_tstamp) / 1000, 3)
                 mes['necessary_cals'].append(
-                    f"✅ Calibration at {m['timestamp']} {time_between} seconds after BAD validation")
+                    f"✅ Calibration at {m['time']} {time_between} seconds after BAD validation")
             if in_stimulus:
-                mes['val_cal_during_stimulus'].append(f"⚠️ Calibration during stimulus at {m['timestamp']}")
+                mes['val_cal_during_stimulus'].append(f"⚠️ Calibration during stimulus at {m['time']}")
 
             if real_num_stimuli == num_stimuli:
-                mes['final_cals'].append(f'Calibration after last stimulus: {m["timestamp"]}')
-                _report_to_file(f'❌ Calibration after last stimulus: {m["timestamp"]}', report_file)
+                mes['final_cals'].append(f'Calibration after last stimulus: {m["time"]}')
+                _report_to_file(f'❌ Calibration after last stimulus: {m["time"]}', report_file)
 
             score = -1
 
@@ -251,44 +251,44 @@ def check_validation_requirements(metadata: dict[str, Any], report_file, stimulu
         _report_to_file(f'❌ No final calibration!', report_file)
 
 
-def check_metadata(metadata: dict[str, Any], report: ReportFunction) -> None:
+def check_metadata(metadata: dict[str, Any],
+                   calibrations: pl.DataFrame,
+                   validations: pl.DataFrame,
+                   report: ReportFunction
+                   ) -> None:
     """
     Check the metadata of the gaze data and write a report to file.
     :param metadata: Metadata report.
+    :param calibrations: Session calibrations as DataFrame from the pymovements metadata.
+    :param validations: Session validations as DataFrame from the pymovements metadata.
     :param report: Function to write the report to file.
     :return:
     """
     date = f"{metadata['time']};     {metadata['day']}.{metadata['month']}.{metadata['year']}"
     report("Date", date, None)
 
-    num_calibrations = len(metadata["calibrations"])
+    num_calibrations = len(calibrations)
     report("Number of calibrations", num_calibrations, config.ACCEPTABLE_NUM_CALIBRATIONS)
 
-    validation_scores_avg = [
-        float(validation["validation_score_avg"])
-        for validation in metadata["validations"]
-    ]
-    num_validations = len(metadata["validations"])
+    validation_scores_avg = validations["accuracy_avg"].cast(pl.Float32).to_list()
+
+    num_validations = len(validations)
     report("Number of validations", num_validations, config.ACCEPTABLE_NUM_CALIBRATIONS)
     report(
         "AVG validation scores",
         validation_scores_avg,
         config.ACCEPTABLE_AVG_VALIDATION_SCORES,
     )
-    validation_scores_max = [
-        float(validation["validation_score_max"])
-        for validation in metadata["validations"]
-    ]
+    validation_scores_max = validations["accuracy_max"].cast(pl.Float32).to_list()
     report(
         "MAX validation scores",
         validation_scores_max,
         config.TRACKED_EYE,
     )
-    validation_errors = [
-        validation["error"].removesuffix(" ERROR")
-        for validation in metadata["validations"]
-    ]
-    report("Validation errors", validation_errors, config.ACCEPTABLE_VALIDATION_ERRORS)
+
+    # this has been excluded in pm, but as we have the accuracy values this is enough...
+    # validation_errors = validations["error"].to_list()
+    # report("Validation errors", validation_errors, config.ACCEPTABLE_VALIDATION_ERRORS)
 
     tracked_eye = metadata["tracked_eye"]
     report("tracked_eye",
@@ -296,10 +296,8 @@ def check_metadata(metadata: dict[str, Any], report: ReportFunction) -> None:
            config.TRACKED_EYE
            )
 
-    validation_eye = [
-        (validation["tracked_eye"][0])
-        for validation in metadata["validations"]
-    ]
+    validation_eye = validations["eye"].to_list()
+
     report(
         "Validation tracked Eyes",
         validation_eye,
