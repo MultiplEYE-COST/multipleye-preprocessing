@@ -66,9 +66,6 @@ def run_multipleye_preprocessing(data_collection: str):
             gaze,
         )
 
-        # to simplify later processing, we unnest the pixel, position and velocity data here
-        gaze.unnest(['pixel', 'position', 'velocity'])
-
         # create or load fixation data
         fixation_data_folder = output_folder / "fixations"
         saccade_data_folder = output_folder / "saccades"
@@ -125,7 +122,7 @@ def run_multipleye_preprocessing(data_collection: str):
 
         # perform the multipleye specific stuff
         multipleye.create_session_overview(sess.session_identifier, path=output_folder)
-        pbar.set_description(f'Creating sanity check {idf}:')
+        pbar.set_description(f'Creating sanity check report {idf}')
         multipleye.create_sanity_check_report(gaze, sess.session_identifier, plotting=True, overwrite=True)
 
     multipleye.create_dataset_overview(path=preprocessed_data_folder)

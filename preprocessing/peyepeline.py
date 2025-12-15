@@ -236,6 +236,7 @@ def detect_fixations(
     After detection, fixation properties (e.g., fixation location) are
     computed and added to ``gaze.events``.
     """
+
     gaze.detect(method, minimum_duration=minimum_duration,
                 velocity_threshold=velocity_threshold)
 

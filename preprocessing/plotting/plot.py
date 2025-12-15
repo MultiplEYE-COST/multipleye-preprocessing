@@ -17,12 +17,16 @@ def plot_gaze(
         duration_ms_in_cm: float = 0.03,
         aoi_image: bool = False,
 ) -> None:
+
+    data = gaze.clone()
+    data.unnest(['pixel', 'position', 'velocity'])
+
     # pixels per centimeter on this screen
-    px_per_cm = gaze.experiment.screen.width_px / gaze.experiment.screen.width_cm
+    px_per_cm = data.experiment.screen.width_px / data.experiment.screen.width_cm
 
     for page in stimulus.pages:
 
-        page_samples = gaze.frame.filter(
+        page_samples = data.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == f"page_{page.number}")
         ).select(
@@ -30,7 +34,7 @@ def plot_gaze(
             pl.col("pixel_y")
         )
 
-        page_events = gaze.events.frame.filter(
+        page_events = data.events.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == f"page_{page.number}")
             & (pl.col("name") == "fixation")
@@ -69,8 +73,8 @@ def plot_gaze(
                 zorder=10,
             )
             ax.add_patch(fixation)
-        ax.set_xlim((0, gaze.experiment.screen.width_px))
-        ax.set_ylim((gaze.experiment.screen.height_px, 0))
+        ax.set_xlim((0, data.experiment.screen.width_px))
+        ax.set_ylim((data.experiment.screen.height_px, 0))
         fig.savefig(plots_dir / f"{stimulus.name}_{page.number}.png")
         plt.close(fig)
 
@@ -78,14 +82,14 @@ def plot_gaze(
         screen_name = (
             f"question_{int(question.id)}"  # Screen names don't have leading zeros
         )
-        page_samples = gaze.frame.filter(
+        page_samples = data.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == screen_name)
         ).select(
             pl.col("pixel_x"),
             pl.col("pixel_y"),
         )
-        page_events = gaze.events.frame.filter(
+        page_events = data.events.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == screen_name)
             & (pl.col("name") == "fixation")
@@ -124,8 +128,8 @@ def plot_gaze(
                 zorder=10,
             )
             ax.add_patch(fixation)
-        ax.set_xlim((0, gaze.experiment.screen.width_px))
-        ax.set_ylim((gaze.experiment.screen.height_px, 0))
+        ax.set_xlim((0, data.experiment.screen.width_px))
+        ax.set_ylim((data.experiment.screen.height_px, 0))
         fig.savefig(plots_dir / f"{stimulus.name}_q{question.id}.png")
         plt.close(fig)
 
@@ -133,14 +137,14 @@ def plot_gaze(
         screen_name = (
             f"{rating.name}"  # Screen names don't have leading zeros
         )
-        page_samples = gaze.frame.filter(
+        page_samples = data.frame.filter(
             (pl.col("trial") == f"trial_{stimulus.id}")
             & (pl.col("page") == screen_name)
         ).select(
             pl.col("pixel_x"),
             pl.col("pixel_y"),
         )
-        page_events = gaze.events.frame.filter(
+        page_events = data.events.frame.filter(
             (pl.col("stimulus") == f"trial_{stimulus.id}")
             & (pl.col("page") == screen_name)
             & (pl.col("name") == "fixation")
@@ -176,8 +180,8 @@ def plot_gaze(
                 zorder=10,
             )
             ax.add_patch(fixation)
-        ax.set_xlim((0, gaze.experiment.screen.width_px))
-        ax.set_ylim((gaze.experiment.screen.height_px, 0))
+        ax.set_xlim((0, data.experiment.screen.width_px))
+        ax.set_ylim((data.experiment.screen.height_px, 0))
         fig.savefig(plots_dir / f"{stimulus.name}_{stimulus.id}_{rating.name}.png")
         plt.close(fig)
 
