@@ -24,7 +24,8 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
-    "sphinx_design"
+    "sphinx_design",
+    "sphinx_copybutton"
 ]
 
 templates_path = ['_templates']
