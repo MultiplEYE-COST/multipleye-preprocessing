@@ -25,7 +25,7 @@ cd multipleye-preprocessing/
 ```
 
 To use the pipeline, we expect you to have python set up on your machine.
-Reassure yourself that you are using an up-to-date python version.
+Make sure to use an up-to-date python version.
 The pipeline has been developed with `3.13` and up in mind.
 It is recommended to [create a virtual environment](https://docs.python.org/3/library/venv.html)
 for your project.
