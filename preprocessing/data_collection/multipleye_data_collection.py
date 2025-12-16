@@ -149,12 +149,16 @@ class MultipleyeDataCollection:
 
         if len(self.sessions) == 0:
             raise ValueError(
-                f"No sessions found in {self.data_root}. Please check the session_folder_regex "
-                f"and the data_root.")
+                f"No sessions found in {self.data_root}. "
+                f"Please check the session_folder_regex and the data_root.")
 
-        # load stimulus order versions to know what stimulus randomization was used for each participant
-        stim_order_versions = self.stimulus_dir / 'config' / \
-                              f'stimulus_order_versions_{self.language}_{self.country}_{self.lab_number}.csv'
+        # load stimulus order versions to know what stimulus randomization was used for
+        # each participant
+        stim_order_versions = (
+                self.stimulus_dir / 'config' /
+                f'stimulus_order_versions_'
+                f'{self.language}_{self.country}_{self.lab_number}.csv'
+        )
         stim_order_versions = pd.read_csv(stim_order_versions)
         self.stim_order_versions = stim_order_versions[
             stim_order_versions['participant_id'].notnull(
@@ -162,9 +166,11 @@ class MultipleyeDataCollection:
 
         if self.stim_order_versions.empty:
             warnings.warn(
-                f"Stimulus order version is not updated with participants numbers.\nPlease ask the team to "
-                f"upload the correct stimulus folder that has been used and changed during the experiment.\n"
-                f"Version will be extracted from the asc files.")
+                f"Stimulus order version is not updated with participants numbers.\n"
+                f"Please ask the team to upload the correct stimulus folder that "
+                f"has been used and changed during the experiment.\n"
+                f"Version will be extracted from the asc files."
+            )
             self.stim_order_versions = stim_order_versions
 
         self.prepare_session_level_information()
@@ -240,8 +246,9 @@ class MultipleyeDataCollection:
 
                             if len(session_file) == 0:
                                 raise ValueError(
-                                    f'No files found in folder {item.name} that match the pattern '
-                                    f'{session_file_suffix}')
+                                    f'No files found in folder {item.name} that match '
+                                    f'the pattern {session_file_suffix}'
+                                )
 
                             elif len(session_file) > 1:
                                 raise ValueError(
@@ -275,8 +282,9 @@ class MultipleyeDataCollection:
 
                     else:
                         print(
-                            f'Folder {item.name} does not match the regex pattern {session_folder_regex}. '
-                            f'Not considered as session.')
+                            f'Folder {item.name} does not match the regex pattern '
+                            f'{session_folder_regex}. Not considered as session.'
+                        )
 
         if convert_to_asc:
             self.convert_edf_to_asc()
@@ -339,28 +347,33 @@ class MultipleyeDataCollection:
             '_')
         if not data_folder_name.startswith('MultiplEYE'):
             raise ValueError(
-                f"Data collection name {data_folder_name} does not start with 'MultiplEYE'. "
-                f"Please check the folder name.")
+                f"Data collection name {data_folder_name} does not start with "
+                f"'MultiplEYE'. "
+                f"Please check the folder name."
+            )
         if not year.isdigit() or len(year) != 4:
             raise ValueError(
                 f"Year {year} of the data collection name is not a valid year. "
                 f"It should be a 4 digit number.")
         if not lab_number.isdigit() or len(lab_number) != 1:
             raise ValueError(
-                f"Lab number {lab_number} of the data collection name is not a valid lab number. "
-                f"It should be a 1 digit number.")
+                f"Lab number {lab_number} of the data collection name is not a "
+                f"valid lab number. It should be a 1 digit number."
+            )
         if len(country) != 2 or not country.isalpha():
             raise ValueError(
-                f"Country {country} of the data collection name is not a valid country code. "
-                f"It should be a 2 letter code.")
+                f"Country {country} of the data collection name is not a "
+                f"valid country code. It should be a 2 letter code."
+            )
         if len(city) < 2 or not city.isalpha():
             raise ValueError(
                 f"City {city} of the data collection name is not a valid city name. "
                 f"It should be a string with at least 2 letters.")
         if not stimulus_language.isalpha() or len(stimulus_language) != 2:
             raise ValueError(
-                f"Stimulus language {stimulus_language} of the data collection name is not a valid "
-                f"language code. It should be a 2 letter code.")
+                f"Stimulus language {stimulus_language} of the data collection name is "
+                f"not a valid language code. It should be a 2 letter code."
+            )
 
         session_folder_regex = r"\d\d\d" + \
                                f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
@@ -370,18 +383,20 @@ class MultipleyeDataCollection:
                        'config' /
                        f'config_{stimulus_language.lower()}_{country.lower()}_{city}_{lab_number}.py')
 
-        lab_configuration_data = cls.load_lab_config(stimulus_folder_path,
-                                                     stimulus_language,
-                                                     country, int(lab_number), city,
-                                                     int(year))
+        lab_configuration_data = cls.load_lab_config(
+            stimulus_folder_path, stimulus_language, country,
+            int(lab_number), city, int(year)
+        )
 
         eye_tracker = lab_configuration_data.name_eye_tracker
         psychometric_tests = lab_configuration_data.psychometric_tests
 
-        et_data_path = data_dir / 'eye-tracking-sessions' / \
-                       additional_folder if additional_folder else data_dir / 'eye-tracking-sessions'
-        ps_tests_path = data_dir / 'psychometric-tests-sessions' / \
-                        additional_folder if additional_folder else data_dir / 'psychometric-tests'
+        et_data_path = (
+                data_dir / 'eye-tracking-sessions' / additional_folder
+        ) if additional_folder else data_dir / 'eye-tracking-sessions'
+        ps_tests_path = (
+                data_dir / 'psychometric-tests-sessions' / additional_folder
+        ) if additional_folder else data_dir / 'psychometric-tests'
 
         return cls(
             data_collection_name=data_folder_name,
@@ -445,15 +460,16 @@ class MultipleyeDataCollection:
                 self._write_to_logfile(
                     f"No messages found in asc file of {session_name}.")
 
-            self._document_calibrations(session_name)
-
             stimuli = self.sessions[session_name].stimuli
 
             with open(report_file_path, "a+", encoding="utf-8") as report_file:
                 # set report object
                 report = partial(report_meta, report_file=report_file)
                 check_metadata(
-                    self.sessions[session_name].pm_gaze_metadata, report)
+                    self.sessions[session_name].pm_gaze_metadata,
+                    self.sessions[session_name].calibrations,
+                    self.sessions[session_name].validations,
+                    report)
 
             self._check_logfiles(stimuli, session_name)
             self._check_stimuli_gaze_frame(gaze, stimuli, session_name)
@@ -469,7 +485,7 @@ class MultipleyeDataCollection:
             )
 
             if plotting:
-                self._create_plots(gaze, stimuli, session_name)
+                self._create_plots(gaze, stimuli, session_name, aoi=True)
 
     def _load_manual_corrections(self) -> list[str]:
         # read excluded sessions from txt file if it exists in the top data folder
@@ -573,18 +589,21 @@ class MultipleyeDataCollection:
                     self._write_to_logfile(
                         f"Session {session} started after a trial. Only the completed stimuli will be considered.")
 
-            self.sessions[session].completed_stimuli_ids, self.sessions[
-                session].stimuli_trial_mapping = self._load_session_completed_stimuli(
-                session)
+            (
+                self.sessions[session].completed_stimuli_ids,
+                self.sessions[session].stimuli_trial_mapping
+            ) = self._load_session_completed_stimuli(session)
             self.sessions[session].messages = self._parse_asc(session)
             self.sessions[session].logfile = self._load_session_logfile(
                 session)
-            self.sessions[
-                session].randomization_version = self._load_stimulus_order_version_from_logfile(
-                session)
-            self.sessions[
-                session].stimulus_order_ids = self._load_session_stimulus_order(
-                session, self.sessions[session].randomization_version)
+            self.sessions[session].randomization_version = (
+                self._load_stimulus_order_version_from_logfile(session)
+            )
+            self.sessions[session].stimulus_order_ids = (
+                self._load_session_stimulus_order(
+                    session, self.sessions[session].randomization_version
+                )
+            )
 
             # TODO: lab config should be changeable for each session
             self.sessions[session].lab_config = self.lab_configuration
@@ -593,8 +612,9 @@ class MultipleyeDataCollection:
                 session].completed_stimuli_ids:
                 if not p_id in self.crashed_session_ids:
                     self._write_to_logfile(
-                        f"Stimulus order and completed stimuli do not match for session {session}. "
-                        f"Please check the files carefully.")
+                        f"Stimulus order and completed stimuli do not match for "
+                        f"session {session}. Please check the files carefully."
+                    )
 
             self.sessions[session].stimuli = self._load_session_stimuli(
                 self.stimulus_dir, self.language,
@@ -824,7 +844,8 @@ class MultipleyeDataCollection:
         else:
             raise ValueError(
                 f"More than one or no entry found for participant ID {p_id} in stimulus order versions. "
-                f"Please check the stimulus order versions file for duplicates.")
+                f"Please check the stimulus order versions file for duplicates."
+            )
 
     def _parse_asc(self, session_identifier: str):
         """
@@ -930,7 +951,7 @@ class MultipleyeDataCollection:
                         match.groupdict()['type'])
 
                     trial = match.groupdict()['trial']
-                    trial = trial.replace('trial_', '')
+                    # trial = trial.replace('trial_', '')
                     reading_times['trials'].append(trial)
 
                     if trial in stimuli_trial_mapping:
@@ -1073,22 +1094,6 @@ class MultipleyeDataCollection:
         total_times.to_csv(self.data_root.parent /
                            'total_reading_times.tsv', sep='\t', index=False)
 
-    def _document_calibrations(self, session_identifier: str):
-
-        metadata = self.sessions[session_identifier].pm_gaze_metadata
-
-        validations = metadata['validations']
-        calibrations = metadata['calibrations']
-
-        val_df = pd.DataFrame(validations)
-        cal_df = pd.DataFrame(calibrations)
-
-        result_folder = self.reports_dir / session_identifier
-        val_df.to_csv(result_folder / f'validations_{session_identifier}.tsv',
-                      sep='\t', index=False)
-        cal_df.to_csv(result_folder / f'calibrations_{session_identifier}.tsv',
-                      sep='\t', index=False)
-
     def _check_asc_validation(self, session_identifier: str) -> None:
         """
         Check the validations in the asc file for the specified session.
@@ -1104,16 +1109,22 @@ class MultipleyeDataCollection:
         sorted_start_end = []
         for stimulus in sorted_stimuli:
             sorted_start_end.append(
-                {'message': f'{stimulus["stimulus"]}_start',
-                 'timestamp': float(stimulus['start_ts'])})
+                {
+                    'message': f'{stimulus["stimulus"]}_start',
+                    'time': float(stimulus['start_ts'])
+                })
             sorted_start_end.append(
-                {'message': f'{stimulus["stimulus"]}_end',
-                 'timestamp': float(stimulus['stop_ts'])})
+                {
+                    'message': f'{stimulus["stimulus"]}_end',
+                    'time': float(stimulus['stop_ts'])
+                })
 
         check_validation_requirements(
-            self.sessions[session_identifier].pm_gaze_metadata,
+            self.sessions[session_identifier].validations,
+            self.sessions[session_identifier].calibrations,
             self.sessions[session_identifier].sanity_report_path,
-            sorted_start_end)
+            sorted_start_end
+        )
 
     def _check_stimuli_gaze_frame(self, gaze, stimuli, session_identifier):
         """
@@ -1208,7 +1219,7 @@ class MultipleyeDataCollection:
                                              stimuli, self.sessions[
                                                  session_identifier].sanity_report_path)
 
-    def _create_plots(self, gaze, stimuli, session_identifier):
+    def _create_plots(self, gaze, stimuli, session_identifier, aoi=False):
 
         plot_dir = self.reports_dir / session_identifier / \
                    f"{session_identifier}_plots"
@@ -1217,7 +1228,7 @@ class MultipleyeDataCollection:
         plot_main_sequence(gaze.events, plot_dir)
 
         for stimulus in stimuli:
-            plot_gaze(gaze, stimulus, plot_dir)
+            plot_gaze(gaze, stimulus, plot_dir, aoi_image=aoi)
 
     def parse_participant_data(self, path: Path | str) -> None:
         """

@@ -14,20 +14,27 @@ def plot_gaze(
         gaze: pm.Gaze,
         stimulus: Stimulus,
         plots_dir: Path,
-        duration_ms_in_cm: float = 0.03
+        duration_ms_in_cm: float = 0.03,
+        aoi_image: bool = False,
 ) -> None:
+
+    data = gaze.clone()
+    data.unnest(['pixel', 'position', 'velocity'])
+
     # pixels per centimeter on this screen
-    px_per_cm = gaze.experiment.screen.width_px / gaze.experiment.screen.width_cm
+    px_per_cm = data.experiment.screen.width_px / data.experiment.screen.width_cm
 
     for page in stimulus.pages:
-        screen_gaze = gaze.frame.filter(
+
+        page_samples = data.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == f"page_{page.number}")
         ).select(
-            pl.col("pixel").list.get(0).alias("pixel_x"),
-            pl.col("pixel").list.get(1).alias("pixel_y"),
+            pl.col("pixel_x"),
+            pl.col("pixel_y")
         )
-        page_events = gaze.events.frame.filter(
+
+        page_events = data.events.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == f"page_{page.number}")
             & (pl.col("name") == "fixation")
@@ -38,13 +45,16 @@ def plot_gaze(
         )
 
         fig, ax = plt.subplots()
-        stimulus_image = PIL.Image.open(page.image_path)
+        if aoi_image:
+            stimulus_image = PIL.Image.open(page.aoi_image_path)
+        else:
+            stimulus_image = PIL.Image.open(page.image_path)
         ax.imshow(stimulus_image)
 
         # Plot raw gaze data
         plt.plot(
-            screen_gaze["pixel_x"],
-            screen_gaze["pixel_y"],
+            page_samples["pixel_x"],
+            page_samples["pixel_y"],
             color="black",
             linewidth=0.5,
             alpha=0.3,
@@ -55,7 +65,7 @@ def plot_gaze(
             radius = math.sqrt(row["duration"]) * px_per_cm * duration_ms_in_cm
 
             fixation = Circle(
-                (row["pixel_x"], row["pixel_y"]),
+                (row["location_x"], row["location_y"]),
                 radius,
                 color="blue",
                 fill=True,
@@ -63,8 +73,8 @@ def plot_gaze(
                 zorder=10,
             )
             ax.add_patch(fixation)
-        ax.set_xlim((0, gaze.experiment.screen.width_px))
-        ax.set_ylim((gaze.experiment.screen.height_px, 0))
+        ax.set_xlim((0, data.experiment.screen.width_px))
+        ax.set_ylim((data.experiment.screen.height_px, 0))
         fig.savefig(plots_dir / f"{stimulus.name}_{page.number}.png")
         plt.close(fig)
 
@@ -72,14 +82,14 @@ def plot_gaze(
         screen_name = (
             f"question_{int(question.id)}"  # Screen names don't have leading zeros
         )
-        screen_gaze = gaze.frame.filter(
+        page_samples = data.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == screen_name)
         ).select(
             pl.col("pixel_x"),
             pl.col("pixel_y"),
         )
-        page_events = gaze.events.frame.filter(
+        page_events = data.events.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == screen_name)
             & (pl.col("name") == "fixation")
@@ -90,13 +100,16 @@ def plot_gaze(
         )
 
         fig, ax = plt.subplots()
-        question_image = PIL.Image.open(question.image_path)
+        if aoi_image:
+            question_image = PIL.Image.open(question.aoi_image_path)
+        else:
+            question_image = PIL.Image.open(question.image_path)
         ax.imshow(question_image)
 
         # Plot raw gaze data
         plt.plot(
-            screen_gaze["pixel_x"],
-            screen_gaze["pixel_y"],
+            page_samples["pixel_x"],
+            page_samples["pixel_y"],
             color="black",
             linewidth=0.5,
             alpha=0.3,
@@ -107,7 +120,7 @@ def plot_gaze(
             radius = math.sqrt(row["duration"]) * px_per_cm * duration_ms_in_cm
 
             fixation = Circle(
-                (row["pixel_x"], row["pixel_y"]),
+                (row["location_x"], row["location_y"]),
                 radius,
                 color="blue",
                 fill=True,
@@ -115,8 +128,8 @@ def plot_gaze(
                 zorder=10,
             )
             ax.add_patch(fixation)
-        ax.set_xlim((0, gaze.experiment.screen.width_px))
-        ax.set_ylim((gaze.experiment.screen.height_px, 0))
+        ax.set_xlim((0, data.experiment.screen.width_px))
+        ax.set_ylim((data.experiment.screen.height_px, 0))
         fig.savefig(plots_dir / f"{stimulus.name}_q{question.id}.png")
         plt.close(fig)
 
@@ -124,14 +137,14 @@ def plot_gaze(
         screen_name = (
             f"{rating.name}"  # Screen names don't have leading zeros
         )
-        screen_gaze = gaze.frame.filter(
+        page_samples = data.frame.filter(
             (pl.col("trial") == f"trial_{stimulus.id}")
             & (pl.col("page") == screen_name)
         ).select(
             pl.col("pixel_x"),
             pl.col("pixel_y"),
         )
-        page_events = gaze.events.frame.filter(
+        page_events = data.events.frame.filter(
             (pl.col("stimulus") == f"trial_{stimulus.id}")
             & (pl.col("page") == screen_name)
             & (pl.col("name") == "fixation")
@@ -147,8 +160,8 @@ def plot_gaze(
 
         # Plot raw gaze data
         plt.plot(
-            screen_gaze["pixel_x"],
-            screen_gaze["pixel_y"],
+            page_samples["pixel_x"],
+            page_samples["pixel_y"],
             color="black",
             linewidth=0.5,
             alpha=0.3,
@@ -159,7 +172,7 @@ def plot_gaze(
             radius = math.sqrt(row["duration"]) * px_per_cm * duration_ms_in_cm
 
             fixation = Circle(
-                (row["pixel_x"], row["pixel_y"]),
+                (row["location_x"], row["location_y"]),
                 radius,
                 color="blue",
                 fill=True,
@@ -167,13 +180,15 @@ def plot_gaze(
                 zorder=10,
             )
             ax.add_patch(fixation)
-        ax.set_xlim((0, gaze.experiment.screen.width_px))
-        ax.set_ylim((gaze.experiment.screen.height_px, 0))
+        ax.set_xlim((0, data.experiment.screen.width_px))
+        ax.set_ylim((data.experiment.screen.height_px, 0))
         fig.savefig(plots_dir / f"{stimulus.name}_{stimulus.id}_{rating.name}.png")
         plt.close(fig)
 
 
 def plot_main_sequence(events: pm.EventDataFrame, plots_dir: Path) -> None:
     pm.plotting.main_sequence_plot(
-        events, show=False, savepath=plots_dir / "main_sequence.png"
+        events,
+        show=False,
+        savepath=plots_dir / "main_sequence.png",
     )

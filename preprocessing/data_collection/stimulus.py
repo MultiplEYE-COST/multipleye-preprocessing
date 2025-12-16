@@ -1,5 +1,6 @@
 import importlib
 import json
+import warnings
 from dataclasses import dataclass
 from glob import glob
 from pathlib import Path
@@ -7,6 +8,13 @@ from typing import Literal
 
 import polars as pl
 import pymovements as pm
+
+warnings.filterwarnings(
+    "ignore",
+    message=r"Data Validation extension is not supported.*",
+    category=UserWarning,
+    module=r"openpyxl.*"
+)
 
 NAMES = [
     "PopSci_MultiplEYE",
@@ -23,6 +31,7 @@ NAMES = [
     "Lit_NorthWind",
 ]
 QUESTION_NUMBERS = {"experiment": 6, "practice": 2, "test_practice": 1, "test_experiment": 2}
+
 
 
 @dataclass
@@ -46,6 +55,7 @@ class StimulusPage:
     number: int
     text: str
     image_path: Path
+    aoi_image_path: Path
 
 
 @dataclass
@@ -58,6 +68,7 @@ class ComprehensionQuestion:
     distractor_b: str
     distractor_c: str
     image_path: Path
+    aoi_image_path: Path
 
 
 @dataclass
@@ -114,10 +125,17 @@ class Stimulus:
                         / f"{stimulus_name.lower()}_id{stimulus_id}_page_{page_number}_{lang}.png"
                 )
 
+                aoi_image_path = (
+                        stimulus_dir
+                        / f"aoi_stimuli_images_{lang}_{country}_{labnum}"
+                        / f"{stimulus_name.lower()}_id{stimulus_id}_page_{page_number}_{lang}_aoi.png"
+                )
+
                 page = StimulusPage(
                     number=page_number,
                     text=value,
                     image_path=image_path,
+                    aoi_image_path=aoi_image_path
                 )
                 assert (
                     page.image_path.exists()
@@ -162,6 +180,14 @@ class Stimulus:
                     / f"question_images_version_{question_version}"
                     / f"{stimulus_name}_id{stimulus_id}_question_{question_id}_{lang}.png"
             )
+
+            aoi_qeustion_img_path = (
+                stimulus_dir
+                / f"aoi_question_images_{lang}_{country}_{labnum}"
+                / f"question_images_version_{question_version}"
+                / f"{stimulus_name}_id{stimulus_id}_question_{question_id}_{lang}_aoi.png"
+            )
+
             question = ComprehensionQuestion(
                 name=question_name,
                 id=question_id,
@@ -171,6 +197,7 @@ class Stimulus:
                 distractor_b=distractor_b,
                 distractor_c=distractor_c,
                 image_path=question_image_path,
+                aoi_image_path=aoi_qeustion_img_path,
             )
             questions.append(question)
 
