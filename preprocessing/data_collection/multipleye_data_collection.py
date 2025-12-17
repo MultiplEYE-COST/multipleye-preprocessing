@@ -12,7 +12,7 @@ import pandas as pd
 import polars as pl
 import pymovements as pm
 import yaml
-from polars.polars import ComputeError
+from polars.exceptions import ComputeError
 from tqdm import tqdm
 
 from preprocessing.checks.et_quality_checks import \

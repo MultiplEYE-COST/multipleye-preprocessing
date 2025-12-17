@@ -9,7 +9,7 @@ dependencies = [
     "numpy~=1.26.4",
     "pandas~=2.2.2",
     "pillow==10.4.0",
-    "polars>=1.28.0",
+    "polars>=1.28.1",
     "pymovements",
     "tqdm~=4.66.4",
     "openpyxl>=3.0.0",
