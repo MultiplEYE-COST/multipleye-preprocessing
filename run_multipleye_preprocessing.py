@@ -3,19 +3,18 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from preprocessing import peyepeline
-from preprocessing.data_collection.multipleye_data_collection import MultipleyeDataCollection
-from preprocessing.utils.prepare_language_folder import prepare_language_folder
-from preprocessing import config
+import preprocessing
 
 
 def run_multipleye_preprocessing(data_collection: str):
-    prepare_language_folder(data_collection)
+    preprocessing.utils.prepare_language_folder(data_collection)
 
     this_repo = Path().resolve()
     data_folder_path = this_repo / "data" / data_collection_name
 
-    multipleye = MultipleyeDataCollection.create_from_data_folder(data_folder_path, include_pilots=True)
+    multipleye = preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
+        data_folder_path, include_pilots=True
+    )
 
     preprocessed_data_folder = this_repo / "preprocessed_data" / data_collection_name
     preprocessed_data_folder.mkdir(parents=True, exist_ok=True)
@@ -39,22 +38,22 @@ def run_multipleye_preprocessing(data_collection: str):
         raw_data_folder = output_folder / "raw_data"
         if raw_data_folder.exists():
             pbar.set_description(f'Loading samples {idf}:')
-            gaze = peyepeline.load_trial_level_raw_data(
+            gaze = preprocessing.load_trial_level_raw_data(
                 raw_data_folder,
-                trial_columns=config.TRIAL_COLS,
+                trial_columns=preprocessing.config.TRIAL_COLS,
                 metadata_path=output_folder,
             )
 
         else:
             pbar.set_description(f'Extracting samples {idf}:')
-            gaze = peyepeline.load_gaze_data(
+            gaze = preprocessing.load_gaze_data(
                 asc_file=asc,
                 lab_config=sess.lab_config,
                 session_idf=idf,
-                trial_cols=config.TRIAL_COLS,
+                trial_cols=preprocessing.config.TRIAL_COLS,
             )
-            peyepeline.save_raw_data(raw_data_folder, session_save_name, gaze)
-            peyepeline.save_session_metadata(gaze, output_folder)
+            preprocessing.save_raw_data(raw_data_folder, session_save_name, gaze)
+            preprocessing.save_session_metadata(gaze, output_folder)
 
         sess.pm_gaze_metadata = gaze._metadata
         sess.calibrations = gaze.calibrations
@@ -62,7 +61,7 @@ def run_multipleye_preprocessing(data_collection: str):
 
         # preprocess gaze data
         pbar.set_description(f'Preprocessing samples {idf}:')
-        peyepeline.preprocess_gaze(
+        preprocessing.preprocess_gaze(
             gaze,
         )
 
@@ -71,14 +70,14 @@ def run_multipleye_preprocessing(data_collection: str):
         saccade_data_folder = output_folder / "saccades"
         if fixation_data_folder.exists():
             pbar.set_description(f'Loading events {idf}:')
-            gaze = peyepeline.load_trial_level_events_data(
+            gaze = preprocessing.load_trial_level_events_data(
                 gaze,
                 fixation_data_folder,
                 event_type='fixation',
                 file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_fixation.csv"
             )
 
-            gaze = peyepeline.load_trial_level_events_data(
+            gaze = preprocessing.load_trial_level_events_data(
                 gaze,
                 saccade_data_folder,
                 event_type='saccade',
@@ -88,10 +87,10 @@ def run_multipleye_preprocessing(data_collection: str):
         else:
             pbar.set_description(f'Detecting events {idf}:')
 
-            peyepeline.detect_fixations(gaze)
-            peyepeline.detect_saccades(gaze)
+            preprocessing.detect_fixations(gaze)
+            preprocessing.detect_saccades(gaze)
 
-            peyepeline.save_events_data(
+            preprocessing.save_events_data(
                 'fixation',
                 fixation_data_folder,
                 session_save_name,
@@ -101,7 +100,7 @@ def run_multipleye_preprocessing(data_collection: str):
                 gaze,
             )
 
-            peyepeline.save_events_data(
+            preprocessing.save_events_data(
                 'saccade',
                 saccade_data_folder,
                 session_save_name,
@@ -112,18 +111,20 @@ def run_multipleye_preprocessing(data_collection: str):
             )
 
         # map to AOIs and create scanpaths
-        peyepeline.map_fixations_to_aois(
+        preprocessing.map_fixations_to_aois(
             gaze,
             sess.stimuli,
         )
-        peyepeline.save_scanpaths(output_folder / 'scanpaths', session_save_name, gaze)
+        preprocessing.save_scanpaths(output_folder / 'scanpaths', session_save_name, gaze)
 
-        peyepeline.save_session_metadata(gaze, output_folder)
+        preprocessing.save_session_metadata(gaze, output_folder)
 
         # perform the multipleye specific stuff
         multipleye.create_session_overview(sess.session_identifier, path=output_folder)
         pbar.set_description(f'Creating sanity check report {idf}')
-        multipleye.create_sanity_check_report(gaze, sess.session_identifier, plotting=True, overwrite=True)
+        multipleye.create_sanity_check_report(
+            gaze, sess.session_identifier, plotting=True, overwrite=True
+        )
 
     multipleye.create_dataset_overview(path=preprocessed_data_folder)
     multipleye.parse_participant_data(preprocessed_data_folder / "participant_data.csv")
@@ -133,9 +134,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
 
-
 if __name__ == '__main__':
     parse_args()
 
-    data_collection_name = 'MultiplEYE_PL_PL_Warsaw_1_2025'
+    data_collection_name = 'MultiplEYE_SQ_CH_Zurich_1_2025'
     run_multipleye_preprocessing(data_collection_name)
