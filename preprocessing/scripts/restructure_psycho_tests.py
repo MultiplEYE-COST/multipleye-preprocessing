@@ -76,7 +76,8 @@ def fix_psycho_tests_structure(
     # Find test folders
     tests = data_folder.glob("*")
     # filter hidden directories and possibly the config folder from the test folders
-    all_tests = [folder.stem for folder in tests if not folder.stem.startswith(".") and config_folder != folder]
+    all_tests = [folder.stem for folder in tests if
+                 not folder.stem.startswith(".") and config_folder != folder]
 
     participant_ids = {}
 
@@ -108,7 +109,6 @@ def fix_psycho_tests_structure(
                 new_participant_path.mkdir(parents=True, exist_ok=True)
                 shutil.copytree(old_path, new_participant_path, dirs_exist_ok=True)
 
-
         # copy the config file to the new session folder
         new_config_path = session_folder / config_file.name
         shutil.copy(config_file, new_config_path)
@@ -123,8 +123,9 @@ def fix_psycho_tests_structure(
         #     print(f"Participant {p_id} has all tests.")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Fix the structure of psychometric tests in a data collection folder.')
+def main():
+    parser = argparse.ArgumentParser(
+        description='Fix the structure of psychometric tests in a data collection folder.')
     parser.add_argument(
         '--config_folder',
         type=str,
@@ -144,6 +145,11 @@ if __name__ == "__main__":
         default=PSYCHOMETRIC_TESTS_DIR
     )
     args = parser.parse_args()
+
+    print(
+        f"Restructuring psychometric tests data from \ndata_folder: {args.data_folder}\n"
+        f"to out_folder: {args.out_folder}\nwith config_folder: {args.config_folder}")
+
     fix_psycho_tests_structure(
         Path(args.config_folder), Path(args.data_folder), Path(args.out_folder)
     )

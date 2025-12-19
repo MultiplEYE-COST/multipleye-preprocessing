@@ -31,11 +31,13 @@ def prepare_language_folder(data_collection_name):
                 tar.extractall(path=data_folder_path)
             print(f"Extracted 'eye-tracking-sessions' from '{zipped_path}'")
         else:
-            raise FileNotFoundError(f"The 'eye-tracking-sessions' folder does not exist in '{data_folder_path}'. "
-                                    "Please ensure the data collection is correctly structured.")
+            raise FileNotFoundError(
+                f"The 'eye-tracking-sessions' folder does not exist in '{data_folder_path}'. "
+                "Please ensure the data collection is correctly structured.")
 
     # check if there is a core_sessions folder and if yes, check if there are any folder inside and then move them up and delete the core_sessions folder
-    core_session_paths = [eye_tracking_sessions_path / "core_sessions", eye_tracking_sessions_path / "core_dataset"]
+    core_session_paths = [eye_tracking_sessions_path / "core_sessions",
+                          eye_tracking_sessions_path / "core_dataset"]
     for core_session_path in core_session_paths:
         if core_session_path.exists():
             core_folders = list(core_session_path.glob("*"))
@@ -55,8 +57,9 @@ def prepare_language_folder(data_collection_name):
                 tar.extractall(path=data_folder_path)
             print(f"Extracted 'psychometric-tests' from '{tar_path}'")
         else:
-            raise FileNotFoundError(f"The 'psychometric-tests-sessions' folder does not exist in '{data_folder_path}'. "
-                                    "Please ensure the data collection is correctly structured.")
+            raise FileNotFoundError(
+                f"The 'psychometric-tests-sessions' folder does not exist in '{data_folder_path}'. "
+                "Please ensure the data collection is correctly structured.")
 
     # che if ps tests need to be prepared because they use the old structure
     config_path = psychometric_tests_path / f"participant_configs_{lang}_{country}_{lab_no}"
@@ -90,8 +93,9 @@ def prepare_language_folder(data_collection_name):
     else:
         config_path = stimulus_folder_path / "config"
         if not config_path.exists():
-            raise FileNotFoundError(f"The stimulus config folder not found in '{stimulus_folder_path}'. "
-                                    "Please check and restructure or possibly unzip the stimulus folder.")
+            raise FileNotFoundError(
+                f"The stimulus config folder not found in '{stimulus_folder_path}'. "
+                "Please check and restructure or possibly unzip the stimulus folder.")
 
     # if aoi files are not yet split into questions and texts, do it here:
     aoi_path = data_folder_path / stimulus_folder_path / f"aoi_stimuli_{lang}_{country}_{lab_no}"
@@ -116,8 +120,9 @@ def prepare_language_folder(data_collection_name):
     elif len(aoi_files) == 24:
         pass
     else:
-        raise ValueError(f"Unexpected number of AOI files ({len(aoi_files)}) found in '{aoi_path}'. "
-                         "Expected 12 (not split) or 24 (already split into texts and questions).")
+        raise ValueError(
+            f"Unexpected number of AOI files ({len(aoi_files)}) found in '{aoi_path}'. "
+            "Expected 12 (not split) or 24 (already split into texts and questions).")
 
 
 def extract_stimulus_version_number_from_asc(asc_file_path: Path) -> int:
@@ -132,7 +137,8 @@ def extract_stimulus_version_number_from_asc(asc_file_path: Path) -> int:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Run multipleye preprocessing on an experiment file')
+    parser = argparse.ArgumentParser(
+        description='Run multipleye preprocessing on an experiment file')
 
     parser.add_argument(
         'data_collection_name',
@@ -144,7 +150,9 @@ def parse_args():
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+def main():
     args = parse_args()
 
-    prepare_language_folder(**vars(args))
+    print(f"Preparing language folder for {args.data_collection_name}...")
+
+    prepare_language_folder(args.data_collection_name)
