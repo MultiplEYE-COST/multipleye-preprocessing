@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "preprocessing"
 version = "0.1.0"
@@ -21,12 +25,13 @@ pymovements = { git = "https://github.com/pymovements/pymovements.git", branch =
 [tool.setuptools.packages.find]
 include = ["preprocessing"]
 
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+]
+
 [project.scripts]
 restructure_psycho_tests = "preprocessing.scripts.restructure_psycho_tests:main"
 prepare_language_folder = "preprocessing.scripts.prepare_language_folder:main"
 preprocess_psychometric_tests = "preprocessing.scripts.psychometric_tests:process_all_psychometric_test_sessions"
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-]
