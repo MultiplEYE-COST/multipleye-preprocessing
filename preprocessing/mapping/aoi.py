@@ -2,8 +2,7 @@
 import polars as pl
 
 import pymovements as pm
-from preprocessing.data_collection.stimulus import Stimulus
-from pymovements.stimulus import TextStimulus
+from ..data_collection.stimulus import Stimulus
 
 
 def map_fixations_to_aois(
@@ -37,7 +36,7 @@ def map_fixations_to_aois(
         aoi = aoi.with_columns(pl.lit(trial).alias("trial"))
         all_aois = all_aois.vstack(aoi)
 
-    all_aois = TextStimulus(
+    all_aois = pm.stimulus.TextStimulus(
         all_aois,
         aoi_column="char_idx",
         start_x_column="top_left_x",

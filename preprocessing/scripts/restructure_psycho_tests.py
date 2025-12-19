@@ -1,3 +1,4 @@
+"""Utility script to restructure psychometric tests data folders."""
 import argparse
 import shutil
 from pathlib import Path
@@ -11,7 +12,7 @@ def fix_psycho_tests_structure(
         out_folder: Path = PSYCHOMETRIC_TESTS_DIR,
 ):
     """
-    Restructures psychometric tests data according into per-participant folders.
+    Restructures psychometric tests data into per-participant folders.
 
     This function processes configuration files in the `config_folder` and data directories within
     `data_folder`.

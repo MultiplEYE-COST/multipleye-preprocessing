@@ -2,10 +2,12 @@ from pathlib import Path
 
 import polars as pl
 
-from preprocessing.data_collection.stimulus import Stimulus
+from ..data_collection.stimulus import Stimulus
 
-OME_TIME_SCREENS = ['welcome_screen', 'informed_consent_screen', 'start_experiment', 'stimulus_order_version',
-                    'showing_instruction_screen_1', 'showing_instruction_screen_2', 'showing_instruction_screen_3',
+OME_TIME_SCREENS = ['welcome_screen', 'informed_consent_screen', 'start_experiment',
+                    'stimulus_order_version',
+                    'showing_instruction_screen_1', 'showing_instruction_screen_2',
+                    'showing_instruction_screen_3',
                     'camera_setup_screen', 'practice_text_starting_screen',
                     'start_recording_PRACTICE_trial_1_stimulus_Enc_WikiMoon_13_page_1',
                     'stop_recording_PRACTICE_trial_1_stimulus_Enc_WikiMoon_13_page_1',
@@ -13,8 +15,10 @@ OME_TIME_SCREENS = ['welcome_screen', 'informed_consent_screen', 'start_experime
                     'stop_recording_PRACTICE_trial_1_stimulus_Enc_WikiMoon_13_page_2',
                     'start_recording_PRACTICE_trial_1_stimulus_Enc_WikiMoon_13_page_2',
                     'start_recording_PRACTICE_trial_2_stimulus_Lit_NorthWind_7_page_1',
-                    'stop_recording_PRACTICE_trial_2_stimulus_Lit_NorthWind_7_page_1', 'transition_screen',
-                    'final_validation', 'show_final_screen', 'obligatory_break', 'obligatory_break_end']
+                    'stop_recording_PRACTICE_trial_2_stimulus_Lit_NorthWind_7_page_1',
+                    'transition_screen',
+                    'final_validation', 'show_final_screen', 'obligatory_break',
+                    'obligatory_break_end']
 
 OPTIONAL_SCREENS = ['optional_break_screen', 'fixation_trigger:skipped_by_experimenter',
                     'fixation_trigger:experimenter_calibration_triggered', 'optional_break',
@@ -36,7 +40,8 @@ def _report_information(message: str, report_file: Path):
         report_file.write(f"{message}\n")
 
 
-def check_all_screens_logfile(logfile: pl, stimuli: Stimulus | list[Stimulus], report_file: Path = None):
+def check_all_screens_logfile(logfile: pl, stimuli: Stimulus | list[Stimulus],
+                              report_file: Path = None):
     """
     checking if all screens, where ET data is tracked are present in the log file
     :param: logfile as polars dataframe
@@ -57,13 +62,16 @@ def check_all_screens_logfile(logfile: pl, stimuli: Stimulus | list[Stimulus], r
         for page in stimulus.pages:
             if f"{page.number}" not in stimulus_frame["page_number"].to_list():
                 # print(f"Missing page {stimulus.name} {page.number} in Logfile")
-                _report_warning(f" {stimulus.name}: Missing page{page.number} in Logfile", report_file)
+                _report_warning(f" {stimulus.name}: Missing page{page.number} in Logfile",
+                                report_file)
         # check if all questions are present
         for question in stimulus.questions:
-            if f"{question.id}" not in stimulus_frame["page_number"].to_list() and f"{question.id[1:]}" not in \
+            if f"{question.id}" not in stimulus_frame[
+                "page_number"].to_list() and f"{question.id[1:]}" not in \
                     stimulus_frame["page_number"].to_list():
                 # print(f"{stimulus.name}: Missing question_{question.id} in Logfile")
-                _report_warning(f"{stimulus.name}: Missing question_{question.id} in Logfile", report_file)
+                _report_warning(f"{stimulus.name}: Missing question_{question.id} in Logfile",
+                                report_file)
             # print(stimulus_frame["screen"])
 
         for rating in stimulus.ratings:
@@ -91,8 +99,11 @@ def sanity_check_gaze_frame(gaze, stimuli, report_file):
         # check if all questions are present
         for question in stimulus.questions:
             if f"question_{question.id}" not in stimulus_frame[
-                "page"].to_list() and f"question_{question.id[1:]}" not in stimulus_frame["page"].to_list():
-                _report_warning(f"Missing question_{question.name} in asc file or in experiment frame", report_file)
+                "page"].to_list() and f"question_{question.id[1:]}" not in stimulus_frame[
+                "page"].to_list():
+                _report_warning(
+                    f"Missing question_{question.name} in asc file or in experiment frame",
+                    report_file)
             # print(stimulus_frame["screen"])
 
         for rating in stimulus.ratings:
@@ -186,7 +197,8 @@ def check_messages(
                               last_msg_timestamp, messages, index_next_stimulus,
                               report_file, updated_trial)
 
-        msg_to_find = ["start_recording", "screen_image_onset", "screen_image_offset", "stop_recording"]
+        msg_to_find = ["start_recording", "screen_image_onset", "screen_image_offset",
+                       "stop_recording"]
 
         for page in current_stimulus.pages:
             for msg in msg_to_find:
@@ -196,8 +208,9 @@ def check_messages(
                     current_pattern = f"{msg}{pattern}_page_{page.number}"
 
                 if current_pattern not in trial_messages_only:
-                    _report_warning(f"{current_stimulus.name}: Missing {current_pattern} Messages in ASC file",
-                                    report_file)
+                    _report_warning(
+                        f"{current_stimulus.name}: Missing {current_pattern} Messages in ASC file",
+                        report_file)
 
                 else:
                     last_msg_index = trial_messages_only.index(current_pattern) + last_msg_index
@@ -217,9 +230,11 @@ def check_messages(
 def _check_optional_screens(messages, messages_only, report_file):
     for optional_screen in OPTIONAL_SCREENS:
 
-        indices = list(filter(lambda i: messages_only[i] == optional_screen, range(len(messages_only))))
+        indices = list(
+            filter(lambda i: messages_only[i] == optional_screen, range(len(messages_only))))
         if indices:
-            _report_information(f"{messages[indices[0]]['message']} found {len(indices)} times", report_file)
+            _report_information(f"{messages[indices[0]]['message']} found {len(indices)} times",
+                                report_file)
 
             for index in indices:
                 if optional_screen == "optional_break" or optional_screen == "obligatory_break":
@@ -230,7 +245,8 @@ def _check_optional_screens(messages, messages_only, report_file):
                         temp_index += 1
                         if temp_index < len(messages):
                             msg = messages[temp_index]
-                            if 'optional_break_duration' in msg['message'] or 'obligatory_break_duration' in msg[
+                            if 'optional_break_duration' in msg[
+                                'message'] or 'obligatory_break_duration' in msg[
                                 'message']:
                                 text = msg['message'].split(' ', )[0]
                                 duration = float(msg['message'].split(' ', )[1]) / 1000
@@ -245,7 +261,8 @@ def _check_optional_screens(messages, messages_only, report_file):
 
                 else:
                     msg = messages[index]
-                    _report_information(f"{msg['message']} found at {msg['timestamp']}", report_file)
+                    _report_information(f"{msg['message']} found at {msg['timestamp']}",
+                                        report_file)
                     # print(f"{msg['message']} found at {msg['timestamp']}")
         else:
             _report_information(f"{optional_screen} not found", report_file)
@@ -265,22 +282,27 @@ def _check_one_time_screens(messages_only: list[str], report_file: Path):
                     found = True
 
             if not found:
-                _report_warning(f"Missing one time screen {one_time_screen} in asc file", report_file)
+                _report_warning(f"Missing one time screen {one_time_screen} in asc file",
+                                report_file)
 
 
 def _check_question_screens(current_stimulus, messages, msg_to_find, pattern, report_file):
     for question in current_stimulus.questions:
         for msg in msg_to_find:
-            if msg.startswith("screen"):  # get the cleaned question_id (removed zero at the start, if present)
+            if msg.startswith(
+                    "screen"):  # get the cleaned question_id (removed zero at the start, if present)
                 current_pattern = f"question_{msg}"
             else:
                 current_pattern = f"{msg}{pattern}_question_{int(question.id)}"
 
             if current_pattern not in messages:
-                _report_warning(f"{current_stimulus.name}: Missing {current_pattern} Messages in ASC file", report_file)
+                _report_warning(
+                    f"{current_stimulus.name}: Missing {current_pattern} Messages in ASC file",
+                    report_file)
 
 
-def _extract_reading_time(stimulus_name, index_obligatory_break, last_msg_index, last_msg_timestamp, messages,
+def _extract_reading_time(stimulus_name, index_obligatory_break, last_msg_index, last_msg_timestamp,
+                          messages,
                           index_next, report_file, trial):
     # if there was an obligatory break in between two trials, check the time for the break and the time for the stimulus
     if index_next > index_obligatory_break > last_msg_index:
@@ -309,7 +331,8 @@ def _extract_reading_time(stimulus_name, index_obligatory_break, last_msg_index,
 def _check_validation_screen(messages, file, stimulus_name):
     # print(last_index, index_next_stimulus)
     if "validation_before_stimulus" not in messages and "final_validation" not in messages:
-        _report_warning(f"{stimulus_name}: Missing validation_before_stimulus screen in asc file", file)
+        _report_warning(f"{stimulus_name}: Missing validation_before_stimulus screen in asc file",
+                        file)
 
 
 def _check_rating_screens(messages, file):

@@ -23,9 +23,9 @@ from pathlib import Path
 from pandas import read_csv, DataFrame
 import pandas as pd
 
-from preprocessing.config import PSYCHOMETRIC_TESTS_DIR, PSYM_LWMC_DIR, PSYM_RAN_DIR, \
+from ..config import PSYCHOMETRIC_TESTS_DIR, PSYM_LWMC_DIR, PSYM_RAN_DIR, \
     PSYM_STROOP_FLANKER_DIR, PSYM_WIKIVOCAB_DIR, PSYM_PLAB_DIR
-from preprocessing.utils.data_path_utils import pid_from_session
+from ..utils import pid_from_session
 
 
 def preprocess_all_sessions(

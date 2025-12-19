@@ -10,14 +10,14 @@ from .io.load import load_gaze_data, load_trial_level_raw_data, load_trial_level
 
 __all__ = [
     "preprocess_gaze",
-    "compute_event_properties",
+    "compute_event_properties",  # needed in API? - not directly used in the preprocessing pipeline
     "detect_fixations",
     "detect_saccades",
     "map_fixations_to_aois",
     "save_raw_data",
     "save_events_data",
     "save_scanpaths",
-    "save_gaze_data",
+    "save_gaze_data",  # needed in API? - not directly used in the preprocessing pipeline
     "save_session_metadata",
     "load_gaze_data",
     "load_trial_level_raw_data",

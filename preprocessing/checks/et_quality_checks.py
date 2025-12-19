@@ -3,8 +3,9 @@ from typing import Any, Callable, TextIO
 
 import polars as pl
 
-from preprocessing import config
-from preprocessing.data_collection.stimulus import Stimulus
+from .. import config
+from ..data_collection.stimulus import Stimulus
+from ..utils import _report_to_file
 
 ReportFunction = Callable[[str, Any, Any], None]
 
@@ -45,12 +46,6 @@ def report_to_file_metadata(
     report_file.write(f"{result} {name}: {', '.join(map(str, values))}\n")
 
 
-def _report_to_file(message: str, report_file: Path):
-    assert isinstance(report_file, Path)
-    with open(report_file, "a", encoding="utf-8") as report_file:
-        report_file.write(f"{message}\n")
-
-
 def check_comprehension_question_answers(logfile: pl.DataFrame, stimuli: Stimulus | list[Stimulus],
                                          report_file: Path = None):
     """ compute the number of correct answers for each participant
@@ -72,8 +67,9 @@ def check_comprehension_question_answers(logfile: pl.DataFrame, stimuli: Stimulu
         correct_answers = stimulus_frame.filter(pl.col("message").str.contains("True"))
         overall_correct_answers += len(correct_answers)
         overall_answers += len(answers)
-        _report_to_file(f"Correct answers for {stimulus.name}: {len(correct_answers)} out of {len(answers)} answers",
-                        report_file)
+        _report_to_file(
+            f"Correct answers for {stimulus.name}: {len(correct_answers)} out of {len(answers)} answers",
+            report_file)
 
     if not overall_answers == 0:
         _report_to_file(
@@ -85,7 +81,8 @@ def check_comprehension_question_answers(logfile: pl.DataFrame, stimuli: Stimulu
             report_file)
 
 
-def check_validation_requirements(validations: pl.DataFrame, calibrations: pl.DataFrame, report_file, stimulus_times):
+def check_validation_requirements(validations: pl.DataFrame, calibrations: pl.DataFrame,
+                                  report_file, stimulus_times):
     # sort validations and calibrations by timestamp, merge into one list
     vals = validations.sort('time').to_dicts()
     cals = calibrations.sort('time').to_dicts()
@@ -138,8 +135,10 @@ def check_validation_requirements(validations: pl.DataFrame, calibrations: pl.Da
             score = float(m["accuracy_avg"])
 
             if real_num_stimuli == num_stimuli:
-                mes['final_vals'].append(f'Validation after last stimulus: {m["time"]}, score: {score}')
-                _report_to_file(f'Validation after last stimulus: {m["time"]}, score: {score}', report_file)
+                mes['final_vals'].append(
+                    f'Validation after last stimulus: {m["time"]}, score: {score}')
+                _report_to_file(f'Validation after last stimulus: {m["time"]}, score: {score}',
+                                report_file)
 
             elif score < 0.305:
                 _report_to_file(f"✅ Good validation at {m['time']} with score {m['accuracy_avg']}",
@@ -156,7 +155,8 @@ def check_validation_requirements(validations: pl.DataFrame, calibrations: pl.Da
                 moderate_vls += 1
                 mod_tstamp = int(m["time"])
             elif score >= 0.45:
-                mes['bad_vals'].append(f"❌ BAD Validation at {m['time']} with score {m['accuracy_avg']}")
+                mes['bad_vals'].append(
+                    f"❌ BAD Validation at {m['time']} with score {m['accuracy_avg']}")
                 bad_val = True
                 moderate_val = False
                 bad_tstamp = int(m["time"])
@@ -194,7 +194,8 @@ def check_validation_requirements(validations: pl.DataFrame, calibrations: pl.Da
                 mes['necessary_cals'].append(
                     f"✅ Calibration at {m['time']} {time_between} seconds after BAD validation")
             if in_stimulus:
-                mes['val_cal_during_stimulus'].append(f"⚠️ Calibration during stimulus at {m['time']}")
+                mes['val_cal_during_stimulus'].append(
+                    f"⚠️ Calibration during stimulus at {m['time']}")
 
             if real_num_stimuli == num_stimuli:
                 mes['final_cals'].append(f'Calibration after last stimulus: {m["time"]}')
@@ -202,7 +203,8 @@ def check_validation_requirements(validations: pl.DataFrame, calibrations: pl.Da
 
             score = -1
 
-    _report_to_file("\nValidation/Calibration summary\n------------------------------------------", report_file)
+    _report_to_file("\nValidation/Calibration summary\n------------------------------------------",
+                    report_file)
     _report_to_file(f"Good validations: {good_vals}/{val_count}", report_file)
     _report_to_file(f"Moderate validations: {moderate_vls}/{val_count}", report_file)
     _report_to_file(f"Bad validations: {len(mes['bad_vals'])}/{val_count}", report_file)

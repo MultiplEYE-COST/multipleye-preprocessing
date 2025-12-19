@@ -3,8 +3,8 @@ from pathlib import Path
 
 import polars as pl
 
-from preprocessing.data_collection.stimulus import Stimulus, LabConfig
-from preprocessing.data_collection.trial import Trial
+from ..data_collection.stimulus import Stimulus, LabConfig
+from ..data_collection.trial import Trial
 
 
 @dataclass
@@ -61,7 +61,6 @@ class Session:
 
     trials = list[Trial]
 
-
     def create_overview(self):
         dict_repr = {
             'participant_id': self.participant_id,
@@ -70,7 +69,8 @@ class Session:
             'question_order': self.question_order,
             'stimulus_order_ids': self.stimulus_order_ids,
             'was_session_interrupted': self.interrupted,
-            'lab_config': asdict(self.lab_config) if isinstance(self.lab_config, LabConfig) else self.lab_config,
+            'lab_config': asdict(self.lab_config) if isinstance(self.lab_config,
+                                                                LabConfig) else self.lab_config,
             'total_reading_time': self.total_reading_time,
             'total_session_duration': self.total_session_duration,
             'obligatory_break_made': self.obligatory_break_made,

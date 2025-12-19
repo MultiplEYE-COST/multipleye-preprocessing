@@ -1,7 +1,7 @@
 """Event detection functions."""
 
-from preprocessing.api import compute_event_properties
-from preprocessing.io.load import DEFAULT_EVENT_PROPERTIES
+from ..events.properties import compute_event_properties
+from ..io.load import DEFAULT_EVENT_PROPERTIES
 
 
 def detect_fixations(

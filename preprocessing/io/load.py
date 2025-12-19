@@ -7,7 +7,7 @@ import polars as pl
 import yaml
 
 import pymovements as pm
-from preprocessing.data_collection.stimulus import LabConfig
+from ..data_collection.stimulus import LabConfig
 
 
 def load_gaze_data(

@@ -7,7 +7,7 @@ import polars as pl
 import pymovements as pm
 from matplotlib.patches import Circle
 
-from preprocessing.data_collection.stimulus import Stimulus
+from ..data_collection.stimulus import Stimulus
 
 
 def plot_gaze(
@@ -17,7 +17,6 @@ def plot_gaze(
         duration_ms_in_cm: float = 0.03,
         aoi_image: bool = False,
 ) -> None:
-
     data = gaze.clone()
     data.unnest(['pixel', 'position', 'velocity'])
 

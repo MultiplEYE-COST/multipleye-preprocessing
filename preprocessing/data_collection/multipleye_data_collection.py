@@ -15,21 +15,21 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
-from preprocessing.checks.et_quality_checks import \
+from ..checks.et_quality_checks import \
     check_comprehension_question_answers, \
     check_metadata, report_to_file_metadata as report_meta, \
     check_validation_requirements
-from preprocessing.checks.formal_experiment_checks import check_all_screens_logfile, \
+from ..checks.formal_experiment_checks import check_all_screens_logfile, \
     sanity_check_gaze_frame, \
     check_messages
-from preprocessing.data_collection.session import Session
-from preprocessing.data_collection.stimulus import LabConfig, Stimulus
-from preprocessing.plotting.plot import plot_gaze, plot_main_sequence
-from preprocessing.psychometric_tests.preprocess_psychometric_tests import \
+from ..data_collection.session import Session
+from ..data_collection.stimulus import LabConfig, Stimulus
+from ..plotting.plot import plot_gaze, plot_main_sequence
+from ..psychometric_tests.preprocess_psychometric_tests import \
     preprocess_plab, preprocess_ran, \
     preprocess_stroop, preprocess_flanker, preprocess_wikivocab, preprocess_lwmc
-from preprocessing.utils.fix_pq_data import remap_wrong_pq_values
-from preprocessing.utils.prepare_language_folder import \
+from ..utils.fix_pq_data import remap_wrong_pq_values
+from preprocessing.scripts.prepare_language_folder import \
     extract_stimulus_version_number_from_asc
 
 EYETRACKER_NAMES = {

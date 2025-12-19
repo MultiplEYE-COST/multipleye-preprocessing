@@ -1,7 +1,7 @@
 import warnings
 
-from preprocessing.data_collection.multipleye_data_collection import MultipleyeDataCollection
-from preprocessing.utils.prepare_language_folder import extract_stimulus_version_number_from_asc
+from ..data_collection.multipleye_data_collection import MultipleyeDataCollection
+from preprocessing.scripts.prepare_language_folder import extract_stimulus_version_number_from_asc
 
 
 class Merid(MultipleyeDataCollection):
@@ -16,20 +16,24 @@ class Merid(MultipleyeDataCollection):
         if p_id in self.crashed_session_ids:
             incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
 
-        stim_order_version = self.stim_order_versions[self.stim_order_versions['participant_id'] == int(p_id)]
+        stim_order_version = self.stim_order_versions[
+            self.stim_order_versions['participant_id'] == int(p_id)]
         if len(stim_order_version) == 0:
-            self._write_to_logfile(f"Participant ID {p_id} not found in stimulus order versions. Please check the "
-                                   f"participant IDs in the stimulus order versions file. It is possible that the team did not "
-                                   f"upload the correct stimulus version from the experiment folder. Extracting version "
-                                   f"from asc file")
-            version = extract_stimulus_version_number_from_asc(self.sessions[session_identifier].asc_path)
+            self._write_to_logfile(
+                f"Participant ID {p_id} not found in stimulus order versions. Please check the "
+                f"participant IDs in the stimulus order versions file. It is possible that the team did not "
+                f"upload the correct stimulus version from the experiment folder. Extracting version "
+                f"from asc file")
+            version = extract_stimulus_version_number_from_asc(
+                self.sessions[session_identifier].asc_path)
 
             if version == logfile_order_version:
                 self._write_to_logfile(
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
                     f"extracted from the asc file ({version}) for participant ID {p_id}. Using the "
                     f"version from the logfile.")
-                stim_order_version = self.stim_order_versions[self.stim_order_versions['version_number'] == version]
+                stim_order_version = self.stim_order_versions[
+                    self.stim_order_versions['version_number'] == version]
 
             else:
                 self._write_to_logfile(
@@ -45,7 +49,8 @@ class Merid(MultipleyeDataCollection):
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
                     f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the "
                     f"version from the logfile.")
-            stimulus_order = stim_order_version.drop(columns=['version_number', 'participant_id']).values[
+            stimulus_order = \
+            stim_order_version.drop(columns=['version_number', 'participant_id']).values[
                 0].tolist()
 
             if session_id == 1:
@@ -54,8 +59,9 @@ class Merid(MultipleyeDataCollection):
                 stimulus_order = [stimulus_order[1]] + stimulus_order[7:]
 
         else:
-            raise ValueError(f"More than one entry found for participant ID {p_id} in stimulus order versions. "
-                             f"Please check the stimulus order versions file for duplicates.")
+            raise ValueError(
+                f"More than one entry found for participant ID {p_id} in stimulus order versions. "
+                f"Please check the stimulus order versions file for duplicates.")
 
         if incomplete_order:
             stimulus_order_copy = stimulus_order.copy()
@@ -77,8 +83,9 @@ class Merid(MultipleyeDataCollection):
                     return incomplete_order
 
                 if len(stimulus_order_copy) < len(incomplete_order):
-                    raise ValueError('Crashed session stimulus order is not a subset of the stimuli order which was '
-                                     'supposed to be completed.')
+                    raise ValueError(
+                        'Crashed session stimulus order is not a subset of the stimuli order which was '
+                        'supposed to be completed.')
             return incomplete_order
 
         return stimulus_order

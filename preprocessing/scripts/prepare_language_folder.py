@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from preprocessing.utils.restructure_psycho_tests import fix_psycho_tests_structure
+from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
 
 
 def prepare_language_folder(data_collection_name):

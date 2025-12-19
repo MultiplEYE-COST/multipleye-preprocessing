@@ -3,9 +3,9 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from preprocessing import peyepeline
+import preprocessing
 from preprocessing.data_collection.merid_data_collection import Merid
-from preprocessing.utils.prepare_language_folder import prepare_language_folder
+from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
 
 def run_multipleye_preprocessing(data_collection: str):
@@ -31,32 +31,35 @@ def run_multipleye_preprocessing(data_collection: str):
 
         # TODO pm: it would make a lot more sense if the gaze object was not called gaze but instead session or
         #  something like that. Because ET preprocessing works on the session level and it is odd that there is no session
-        gaze, gaze_metadata = peyepeline.create_gaze_data(
+        gaze, gaze_metadata = preprocessing.create_gaze_data(  # unavailable
             asc_file=asc,
             lab_config=sess.lab_config,
             session_idf=idf,
         )
-        peyepeline.save_raw_data(output_folder / 'raw_data', sess.session_identifier, gaze)
+        preprocessing.save_raw_data(output_folder / 'raw_data', sess.session_identifier,
+                                    gaze)
 
         sess.pm_gaze_metadata = gaze_metadata
 
-        peyepeline.detect_fixations(
+        preprocessing.detect_fixations(
             gaze,
         )
 
-        peyepeline.detect_saccades(
+        preprocessing.detect_saccades(
             gaze,
         )
         # note that saccades are not yet saved
-        peyepeline.save_events_data(output_folder / 'fixations', sess.session_identifier, gaze)
+        preprocessing.save_events_data(output_folder / 'fixations', sess.session_identifier,
+                                       gaze)
 
-        peyepeline.map_fixations_to_aois(
+        preprocessing.map_fixations_to_aois(
             gaze,
             sess.stimuli,
         )
-        peyepeline.save_scanpaths(output_folder / 'scanpaths', sess.session_identifier, gaze)
+        preprocessing.save_scanpaths(output_folder / 'scanpaths', sess.session_identifier,
+                                     gaze)
 
-        peyepeline.save_session_metadata(gaze, output_folder)
+        preprocessing.save_session_metadata(gaze, output_folder)
         merid.create_session_overview(sess.session_identifier, path=output_folder)
 
     merid.create_dataset_overview(path=preprocessed_data_folder)
