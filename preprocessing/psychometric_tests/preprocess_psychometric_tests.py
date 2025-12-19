@@ -23,13 +23,18 @@ from pathlib import Path
 from pandas import read_csv, DataFrame
 import pandas as pd
 
-from ..config import PSYCHOMETRIC_TESTS_DIR, PSYM_LWMC_DIR, PSYM_RAN_DIR, \
-    PSYM_STROOP_FLANKER_DIR, PSYM_WIKIVOCAB_DIR, PSYM_PLAB_DIR
+from ..config import (
+    PSYCHOMETRIC_TESTS_DIR,
+    PSYM_LWMC_DIR,
+    PSYM_RAN_DIR,
+    PSYM_STROOP_FLANKER_DIR,
+    PSYM_WIKIVOCAB_DIR,
+    PSYM_PLAB_DIR,
+)
 from ..utils import pid_from_session
 
 
-def preprocess_all_sessions(
-        test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) -> Path:
+def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) -> Path:
     """Preprocess all sessions and write two types of outputs:
 
     1) Overview CSV (one row per session) saved directly under the
@@ -63,18 +68,18 @@ def preprocess_all_sessions(
         pid = pid_from_session(session)
         # Initialise an overview row with participant and per-test Done flags (0/1)
         overview_row: dict = {
-            'participant_id': pid,
-            'LWMC_Done': 0,
-            'RAN_Done': 0,
-            'Stroop_Done': 0,
-            'Flanker_Done': 0,
-            'WikiVocab_Done': 0,
-            'PLAB_Done': 0,
+            "participant_id": pid,
+            "LWMC_Done": 0,
+            "RAN_Done": 0,
+            "Stroop_Done": 0,
+            "Flanker_Done": 0,
+            "WikiVocab_Done": 0,
+            "PLAB_Done": 0,
         }
 
         # Detailed row: single CSV per participant with namespaced, readable columns
         detailed_row: dict = {
-            'participant_id': pid,
+            "participant_id": pid,
         }
 
         # LWMC
@@ -85,11 +90,16 @@ def preprocess_all_sessions(
                 # detailed: all LWMC metrics
                 detailed_row.update(res_lwmc)
                 # overview: LWMC scores only
-                for k in ['LWMC_MU_score', 'LWMC_OS_score', 'LWMC_SS_score',
-                          'LWMC_SSTM_score', 'LWMC_Total_score_mean']:
+                for k in [
+                    "LWMC_MU_score",
+                    "LWMC_OS_score",
+                    "LWMC_SS_score",
+                    "LWMC_SSTM_score",
+                    "LWMC_Total_score_mean",
+                ]:
                     if k in res_lwmc:
                         overview_row[k] = res_lwmc[k]
-                overview_row['LWMC_Done'] = 1
+                overview_row["LWMC_Done"] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process LWMC test for {session.stem}: {str(err)}",
@@ -105,7 +115,7 @@ def preprocess_all_sessions(
                 detailed_row.update(res_ran)
                 overview_row.update(res_ran)
                 # Mark Done on successful preprocessing regardless of emptiness
-                overview_row['RAN_Done'] = 1
+                overview_row["RAN_Done"] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process RAN test for {session.stem}: {str(err)}",
@@ -118,19 +128,17 @@ def preprocess_all_sessions(
             try:
                 res_stroop = preprocess_stroop(sf_dir)  # DataFrame
                 stroop_effects = {
-                    'StroopAccuracyEffect':
-                        res_stroop['Stroop_incongruent_accuracy'] -
-                        res_stroop['Stroop_congruent_accuracy'],
-                    'StroopRTEffect_sec':
-                        res_stroop['Stroop_incongruent_rt_mean_sec'] -
-                        res_stroop['Stroop_congruent_rt_mean_sec'],
+                    "StroopAccuracyEffect": res_stroop["Stroop_incongruent_accuracy"]
+                    - res_stroop["Stroop_congruent_accuracy"],
+                    "StroopRTEffect_sec": res_stroop["Stroop_incongruent_rt_mean_sec"]
+                    - res_stroop["Stroop_congruent_rt_mean_sec"],
                 }
                 # overview: only effects
                 overview_row.update(stroop_effects)
                 # detailed: effects + grouped metrics per condition
                 detailed_row.update(stroop_effects)
                 detailed_row.update(res_stroop)
-                overview_row['Stroop_Done'] = 1
+                overview_row["Stroop_Done"] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process Stroop test for {session.stem}: {str(err)}",
@@ -139,25 +147,25 @@ def preprocess_all_sessions(
             try:
                 res_flanker = preprocess_flanker(sf_dir)  # DataFrame
                 flanker_effects = {
-                    'FlankerAccuracyEffect':
-                        res_flanker['Flanker_incongruent_accuracy'] -
-                        res_flanker['Flanker_congruent_accuracy'],
-                    'FlankerRTEffect_sec':
-                        res_flanker['Flanker_incongruent_rt_mean_sec'] -
-                        res_flanker['Flanker_congruent_rt_mean_sec'],
+                    "FlankerAccuracyEffect": res_flanker["Flanker_incongruent_accuracy"]
+                    - res_flanker["Flanker_congruent_accuracy"],
+                    "FlankerRTEffect_sec": res_flanker[
+                        "Flanker_incongruent_rt_mean_sec"
+                    ]
+                    - res_flanker["Flanker_congruent_rt_mean_sec"],
                 }
                 # overview: only effects
                 overview_row.update(flanker_effects)
                 # detailed: effects + grouped metrics per condition
                 detailed_row.update(flanker_effects)
                 detailed_row.update(res_flanker)
-                overview_row['Flanker_Done'] = 1
+                overview_row["Flanker_Done"] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process Flanker test for {session.stem}: {str(err)}",
                     category=UserWarning,
                 )
-                overview_row['Flanker_Done'] = 1
+                overview_row["Flanker_Done"] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process Flanker test for {session.stem}: {str(err)}",
@@ -173,10 +181,13 @@ def preprocess_all_sessions(
                 # detailed_row.update({f"WikiVocab_{k}": v for k, v in wv.items()})
                 detailed_row.update(res_wv)
                 # overview: only selected
-                for key in ['WikiVocab_rt_mean_sec', 'WikiVocab_accuracy',
-                            'WikiVocab_incorrect_correct_score']:
+                for key in [
+                    "WikiVocab_rt_mean_sec",
+                    "WikiVocab_accuracy",
+                    "WikiVocab_incorrect_correct_score",
+                ]:
                     overview_row[key] = res_wv[key]
-                overview_row['WikiVocab_Done'] = 1
+                overview_row["WikiVocab_Done"] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process WikiVocab test for {session.stem}: {str(err)}",
@@ -189,9 +200,9 @@ def preprocess_all_sessions(
             try:
                 res_plab = preprocess_plab(plab_dir)
                 detailed_row.update(res_plab)
-                overview_row['PLAB_rt_mean_sec'] = res_plab['PLAB_rt_mean_sec']
-                overview_row['PLAB_accuracy'] = res_plab['PLAB_accuracy']
-                overview_row['PLAB_Done'] = 1
+                overview_row["PLAB_rt_mean_sec"] = res_plab["PLAB_rt_mean_sec"]
+                overview_row["PLAB_accuracy"] = res_plab["PLAB_accuracy"]
+                overview_row["PLAB_Done"] = 1
             except ValueError as err:
                 warnings.warn(
                     f"Failed to process PLAB test for {session.stem}: {str(err)}",
@@ -211,22 +222,25 @@ def preprocess_all_sessions(
         overview_rows.append(overview_row)
 
     # Write overview CSV (wide format) directly into psychometric-tests-sessions folder
-    out_path = test_session_folder / f'psychometric_overview_{test_session_folder.parent.stem}.csv'
+    out_path = (
+        test_session_folder
+        / f"psychometric_overview_{test_session_folder.parent.stem}.csv"
+    )
     df = pd.DataFrame(overview_rows)
     # Ensure columns order: participant_id, then flags, then the rest
     flag_cols = [
-        'LWMC_Done',
-        'RAN_Done',
-        'Stroop_Done',
-        'Flanker_Done',
-        'WikiVocab_Done',
-        'PLAB_Done',
+        "LWMC_Done",
+        "RAN_Done",
+        "Stroop_Done",
+        "Flanker_Done",
+        "WikiVocab_Done",
+        "PLAB_Done",
     ]
     for col in flag_cols:
         if col not in df.columns:
             df[col] = 0
-    remaining = [c for c in df.columns if c not in (['participant_id'] + flag_cols)]
-    df = df[['participant_id'] + flag_cols + remaining]
+    remaining = [c for c in df.columns if c not in (["participant_id"] + flag_cols)]
+    df = df[["participant_id"] + flag_cols + remaining]
     df.to_csv(out_path, index=False)
 
     print(f"Wrote overview: {out_path}")
@@ -234,7 +248,7 @@ def preprocess_all_sessions(
 
 
 def _is_valid_folder(folder: Path) -> bool:
-    return folder.is_dir() and folder.stem[:3].isdigit() and folder.stem[3] == '_'
+    return folder.is_dir() and folder.stem[:3].isdigit() and folder.stem[3] == "_"
 
 
 def preprocess_stroop(stroop_flanker_dir: Path):
@@ -261,21 +275,22 @@ def preprocess_stroop(stroop_flanker_dir: Path):
         and 'Stroop_neutral_num_items'.
     """
     df = _find_one_filetype_with_columns(
-        stroop_flanker_dir, ['stim_type', 'stroop_key.rt', 'stroop_key.corr'],
-        allow_nan=True
+        stroop_flanker_dir,
+        ["stim_type", "stroop_key.rt", "stroop_key.corr"],
+        allow_nan=True,
     )
     result_df = _reaction_time_accuracy(
         df,
-        reaction_time_col='stroop_key.rt',
-        correctness_col='stroop_key.corr',
-        group_by_col='stim_type'
+        reaction_time_col="stroop_key.rt",
+        correctness_col="stroop_key.corr",
+        group_by_col="stim_type",
     )
 
-    result_df.rename(columns={'rt_mean': 'rt_mean_sec'}, inplace=True)
+    result_df.rename(columns={"rt_mean": "rt_mean_sec"}, inplace=True)
 
     result_dict = {}
-    for cond in ['incongruent', 'congruent', 'neutral']:
-        for metric in ('rt_mean_sec', 'accuracy', 'num_items'):
+    for cond in ["incongruent", "congruent", "neutral"]:
+        for metric in ("rt_mean_sec", "accuracy", "num_items"):
             result_dict[f"Stroop_{cond}_{metric}"] = float(result_df.loc[cond, metric])
 
     return result_dict
@@ -305,21 +320,22 @@ def preprocess_flanker(stroop_flanker_dir: Path):
         and 'Flanker_congruent_num_items'.
     """
     df = _find_one_filetype_with_columns(
-        stroop_flanker_dir, ['stim_type', 'Flanker_key.rt', 'Flanker_key.corr'],
-        allow_nan=True
+        stroop_flanker_dir,
+        ["stim_type", "Flanker_key.rt", "Flanker_key.corr"],
+        allow_nan=True,
     )
     result_df = _reaction_time_accuracy(
         df,
-        reaction_time_col='Flanker_key.rt',
-        correctness_col='Flanker_key.corr',
-        group_by_col='stim_type'
+        reaction_time_col="Flanker_key.rt",
+        correctness_col="Flanker_key.corr",
+        group_by_col="stim_type",
     )
 
-    result_df.rename(columns={'rt_mean': 'rt_mean_sec'}, inplace=True)
+    result_df.rename(columns={"rt_mean": "rt_mean_sec"}, inplace=True)
 
     result_dict = {}
-    for cond in ['incongruent', 'congruent']:
-        for metric in ('rt_mean_sec', 'accuracy', 'num_items'):
+    for cond in ["incongruent", "congruent"]:
+        for metric in ("rt_mean_sec", "accuracy", "num_items"):
             result_dict[f"Flanker_{cond}_{metric}"] = float(result_df.loc[cond, metric])
 
     return result_dict
@@ -356,49 +372,57 @@ def preprocess_lwmc(lwmc_dir: Path):
 
     # 1) Load the single WMC CSV that contains the relevant columns
     required_cols = [
-        'is_practice',  # Filter out practice trials
-        'base_text_intertrial.started',  # Marker to separate trials
-        'mu_key_resp_recall.is_correct', 'mu_key_resp_recall.rt',  # MU columns
-        'os_key_resp_recall.corr', 'os_key_resp_recall.rt',  # OS columns
-        'ss_key_resp_recall.corr', 'ss_key_resp_recall.rt',  # SS columns
+        "is_practice",  # Filter out practice trials
+        "base_text_intertrial.started",  # Marker to separate trials
+        "mu_key_resp_recall.is_correct",
+        "mu_key_resp_recall.rt",  # MU columns
+        "os_key_resp_recall.corr",
+        "os_key_resp_recall.rt",  # OS columns
+        "ss_key_resp_recall.corr",
+        "ss_key_resp_recall.rt",  # SS columns
     ]
     df = _find_one_filetype_with_columns(lwmc_dir, required_cols, allow_nan=True)
 
     # Create a trial identifier using the inter-trial text onset markers
     # Each non-NaN in base_text_intertrial.started indicates a new trial boundary.
-    df['trial_id'] = df['base_text_intertrial.started'].notna().cumsum()
+    df["trial_id"] = df["base_text_intertrial.started"].notna().cumsum()
 
-    df = df[df['is_practice'] == False].copy()  # remove all practice trials
+    df = df[df["is_practice"] == False].copy()  # remove all practice trials
     if df.empty:
         raise ValueError("No non-practice trials found in WMC CSV")
 
-    def _per_trial_mean_then_mean(correctness_col: str, time_col: str,
-                                  label: str) -> float:
+    def _per_trial_mean_then_mean(
+        correctness_col: str, time_col: str, label: str
+    ) -> float:
         if correctness_col not in df.columns:
             raise ValueError(f"Missing column '{correctness_col}' for {label}")
         # Select only rows with a value for the specific task's correctness column
         mask = df[correctness_col].notna()
         if not mask.any():
             raise ValueError(
-                f"No valid {label} trials found (no non-NaN entries in {correctness_col})")
+                f"No valid {label} trials found (no non-NaN entries in {correctness_col})"
+            )
         # Use the in-frame 'trial_id' column to avoid index alignment issues
-        sub = df.loc[mask, [correctness_col, time_col, 'trial_id']].copy()
+        sub = df.loc[mask, [correctness_col, time_col, "trial_id"]].copy()
         # Ensure correctness is numeric (0/1 or NaN)
-        sub[correctness_col] = pd.to_numeric(sub[correctness_col], errors='coerce')
+        sub[correctness_col] = pd.to_numeric(sub[correctness_col], errors="coerce")
         # Compute mean correctness per trial_id, then mean of these per-trial means
-        corr_per_trial = sub.groupby('trial_id', dropna=True)[correctness_col].mean()
-        time_per_trial = sub.groupby('trial_id', dropna=True)[time_col].mean()
+        corr_per_trial = sub.groupby("trial_id", dropna=True)[correctness_col].mean()
+        time_per_trial = sub.groupby("trial_id", dropna=True)[time_col].mean()
         if corr_per_trial.empty:
             raise ValueError(f"No valid {label} trials found after grouping")
         return float(corr_per_trial.mean()), float(time_per_trial.mean())
 
     # 2) Compute MU/OS/SS from CSV columns
-    mu_score, mu_time = _per_trial_mean_then_mean('mu_key_resp_recall.is_correct',
-                                                  'mu_key_resp_recall.rt', 'MU')
-    os_score, os_time = _per_trial_mean_then_mean('os_key_resp_recall.corr',
-                                                  'os_key_resp_recall.rt', 'OS')
-    ss_score, ss_time = _per_trial_mean_then_mean('ss_key_resp_recall.corr',
-                                                  'ss_key_resp_recall.rt', 'SS')
+    mu_score, mu_time = _per_trial_mean_then_mean(
+        "mu_key_resp_recall.is_correct", "mu_key_resp_recall.rt", "MU"
+    )
+    os_score, os_time = _per_trial_mean_then_mean(
+        "os_key_resp_recall.corr", "os_key_resp_recall.rt", "OS"
+    )
+    ss_score, ss_time = _per_trial_mean_then_mean(
+        "ss_key_resp_recall.corr", "ss_key_resp_recall.rt", "SS"
+    )
 
     # 3) SSTM from legacy .dat
     def _participant_id_from_dir(d: Path) -> str:
@@ -414,7 +438,7 @@ def preprocess_lwmc(lwmc_dir: Path):
 
     def _read_lines(p: Path) -> list[str]:
         try:
-            with p.open('r', encoding='utf-8') as fh:
+            with p.open("r", encoding="utf-8") as fh:
                 return fh.readlines()
         except Exception as exc:
             raise ValueError(f"Failed to read WMC file {p}: {exc}") from exc
@@ -435,14 +459,14 @@ def preprocess_lwmc(lwmc_dir: Path):
     total = (mu_score + os_score + ss_score + sstm_score) / 4.0
 
     return {
-        'LWMC_MU_score': mu_score,
-        'LWMC_MU_time_sec': mu_time,
-        'LWMC_OS_score': os_score,
-        'LWMC_OS_time_sec': os_time,
-        'LWMC_SS_score': ss_score,
-        'LWMC_SS_time_sec': ss_time,
-        'LWMC_SSTM_score': sstm_score,
-        'LWMC_Total_score_mean': total,
+        "LWMC_MU_score": mu_score,
+        "LWMC_MU_time_sec": mu_time,
+        "LWMC_OS_score": os_score,
+        "LWMC_OS_time_sec": os_time,
+        "LWMC_SS_score": ss_score,
+        "LWMC_SS_time_sec": ss_time,
+        "LWMC_SSTM_score": sstm_score,
+        "LWMC_Total_score_mean": total,
     }
 
 
@@ -473,16 +497,17 @@ def preprocess_ran(ran_dir: Path):
     ValueError
         If not exactly one .csv file is found in the directory.
     """
-    df = _find_one_filetype_with_columns(ran_dir, ['Trial', 'Reading_Time'],
-                                         allow_nan=False)
+    df = _find_one_filetype_with_columns(
+        ran_dir, ["Trial", "Reading_Time"], allow_nan=False
+    )
 
     # Extract practice and experimental trial reaction times
-    practice_rt = df[df['Trial'] == 1]['Reading_Time']
-    experimental_rt = df[df['Trial'] == 2]['Reading_Time']
+    practice_rt = df[df["Trial"] == 1]["Reading_Time"]
+    experimental_rt = df[df["Trial"] == 2]["Reading_Time"]
 
     return {
-        'RAN_practice_rt_sec': float(practice_rt.iloc[0]),
-        'RAN_experimental_rt_sec': float(experimental_rt.iloc[0])
+        "RAN_practice_rt_sec": float(practice_rt.iloc[0]),
+        "RAN_experimental_rt_sec": float(experimental_rt.iloc[0]),
     }
 
 
@@ -524,37 +549,44 @@ def preprocess_wikivocab(wv_dir: Path):
         - WikiVocab_overall_correct: Overall fraction correct
     """
     df = _find_one_filetype_with_columns(
-        wv_dir, ['correct_answer', 'real_answer', 'RT'], allow_nan=False
+        wv_dir, ["correct_answer", "real_answer", "RT"], allow_nan=False
     )
-    df['correctness'] = df['correct_answer'] == df['real_answer']
+    df["correctness"] = df["correct_answer"] == df["real_answer"]
 
     # Calculate additional metrics
-    num_pseudo = len(df[df['correct_answer'] == 0])
-    num_real = len(df[df['correct_answer'] == 1])
+    num_pseudo = len(df[df["correct_answer"] == 0])
+    num_real = len(df[df["correct_answer"] == 1])
 
     # Calculate correct fractions
-    pseudo_correct = df[(df['correct_answer'] == 0) & (df['correctness'])].shape[
-                         0] / num_pseudo if num_pseudo > 0 else float('nan')
-    real_correct = df[(df['correct_answer'] == 1) & (df['correctness'])].shape[
-                       0] / num_real if num_real > 0 else float('nan')
-    overall_correct = df['correctness'].mean()
+    pseudo_correct = (
+        df[(df["correct_answer"] == 0) & (df["correctness"])].shape[0] / num_pseudo
+        if num_pseudo > 0
+        else float("nan")
+    )
+    real_correct = (
+        df[(df["correct_answer"] == 1) & (df["correctness"])].shape[0] / num_real
+        if num_real > 0
+        else float("nan")
+    )
+    overall_correct = df["correctness"].mean()
 
     # Calculate incorrect_correct score
     incorrect_correct = (real_correct + pseudo_correct) / 2
 
-    rt_acc = _reaction_time_accuracy(df, reaction_time_col='RT',
-                                     correctness_col='correctness')
+    rt_acc = _reaction_time_accuracy(
+        df, reaction_time_col="RT", correctness_col="correctness"
+    )
 
     return {
-        'WikiVocab_rt_mean_sec': rt_acc[0],
-        'WikiVocab_accuracy': rt_acc[1],
-        'WikiVocab_num_items': rt_acc[2],
-        'WikiVocab_num_pseudo_words': num_pseudo,
-        'WikiVocab_num_real_words': num_real,
-        'WikiVocab_incorrect_correct_score': incorrect_correct,
-        'WikiVocab_pseudo_correct': pseudo_correct,
-        'WikiVocab_real_correct': real_correct,
-        'WikiVocab_overall_correct': overall_correct
+        "WikiVocab_rt_mean_sec": rt_acc[0],
+        "WikiVocab_accuracy": rt_acc[1],
+        "WikiVocab_num_items": rt_acc[2],
+        "WikiVocab_num_pseudo_words": num_pseudo,
+        "WikiVocab_num_real_words": num_real,
+        "WikiVocab_incorrect_correct_score": incorrect_correct,
+        "WikiVocab_pseudo_correct": pseudo_correct,
+        "WikiVocab_real_correct": real_correct,
+        "WikiVocab_overall_correct": overall_correct,
     }
 
 
@@ -578,23 +610,25 @@ def preprocess_plab(plab_dir: Path):
         Dictionary with keys 'PLAB_rt_mean_sec', 'PLAB_accuracy', and 'PLAB_num_items'.
 
     """
-    df = _find_one_filetype_with_columns(plab_dir, ['rt', 'correctness'],
-                                         allow_nan=True)
-    rt_mean, accuracy, num_items = _reaction_time_accuracy(df, reaction_time_col='rt',
-                                                           correctness_col='correctness')
+    df = _find_one_filetype_with_columns(
+        plab_dir, ["rt", "correctness"], allow_nan=True
+    )
+    rt_mean, accuracy, num_items = _reaction_time_accuracy(
+        df, reaction_time_col="rt", correctness_col="correctness"
+    )
     return {
-        'PLAB_rt_mean_sec': rt_mean,
-        'PLAB_accuracy': accuracy,
-        'PLAB_num_items': num_items
+        "PLAB_rt_mean_sec": rt_mean,
+        "PLAB_accuracy": accuracy,
+        "PLAB_num_items": num_items,
     }
 
 
 def _reaction_time_accuracy(
-        df: DataFrame,
-        reaction_time_col: str,
-        correctness_col: str,
-        group_by_col: str | None = None,
-        correct_only: bool = False,
+    df: DataFrame,
+    reaction_time_col: str,
+    correctness_col: str,
+    group_by_col: str | None = None,
+    correct_only: bool = False,
 ) -> DataFrame | tuple[float, float, int]:
     """
     Calculate reaction time mean and accuracy, optionally grouped.
@@ -649,13 +683,14 @@ def _reaction_time_accuracy(
     if group_by_col is not None:
         if group_by_col not in df.columns:
             raise ValueError(
-                f"DataFrame must contain group_by column '{group_by_col}'.")
+                f"DataFrame must contain group_by column '{group_by_col}'."
+            )
 
         # Get the grouped data
         grouped = df.groupby(group_by_col, dropna=True)
 
         # Accuracy per group
-        acc = grouped[correctness_col].mean().rename('accuracy')
+        acc = grouped[correctness_col].mean().rename("accuracy")
 
         # Reaction time per group (optionally only on correct trials)
         if correct_only:
@@ -663,12 +698,12 @@ def _reaction_time_accuracy(
             rt = rt_series.groupby(group_by_col, dropna=True)[reaction_time_col].mean()
         else:
             rt = grouped[reaction_time_col].mean()
-        rt = rt.rename('rt_mean')
+        rt = rt.rename("rt_mean")
 
         # Number of items per group
-        num_items = grouped[reaction_time_col].count().rename('num_items')
+        num_items = grouped[reaction_time_col].count().rename("num_items")
 
-        return rt.to_frame().join([acc, num_items], how='outer')
+        return rt.to_frame().join([acc, num_items], how="outer")
 
     # Ungrouped case
     if correct_only:
@@ -682,9 +717,9 @@ def _reaction_time_accuracy(
 
 
 def __validate_rt_acc_inputs(
-        df: DataFrame,
-        reaction_time_col: str,
-        correctness_col: str,
+    df: DataFrame,
+    reaction_time_col: str,
+    correctness_col: str,
 ) -> None:
     """Validate inputs for reaction time and accuracy computations.
 
@@ -697,17 +732,19 @@ def __validate_rt_acc_inputs(
     # NaN positions must match between correctness and reaction time
     if df[correctness_col].isna().ne(df[reaction_time_col].isna()).any():
         raise ValueError(
-            "NaN positions in correctness and reaction time columns do not match")
+            "NaN positions in correctness and reaction time columns do not match"
+        )
     # Reaction time must be numeric dtype (NaNs allowed)
-    if df[reaction_time_col].dtype not in ['float64', 'float32', 'int64', 'int32']:
+    if df[reaction_time_col].dtype not in ["float64", "float32", "int64", "int32"]:
         raise ValueError("Reaction time column contains non-numeric values")
     # Correctness must be boolean-like (0/1/True/False/NaN)
     if not df[correctness_col].isin([0, 1, True, False, nan]).all():
         raise ValueError("Correctness column contains non-boolean values")
 
 
-def _find_one_filetype_with_columns(folder: Path, columns: list[str],
-                                    allow_nan=False) -> DataFrame:
+def _find_one_filetype_with_columns(
+    folder: Path, columns: list[str], allow_nan=False
+) -> DataFrame:
     """Find a single CSV file containing specific columns and return it as DataFrame.
 
     This function searches a specified folder for CSV files and ensures that exactly one file
@@ -752,10 +789,12 @@ def _find_one_filetype_with_columns(folder: Path, columns: list[str],
         raise ValueError(f"No .csv files with columns {columns} found in {folder}")
     if len(valid_csvs) > 1:
         raise ValueError(
-            f"Multiple .csv files with columns {columns} found in {folder}")
+            f"Multiple .csv files with columns {columns} found in {folder}"
+        )
 
     df = read_csv(valid_csvs[0], usecols=columns)
     if not allow_nan and df.isna().any().any():
         raise ValueError(
-            f"NaN values found in required columns {columns} in {valid_csvs[0]}")
+            f"NaN values found in required columns {columns} in {valid_csvs[0]}"
+        )
     return df

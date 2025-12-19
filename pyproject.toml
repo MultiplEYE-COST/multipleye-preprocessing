@@ -17,6 +17,7 @@ dependencies = [
     "pymovements",
     "tqdm~=4.66.4",
     "openpyxl>=3.0.0",
+    "ipykernel>=7.1.0",
 ]
 
 [tool.uv.sources]
@@ -28,6 +29,7 @@ include = ["preprocessing"]
 [dependency-groups]
 dev = [
     "pytest>=7.0.0",
+    "ruff>=0.13.0",
 ]
 
 [project.scripts]

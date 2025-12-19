@@ -9,10 +9,10 @@ import pymovements as pm
 
 
 def save_gaze_data(
-        gaze: pm.Gaze,
-        gaze_path: Path = '',
-        events_path: Path = '',
-        metadata_dir: Path = '',
+    gaze: pm.Gaze,
+    gaze_path: Path = "",
+    events_path: Path = "",
+    metadata_dir: Path = "",
 ) -> None:
     # TODO save metadata properly and also load it properly
 
@@ -28,9 +28,9 @@ def save_gaze_data(
         # TODO pm,
         #  why can I only save the gaze metadata through this method?
         metadata = gaze._metadata
-        metadata['datetime'] = str(metadata['datetime'])
+        metadata["datetime"] = str(metadata["datetime"])
         # TODO pm: I'd like to save my metadata without having to access a protected argument
-        with open(metadata_dir / "gaze_metadata.json", "w", encoding='utf8') as f:
+        with open(metadata_dir / "gaze_metadata.json", "w", encoding="utf8") as f:
             json.dump(metadata, f)
 
 
@@ -51,18 +51,19 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
         name = f"{session}_{trial}_{stimulus}_raw_data.csv"
-        df = df['time', 'pixel_x', 'pixel_y', 'pupil', 'page']
+        df = df["time", "pixel_x", "pixel_y", "pupil", "page"]
         df.write_csv(directory / name)
 
 
 def save_events_data(
-        event_type: str,
-        directory: Path,
-        session: str,
-        split_column: str,
-        name_columns: list[str],
-        file_columns: list[str],
-        data: pm.Gaze) -> None:
+    event_type: str,
+    directory: Path,
+    session: str,
+    split_column: str,
+    name_columns: list[str],
+    file_columns: list[str],
+    data: pm.Gaze,
+) -> None:
     directory.mkdir(parents=True, exist_ok=True)
 
     data_copy = data.clone()
@@ -71,11 +72,11 @@ def save_events_data(
     events = data_copy.events.frame.filter(pl.col("name") == event_type)
 
     for group in events.partition_by(split_column):
-        name = f'{session}'
+        name = f"{session}"
         for col in name_columns:
             if col not in group.columns:
                 raise ValueError(f"Column {col} not found in events data.")
-            name += f'_{group[col][0]}'
+            name += f"_{group[col][0]}"
 
         name += f"_{event_type}.csv"
 
@@ -109,9 +110,24 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
         name = f"{session}_{trial}_{stimulus}_scanpath.csv"
 
         df = df[
-            'onset', 'duration', 'name', 'location_x', 'location_y', 'char_idx', 'char',
-            'top_left_x', 'top_left_y', 'width', 'height', 'char_idx_in_line', 'line_idx',
-            'page', 'word_idx', 'word_idx_in_line', 'word']
+            "onset",
+            "duration",
+            "name",
+            "location_x",
+            "location_y",
+            "char_idx",
+            "char",
+            "top_left_x",
+            "top_left_y",
+            "width",
+            "height",
+            "char_idx_in_line",
+            "line_idx",
+            "page",
+            "word_idx",
+            "word_idx_in_line",
+            "word",
+        ]
         df.write_csv(directory / name)
 
 
@@ -119,13 +135,13 @@ def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)
 
     metadata = gaze._metadata
-    metadata['datetime'] = str(metadata['datetime'])
+    metadata["datetime"] = str(metadata["datetime"])
 
     # remove validations and calibrations because they are already saved in separate files
-    metadata.pop('calibrations', None)
-    metadata.pop('validations', None)
+    metadata.pop("calibrations", None)
+    metadata.pop("validations", None)
 
-    with open(directory / "gaze_metadata.json", "w", encoding='utf8') as f:
+    with open(directory / "gaze_metadata.json", "w", encoding="utf8") as f:
         json.dump(metadata, f)
 
     gaze.save(directory, save_events=False, save_samples=False)
@@ -134,7 +150,5 @@ def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
     validations = gaze.validations
     calibrations = gaze.calibrations
 
-    validations.write_csv(directory / f'validations.tsv',
-                          separator='\t')
-    calibrations.write_csv(directory / f'calibrations.tsv',
-                           separator='\t')
+    validations.write_csv(directory / f"validations.tsv", separator="\t")
+    calibrations.write_csv(directory / f"calibrations.tsv", separator="\t")

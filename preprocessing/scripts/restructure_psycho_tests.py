@@ -1,15 +1,20 @@
 """Utility script to restructure psychometric tests data folders."""
+
 import argparse
 import shutil
 from pathlib import Path
 
-from preprocessing.config import PSYM_PARTICIPANT_CONFIGS, PSYM_CORE_DATA, PSYCHOMETRIC_TESTS_DIR
+from preprocessing.config import (
+    PSYM_PARTICIPANT_CONFIGS,
+    PSYM_CORE_DATA,
+    PSYCHOMETRIC_TESTS_DIR,
+)
 
 
 def fix_psycho_tests_structure(
-        config_folder: Path = PSYM_PARTICIPANT_CONFIGS,
-        data_folder: Path = PSYM_CORE_DATA,
-        out_folder: Path = PSYCHOMETRIC_TESTS_DIR,
+    config_folder: Path = PSYM_PARTICIPANT_CONFIGS,
+    data_folder: Path = PSYM_CORE_DATA,
+    out_folder: Path = PSYCHOMETRIC_TESTS_DIR,
 ):
     """
     Restructures psychometric tests data into per-participant folders.
@@ -76,22 +81,24 @@ def fix_psycho_tests_structure(
     # Find test folders
     tests = data_folder.glob("*")
     # filter hidden directories and possibly the config folder from the test folders
-    all_tests = [folder.stem for folder in tests if
-                 not folder.stem.startswith(".") and config_folder != folder]
+    all_tests = [
+        folder.stem
+        for folder in tests
+        if not folder.stem.startswith(".") and config_folder != folder
+    ]
 
     participant_ids = {}
 
     # Loop over participants
     for config_file in config_files:
-
         # Check if there is a corresponding data file
         name = config_file.stem
         p_id = name.split("_")[0]  # Participant id
 
-        if name.endswith('S1'):
-            name = name.replace('S1', 'PT1')
-        elif name.endswith('S2'):
-            name = name.replace('S2', 'PT2')
+        if name.endswith("S1"):
+            name = name.replace("S1", "PT1")
+        elif name.endswith("S2"):
+            name = name.replace("S2", "PT2")
 
         if p_id not in participant_ids:
             participant_ids[p_id] = []
@@ -100,7 +107,6 @@ def fix_psycho_tests_structure(
         session_folder.mkdir(parents=True, exist_ok=True)
 
         for test in all_tests:
-
             old_path = data_folder / test / name
             # find participant folder in old path and move to new session folder in a subfolder
             if old_path.exists():
@@ -125,30 +131,32 @@ def fix_psycho_tests_structure(
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Fix the structure of psychometric tests in a data collection folder.')
-    parser.add_argument(
-        '--config_folder',
-        type=str,
-        help='Path to the folder containing the psychometric tests configuration files.',
-        default=PSYM_PARTICIPANT_CONFIGS
+        description="Fix the structure of psychometric tests in a data collection folder."
     )
     parser.add_argument(
-        '--data_folder',
+        "--config_folder",
         type=str,
-        help='Path to the folder containing the data collection.',
-        default=PSYM_CORE_DATA
+        help="Path to the folder containing the psychometric tests configuration files.",
+        default=PSYM_PARTICIPANT_CONFIGS,
     )
     parser.add_argument(
-        '--out_folder',
+        "--data_folder",
         type=str,
-        help='Path to the session folder where the restructured data / user folders will be saved.',
-        default=PSYCHOMETRIC_TESTS_DIR
+        help="Path to the folder containing the data collection.",
+        default=PSYM_CORE_DATA,
+    )
+    parser.add_argument(
+        "--out_folder",
+        type=str,
+        help="Path to the session folder where the restructured data / user folders will be saved.",
+        default=PSYCHOMETRIC_TESTS_DIR,
     )
     args = parser.parse_args()
 
     print(
         f"Restructuring psychometric tests data from \ndata_folder: {args.data_folder}\n"
-        f"to out_folder: {args.out_folder}\nwith config_folder: {args.config_folder}")
+        f"to out_folder: {args.out_folder}\nwith config_folder: {args.config_folder}"
+    )
 
     fix_psycho_tests_structure(
         Path(args.config_folder), Path(args.data_folder), Path(args.out_folder)

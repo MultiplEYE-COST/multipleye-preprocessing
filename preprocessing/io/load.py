@@ -1,4 +1,5 @@
 """Functions for loading and processing gaze data from various formats."""
+
 import json
 import re
 from pathlib import Path
@@ -11,10 +12,10 @@ from ..data_collection.stimulus import LabConfig
 
 
 def load_gaze_data(
-        asc_file: Path,
-        lab_config: LabConfig,
-        session_idf: str,
-        trial_cols: list[str] = None,
+    asc_file: Path,
+    lab_config: LabConfig,
+    session_idf: str,
+    trial_cols: list[str] = None,
 ) -> pm.Gaze:
     """Load sample gaze data from an ASC file.
 
@@ -79,7 +80,7 @@ def load_gaze_data(
             {"pattern": r"stop_recording_", "column": "practice", "value": None},
         ],
         trial_columns=trial_cols,
-        add_columns={'session': session_idf},
+        add_columns={"session": session_idf},
     )
 
     # Filter out data outside of trials
@@ -115,10 +116,10 @@ DEFAULT_EVENT_PROPERTIES = {
 
 
 def load_trial_level_raw_data(
-        data_folder: Path,
-        trial_columns: list[str],
-        file_pattern: str = '*_raw_data.csv',
-        metadata_path: Path = None,
+    data_folder: Path,
+    trial_columns: list[str],
+    file_pattern: str = "*_raw_data.csv",
+    metadata_path: Path = None,
 ) -> pm.Gaze:
     """Load trial-level raw data from multiple CSV files and construct a gaze object.
 
@@ -142,7 +143,9 @@ def load_trial_level_raw_data(
         A gaze object containing the trial-level aggregated gaze data along with
         any associated metadata, validations, calibrations, and experiment settings, if provided.
     """
-    regex_name = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_raw_data"
+    regex_name = (
+        r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_raw_data"
+    )
 
     initial_df = pl.DataFrame()
 
@@ -150,11 +153,11 @@ def load_trial_level_raw_data(
         trial_df = pl.read_csv(
             file,
             schema_overrides={
-                'time': pl.Float64,
-                'pupil': pl.Float64,
-                'pixel_x': pl.Float64,
-                'pixel_y': pl.Float64,
-                'page': pl.Utf8,
+                "time": pl.Float64,
+                "pupil": pl.Float64,
+                "pixel_x": pl.Float64,
+                "pixel_y": pl.Float64,
+                "page": pl.Utf8,
             },
         )
         match = re.match(regex_name, file.stem)
@@ -168,25 +171,25 @@ def load_trial_level_raw_data(
     gaze = pm.Gaze(
         initial_df,
         trial_columns=trial_columns,
-        pixel_columns=['pixel_x', 'pixel_y'],
+        pixel_columns=["pixel_x", "pixel_y"],
     )
 
     if metadata_path:
-        with open(metadata_path / "gaze_metadata.json", "r", encoding='utf8') as f:
+        with open(metadata_path / "gaze_metadata.json", "r", encoding="utf8") as f:
             metadata = json.load(f)
 
         gaze._metadata = metadata
 
-        with open(metadata_path / 'experiment.yaml', "r") as f:
+        with open(metadata_path / "experiment.yaml", "r") as f:
             exp = yaml.safe_load(f)
 
-        with open(metadata_path / f'validations.tsv', 'r', encoding='utf8') as f:
-            validations_df = pl.read_csv(f, separator='\t')
+        with open(metadata_path / f"validations.tsv", "r", encoding="utf8") as f:
+            validations_df = pl.read_csv(f, separator="\t")
 
         gaze.validations = validations_df
 
-        with open(metadata_path / f'calibrations.tsv', 'r', encoding='utf8') as f:
-            calibrations_df = pl.read_csv(f, separator='\t')
+        with open(metadata_path / f"calibrations.tsv", "r", encoding="utf8") as f:
+            calibrations_df = pl.read_csv(f, separator="\t")
 
         gaze.calibrations = calibrations_df
 
@@ -198,10 +201,10 @@ def load_trial_level_raw_data(
 
 
 def load_trial_level_events_data(
-        gaze: pm.Gaze,
-        data_folder: Path,
-        event_type: str,
-        file_pattern: str = '*_fixation',
+    gaze: pm.Gaze,
+    data_folder: Path,
+    event_type: str,
+    file_pattern: str = "*_fixation",
 ) -> pm.Gaze:
     """Load and processes trial-level event data for a given type.
 
@@ -227,10 +230,12 @@ def load_trial_level_events_data(
         The updated gaze object with the loaded and integrated event data.
     """
     if event_type not in DEFAULT_EVENT_PROPERTIES.keys():
-        raise ValueError(f"event_type must be {DEFAULT_EVENT_PROPERTIES.keys()}, got {event_type}")
+        raise ValueError(
+            f"event_type must be {DEFAULT_EVENT_PROPERTIES.keys()}, got {event_type}"
+        )
 
     all_events = pl.DataFrame()
-    for file in data_folder.glob('*.csv'):
+    for file in data_folder.glob("*.csv"):
         trial_df = pl.read_csv(file)
 
         match = re.match(file_pattern, file.name)
@@ -257,9 +262,7 @@ def load_trial_level_events_data(
             trial_columns=gaze.trial_columns,
         )
 
-        new_events = new_events.frame.with_columns(
-            pl.lit(event_type).alias("name")
-        )
+        new_events = new_events.frame.with_columns(pl.lit(event_type).alias("name"))
 
         # if one df has more columns than the other, add the missing columns with same column type!
         for col in original_events.columns:
@@ -277,9 +280,7 @@ def load_trial_level_events_data(
         # sort columns to be in the same order
         new_events = new_events.select(original_events.columns)
 
-        all_events = original_events.vstack(
-            new_events
-        )
+        all_events = original_events.vstack(new_events)
 
     gaze.events = pm.Events(
         all_events,

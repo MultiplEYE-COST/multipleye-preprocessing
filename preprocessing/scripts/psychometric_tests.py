@@ -13,10 +13,10 @@ def process_all_psychometric_test_sessions():
         description="Process all psychometric test sessions."
     )
     parser.add_argument(
-        '--test-session-folder',
+        "--test-session-folder",
         type=str,
-        help='Path to the folder containing the psychometric test sessions.',
-        default=PSYCHOMETRIC_TESTS_DIR
+        help="Path to the folder containing the psychometric test sessions.",
+        default=PSYCHOMETRIC_TESTS_DIR,
     )
 
     args = parser.parse_args()

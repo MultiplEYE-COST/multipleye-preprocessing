@@ -4,10 +4,10 @@ import pymovements as pm
 
 
 def preprocess_gaze(
-        gaze: pm.Gaze,
-        method: str = "savitzky_golay",
-        window_ms: int = 50,
-        poly_degree: int = 2,
+    gaze: pm.Gaze,
+    method: str = "savitzky_golay",
+    window_ms: int = 50,
+    poly_degree: int = 2,
 ) -> None:
     """
     Convert gaze samples from pixel coordinates to degrees of visual angle (dva),

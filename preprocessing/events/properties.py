@@ -1,11 +1,12 @@
 """Event properties submodule of the preprocessing module."""
+
 import pymovements as pm
 
 
 def compute_event_properties(
-        gaze: pm.Gaze,
-        event_name: str,
-        properties: list[tuple[str, dict]],
+    gaze: pm.Gaze,
+    event_name: str,
+    properties: list[tuple[str, dict]],
 ) -> None:
     """
     Compute and add event properties to `gaze.events`.

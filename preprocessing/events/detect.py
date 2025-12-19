@@ -5,10 +5,10 @@ from ..io.load import DEFAULT_EVENT_PROPERTIES
 
 
 def detect_fixations(
-        gaze,
-        method: str = "ivt",
-        minimum_duration: int = 100,
-        velocity_threshold: float = 20.0,
+    gaze,
+    method: str = "ivt",
+    minimum_duration: int = 100,
+    velocity_threshold: float = 20.0,
 ) -> None:
     """
     This function applies a fixation detection method and then computes
@@ -43,18 +43,17 @@ def detect_fixations(
     computed and added to ``gaze.events``.
     """
 
-    gaze.detect(method, minimum_duration=minimum_duration,
-                velocity_threshold=velocity_threshold)
-
-    compute_event_properties(
-        gaze, "fixation", DEFAULT_EVENT_PROPERTIES["fixation"]
+    gaze.detect(
+        method, minimum_duration=minimum_duration, velocity_threshold=velocity_threshold
     )
+
+    compute_event_properties(gaze, "fixation", DEFAULT_EVENT_PROPERTIES["fixation"])
 
 
 def detect_saccades(
-        gaze,
-        minimum_duration: int = 6,
-        threshold_factor: float = 6,
+    gaze,
+    minimum_duration: int = 6,
+    threshold_factor: float = 6,
 ) -> None:
     """
     This function detects saccades (or micro-saccades) using a
@@ -81,9 +80,10 @@ def detect_saccades(
     After detection, saccade properties (e.g., amplitude and peak velocity)
     are computed and added to ``gaze.events``.
     """
-    gaze.detect("microsaccades", minimum_duration=minimum_duration,
-                threshold_factor=threshold_factor)
-
-    compute_event_properties(
-        gaze, "saccade", DEFAULT_EVENT_PROPERTIES["saccade"]
+    gaze.detect(
+        "microsaccades",
+        minimum_duration=minimum_duration,
+        threshold_factor=threshold_factor,
     )
+
+    compute_event_properties(gaze, "saccade", DEFAULT_EVENT_PROPERTIES["saccade"])

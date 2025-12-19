@@ -23,7 +23,7 @@ def run_multipleye_preprocessing(data_collection: str):
 
     for sess in (pbar := tqdm(sessions)):
         idf = sess.session_identifier
-        pbar.set_description(f'Preprocessing session {idf}:')
+        pbar.set_description(f"Preprocessing session {idf}:")
 
         asc = sess.asc_path
         output_folder = preprocessed_data_folder / idf
@@ -36,8 +36,9 @@ def run_multipleye_preprocessing(data_collection: str):
             lab_config=sess.lab_config,
             session_idf=idf,
         )
-        preprocessing.save_raw_data(output_folder / 'raw_data', sess.session_identifier,
-                                    gaze)
+        preprocessing.save_raw_data(
+            output_folder / "raw_data", sess.session_identifier, gaze
+        )
 
         sess.pm_gaze_metadata = gaze_metadata
 
@@ -49,15 +50,17 @@ def run_multipleye_preprocessing(data_collection: str):
             gaze,
         )
         # note that saccades are not yet saved
-        preprocessing.save_events_data(output_folder / 'fixations', sess.session_identifier,
-                                       gaze)
+        preprocessing.save_events_data(
+            output_folder / "fixations", sess.session_identifier, gaze
+        )
 
         preprocessing.map_fixations_to_aois(
             gaze,
             sess.stimuli,
         )
-        preprocessing.save_scanpaths(output_folder / 'scanpaths', sess.session_identifier,
-                                     gaze)
+        preprocessing.save_scanpaths(
+            output_folder / "scanpaths", sess.session_identifier, gaze
+        )
 
         preprocessing.save_session_metadata(gaze, output_folder)
         merid.create_session_overview(sess.session_identifier, path=output_folder)
@@ -69,8 +72,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parse_args()
 
-    data_collection_name = 'MultiplEYE_ZH_CH_Zurich_1_2025'
+    data_collection_name = "MultiplEYE_ZH_CH_Zurich_1_2025"
     run_multipleye_preprocessing(data_collection_name)

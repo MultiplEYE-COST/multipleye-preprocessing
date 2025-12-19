@@ -1,4 +1,5 @@
 """Mapping of fixations to AOIs."""
+
 import polars as pl
 
 import pymovements as pm
@@ -6,8 +7,8 @@ from ..data_collection.stimulus import Stimulus
 
 
 def map_fixations_to_aois(
-        gaze: pm.Gaze,
-        stimuli: list[Stimulus],
+    gaze: pm.Gaze,
+    stimuli: list[Stimulus],
 ) -> None:
     """
     Maps gaze events to areas of interest (AOIs) for each stimulus.

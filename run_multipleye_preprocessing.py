@@ -12,8 +12,10 @@ def run_multipleye_preprocessing(data_collection: str):
     this_repo = Path().resolve()
     data_folder_path = this_repo / "data" / data_collection_name
 
-    multipleye = preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
-        data_folder_path, include_pilots=True
+    multipleye = (
+        preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
+            data_folder_path, include_pilots=True
+        )
     )
 
     preprocessed_data_folder = this_repo / "preprocessed_data" / data_collection_name
@@ -28,7 +30,7 @@ def run_multipleye_preprocessing(data_collection: str):
         session_save_name = idf.split("_")[:5]
         session_save_name = "_".join(session_save_name)
 
-        pbar.set_description(f'Preprocessing session {idf}:')
+        pbar.set_description(f"Preprocessing session {idf}:")
 
         asc = sess.asc_path
         output_folder = preprocessed_data_folder / idf
@@ -37,7 +39,7 @@ def run_multipleye_preprocessing(data_collection: str):
         # create or load raw data
         raw_data_folder = output_folder / "raw_data"
         if raw_data_folder.exists():
-            pbar.set_description(f'Loading samples {idf}:')
+            pbar.set_description(f"Loading samples {idf}:")
             gaze = preprocessing.load_trial_level_raw_data(
                 raw_data_folder,
                 trial_columns=preprocessing.config.TRIAL_COLS,
@@ -45,7 +47,7 @@ def run_multipleye_preprocessing(data_collection: str):
             )
 
         else:
-            pbar.set_description(f'Extracting samples {idf}:')
+            pbar.set_description(f"Extracting samples {idf}:")
             gaze = preprocessing.load_gaze_data(
                 asc_file=asc,
                 lab_config=sess.lab_config,
@@ -60,7 +62,7 @@ def run_multipleye_preprocessing(data_collection: str):
         sess.validations = gaze.validations
 
         # preprocess gaze data
-        pbar.set_description(f'Preprocessing samples {idf}:')
+        pbar.set_description(f"Preprocessing samples {idf}:")
         preprocessing.preprocess_gaze(
             gaze,
         )
@@ -69,44 +71,51 @@ def run_multipleye_preprocessing(data_collection: str):
         fixation_data_folder = output_folder / "fixations"
         saccade_data_folder = output_folder / "saccades"
         if fixation_data_folder.exists():
-            pbar.set_description(f'Loading events {idf}:')
+            pbar.set_description(f"Loading events {idf}:")
             gaze = preprocessing.load_trial_level_events_data(
                 gaze,
                 fixation_data_folder,
-                event_type='fixation',
-                file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_fixation.csv"
+                event_type="fixation",
+                file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_fixation.csv",
             )
 
             gaze = preprocessing.load_trial_level_events_data(
                 gaze,
                 saccade_data_folder,
-                event_type='saccade',
-                file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_saccade.csv"
+                event_type="saccade",
+                file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_saccade.csv",
             )
 
         else:
-            pbar.set_description(f'Detecting events {idf}:')
+            pbar.set_description(f"Detecting events {idf}:")
 
             preprocessing.detect_fixations(gaze)
             preprocessing.detect_saccades(gaze)
 
             preprocessing.save_events_data(
-                'fixation',
+                "fixation",
                 fixation_data_folder,
                 session_save_name,
-                'trial',
-                ['trial', 'stimulus'],
+                "trial",
+                ["trial", "stimulus"],
                 ["onset", "duration", "location_x", "location_y", "page"],
                 gaze,
             )
 
             preprocessing.save_events_data(
-                'saccade',
+                "saccade",
                 saccade_data_folder,
                 session_save_name,
-                'trial',
-                ['trial', 'stimulus'],
-                ["onset", "duration", "amplitude", "peak_velocity", "dispersion", "page"],
+                "trial",
+                ["trial", "stimulus"],
+                [
+                    "onset",
+                    "duration",
+                    "amplitude",
+                    "peak_velocity",
+                    "dispersion",
+                    "page",
+                ],
                 gaze,
             )
 
@@ -115,13 +124,15 @@ def run_multipleye_preprocessing(data_collection: str):
             gaze,
             sess.stimuli,
         )
-        preprocessing.save_scanpaths(output_folder / 'scanpaths', session_save_name, gaze)
+        preprocessing.save_scanpaths(
+            output_folder / "scanpaths", session_save_name, gaze
+        )
 
         preprocessing.save_session_metadata(gaze, output_folder)
 
         # perform the multipleye specific stuff
         multipleye.create_session_overview(sess.session_identifier, path=output_folder)
-        pbar.set_description(f'Creating sanity check report {idf}')
+        pbar.set_description(f"Creating sanity check report {idf}")
         multipleye.create_sanity_check_report(
             gaze, sess.session_identifier, plotting=True, overwrite=True
         )
@@ -134,8 +145,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parse_args()
 
-    data_collection_name = 'MultiplEYE_SQ_CH_Zurich_1_2025'
+    data_collection_name = "MultiplEYE_SQ_CH_Zurich_1_2025"
     run_multipleye_preprocessing(data_collection_name)
