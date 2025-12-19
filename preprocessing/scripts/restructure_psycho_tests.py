@@ -6,8 +6,8 @@ from pathlib import Path
 
 from preprocessing.config import (
     PSYM_PARTICIPANT_CONFIGS,
-    PSYM_CORE_DATA,
     PSYCHOMETRIC_TESTS_DIR,
+    PSYM_CORE_DATA,
 )
 
 

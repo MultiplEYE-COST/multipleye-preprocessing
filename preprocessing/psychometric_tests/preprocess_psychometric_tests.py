@@ -23,14 +23,14 @@ from pathlib import Path
 from pandas import read_csv, DataFrame
 import pandas as pd
 
-from ..config import (
-    PSYCHOMETRIC_TESTS_DIR,
+from ..constants import (
     PSYM_LWMC_DIR,
     PSYM_RAN_DIR,
     PSYM_STROOP_FLANKER_DIR,
-    PSYM_WIKIVOCAB_DIR,
     PSYM_PLAB_DIR,
+    PSYM_WIKIVOCAB_DIR,
 )
+from ..config import PSYCHOMETRIC_TESTS_DIR
 from ..utils import pid_from_session
 
 

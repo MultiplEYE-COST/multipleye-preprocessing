@@ -3,6 +3,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 import preprocessing
+from preprocessing import constants
 
 
 def run_multipleye_preprocessing(data_collection: str):
@@ -41,7 +42,7 @@ def run_multipleye_preprocessing(data_collection: str):
             pbar.set_description(f"Loading samples {idf}:")
             gaze = preprocessing.load_trial_level_raw_data(
                 raw_data_folder,
-                trial_columns=preprocessing.config.TRIAL_COLS,
+                trial_columns=constants.TRIAL_COLS,
                 metadata_path=output_folder,
             )
 
@@ -51,7 +52,7 @@ def run_multipleye_preprocessing(data_collection: str):
                 asc_file=asc,
                 lab_config=sess.lab_config,
                 session_idf=idf,
-                trial_cols=preprocessing.config.TRIAL_COLS,
+                trial_cols=constants.TRIAL_COLS,
             )
             preprocessing.save_raw_data(raw_data_folder, session_save_name, gaze)
             preprocessing.save_session_metadata(gaze, output_folder)
