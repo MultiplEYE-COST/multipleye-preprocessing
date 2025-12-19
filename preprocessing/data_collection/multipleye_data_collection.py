@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+
 import subprocess
 import warnings
 from functools import partial
@@ -15,6 +16,13 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
+from preprocessing.constants import (
+    FIXATION,
+    START_RECORDING_REGEX,
+    STOP_RECORDING_REGEX,
+    EYETRACKER_NAMES,
+    MESSAGE_REGEX,
+)
 from ..checks.et_quality_checks import (
     check_comprehension_question_answers,
     check_metadata,
@@ -42,15 +50,6 @@ from preprocessing.scripts.prepare_language_folder import (
     extract_stimulus_version_number_from_asc,
 )
 
-EYETRACKER_NAMES = {
-    "eyelink": [
-        "EyeLink 1000 Plus",
-        "EyeLink II",
-        "EyeLink 1000",
-        "EyeLink Portable Duo",
-    ],
-}
-
 
 def eyelink(method):
     def wrapper(self):
@@ -66,21 +65,6 @@ def eyelink(method):
 
 
 class MultipleyeDataCollection:
-    stimulus_names = {
-        "PopSci_MultiplEYE": 1,
-        "Ins_HumanRights": 2,
-        "Ins_LearningMobility": 3,
-        "Lit_Alchemist": 4,
-        "Lit_MagicMountain": 6,
-        "Lit_Solaris": 8,
-        "Lit_BrokenApril": 9,
-        "Arg_PISACowsMilk": 10,
-        "Arg_PISARapaNui": 11,
-        "PopSci_Caveman": 12,
-        "Enc_WikiMoon": 13,
-        "Lit_NorthWind": 7,
-    }
-
     participant_data_path: Path | str | None
     crashed_session_ids: list[str] = []
     num_sessions = 1
@@ -696,7 +680,7 @@ class MultipleyeDataCollection:
         if stimulus_names is None:
             stimulus_names = [
                 name
-                for name, num in self.stimulus_names.items()
+                for name, num in self.STIMULUS_NAME_MAPPING.items()
                 if num in self.sessions[session_identifier].completed_stimuli_ids
             ]
 
@@ -927,13 +911,6 @@ class MultipleyeDataCollection:
         qick fix for now, should be replaced by the summary experiment frame later on, however the extraction of the
         stimulus order version is essential for other code parts, it cannot be removed without further alterations
         """
-        regex = re.compile(r"MSG\s+(?P<timestamp>\d+[.]?\d*)\s+(?P<message>.*)")
-        start_regex = re.compile(
-            r"MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)"
-        )
-        stop_regex = re.compile(
-            r"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)"
-        )
 
         other_screens = [
             "welcome_screen",
@@ -993,7 +970,7 @@ class MultipleyeDataCollection:
 
         with open(asc_file, "r", encoding="utf-8") as f:
             for line in f.readlines():
-                if match := regex.match(line):
+                if match := MESSAGE_REGEX.match(line):
                     messages.append(match.groupdict())
                     msg = match.groupdict()["message"]
                     ts = match.groupdict()["timestamp"]
@@ -1026,7 +1003,7 @@ class MultipleyeDataCollection:
                     elif msg.split()[0] == "obligatory_break_duration:":
                         breaks["duration_ms"].append(msg.split()[1])
 
-                if match := start_regex.match(line):
+                if match := START_RECORDING_REGEX.match(line):
                     reading_times["start_ts"].append(match.groupdict()["timestamp"])
                     reading_times["start_msg"].append(match.groupdict()["type"])
 
@@ -1043,7 +1020,7 @@ class MultipleyeDataCollection:
 
                     reading_times["pages"].append(match.groupdict()["page"])
                     reading_times["status"].append("reading time")
-                elif match := stop_regex.match(line):
+                elif match := STOP_RECORDING_REGEX.match(line):
                     reading_times["stop_ts"].append(match.groupdict()["timestamp"])
                     reading_times["stop_msg"].append(match.groupdict()["type"])
 
@@ -1285,7 +1262,7 @@ class MultipleyeDataCollection:
 
         # for each gaze and page compute the average fixation duration
         fixation_durations_page_avg = (
-            gaze.events.frame.filter(pl.col("name") == "fixation")
+            gaze.events.frame.filter(pl.col("name") == FIXATION)
             .group_by(gaze.trial_columns)
             .agg(
                 [

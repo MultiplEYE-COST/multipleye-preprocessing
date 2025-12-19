@@ -8,6 +8,8 @@ import polars as pl
 import yaml
 
 import pymovements as pm
+
+from ..constants import FIXATION, SACCADE
 from ..data_collection.stimulus import LabConfig
 
 
@@ -103,11 +105,11 @@ def load_gaze_data(
 
 
 DEFAULT_EVENT_PROPERTIES = {
-    "fixation": [
+    FIXATION: [
         ("location", {"position_column": "pixel"}),
         ("dispersion", {}),
     ],
-    "saccade": [
+    SACCADE: [
         ("amplitude", {}),
         ("peak_velocity", {}),
         ("dispersion", {}),
