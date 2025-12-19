@@ -16,12 +16,13 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
-from preprocessing.constants import (
+from ..constants import (
     FIXATION,
     START_RECORDING_REGEX,
     STOP_RECORDING_REGEX,
     EYETRACKER_NAMES,
     MESSAGE_REGEX,
+    STIMULUS_NAME_MAPPING,
 )
 from ..utils.conversion import convert_to_time_str
 from ..checks.et_quality_checks import (
@@ -681,7 +682,7 @@ class MultipleyeDataCollection:
         if stimulus_names is None:
             stimulus_names = [
                 name
-                for name, num in self.STIMULUS_NAME_MAPPING.items()
+                for name, num in STIMULUS_NAME_MAPPING.items()
                 if num in self.sessions[session_identifier].completed_stimuli_ids
             ]
 

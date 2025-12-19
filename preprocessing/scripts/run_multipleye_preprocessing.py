@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 from pathlib import Path
 
 from tqdm import tqdm
@@ -6,8 +7,8 @@ import preprocessing
 from preprocessing import constants
 
 
-def run_multipleye_preprocessing(data_collection: str):
-    preprocessing.utils.prepare_language_folder(data_collection)
+def run_multipleye_preprocessing(data_collection_name: str):
+    preprocessing.utils.prepare_language_folder(data_collection_name)
 
     this_repo = Path().resolve()
     data_folder_path = this_repo / "data" / data_collection_name
@@ -144,3 +145,16 @@ def run_multipleye_preprocessing(data_collection: str):
 if __name__ == "__main__":
     data_collection_name = "MultiplEYE_SQ_CH_Zurich_1_2025"
     run_multipleye_preprocessing(data_collection_name)
+
+
+def main():
+    """Run MultiplEYE preprocessing with the argument as data collection name."""
+    parser = ArgumentParser(description="Run MultiplEYE preprocessing.")
+    parser.add_argument(
+        "data_collection_name",
+        type=str,
+        help="Data collection name (folder name in data/ folder).",
+    )
+    args = parser.parse_args()
+    print(f"Running MultiplEYE preprocessing for '{args.data_collection_name}'.")
+    run_multipleye_preprocessing(args.data_collection_name)

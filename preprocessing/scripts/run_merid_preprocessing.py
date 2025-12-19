@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 from pathlib import Path
 
 from tqdm import tqdm
@@ -7,8 +8,8 @@ from preprocessing.data_collection.merid_data_collection import Merid
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
 
-def run_multipleye_preprocessing(data_collection: str):
-    prepare_language_folder(data_collection)
+def run_multipleye_preprocessing(data_collection_name: str):
+    prepare_language_folder(data_collection_name)
 
     this_repo = Path().resolve()
     data_folder_path = this_repo / "data" / data_collection_name
@@ -70,3 +71,16 @@ def run_multipleye_preprocessing(data_collection: str):
 if __name__ == "__main__":
     data_collection_name = "MultiplEYE_ZH_CH_Zurich_1_2025"
     run_multipleye_preprocessing(data_collection_name)
+
+
+def main():
+    """Run MERID preprocessing for a given data collection name."""
+    parser = ArgumentParser(description="Run MERID preprocessing.")
+    parser.add_argument(
+        "data_collection_name",
+        type=str,
+        help="Data collection name (folder name in data/ folder).",
+    )
+    args = parser.parse_args()
+    print(f"Running MERID preprocessing for '{args.data_collection_name}'.")
+    run_multipleye_preprocessing(args.data_collection_name)

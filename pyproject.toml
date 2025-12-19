@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "preprocessing"
-version = "0.1.0"
+version = "0.2.0"
 description = "Pipeline for Multipleye data preprocessing"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -46,3 +46,8 @@ docs = [
 restructure_psycho_tests = "preprocessing.scripts.restructure_psycho_tests:main"
 prepare_language_folder = "preprocessing.scripts.prepare_language_folder:main"
 preprocess_psychometric_tests = "preprocessing.scripts.psychometric_tests:process_all_psychometric_test_sessions"
+# Pipelines
+run_multipleye_preprocessing = "preprocessing.scripts.run_multipleye_preprocessing:main"
+run_merid_preprocessing = "preprocessing.scripts.run_merid_preprocessing:main"
+run_multipleye_sanity_checks = "preprocessing.scripts.run_multipleye_sanity_checks:main"
+run_merid_sanity_checks = "preprocessing.scripts.run_merid_sanity_checks:main"
