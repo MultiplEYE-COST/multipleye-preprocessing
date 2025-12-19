@@ -1,21 +1,17 @@
 import unittest
 from unittest import TestCase
 from unittest.mock import patch, MagicMock
-import sys
-import os
 from pathlib import Path
 
-sys.path.append(
-    os.path.abspath(
-        "C:\\Users\saphi\PycharmProjects\multipleye-preprocessing\quality-report"
-    )
-)
-from data_collection import DataCollection
+import pytest
+
+from preprocessing.data_collection import MultipleyeDataCollection
 
 
 # the tests were written with github copilot, so they are not complete yet, and I don't know if they are correct, nor do I understand them fully
 
 
+@pytest.mark.skip(reason="Not complete")
 class TestDataCollection(TestCase):
     def test_create_gaze_frame(self):
         self.fail()
@@ -26,7 +22,7 @@ class TestDataCollection(TestCase):
         This ensures that each test starts with a fresh instance of the class.
         """
 
-        self.data_collection = DataCollection(
+        self.data_collection = MultipleyeDataCollection(
             data_collection_name="TestCollection",
             stimulus_language="English",
             country="USA",

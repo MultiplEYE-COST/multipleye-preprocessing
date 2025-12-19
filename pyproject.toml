@@ -27,9 +27,9 @@ pymovements = { git = "https://github.com/pymovements/pymovements.git", branch =
 include = ["preprocessing"]
 
 [dependency-groups]
-dev = [
 dev = [{ include-group = "lint" }, { include-group = "docs" }]
 lint = [
+    "pre-commit>=4.5.1",
     "pytest>=7.0.0",
     "ruff>=0.13.0",
 ]
@@ -46,4 +46,3 @@ docs = [
 restructure_psycho_tests = "preprocessing.scripts.restructure_psycho_tests:main"
 prepare_language_folder = "preprocessing.scripts.prepare_language_folder:main"
 preprocess_psychometric_tests = "preprocessing.scripts.psychometric_tests:process_all_psychometric_test_sessions"
-

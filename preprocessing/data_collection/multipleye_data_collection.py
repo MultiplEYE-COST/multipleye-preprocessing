@@ -1370,9 +1370,17 @@ class MultipleyeDataCollection:
             except ValueError:
                 if "start_after_trial_" in session:
                     logging.warning(f"Session {session} has been restarted.")
-                    participant_id, country, lang, lab, session_id, _, _, _, trial = (
-                        session.split("_")
-                    )
+                    (
+                        participant_id,
+                        country,
+                        lang,
+                        lab,
+                        session_id,
+                        _,
+                        _,
+                        _,
+                        trial,
+                    ) = session.split("_")
                     notes = f"Session has been restarted after trial {trial}."
                 elif "full_restart" in session:
                     logging.warning(f"Session {session} has been fully restarted.")

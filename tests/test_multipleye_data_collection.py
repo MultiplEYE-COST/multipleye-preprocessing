@@ -1,18 +1,12 @@
 from unittest import TestCase
 import pytest
-import sys
-import os
 from pathlib import Path
 
-sys.path.append(
-    os.path.abspath(
-        "C:\\Users\saphi\PycharmProjects\multipleye-preprocessing\quality-report"
-    )
-)
-from multipleye_data_collection import MultipleyeDataCollection
+from preprocessing.data_collection import MultipleyeDataCollection
 from unittest.mock import patch, MagicMock, mock_open
 
 
+@pytest.mark.skip(reason="Not complete")
 class TestMultipleyeDataCollection(TestCase):
     def setUp(self):
         # Set up the test environment
@@ -76,6 +70,7 @@ def data_collection():
 @patch("multipleye_data_collection.preprocess")
 @patch("builtins.open", new_callable=mock_open)
 @patch("pickle.dump")
+@pytest.mark.skip(reason="Not complete")
 def test_create_gaze_frame(
     mock_pickle, mock_open_file, mock_preprocess, mock_load_data, data_collection
 ):
