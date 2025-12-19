@@ -1,4 +1,3 @@
-import argparse
 from pathlib import Path
 
 from tqdm import tqdm
@@ -68,12 +67,6 @@ def run_multipleye_preprocessing(data_collection: str):
     merid.create_dataset_overview(path=preprocessed_data_folder)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-
-
 if __name__ == "__main__":
-    parse_args()
-
     data_collection_name = "MultiplEYE_ZH_CH_Zurich_1_2025"
     run_multipleye_preprocessing(data_collection_name)

@@ -150,5 +150,5 @@ def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
     validations = gaze.validations
     calibrations = gaze.calibrations
 
-    validations.write_csv(directory / f"validations.tsv", separator="\t")
-    calibrations.write_csv(directory / f"calibrations.tsv", separator="\t")
+    validations.write_csv(directory / "validations.tsv", separator="\t")
+    calibrations.write_csv(directory / "calibrations.tsv", separator="\t")

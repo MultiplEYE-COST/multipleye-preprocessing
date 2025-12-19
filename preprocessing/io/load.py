@@ -183,12 +183,12 @@ def load_trial_level_raw_data(
         with open(metadata_path / "experiment.yaml", "r") as f:
             exp = yaml.safe_load(f)
 
-        with open(metadata_path / f"validations.tsv", "r", encoding="utf8") as f:
+        with open(metadata_path / "validations.tsv", "r", encoding="utf8") as f:
             validations_df = pl.read_csv(f, separator="\t")
 
         gaze.validations = validations_df
 
-        with open(metadata_path / f"calibrations.tsv", "r", encoding="utf8") as f:
+        with open(metadata_path / "calibrations.tsv", "r", encoding="utf8") as f:
             calibrations_df = pl.read_csv(f, separator="\t")
 
         gaze.calibrations = calibrations_df

@@ -8,7 +8,7 @@
 
 from datetime import datetime
 
-from sphinx.search import languages
+# from sphinx.search import languages
 
 project = "MultiplEYE Preprocessing pEYEpline"
 copyright = f"2024–{datetime.now().year}, Deborah N. Jakobi et al"

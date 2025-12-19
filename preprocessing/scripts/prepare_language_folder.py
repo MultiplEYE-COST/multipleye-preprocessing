@@ -51,7 +51,8 @@ def prepare_language_folder(data_collection_name):
                     shutil.move(str(folder), str(eye_tracking_sessions_path))
                 shutil.rmtree(core_session_path)
                 print(
-                    f"Moved folders from 'core_sessions' to 'eye-tracking-sessions' and removed 'core_sessions' folder."
+                    "Moved folders from 'core_sessions' to 'eye-tracking-sessions' "
+                    "and removed 'core_sessions' folder."
                 )
 
     psychometric_tests_path = data_folder_path / "psychometric-tests-sessions"

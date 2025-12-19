@@ -182,10 +182,10 @@ class MultipleyeDataCollection:
 
         if self.stim_order_versions.empty:
             warnings.warn(
-                f"Stimulus order version is not updated with participants numbers.\n"
-                f"Please ask the team to upload the correct stimulus folder that "
-                f"has been used and changed during the experiment.\n"
-                f"Version will be extracted from the asc files."
+                "Stimulus order version is not updated with participants numbers.\n"
+                "Please ask the team to upload the correct stimulus folder that "
+                "has been used and changed during the experiment.\n"
+                "Version will be extracted from the asc files."
             )
             self.stim_order_versions = stim_order_versions
 
@@ -655,7 +655,7 @@ class MultipleyeDataCollection:
                 self.sessions[session].stimulus_order_ids
                 != self.sessions[session].completed_stimuli_ids
             ):
-                if not p_id in self.crashed_session_ids:
+                if p_id not in self.crashed_session_ids:
                     self._write_to_logfile(
                         f"Stimulus order and completed stimuli do not match for "
                         f"session {session}. Please check the files carefully."
@@ -992,8 +992,8 @@ class MultipleyeDataCollection:
         in_break = False
 
         with open(asc_file, "r", encoding="utf-8") as f:
-            for l in f.readlines():
-                if match := regex.match(l):
+            for line in f.readlines():
+                if match := regex.match(line):
                     messages.append(match.groupdict())
                     msg = match.groupdict()["message"]
                     ts = match.groupdict()["timestamp"]
@@ -1002,7 +1002,7 @@ class MultipleyeDataCollection:
                         initial_ts = ts
 
                     for screen in other_screens:
-                        if screen in l:
+                        if screen in line:
                             other_screen_appearance["screen"].append(msg)
                             other_screen_appearance["timestamp"].append(ts)
 
@@ -1026,7 +1026,7 @@ class MultipleyeDataCollection:
                     elif msg.split()[0] == "obligatory_break_duration:":
                         breaks["duration_ms"].append(msg.split()[1])
 
-                if match := start_regex.match(l):
+                if match := start_regex.match(line):
                     reading_times["start_ts"].append(match.groupdict()["timestamp"])
                     reading_times["start_msg"].append(match.groupdict()["type"])
 
@@ -1043,7 +1043,7 @@ class MultipleyeDataCollection:
 
                     reading_times["pages"].append(match.groupdict()["page"])
                     reading_times["status"].append("reading time")
-                elif match := stop_regex.match(l):
+                elif match := stop_regex.match(line):
                     reading_times["stop_ts"].append(match.groupdict()["timestamp"])
                     reading_times["stop_msg"].append(match.groupdict()["type"])
 
@@ -1187,7 +1187,7 @@ class MultipleyeDataCollection:
             }
         )
 
-        if os.path.exists(self.data_root.parent / f"total_reading_times.tsv"):
+        if os.path.exists(self.data_root.parent / "total_reading_times.tsv"):
             temp_total_times = pd.read_csv(
                 self.data_root.parent / "total_reading_times.tsv", sep="\t"
             )
@@ -1385,7 +1385,7 @@ class MultipleyeDataCollection:
                         _,
                         _,
                     ) = session.split("_")
-                    notes = f"Session has been fully restarted."
+                    notes = "Session has been fully restarted."
                 else:
                     raise ValueError(
                         f"Session {session} does not match the expected format."

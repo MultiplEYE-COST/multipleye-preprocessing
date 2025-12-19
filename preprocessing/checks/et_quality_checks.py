@@ -233,7 +233,7 @@ def check_validation_requirements(
     _report_to_file(f"Moderate validations: {moderate_vls}/{val_count}", report_file)
     _report_to_file(f"Bad validations: {len(mes['bad_vals'])}/{val_count}", report_file)
 
-    _report_to_file(f"Stimulus start after bad/moderate validation", report_file)
+    _report_to_file("Stimulus start after bad/moderate validation", report_file)
     for start in mes["start_after_bad_val"]:
         start = "\t" + start
         _report_to_file(start, report_file)
@@ -251,7 +251,7 @@ def check_validation_requirements(
         cal = "\t" + cal
         _report_to_file(cal, report_file)
 
-    _report_to_file(f"No validation before stimulus start", report_file)
+    _report_to_file("No validation before stimulus start", report_file)
     for start in mes["no_val_before_stimulus"]:
         start = "\t" + start
         _report_to_file(start, report_file)
@@ -261,20 +261,20 @@ def check_validation_requirements(
         vc = "\t" + vc
         _report_to_file(vc, report_file)
 
-    _report_to_file(f"Bad validations", report_file)
+    _report_to_file("Bad validations", report_file)
     for bad in mes["bad_vals"]:
         bad = "\t" + bad
         _report_to_file(bad, report_file)
 
-    _report_to_file(f"Moderate validations", report_file)
+    _report_to_file("Moderate validations", report_file)
     for moderate in mes["moderate_vals"]:
         moderate = "\t" + moderate
         _report_to_file(moderate, report_file)
 
     if val:
-        _report_to_file(f"✅ Final validation", report_file)
+        _report_to_file("✅ Final validation", report_file)
     else:
-        _report_to_file(f"❌ No final calibration!", report_file)
+        _report_to_file("❌ No final calibration!", report_file)
 
 
 def check_metadata(

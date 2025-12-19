@@ -1,4 +1,3 @@
-import argparse
 from pathlib import Path
 
 from tqdm import tqdm
@@ -141,12 +140,6 @@ def run_multipleye_preprocessing(data_collection: str):
     multipleye.parse_participant_data(preprocessed_data_folder / "participant_data.csv")
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-
-
 if __name__ == "__main__":
-    parse_args()
-
     data_collection_name = "MultiplEYE_SQ_CH_Zurich_1_2025"
     run_multipleye_preprocessing(data_collection_name)

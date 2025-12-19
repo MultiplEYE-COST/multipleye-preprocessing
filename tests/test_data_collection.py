@@ -12,20 +12,12 @@ sys.path.append(
 )
 from data_collection import DataCollection
 
+
 # the tests were written with github copilot, so they are not complete yet, and I don't know if they are correct, nor do I understand them fully
 
 
 class TestDataCollection(TestCase):
-    def test_add_recorded_sessions(self):
-        self.fail()
-
-    def test_convert_edf_to_asc(self):
-        self.fail()
-
     def test_create_gaze_frame(self):
-        self.fail()
-
-    def test_get_gaze_frame(self):
         self.fail()
 
     def setUp(self):
