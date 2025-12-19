@@ -23,6 +23,7 @@ from preprocessing.constants import (
     EYETRACKER_NAMES,
     MESSAGE_REGEX,
 )
+from ..utils.conversion import convert_to_time_str
 from ..checks.et_quality_checks import (
     check_comprehension_question_answers,
     check_metadata,
@@ -1419,14 +1420,6 @@ class MultipleyeDataCollection:
         log_file = self.data_root.parent / "preprocessing_logs.txt"
         with open(log_file, "a", encoding="utf-8") as logs:
             logs.write(message + "\n")
-
-
-def convert_to_time_str(duration_ms: float) -> str:
-    seconds = int(duration_ms / 1000) % 60
-    minutes = int(duration_ms / (1000 * 60)) % 60
-    hours = int(duration_ms / (1000 * 60 * 60)) % 24
-
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 if __name__ == "__main__":
