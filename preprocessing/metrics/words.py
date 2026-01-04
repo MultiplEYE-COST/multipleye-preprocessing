@@ -29,15 +29,3 @@ def find_skipped_words(
             .alias("skipped")
         )
     )
-
-
-def count_total_fixation_count(
-    fix: pl.DataFrame,
-) -> pl.DataFrame:
-    return (
-        fix
-        .group_by(["trial", "page", "word_idx", "word"])
-        .len()
-        .rename({"len": "TFC"})
-        .sort(["trial", "page", "word_idx"])
-    )
