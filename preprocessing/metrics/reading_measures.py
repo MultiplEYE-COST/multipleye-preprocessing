@@ -56,16 +56,6 @@ def compute_rereading_time(fix: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def compute_TRC_out(trans: pl.DataFrame) -> pl.DataFrame:
-    return (
-        trans
-        .filter(pl.col("is_regression"))
-        .group_by(["trial", "page", "from_word_idx"])
-        .agg(pl.count().alias("TRC_out"))
-        .rename({"from_word_idx": "word_idx"})
-    )
-
-
 def build_word_level_table(
     words: pl.DataFrame,
     fix: pl.DataFrame,
