@@ -3,7 +3,7 @@ import pymovements as pm
 
 
 def annotate_fixations(
-    gaze: pm.Gaze,
+    gaze: pm.Events,
     group_columns: list[str] | None = None,
 ) -> pl.DataFrame:
     """
