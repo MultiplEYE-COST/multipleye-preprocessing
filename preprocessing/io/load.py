@@ -45,6 +45,14 @@ def load_gaze_data(
         along with associated metadata, such as sampling rate, screen configuration,
         and experimental details.
     """
+    # Initialize experiment config from lab config. Sampling rate is automatically inferred in from_asc.
+    experiment = pm.Experiment(
+        screen_width_px=lab_config.image_resolution[0],
+        screen_height_px=lab_config.image_resolution[1],
+        screen_width_cm=lab_config.image_size_cm[0],
+        screen_height_cm=lab_config.image_size_cm[1],
+        distance_cm=lab_config.screen_distance_cm,
+    )
 
     gaze = pm.gaze.from_asc(
         asc_file,
@@ -83,22 +91,13 @@ def load_gaze_data(
         ],
         trial_columns=trial_cols,
         add_columns={"session": session_idf},
+        experiment=experiment,
     )
 
     # Filter out data outside of trials
     # TODO: Also report time spent outside of trials
     gaze.frame = gaze.frame.filter(
         pl.col("trial").is_not_null() & pl.col("page").is_not_null()
-    )
-
-    # Extract metadata from stimulus config and ASC file
-    gaze.experiment = pm.Experiment(
-        sampling_rate=gaze._metadata["sampling_rate"],
-        screen_width_px=lab_config.image_resolution[0],
-        screen_height_px=lab_config.image_resolution[1],
-        screen_width_cm=lab_config.image_size_cm[0],
-        screen_height_cm=lab_config.image_size_cm[1],
-        distance_cm=lab_config.screen_distance_cm,
     )
 
     return gaze
