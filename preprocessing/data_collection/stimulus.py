@@ -277,6 +277,7 @@ class LabConfig:
     image_resolution: tuple[int, int]
     image_size_cm: tuple[float, float]
     name_eye_tracker: str
+    sampling_frequency_hz: float = None
     psychometric_tests: list[str] = None
 
     @classmethod
@@ -310,8 +311,23 @@ class LabConfig:
             / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_lab_configuration.json"
         )
 
+        final_metadata_path = (
+            stimulus_dir.parent
+            / "documentation"
+            / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_metadata_form.json"
+        )
+
         with open(json_config_path) as f:
             json_config = json.load(f)
+
+        # if the final data has been collected and this is not just a sanity check
+        if final_metadata_path.exists():
+            with open(final_metadata_path) as f:
+                final_metadata_json = json.load(f)
+            sampling_frequency_hz = final_metadata_json["Default_frequency"]
+
+        else:
+            sampling_frequency_hz = None
 
         tests = list(json_config.get("Psychometric_tests", []).keys())
 
@@ -324,6 +340,7 @@ class LabConfig:
             image_resolution=(config.IMAGE_WIDTH_PX, config.IMAGE_HEIGHT_PX),
             image_size_cm=config.IMAGE_SIZE_CM,
             name_eye_tracker=json_config["Name_eye-tracker"],
+            sampling_frequency_hz=sampling_frequency_hz,
             psychometric_tests=tests if tests else None,
         )
 
