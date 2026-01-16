@@ -41,17 +41,17 @@ def load_gaze_data(
         asc_file,
         # TODO: move patterns form here to config, pm dataset definition?
         patterns=[
-            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+)_(?P<page>.+)",
+            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_(?P<page>.+)",
             r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<page>familiarity_rating_screen_\d+|subject_difficulty_screen)",
             {"pattern": r"stop_recording_", "column": "trial", "value": None},
             {"pattern": r"stop_recording_", "column": "page", "value": None},
             {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+_page_\d+",
+                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+(\.0)?_page_\d+",
                 "column": "activity",
                 "value": "reading",
             },
             {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+_question_\d+",
+                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+(\.0)?_question_\d+",
                 "column": "activity",
                 "value": "question",
             },
@@ -104,32 +104,6 @@ def load_gaze_data(
     gaze.experiment = experiment
 
     return gaze
-
-
-def save_gaze_data(
-        gaze: pm.Gaze,
-        gaze_path: Path = '',
-        events_path: Path = '',
-        metadata_dir: Path = '',
-) -> None:
-    # TODO save metadata properly and also load it properly
-
-    if gaze_path:
-        gaze.save_samples(path=gaze_path)
-    if events_path:
-        gaze.save_events(path=events_path)
-    if metadata_dir:
-        # TODO pm: this saves the experiment metadata, but there is a lot more metadata as a gaze property,
-        #  this should also be saved
-        gaze.save(dirpath=metadata_dir, save_events=False, save_samples=False)
-
-        # TODO pm,
-        #  why can I only save the gaze metadata through this method?
-        metadata = gaze._metadata
-        metadata['datetime'] = str(metadata['datetime'])
-        # TODO pm: I'd like to save my metadata without having to access a protected argument
-        with open(metadata_dir / "gaze_metadata.json", "w", encoding='utf8') as f:
-            json.dump(metadata, f)
 
 
 def preprocess_gaze(
@@ -199,10 +173,10 @@ def compute_event_properties(
     join_on = gaze.trial_columns + ["name", "onset", "offset"]
 
     for prop_name, kwargs in properties:
-        processor = pm.EventGazeProcessor((prop_name, kwargs))
+        processor = pm.EventSamplesProcessor((prop_name, kwargs))
         new_props = processor.process(
-            gaze.events,
-            gaze,
+            gaze.events.frame,
+            gaze.frame,
             identifiers=gaze.trial_columns,
             name=event_name,
         )
@@ -407,7 +381,7 @@ def load_trial_level_raw_data(
         file_pattern: str = '*_raw_data.csv',
         metadata_path: Path = None,
 ) -> pm.Gaze:
-    regex_name = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_raw_data"
+    regex_name = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
 
     initial_df = pl.DataFrame()
 

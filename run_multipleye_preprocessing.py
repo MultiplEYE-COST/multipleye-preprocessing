@@ -75,14 +75,14 @@ def run_multipleye_preprocessing(data_collection: str):
                 gaze,
                 fixation_data_folder,
                 event_type='fixation',
-                file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_fixation.csv"
+                file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_fixation.csv"
             )
 
             gaze = peyepeline.load_trial_level_events_data(
                 gaze,
                 saccade_data_folder,
                 event_type='saccade',
-                file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_saccade.csv"
+                file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_saccade.csv"
             )
 
         else:
@@ -137,5 +137,5 @@ def parse_args():
 if __name__ == '__main__':
     parse_args()
 
-    data_collection_name = 'MultiplEYE_PL_PL_Warsaw_1_2025'
+    data_collection_name = 'MultiplEYE_LV_LV_Riga_1_2025'
     run_multipleye_preprocessing(data_collection_name)
