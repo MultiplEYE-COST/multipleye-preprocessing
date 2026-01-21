@@ -261,6 +261,15 @@ def preprocess_stroop(stroop_flanker_dir: Path):
     automatic responses. The test consists of three parts:
     a color naming task, a word reading task, and a color-word naming task.
 
+    **Reference**: Stroop, J. R. (1935). Studies of interference in serial verbal reactions.
+    Journal of Experimental Psychology, 18, 643-662. doi:10.1037/h0054651
+
+    **Effect Calculations**:
+    - Accuracy = sum(correct_trials) / total_trials
+    - RT_mean = mean(rt) (averaged over all trials)
+    - AccuracyEffect = incongruent_accuracy - congruent_accuracy
+    - RTEffect_sec = incongruent_rt_mean - congruent_rt_mean
+
     Parameters
     ----------
     stroop_flanker_dir : Path
@@ -306,6 +315,16 @@ def preprocess_flanker(stroop_flanker_dir: Path):
     inhibit irrelevant information.
     The test consists of a series of trials in which participants must respond to a central target
     while ignoring flanking distractors.
+
+    **Reference**: Eriksen, B. A., & Eriksen, C. W. (1974). Effects of noise letters upon
+    identification of a target letter in a non-search task. Perception & Psychophysics, 16, 143-149.
+    doi:10.3758/bf03203267
+
+    **Effect Calculations**:
+    - Accuracy = sum(correct_trials) / total_trials
+    - RT_mean = mean(rt) (averaged over all trials)
+    - AccuracyEffect = incongruent_accuracy - congruent_accuracy
+    - RTEffect_sec = incongruent_rt_mean - congruent_rt_mean
 
     Parameters
     ----------
@@ -360,8 +379,21 @@ def preprocess_lwmc(lwmc_dir: Path):
     - SSTM continues to be read from the original ``.dat`` file.
 
     Attribution: Scoring concept adapted from Laura Stahlhut's Python implementation (2022)
-    of the Lewandowsky WMC battery (wmc-analysis). Reference: Lewandowsky, S., et al. (2010).
-    Behavior Research Methods, 42(2), 571–585.
+    of the Lewandowsky WMC battery (wmc-analysis).
+
+    **Reference**: Lewandowsky, S., et al. (2010). The WMC battery: A platform for comparing different
+    approaches to measuring complex working memory span. Behavior Research Methods, 42(2), 571-585.
+    doi:10.3758/BRM.42.2.571
+
+    **Exact Mathematical Formulas**:
+    - Trial_Score_MU = sum(correct_items_in_trial) / num_items_in_trial
+    - MU_score = mean(Trial_Score_MU) across all trials
+    - Trial_Score_OS = sum(correct_items_in_trial) / num_items_in_trial
+    - OS_score = mean(Trial_Score_OS) across all trials
+    - Trial_Score_SS = sum(correct_items_in_trial) / num_items_in_trial
+    - SS_score = mean(Trial_Score_SS) across all trials
+    - SSTM_score = SSTM_raw_score / 240.0
+    - Total_score_mean = (MU_score + OS_score + SS_score + SSTM_score) / 4.0
 
     Returns
     -------
@@ -477,9 +509,11 @@ def preprocess_ran(ran_dir: Path):
     The audio files and logs are kept untouched.
 
     **RAN task**:
-    The Rapid Automatised Naming (RAN) task is a test of the speed and efficiency of naming digits.
-    It is used to assess the speed of processing and
-    the ability to quickly retrieve information from memory.
+    The Rapid Automatised Naming (RAN) task is a standard test of the speed and efficiency of naming digits.
+    It is used to assess the speed of processing and the ability to quickly retrieve information
+    from memory. This is a well-established cognitive assessment tool.
+
+    **Calculation**: Direct extraction of Reading_Time for practice (Trial=1) and experimental (Trial=2) trials.
 
     Parameters
     ----------
@@ -514,19 +548,23 @@ def preprocess_ran(ran_dir: Path):
 def preprocess_wikivocab(wv_dir: Path):
     """Preprocess WikiVocab task output and compute mean RT and accuracy.
 
-    LexTALE generalisation:
-
-    - Add num_pseudo_words / num_real_words
-    - Incorrect minus correct (number of existing words correct/number of existing words in list) + (number of nonwords correct/nonwords in list)) / 2
-    - Percentages correct pseudo / correct / overall
-
     Extract 'correct_answer', 'real_answer' and 'RT' columns, infer a 'correctness' column,
     and return the mean reaction time and accuracy.
 
     **WikiVocab**:
-    The WikiVocab test is a test of vocabulary knowledge that is based on the Wikipedia corpus.
+    The WikiVocab test is a generative vocabulary test for online research based on the Wikipedia corpus.
     It is designed to measure the breadth of an individual's vocabulary knowledge.
-    For English, German, Dutch, Chinese, the LexTALE test is also available.
+
+    **Reference**: van Rijn, P., Sun, Y., Lee, H., Marjieh, R., Sucholutsky, I., Lanzarini, F.,
+    André, E., & Jacoby, N. (2023). Around the world in 60 words: A generative vocabulary test
+    for online research. arXiv preprint arXiv:2302.01614. doi:10.48550/arXiv.2302.01614
+
+    **Calculation**:
+    - Overall accuracy = sum(correct_trials) / total_trials
+    - Real word accuracy = correct_real_words / num_real_words
+    - Pseudo word accuracy = correct_pseudo_words / num_pseudo_words
+    - Balanced score = (real_word_accuracy + pseudo_word_accuracy) / 2
+      (Equivalent to LexTALE scoring: https://www.lextale.com/scoring.html)
 
     Parameters
     ----------
@@ -540,8 +578,8 @@ def preprocess_wikivocab(wv_dir: Path):
 
         - WikiVocab_rt_mean_sec: Mean reaction time
         - WikiVocab_accuracy: Overall accuracy
-        - WikiVocab_num_pseudo: Number of pseudo words
-        - WikiVocab_num_real: Number of real words
+        - WikiVocab_num_pseudo_words: Number of pseudo words
+        - WikiVocab_num_real_words: Number of real words
         - WikiVocab_incorrect_correct_score: Balanced accuracy score (averaged % correct)
           https://www.lextale.com/scoring.html
         - WikiVocab_pseudo_correct: Fraction of correct pseudo words
@@ -598,6 +636,11 @@ def preprocess_plab(plab_dir: Path):
     **PLAB test**: The PLAB test is Pimsleur Language Aptitude Battery test.
     It is a test of language aptitude that is designed to measure an individual's ability to learn
     a foreign language.
+
+    **Reference**: Pimsleur, P., Reed, D. J., & Stansfield, C. W. (2004). Pimsleur language
+    aptitude battery (Manual 2004 ed.). North Bethesda, MD: Second Language Testing, Inc.
+
+    **Calculation**: Mean RT and overall accuracy across all PLAB trials.
 
     Parameters
     ----------
