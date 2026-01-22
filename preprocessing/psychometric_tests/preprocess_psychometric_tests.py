@@ -261,14 +261,12 @@ def preprocess_stroop(stroop_flanker_dir: Path):
     automatic responses. The test consists of three parts:
     a color naming task, a word reading task, and a color-word naming task.
 
-    **Reference**: Stroop, J. R. (1935). Studies of interference in serial verbal reactions.
-    Journal of Experimental Psychology, 18, 643-662. doi:10.1037/h0054651
+    **Reference**: J. R. Stroop. Studies of interference in serial verbal reactions.
+    Journal of Experimental Psychology, 18(6):643–662, December 1935. doi:10.1037/h0054651.
 
     **Effect Calculations**:
-    - Accuracy = sum(correct_trials) / total_trials
-    - RT_mean = mean(rt) (averaged over all trials)
-    - AccuracyEffect = incongruent_accuracy - congruent_accuracy
-    - RTEffect_sec = incongruent_rt_mean - congruent_rt_mean
+    - StroopAccuracyEffect = incongruent_accuracy - congruent_accuracy
+    - StroopRTEffect_sec = incongruent_rt_mean_sec - congruent_rt_mean_sec
 
     Parameters
     ----------
@@ -278,9 +276,9 @@ def preprocess_stroop(stroop_flanker_dir: Path):
     Returns
     -------
     dict
-        A dictionary with keys 'Stroop_incongruent_rt_mean', 'Stroop_incongruent_accuracy',
-        'Stroop_incongruent_num_items', 'Stroop_congruent_rt_mean', 'Stroop_congruent_accuracy',
-        'Stroop_congruent_num_items', 'Stroop_neutral_rt_mean', 'Stroop_neutral_accuracy',
+        A dictionary with keys 'Stroop_incongruent_rt_mean_sec', 'Stroop_incongruent_accuracy',
+        'Stroop_incongruent_num_items', 'Stroop_congruent_rt_mean_sec', 'Stroop_congruent_accuracy',
+        'Stroop_congruent_num_items', 'Stroop_neutral_rt_mean_sec', 'Stroop_neutral_accuracy',
         and 'Stroop_neutral_num_items'.
     """
     df = _find_one_filetype_with_columns(
@@ -316,15 +314,13 @@ def preprocess_flanker(stroop_flanker_dir: Path):
     The test consists of a series of trials in which participants must respond to a central target
     while ignoring flanking distractors.
 
-    **Reference**: Eriksen, B. A., & Eriksen, C. W. (1974). Effects of noise letters upon
-    identification of a target letter in a non-search task. Perception & Psychophysics, 16, 143-149.
-    doi:10.3758/bf03203267
+    **Reference**: Barbara A. Eriksen and Charles W. Eriksen. Effects of noise letters upon the
+    identification of a target letter in a nonsearch task.
+    Perception & Psychophysics, 16(1):143–149, January 1974. doi:10.3758/BF03203267.
 
     **Effect Calculations**:
-    - Accuracy = sum(correct_trials) / total_trials
-    - RT_mean = mean(rt) (averaged over all trials)
-    - AccuracyEffect = incongruent_accuracy - congruent_accuracy
-    - RTEffect_sec = incongruent_rt_mean - congruent_rt_mean
+    - FlankerAccuracyEffect = incongruent_accuracy - congruent_accuracy
+    - FlankerRTEffect_sec = incongruent_rt_mean - congruent_rt_mean
 
     Parameters
     ----------
@@ -381,9 +377,9 @@ def preprocess_lwmc(lwmc_dir: Path):
     Attribution: Scoring concept adapted from Laura Stahlhut's Python implementation (2022)
     of the Lewandowsky WMC battery (wmc-analysis).
 
-    **Reference**: Lewandowsky, S., et al. (2010). The WMC battery: A platform for comparing different
-    approaches to measuring complex working memory span. Behavior Research Methods, 42(2), 571-585.
-    doi:10.3758/BRM.42.2.571
+    **Reference**: Stephan Lewandowsky, Klaus Oberauer, Lee-Xieng Yang, and Ullrich K. H. Ecker.
+    A working memory test battery for MATLAB. Behavior Research Methods, 42(2):571–585, May 2010.
+    doi:10.3758/BRM.42.2.571.
 
     **Exact Mathematical Formulas**:
     - Trial_Score_MU = sum(correct_items_in_trial) / num_items_in_trial
@@ -419,7 +415,7 @@ def preprocess_lwmc(lwmc_dir: Path):
     # Each non-NaN in base_text_intertrial.started indicates a new trial boundary.
     df["trial_id"] = df["base_text_intertrial.started"].notna().cumsum()
 
-    df = df[~df["is_practice"]].copy()  # remove all practice trials
+    df = df[not df["is_practice"]].copy()  # remove all practice trials
     if df.empty:
         raise ValueError("No non-practice trials found in WMC CSV")
 
@@ -555,9 +551,10 @@ def preprocess_wikivocab(wv_dir: Path):
     The WikiVocab test is a generative vocabulary test for online research based on the Wikipedia corpus.
     It is designed to measure the breadth of an individual's vocabulary knowledge.
 
-    **Reference**: van Rijn, P., Sun, Y., Lee, H., Marjieh, R., Sucholutsky, I., Lanzarini, F.,
-    André, E., & Jacoby, N. (2023). Around the world in 60 words: A generative vocabulary test
-    for online research. arXiv preprint arXiv:2302.01614. doi:10.48550/arXiv.2302.01614
+    **Reference**: Pol van Rijn, Yue Sun, Harin Lee, Raja Marjieh, Ilia Sucholutsky, Francesca
+    Lanzarini, Elisabeth André, and Nori Jacoby.
+    Around the world in 60 words: A generative vocabulary test for online research.
+    February 2023. arXiv:2302.01614.
 
     **Calculation**:
     - Overall accuracy = sum(correct_trials) / total_trials
@@ -637,8 +634,9 @@ def preprocess_plab(plab_dir: Path):
     It is a test of language aptitude that is designed to measure an individual's ability to learn
     a foreign language.
 
-    **Reference**: Pimsleur, P., Reed, D. J., & Stansfield, C. W. (2004). Pimsleur language
-    aptitude battery (Manual 2004 ed.). North Bethesda, MD: Second Language Testing, Inc.
+    **Reference**: Paul Pimsleur, D. J. Reed, and C. W. Standfield.
+    Pimsleur Language Aptitude Battery: PLAB : Manual.
+    Second Language Testing Foundation, North Bethesda, 2004 edition, 2004.
 
     **Calculation**: Mean RT and overall accuracy across all PLAB trials.
 

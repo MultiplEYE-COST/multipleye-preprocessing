@@ -3,7 +3,8 @@
 # Reference Guide
 
 This guide will walk you through the details of how to use the preprocessing pipeline.
-First, the {ref}`configuration` section will explain the settings that need to be set before running
+First, the {ref}`configuration_guide` section will explain the settings that need to be set before
+running
 the pipeline.
 The {ref}`preprocessing_guide` section includes the most central and computationally expensive steps
 of the pipeline.
@@ -16,7 +17,7 @@ To be done!
 ```
 
 ```{toctree}
-:maxdepth:
+:maxdepth: 2
 
 configuration
 preprocessing

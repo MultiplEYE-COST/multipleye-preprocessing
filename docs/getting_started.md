@@ -118,7 +118,7 @@ To run the MERID preprocessing pipeline:
 run_merid_preprocessing <data_collection_name>
 ```
 
-If you are using `uv`, you can also run them using `uv run`:
+You can also run them using `uv run`:
 
 ```bash
 uv run run_multipleye_preprocessing <data_collection_name>
