@@ -105,12 +105,14 @@ def check_validation_requirements(validations: pl.DataFrame, calibrations: pl.Da
         'necessary_cals': [],
         'final_vals': [],
         'final_cals': [],
+        'no_val': [],
     }
 
     merged = sorted(vals + cals + stimulus_times, key=lambda x: float(x["time"]))
     bad_tstamp = None
     bad_val = False
     val = False
+    cal = False
     moderate_val = False
     mod_tstamp = None
     in_stimulus = False
@@ -122,12 +124,13 @@ def check_validation_requirements(validations: pl.DataFrame, calibrations: pl.Da
     score = -1
     num_stimuli = len(stimulus_times)
     real_num_stimuli = 0
+
     for m in merged:
         val = False
         if "accuracy_avg" in m:
             val_count += 1
             val = True
-
+            cal = False
             if bad_val:
                 time_since_last_val = round((float(m["time"]) - bad_tstamp) / 1000, 3)
                 # if there are more than 2 minutes between bad val and next val, we consider that a calibration should have happened
@@ -169,12 +172,18 @@ def check_validation_requirements(validations: pl.DataFrame, calibrations: pl.Da
                 real_num_stimuli += 1
                 in_stimulus = True
                 _report_to_file(f'{m["message"]} at {m["time"]}', report_file)
-                if bad_val:
+                if cal:
+                    mes['no_val_before_stimulus'].append(
+                        f"⚠️ {m['message']} without prior validation at {m['time']}. Only calibration at {m['time']}")
+                    cal = False
+                elif bad_val:
                     mes['start_after_bad_val'].append(
                         f"❌ {m['message']} directly after bad validation at {bad_tstamp} with score {score}!")
+                    bad_val = False
                 elif moderate_val:
                     mes['start_after_moderate_val'].append(
                         f"⚠️ {m['message']} directly after moderate validation at {mod_tstamp}  with score {score}!")
+                    moderate_val = False
                 elif val_performed:
                     val_performed = False
                 elif not val_performed:
@@ -188,6 +197,7 @@ def check_validation_requirements(validations: pl.DataFrame, calibrations: pl.Da
 
         else:
             cal_count += 1
+            cal = True
             if bad_val:
                 bad_val = False
                 time_between = round((float(m["time"]) - bad_tstamp) / 1000, 3)
