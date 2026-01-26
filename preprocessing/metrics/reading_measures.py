@@ -200,8 +200,9 @@ def compute_rpd_measures(fix: pl.DataFrame) -> pl.DataFrame:
     Sum of all fixations from first entering the word until
     first leaving it to the right (exiting to a higher word index).
     Both inclusive (RPD_inc) and exclusive (RPD_exc) of fixations on the word.
-    Also computes Rereading Before Rightward Transition (RBRT):
-    Sum of all fixations on the word before first leaving it to the right.
+    Also computes right-bounded reading time (RBRT):
+    Sum of all fixations on the word before a word to the right of this word is 
+    fixated.
     """
 
     fix = fix.collect() if isinstance(fix, pl.LazyFrame) else fix
