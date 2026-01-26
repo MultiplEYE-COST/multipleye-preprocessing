@@ -258,7 +258,7 @@ def check_validation_requirements(validations: pl.DataFrame, calibrations: pl.Da
     if val:
         _report_to_file(f'✅ Final validation', report_file)
     else:
-        _report_to_file(f'❌ No final calibration!', report_file)
+        _report_to_file(f'❌ No final validation!', report_file)
 
 
 def check_metadata(metadata: dict[str, Any],
