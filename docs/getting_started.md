@@ -3,13 +3,18 @@
 # Getting Started
 
 For the pipeline to function, there are some requirements that need to be met.
+This page explains the setup of the {ref}`pipeline`, how to install the {ref}`eyelink_dev_kit`,
+and {ref}`running_pipelines`.
+More details on how to use the preprocessing pipeline can be found in the {ref}`reference_guide`.
+
+(pipeline_structure)=
 
 ## Pipeline
 
 The preprocessing pipeline is written in Python and uses a few dependencies,
 including [`pymovements`](https://pymovements.readthedocs.io/), `polars`, `matplotlib`,
 among others.
-The pipeline itself is not distributed on PyPI and is to be used from the source code.
+The pipeline itself is not distributed on PyPI and should be used directly from the source code.
 To download the source code,
 you can clone the [
 `theDebbister/multipleye-preprocessing`](https://github.com/theDebbister/multipleye-preprocessing)
@@ -30,62 +35,28 @@ Make sure to use an up-to-date python version.
 The pipeline has been developed with `3.13` and up in mind.
 It is recommended to [create a virtual environment](https://docs.python.org/3/library/venv.html)
 for your project.
-Then you can install it in editable mode:
-
-```bash
-pip install -e .
-```
-
-Or set it up using [`uv`](https://docs.astral.sh/uv/):
+Then you can set it up using [`uv`](https://docs.astral.sh/uv/):
 
 ```bash
 uv sync
+```
+
+If you do not want to use `uv`, you can install it in editable mode:
+
+```bash
+pip install -e .
 ```
 
 ```{warning}
 To be finished!
 ```
 
-To convert files from the proprietary `.edf` format to the parsable `.asc` format,
+Before we can {ref}`run the pipelines <running_pipelines>`,
+we need to install the EyeLink Developers Kit.
+This is needed to convert files from the proprietary `.edf` format to the parsable `.asc` format,
 the binary `edf2asc` needs to be installed.
 
-## Running the Pipelines
-
-After installation, the pipelines can be executed directly from the command line as they are
-registered as entry points in `pyproject.toml`.
-Previously, the pipelines were run as standalone scripts (e.g.,
-`python run_multipleye_preprocessing.py`), but they have now been moved to `preprocessing.scripts`
-and should be called by their registered names.
-
-The main pipelines require the name of the data collection folder (which should be located in the
-`data/` directory) as a positional argument.
-
-To run the MultiplEye preprocessing pipeline:
-
-```bash
-run_multipleye_preprocessing <data_collection_name>
-```
-
-To run the MERID preprocessing pipeline:
-
-```bash
-run_merid_preprocessing <data_collection_name>
-```
-
-If you are using `uv`, you can also run them using `uv run`:
-
-```bash
-uv run run_multipleye_preprocessing <data_collection_name>
-```
-
-Additional scripts are available for sanity checks (e.g., `run_merid_sanity_checks`) and processing
-psychometric tests. Note that sanity checks for MultiplEye are currently under development.
-
-You can always check the available options for each script by using the `--help` flag:
-
-```bash
-run_multipleye_preprocessing --help
-```
+(eyelink_dev_kit)=
 
 ## EyeLink Developers Kit
 
@@ -119,3 +90,47 @@ edf2asc
 ```
 
 This should show the program's version and usage information.
+
+(running_pipelines)=
+
+## Running the Pipelines
+
+After installation, the pipelines can be executed directly from the command line as they are
+registered as entry points in `pyproject.toml`.
+If this is your first time with the pipeline, or you are unsure if you have the right data and
+formats, please read into the more detailled {ref}`reference_guide` chapter.
+
+Previously, the pipelines were run as standalone scripts (e.g.,
+`python run_multipleye_preprocessing.py`), but they have now been moved to `preprocessing.scripts`
+and should be called by their registered names.
+The main pipelines require the name of the data collection folder (which should be located in the
+`data/` directory) as a positional argument.
+
+To run the MultiplEye preprocessing pipeline (if you used `uv` for installation):
+
+```bash
+run_multipleye_preprocessing <data_collection_name>
+```
+
+To run the MERID preprocessing pipeline:
+
+```bash
+run_merid_preprocessing <data_collection_name>
+```
+
+You can also run them using `uv run`:
+
+```bash
+uv run run_multipleye_preprocessing <data_collection_name>
+```
+
+Additional scripts are available for sanity checks (e.g., `run_merid_sanity_checks`) and processing
+psychometric tests. Note that sanity checks for MultiplEye are currently under development.
+The details of calculating the psychometric tests can be found in the
+{ref}`calculating_psychometric_tests` section.
+
+You can always check the available options for each script by using the `--help` flag:
+
+```bash
+run_multipleye_preprocessing --help
+```

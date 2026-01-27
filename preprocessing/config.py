@@ -9,8 +9,9 @@ from pathlib import Path
 # PREPROCESSING PARAMETERS
 
 ## Data folder and structure
-DATA_DIR = Path("~/code/multipleye-preprocessing/data/").expanduser()
-DATASET_DIR = DATA_DIR / "MultiplEYE_SQ_CH_Zurich_1_2025"
+BASE_DATA_DIR = Path("~/code/multipleye-preprocessing/data/").expanduser()
+DATA_COLLECTION_ID = "MultiplEYE_SQ_CH_Zurich_1_2025"
+DATASET_DIR = BASE_DATA_DIR / DATA_COLLECTION_ID
 ### Psychometric Tests Sessions
 PSYCHOMETRIC_TESTS_DIR = DATASET_DIR / "psychometric-tests-sessions"
 PSYM_CORE_DATA = PSYCHOMETRIC_TESTS_DIR / "core_data"
