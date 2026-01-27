@@ -50,17 +50,17 @@ def load_gaze_data(
         asc_file,
         # TODO: move patterns form here to config, pm dataset definition?
         patterns=[
-            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+)_(?P<page>.+)",
+            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_(?P<page>.+)",
             r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<page>familiarity_rating_screen_\d+|subject_difficulty_screen)",
             {"pattern": r"stop_recording_", "column": "trial", "value": None},
             {"pattern": r"stop_recording_", "column": "page", "value": None},
             {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+_page_\d+",
+                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+(\.0)?_page_\d+",
                 "column": "activity",
                 "value": "reading",
             },
             {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+_question_\d+",
+                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+(\.0)?_question_\d+",
                 "column": "activity",
                 "value": "question",
             },
@@ -156,9 +156,7 @@ def load_trial_level_raw_data(
         A gaze object containing the trial-level aggregated gaze data along with
         any associated metadata, validations, calibrations, and experiment settings, if provided.
     """
-    regex_name = (
-        r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+)_raw_data"
-    )
+    regex_name = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
 
     initial_df = pl.DataFrame()
 
