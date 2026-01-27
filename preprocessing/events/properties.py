@@ -18,15 +18,15 @@ def compute_event_properties(
     event_name : str
         Event type ('fixation', 'saccade', ...).
     properties : list[tuple[str, dict]]
-        Each tuple defines (property_name, kwargs) passed to EventGazeProcessor.
+        Each tuple defines (property_name, kwargs) passed to EventSamplesProcessor.
     """
     join_on = gaze.trial_columns + ["name", "onset", "offset"]
 
     for prop_name, kwargs in properties:
-        processor = pm.EventGazeProcessor((prop_name, kwargs))
+        processor = pm.EventSamplesProcessor((prop_name, kwargs))
         new_props = processor.process(
-            gaze.events,
-            gaze,
+            gaze.events.frame,
+            gaze.frame,
             identifiers=gaze.trial_columns,
             name=event_name,
         )

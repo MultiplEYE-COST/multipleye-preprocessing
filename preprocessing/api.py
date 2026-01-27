@@ -8,7 +8,6 @@ from .io.save import (
     save_raw_data,
     save_events_data,
     save_scanpaths,
-    save_gaze_data,
     save_session_metadata,
 )
 from .io.load import (
@@ -26,7 +25,6 @@ __all__ = [
     "save_raw_data",
     "save_events_data",
     "save_scanpaths",
-    "save_gaze_data",  # needed in API? - not directly used in the preprocessing pipeline
     "save_session_metadata",
     "load_gaze_data",
     "load_trial_level_raw_data",
