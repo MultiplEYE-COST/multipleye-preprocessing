@@ -21,6 +21,7 @@ To be done!
 
 configuration
 preprocessing
+technical_architecture
 psychometric_tests
 
 ```

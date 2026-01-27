@@ -12,6 +12,8 @@ Edits must be made manually. While some processing commands can be passed explic
 it is best just to set the values once centrally, so throughout the pipeline no values need to be
 passed.
 
+For detailed information about the pipeline architecture and how configuration parameters are used in each processing step, please refer to the {ref}`technical_architecture` section.
+
 ## Configuration Settings
 
 The main configuration file (`preprocessing/config.py`) contains the following key settings:
