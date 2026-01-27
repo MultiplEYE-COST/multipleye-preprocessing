@@ -1,4 +1,5 @@
-"""Utilities for working with paths, session identifiers and further data locations."""
+"""Utilities for working with paths, session identifiers, and further data locations."""
+
 import os
 from pathlib import Path
 
