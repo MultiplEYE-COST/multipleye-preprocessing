@@ -7,37 +7,33 @@ import polars as pl
 import pymovements as pm
 from matplotlib.patches import Circle
 
-from preprocessing.data_collection.stimulus import Stimulus
+from ..constants import FIXATION
+from ..data_collection.stimulus import Stimulus
 
 
 def plot_gaze(
-        gaze: pm.Gaze,
-        stimulus: Stimulus,
-        plots_dir: Path,
-        duration_ms_in_cm: float = 0.03,
-        aoi_image: bool = False,
+    gaze: pm.Gaze,
+    stimulus: Stimulus,
+    plots_dir: Path,
+    duration_ms_in_cm: float = 0.03,
+    aoi_image: bool = False,
 ) -> None:
-
     data = gaze.clone()
-    data.unnest(['pixel', 'position', 'velocity'])
+    data.unnest(["pixel", "position", "velocity"])
 
     # pixels per centimeter on this screen
     px_per_cm = data.experiment.screen.width_px / data.experiment.screen.width_cm
 
     for page in stimulus.pages:
-
         page_samples = data.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == f"page_{page.number}")
-        ).select(
-            pl.col("pixel_x"),
-            pl.col("pixel_y")
-        )
+        ).select(pl.col("pixel_x"), pl.col("pixel_y"))
 
         page_events = data.events.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == f"page_{page.number}")
-            & (pl.col("name") == "fixation")
+            & (pl.col("name") == FIXATION)
         ).select(
             pl.col("duration"),
             pl.col("location_x"),
@@ -92,7 +88,7 @@ def plot_gaze(
         page_events = data.events.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == screen_name)
-            & (pl.col("name") == "fixation")
+            & (pl.col("name") == FIXATION)
         ).select(
             pl.col("duration"),
             pl.col("location_x"),
@@ -134,9 +130,7 @@ def plot_gaze(
         plt.close(fig)
 
     for rating in stimulus.ratings:
-        screen_name = (
-            f"{rating.name}"  # Screen names don't have leading zeros
-        )
+        screen_name = f"{rating.name}"  # Screen names don't have leading zeros
         page_samples = data.frame.filter(
             (pl.col("trial") == f"trial_{stimulus.id}")
             & (pl.col("page") == screen_name)
@@ -147,7 +141,7 @@ def plot_gaze(
         page_events = data.events.frame.filter(
             (pl.col("stimulus") == f"trial_{stimulus.id}")
             & (pl.col("page") == screen_name)
-            & (pl.col("name") == "fixation")
+            & (pl.col("name") == FIXATION)
         ).select(
             pl.col("duration"),
             pl.col("location_x"),

@@ -20,7 +20,7 @@ All input and output files (except for the original EDF/ASC files) are to be inc
 
 **Input:**
 
-- EDF/ASC files (for EyeLink)  
+- EDF/ASC files (for EyeLink)
   Use the following command to generate the ASC file:
   ```bash
   $ ./edf2asc in.edf -input -ftime

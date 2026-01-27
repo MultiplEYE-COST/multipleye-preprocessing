@@ -11,7 +11,8 @@ including [`pymovements`](https://pymovements.readthedocs.io/), `polars`, `matpl
 among others.
 The pipeline itself is not distributed on PyPI and is to be used from the source code.
 To download the source code,
-you can clone the [`theDebbister/multipleye-preprocessing`](https://github.com/theDebbister/multipleye-preprocessing)
+you can clone the [
+`theDebbister/multipleye-preprocessing`](https://github.com/theDebbister/multipleye-preprocessing)
 repository to your local machine.
 
 ```bash
@@ -47,6 +48,44 @@ To be finished!
 
 To convert files from the proprietary `.edf` format to the parsable `.asc` format,
 the binary `edf2asc` needs to be installed.
+
+## Running the Pipelines
+
+After installation, the pipelines can be executed directly from the command line as they are
+registered as entry points in `pyproject.toml`.
+Previously, the pipelines were run as standalone scripts (e.g.,
+`python run_multipleye_preprocessing.py`), but they have now been moved to `preprocessing.scripts`
+and should be called by their registered names.
+
+The main pipelines require the name of the data collection folder (which should be located in the
+`data/` directory) as a positional argument.
+
+To run the MultiplEye preprocessing pipeline:
+
+```bash
+run_multipleye_preprocessing <data_collection_name>
+```
+
+To run the MERID preprocessing pipeline:
+
+```bash
+run_merid_preprocessing <data_collection_name>
+```
+
+If you are using `uv`, you can also run them using `uv run`:
+
+```bash
+uv run run_multipleye_preprocessing <data_collection_name>
+```
+
+Additional scripts are available for sanity checks (e.g., `run_merid_sanity_checks`) and processing
+psychometric tests. Note that sanity checks for MultiplEye are currently under development.
+
+You can always check the available options for each script by using the `--help` flag:
+
+```bash
+run_multipleye_preprocessing --help
+```
 
 ## EyeLink Developers Kit
 

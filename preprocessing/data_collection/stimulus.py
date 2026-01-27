@@ -13,7 +13,7 @@ warnings.filterwarnings(
     "ignore",
     message=r"Data Validation extension is not supported.*",
     category=UserWarning,
-    module=r"openpyxl.*"
+    module=r"openpyxl.*",
 )
 
 NAMES = [
@@ -30,8 +30,12 @@ NAMES = [
     "Enc_WikiMoon",
     "Lit_NorthWind",
 ]
-QUESTION_NUMBERS = {"experiment": 6, "practice": 2, "test_practice": 1, "test_experiment": 2}
-
+QUESTION_NUMBERS = {
+    "experiment": 6,
+    "practice": 2,
+    "test_practice": 1,
+    "test_experiment": 2,
+}
 
 
 @dataclass
@@ -85,18 +89,18 @@ class Stimulus:
 
     @classmethod
     def load(
-            cls,
-            stimulus_dir: Path,
-            lang: str,
-            country: str,
-            labnum: int,
-            stimulus_name: str,
-            question_version: int,
-            trial: str,
+        cls,
+        stimulus_dir: Path,
+        lang: str,
+        country: str,
+        labnum: int,
+        stimulus_name: str,
+        question_version: int,
+        trial: str,
     ) -> "Stimulus":
         # assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
         stimulus_df_path = stimulus_dir / f"multipleye_stimuli_experiment_{lang}.xlsx"
-        assert (stimulus_df_path.exists()), f"File {stimulus_df_path} does not exist"
+        assert stimulus_df_path.exists(), f"File {stimulus_df_path} does not exist"
 
         stimulus_df = pl.read_excel(stimulus_df_path, engine="openpyxl")
         stimulus_row = stimulus_df.row(
@@ -106,7 +110,7 @@ class Stimulus:
         lang = lang.lower()
         country = country.lower()
 
-        if lang == 'lv':
+        if lang == "lv":
             stimulus_id = float(stimulus_row["stimulus_id"])
         else:
             stimulus_id = stimulus_row["stimulus_id"]
@@ -115,7 +119,7 @@ class Stimulus:
             "experiment",
             "practice",
             "test_practice",
-            "test_experiment"
+            "test_experiment",
         ], f"{stimulus_type!r} is not a valid stimulus type"
 
         pages = []
@@ -123,32 +127,32 @@ class Stimulus:
             if column.startswith("page_") and value is not None:
                 page_number = int(column.split("_")[1])
                 image_path = (
-                        stimulus_dir
-                        / f"stimuli_images_{lang}_{country}_{labnum}"
-                        / f"{stimulus_name.lower()}_id{int(stimulus_id)}_page_{page_number}_{lang}.png"
+                    stimulus_dir
+                    / f"stimuli_images_{lang}_{country}_{labnum}"
+                    / f"{stimulus_name.lower()}_id{int(stimulus_id)}_page_{page_number}_{lang}.png"
                 )
 
                 aoi_image_path = (
-                        stimulus_dir
-                        / f"aoi_stimuli_images_{lang}_{country}_{labnum}"
-                        / f"{stimulus_name.lower()}_id{int(stimulus_id)}_page_{page_number}_{lang}_aoi.png"
+                    stimulus_dir
+                    / f"aoi_stimuli_images_{lang}_{country}_{labnum}"
+                    / f"{stimulus_name.lower()}_id{int(stimulus_id)}_page_{page_number}_{lang}_aoi.png"
                 )
 
                 page = StimulusPage(
                     number=page_number,
                     text=value,
                     image_path=image_path,
-                    aoi_image_path=aoi_image_path
+                    aoi_image_path=aoi_image_path,
                 )
-                assert (
-                    page.image_path.exists()
-                ), f"File {page.image_path} does not exist"
+                assert page.image_path.exists(), (
+                    f"File {page.image_path} does not exist"
+                )
                 pages.append(page)
 
         aoi_path = (
-                stimulus_dir
-                / f"aoi_stimuli_{lang}_{country}_{labnum}"
-                / f"{stimulus_name.lower()}_{int(stimulus_id)}_aoi.csv"
+            stimulus_dir
+            / f"aoi_stimuli_{lang}_{country}_{labnum}"
+            / f"{stimulus_name.lower()}_{int(stimulus_id)}_aoi.csv"
         )
         text_stimulus = pm.stimulus.text.from_file(
             aoi_path,
@@ -162,7 +166,7 @@ class Stimulus:
         )
 
         questions_df_path = (
-                stimulus_dir / f"multipleye_comprehension_questions_{lang}.xlsx"
+            stimulus_dir / f"multipleye_comprehension_questions_{lang}.xlsx"
         )
         questions_df = pl.read_excel(questions_df_path, engine="openpyxl")
         question_rows = questions_df.filter(
@@ -178,10 +182,10 @@ class Stimulus:
             distractor_b = question_row["distractor_b"]
             distractor_c = question_row["distractor_c"]
             question_image_path = (
-                    stimulus_dir
-                    / f"question_images_{lang}_{country}_{labnum}"
-                    / f"question_images_version_{question_version}"
-                    / f"{stimulus_name}_id{int(stimulus_id)}_question_{question_id}_{lang}.png"
+                stimulus_dir
+                / f"question_images_{lang}_{country}_{labnum}"
+                / f"question_images_version_{question_version}"
+                / f"{stimulus_name}_id{int(stimulus_id)}_question_{question_id}_{lang}.png"
             )
 
             aoi_qeustion_img_path = (
@@ -206,8 +210,8 @@ class Stimulus:
 
         # TODO: Instructions are the same for all stimuli, so this is not the best place to put them
         instruction_df_path = (
-                stimulus_dir
-                / f"multipleye_participant_instructions_{lang}_with_img_paths.csv"
+            stimulus_dir
+            / f"multipleye_participant_instructions_{lang}_with_img_paths.csv"
         )
         instruction_df = pl.read_csv(instruction_df_path)
         # rating_df = instruction_df.filter(pl.col("instruction_screen_id").is_in([15.0, 16.0, 17.0]))
@@ -224,11 +228,14 @@ class Stimulus:
             instruction_name = instruction_row["instruction_screen_name"]
             instruction_text = instruction_row["instruction_screen_text"]
             instruction_image_path = (
-                    stimulus_dir
-                    / f"participant_instructions_images_{lang}_{country}_{labnum}"
-                    / instruction_row["instruction_screen_img_name"]
+                stimulus_dir
+                / f"participant_instructions_images_{lang}_{country}_{labnum}"
+                / instruction_row["instruction_screen_img_name"]
             )
-            instruction_image_path = stimulus_dir / f"participant_instructions_images_{lang}_{country}_1/{instruction_row['instruction_screen_img_name']}"
+            instruction_image_path = (
+                stimulus_dir
+                / f"participant_instructions_images_{lang}_{country}_1/{instruction_row['instruction_screen_img_name']}"
+            )
 
             instruction = class_name(
                 id=instruction_id,
@@ -237,20 +244,19 @@ class Stimulus:
                 image_path=Path(instruction_image_path),
             )
 
-            assert (
-                instruction.image_path.exists()
-            ), f"File {instruction.image_path} does not exist."
+            assert instruction.image_path.exists(), (
+                f"File {instruction.image_path} does not exist."
+            )
             list_name.append(instruction)
 
         if stimulus_type == "experiment":
-
-            assert (
-                    len(questions) == QUESTION_NUMBERS["experiment"]
-            ), f"{stimulus_id} has {len(questions)} questions instead of 6"
+            assert len(questions) == QUESTION_NUMBERS["experiment"], (
+                f"{stimulus_id} has {len(questions)} questions instead of 6"
+            )
         elif stimulus_type == "practice":
-            assert (
-                    len(questions) == QUESTION_NUMBERS["practice"]
-            ), f"{stimulus_id} has {len(questions)} questions instead of 2"
+            assert len(questions) == QUESTION_NUMBERS["practice"], (
+                f"{stimulus_id} has {len(questions)} questions instead of 2"
+            )
 
         stim = cls(
             id=stimulus_id,
@@ -278,14 +284,22 @@ class LabConfig:
     psychometric_tests: list[str] = None
 
     @classmethod
-    def load(cls, stimulus_dir: Path, lang: str, country: str, labnum: int, city: str, year: int) -> "LabConfig":
+    def load(
+        cls,
+        stimulus_dir: Path,
+        lang: str,
+        country: str,
+        labnum: int,
+        city: str,
+        year: int,
+    ) -> "LabConfig":
         config_path = glob(
             f"config_{lang.lower()}_{country.lower()}_*_{labnum}_*.py",
             root_dir=stimulus_dir / "config",
         )
-        assert (
-                len(config_path) == 1
-        ), f"Found {len(config_path)} config files: {config_path}"
+        assert len(config_path) == 1, (
+            f"Found {len(config_path)} config files: {config_path}"
+        )
         config_path = stimulus_dir / "config" / config_path[0]
 
         config_spec = importlib.util.spec_from_file_location(
@@ -294,10 +308,17 @@ class LabConfig:
         config = importlib.util.module_from_spec(config_spec)
         config_spec.loader.exec_module(config)
 
-        json_config_path = (stimulus_dir / "config"
-                            / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_lab_configuration.json")
+        json_config_path = (
+            stimulus_dir
+            / "config"
+            / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_lab_configuration.json"
+        )
 
-        final_metadata_path = stimulus_dir.parent / "documentation" / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_metadata_form.json"
+        final_metadata_path = (
+            stimulus_dir.parent
+            / "documentation"
+            / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_metadata_form.json"
+        )
 
         with open(json_config_path) as f:
             json_config = json.load(f)
@@ -313,7 +334,7 @@ class LabConfig:
 
         tests = list(json_config.get("Psychometric_tests", []).keys())
 
-        tests.remove('Are_tests_conducted')
+        tests.remove("Are_tests_conducted")
 
         return cls(
             screen_resolution=config.RESOLUTION,
@@ -328,11 +349,19 @@ class LabConfig:
 
 
 def load_stimuli(
-        stimulus_dir: Path, lang: str, country: str, labnum: int, city: str, year: int, question_version: int,
+    stimulus_dir: Path,
+    lang: str,
+    country: str,
+    labnum: int,
+    city: str,
+    year: int,
+    question_version: int,
 ) -> tuple[list[Stimulus], LabConfig]:
     stimuli = []
     for stimulus_name in NAMES:
-        stimulus = Stimulus.load(stimulus_dir, lang, country, labnum, stimulus_name, question_version)
+        stimulus = Stimulus.load(
+            stimulus_dir, lang, country, labnum, stimulus_name, question_version
+        )
         stimuli.append(stimulus)
     config = LabConfig.load(stimulus_dir, lang, country, labnum, city, year)
 
