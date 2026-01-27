@@ -57,7 +57,7 @@ def _report_information(message: str, report_file: Path):
 
 
 def check_all_screens_logfile(
-    logfile: pl, stimuli: Stimulus | list[Stimulus], report_file: Path = None
+    logfile: pl.DataFrame, stimuli: Stimulus | list[Stimulus], report_file: Path = None
 ):
     """
     checking if all screens, where ET data is tracked are present in the log file
