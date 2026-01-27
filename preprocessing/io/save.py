@@ -8,32 +8,6 @@ import polars as pl
 import pymovements as pm
 
 
-def save_gaze_data(
-    gaze: pm.Gaze,
-    gaze_path: Path = "",
-    events_path: Path = "",
-    metadata_dir: Path = "",
-) -> None:
-    # TODO save metadata properly and also load it properly
-
-    if gaze_path:
-        gaze.save_samples(path=gaze_path)
-    if events_path:
-        gaze.save_events(path=events_path)
-    if metadata_dir:
-        # TODO pm: this saves the experiment metadata, but there is a lot more metadata as a gaze property,
-        #  this should also be saved
-        gaze.save(dirpath=metadata_dir, save_events=False, save_samples=False)
-
-        # TODO pm,
-        #  why can I only save the gaze metadata through this method?
-        metadata = gaze._metadata
-        metadata["datetime"] = str(metadata["datetime"])
-        # TODO pm: I'd like to save my metadata without having to access a protected argument
-        with open(metadata_dir / "gaze_metadata.json", "w", encoding="utf8") as f:
-            json.dump(metadata, f)
-
-
 def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
     directory.mkdir(parents=True, exist_ok=True)
 

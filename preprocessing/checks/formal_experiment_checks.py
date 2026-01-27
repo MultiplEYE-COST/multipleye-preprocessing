@@ -68,13 +68,17 @@ def check_all_screens_logfile(
 
     for stimulus in stimuli:
         # print(f"Checking {stimulus.name} in Logfile")
-        trial_id = logfile.filter(
-            (pl.col("stimulus_number") == f"{stimulus.id}")
-        ).item(
-            0, "trial_number"
-        )  # get the trial number for the stimulus as ratingscreens don't have an entry in the stimulus_number column
-
-        stimulus_frame = logfile.filter((pl.col("trial_number") == f"{trial_id}"))
+        try:
+            trial_id = logfile.filter(
+                (pl.col("stimulus_number") == str(stimulus.id))
+            ).item(
+                0, "trial_number"
+            )  # get the trial number for the stimulus as ratingscreens don't have an entry in the stimulus_number column
+        except (IndexError, pl.exceptions.NoRowsReturnedError):
+            trial_id = logfile.filter(
+                (pl.col("stimulus_number") == str(float(stimulus.id)))
+            ).item(0, "trial_number")
+        stimulus_frame = logfile.filter((pl.col("trial_number") == trial_id))
         # print(stimulus_frame)
         # check if all pages are present
         for page in stimulus.pages:
@@ -200,6 +204,7 @@ def check_messages(
         pattern = (
             f"_trial_{trial}_stimulus_{current_stimulus.name}_{current_stimulus.id}"
         )
+
         try:
             last_msg_index = messages_only.index(f"start_recording{pattern}_page_1")
         except ValueError as e:
@@ -374,10 +379,18 @@ def _check_question_screens(
                 current_pattern = f"{msg}{pattern}_question_{int(question.id)}"
 
             if current_pattern not in messages:
-                _report_warning(
-                    f"{current_stimulus.name}: Missing {current_pattern} Messages in ASC file",
-                    report_file,
+                # for latvian, the stimuli ids are sometimes float numbers in the asc file
+                # split off last four characters as question id, the rest is the stimulus id
+                stim_id = question.id[:-3]
+                question_id = question.id[-3:]
+                current_pattern = (
+                    f"{msg}{pattern}_question_{float(stim_id)}{int(question_id)}"
                 )
+                if current_pattern not in messages:
+                    _report_warning(
+                        f"{current_stimulus.name}: Missing {current_pattern} Messages in ASC file",
+                        report_file,
+                    )
 
 
 def _extract_reading_time(

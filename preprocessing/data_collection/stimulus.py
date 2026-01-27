@@ -110,7 +110,10 @@ class Stimulus:
         lang = lang.lower()
         country = country.lower()
 
-        stimulus_id = stimulus_row["stimulus_id"]
+        if lang == "lv":
+            stimulus_id = float(stimulus_row["stimulus_id"])
+        else:
+            stimulus_id = stimulus_row["stimulus_id"]
         stimulus_type = stimulus_row["stimulus_type"]
         assert stimulus_type in [
             "experiment",
@@ -126,13 +129,13 @@ class Stimulus:
                 image_path = (
                     stimulus_dir
                     / f"stimuli_images_{lang}_{country}_{labnum}"
-                    / f"{stimulus_name.lower()}_id{stimulus_id}_page_{page_number}_{lang}.png"
+                    / f"{stimulus_name.lower()}_id{int(stimulus_id)}_page_{page_number}_{lang}.png"
                 )
 
                 aoi_image_path = (
                     stimulus_dir
                     / f"aoi_stimuli_images_{lang}_{country}_{labnum}"
-                    / f"{stimulus_name.lower()}_id{stimulus_id}_page_{page_number}_{lang}_aoi.png"
+                    / f"{stimulus_name.lower()}_id{int(stimulus_id)}_page_{page_number}_{lang}_aoi.png"
                 )
 
                 page = StimulusPage(
@@ -149,7 +152,7 @@ class Stimulus:
         aoi_path = (
             stimulus_dir
             / f"aoi_stimuli_{lang}_{country}_{labnum}"
-            / f"{stimulus_name.lower()}_{stimulus_id}_aoi.csv"
+            / f"{stimulus_name.lower()}_{int(stimulus_id)}_aoi.csv"
         )
         text_stimulus = pm.stimulus.text.from_file(
             aoi_path,
@@ -182,14 +185,14 @@ class Stimulus:
                 stimulus_dir
                 / f"question_images_{lang}_{country}_{labnum}"
                 / f"question_images_version_{question_version}"
-                / f"{stimulus_name}_id{stimulus_id}_question_{question_id}_{lang}.png"
+                / f"{stimulus_name}_id{int(stimulus_id)}_question_{question_id}_{lang}.png"
             )
 
             aoi_qeustion_img_path = (
                 stimulus_dir
                 / f"aoi_question_images_{lang}_{country}_{labnum}"
                 / f"question_images_version_{question_version}"
-                / f"{stimulus_name}_id{stimulus_id}_question_{question_id}_{lang}_aoi.png"
+                / f"{stimulus_name}_id{int(stimulus_id)}_question_{question_id}_{lang}_aoi.png"
             )
 
             question = ComprehensionQuestion(
