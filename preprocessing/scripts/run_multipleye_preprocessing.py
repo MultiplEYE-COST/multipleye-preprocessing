@@ -1,23 +1,33 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
+import yaml
 from tqdm import tqdm
 
 import preprocessing
 from preprocessing import constants
 
 
-def run_multipleye_preprocessing(data_collection_name: str):
+def run_multipleye_preprocessing(data_collection_name: str, config_path: str):
     preprocessing.utils.prepare_language_folder(data_collection_name)
 
     this_repo = Path().resolve()
     data_folder_path = this_repo / "data" / data_collection_name
 
+    config = yaml.load(open(this_repo / config_path), Loader=yaml.SafeLoader)
+    print(config)
+
     multipleye = (
         preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
-            data_folder_path, include_pilots=True
+            data_folder_path,
+            include_pilots=config['include_pilots'],
+            excluded_sessions=config['exclude_sessions'],
+            included_sessions=config['include_sessions'],
         )
     )
+
+    multipleye.convert_edf_to_asc()
+    multipleye.prepare_session_level_information()
 
     preprocessed_data_folder = this_repo / "preprocessed_data" / data_collection_name
     preprocessed_data_folder.mkdir(parents=True, exist_ok=True)
@@ -142,11 +152,6 @@ def run_multipleye_preprocessing(data_collection_name: str):
     multipleye.parse_participant_data(preprocessed_data_folder / "participant_data.csv")
 
 
-if __name__ == "__main__":
-    data_collection_name = "MultiplEYE_SQ_CH_Zurich_1_2025"
-    run_multipleye_preprocessing(data_collection_name)
-
-
 def main():
     """Run MultiplEYE preprocessing with the argument as data collection name."""
     parser = ArgumentParser(description="Run MultiplEYE preprocessing.")
@@ -155,6 +160,12 @@ def main():
         type=str,
         help="Data collection name (folder name in data/ folder).",
     )
+    parser.add_argument(
+        '--config_path',
+        type=str,
+        default="multipleye_settings_preprocessing.yaml",
+        help="Path to the preprocessing configuration YAML file.",
+    )
     args = parser.parse_args()
     print(f"Running MultiplEYE preprocessing for '{args.data_collection_name}'.")
-    run_multipleye_preprocessing(args.data_collection_name)
+    run_multipleye_preprocessing(args.data_collection_name, args.config_path)
