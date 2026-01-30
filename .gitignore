@@ -171,3 +171,4 @@ cython_debug/
 public/*
 jupyter_execute/*
 
+uv.lock

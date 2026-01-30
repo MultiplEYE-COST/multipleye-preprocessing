@@ -6,7 +6,6 @@ include_sessions:
 exclude_sessions:
   - "116_SL_SI_1_ET1"
 
-
 include_pilots: True
 
 # if any sessions do not use the standard stimulus version, specify so here

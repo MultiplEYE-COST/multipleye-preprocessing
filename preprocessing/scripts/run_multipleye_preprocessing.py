@@ -8,14 +8,17 @@ import preprocessing
 from preprocessing import constants
 
 
-def run_multipleye_preprocessing(data_collection_name: str, config_path: str):
-    preprocessing.utils.prepare_language_folder(data_collection_name)
+def run_multipleye_preprocessing(config_path: str):
 
     this_repo = Path().resolve()
-    data_folder_path = this_repo / "data" / data_collection_name
-
     config = yaml.load(open(this_repo / config_path), Loader=yaml.SafeLoader)
-    print(config)
+
+    data_collection_name = config["data_collection_name"]
+    print(f'Running MultiplEYE preprocessing for data collection: {data_collection_name}')
+
+    preprocessing.utils.prepare_language_folder(data_collection_name)
+
+    data_folder_path = this_repo / "data" / data_collection_name
 
     multipleye = (
         preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
@@ -155,11 +158,7 @@ def run_multipleye_preprocessing(data_collection_name: str, config_path: str):
 def main():
     """Run MultiplEYE preprocessing with the argument as data collection name."""
     parser = ArgumentParser(description="Run MultiplEYE preprocessing.")
-    parser.add_argument(
-        "data_collection_name",
-        type=str,
-        help="Data collection name (folder name in data/ folder).",
-    )
+
     parser.add_argument(
         '--config_path',
         type=str,
@@ -167,5 +166,4 @@ def main():
         help="Path to the preprocessing configuration YAML file.",
     )
     args = parser.parse_args()
-    print(f"Running MultiplEYE preprocessing for '{args.data_collection_name}'.")
-    run_multipleye_preprocessing(args.data_collection_name, args.config_path)
+    run_multipleye_preprocessing(args.config_path)
