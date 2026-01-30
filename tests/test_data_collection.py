@@ -49,9 +49,7 @@ class TestDataCollection(TestCase):
         mock_file.name = "test.edf"
         mock_file.path = "/mock/path/session1/test.edf"
         with patch("pathlib.Path.glob", return_value=[mock_file]):
-            self.data_collection.add_recorded_sessions(
-                data_root=Path("/mock/path"), session_folder_regex=".*"
-            )
+            self.data_collection.add_recorded_sessions(data_root=Path("/mock/path"), session_folder_regex=".*")
 
         self.assertIn("session1", self.data_collection.sessions)
         self.assertEqual(

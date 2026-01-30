@@ -96,6 +96,8 @@ class MultipleyeDataCollection:
         data_root: Path,
         lab_configuration: LabConfig,
         session_folder_regex: str,
+        included_sessions: list[str] | None = None,
+        excluded_sessions: list[str] | None = None,
         # stimuli: list[Stimulus],
         **kwargs,
     ):
@@ -131,9 +133,9 @@ class MultipleyeDataCollection:
         self.data_root = data_root
         self.session_folder_regex = session_folder_regex
         self.psychometric_tests = kwargs.get("psychometric_tests", [])
+        self.excluded_sessions = excluded_sessions
+        self.included_sessions = included_sessions
 
-        # load all the manual corrections from the yaml file
-        self._load_manual_corrections()
 
         open(self.data_root.parent / "preprocessing_logs.txt", "w").close()
 
@@ -145,9 +147,7 @@ class MultipleyeDataCollection:
             self.preprocessing_dir = self.data_root.parent / "preprocessing"
             self.preprocessing_dir.mkdir(exist_ok=True)
 
-        self.add_recorded_sessions(
-            self.data_root, self.session_folder_regex, convert_to_asc=True
-        )
+        self.add_recorded_sessions(self.data_root, self.session_folder_regex)
 
         if len(self.sessions) == 0:
             raise ValueError(
@@ -175,8 +175,6 @@ class MultipleyeDataCollection:
             )
             self.stim_order_versions = stim_order_versions
 
-        self.prepare_session_level_information()
-
         self.overview = self.create_dataset_overview()
 
     def __repr__(self):
@@ -201,17 +199,9 @@ class MultipleyeDataCollection:
     def __getitem__(self, item):
         return self.sessions[item]
 
-    def add_recorded_sessions(
-        self,
-        data_root: Path,
-        session_folder_regex: str = "",
-        session_file_suffix: str = "",
-        convert_to_asc: bool = False,
-    ) -> None:
+    def add_recorded_sessions(self, data_root: Path, session_folder_regex: str = "", session_file_suffix: str = "") -> None:
         """
-
-        :param convert_to_asc: If True, the asc files for the recorded sessions are generated. Only works if the eye
-        tracker is an Eyelink.
+        Checks what sessions there exist for this data collection and adds them to the sessions dict. No preprocessing or anything happends in here.
         :param data_root: Specifies the root folder where the data is stored
         :param session_folder_regex: The pattern for the session folder names. It is possible to include infomration in
         regex groups. Those will be parsed directly and stored in the session object.
@@ -241,7 +231,10 @@ class MultipleyeDataCollection:
             for item in items:
                 if item.is_dir():
                     if re.match(session_folder_regex, item.name, re.IGNORECASE):
-                        if item.name not in self.excluded_sessions:
+                        if (self.excluded_sessions and item.name not in self.excluded_sessions) or (
+                                self.included_sessions and item.name in self.included_sessions) or (
+                                not self.excluded_sessions and not self.included_sessions
+                        ):
                             session_file = list(
                                 Path(item.path).glob("*" + session_file_suffix)
                             )
@@ -261,7 +254,6 @@ class MultipleyeDataCollection:
                             else:
                                 session_file = session_file[0]
 
-                            # TODO: introduce a session object?
                             is_pilot = self.include_pilots and (item in pilots)
 
                             ses = Session(
@@ -275,22 +267,12 @@ class MultipleyeDataCollection:
 
                             self.sessions[item.name] = ses
 
-                            # check if asc files are already available
-                            if not convert_to_asc and self.eye_tracker == "eyelink":
-                                asc_file = Path(item.path).glob("*.asc")
-                                if len(list(asc_file)) == 1:
-                                    asc_file = list(asc_file)[0]
-                                    self.sessions[item.name].asc_path = asc_file
-                                    print(f"Found asc file for {item.name}.")
-
                     else:
                         print(
                             f"Folder {item.name} does not match the regex pattern "
                             f"{session_folder_regex}. Not considered as session."
                         )
 
-        if convert_to_asc:
-            self.convert_edf_to_asc()
 
     @eyelink
     def convert_edf_to_asc(self) -> None:
@@ -338,6 +320,8 @@ class MultipleyeDataCollection:
         data_dir: str | Path,
         additional_folder: str | None = None,
         include_pilots: bool = False,
+        excluded_sessions: list[str] | None = None,
+        included_sessions: list[str] | None = None,
     ) -> "MultipleyeDataCollection":
         """
         :param data_dir: str  path to the data folder
@@ -346,10 +330,20 @@ class MultipleyeDataCollection:
         :param different_stimulus_names: if the stimulus names are different from the default ones they can be extracted
         from the multipleye_stimuli_experiment_en.xlsx file, at the moment only used for testing purposes
         :param include_pilots: If True, the pilot sessions are included in the data collection.
+        :param excluded_sessions: If not None, the sessions excluded from the data collection.
+        :param included_sessions: If not None, the sessions included in the data collection.
         :return:
         MultipleyeDataCollection object
         """
 
+        if excluded_sessions is None:
+            excluded_sessions = []
+        elif included_sessions is None:
+            included_sessions = []
+        else:
+            raise ValueError(
+                "Either excluded_sessions or included_sessions can be provided, not both."
+            )
         data_dir = Path(data_dir)
 
         data_folder_name = data_dir.name
@@ -439,6 +433,8 @@ class MultipleyeDataCollection:
             pilot_folder=et_data_path / "pilot_sessions" if include_pilots else None,
             psychometric_tests=psychometric_tests,
             ps_tests_path=ps_tests_path,
+            included_sessions=included_sessions,
+            excluded_sessions=excluded_sessions,
         )
 
     def create_sanity_check_report(
@@ -513,27 +509,6 @@ class MultipleyeDataCollection:
             if plotting:
                 self._create_plots(gaze, stimuli, session_name, aoi=True)
 
-    def _load_manual_corrections(self) -> list[str]:
-        # read excluded sessions from txt file if it exists in the top data folder
-        manual_corrections = (
-            self.data_root.parent / "manual_preprocessing_corrections.yaml"
-        )
-        if manual_corrections.exists():
-            with open(manual_corrections, "r") as f:
-                yaml_dict = yaml.load(f, Loader=yaml.SafeLoader)
-                if "excluded_sessions" in yaml_dict:
-                    excluded_sessions = yaml_dict["excluded_sessions"]
-                    if excluded_sessions:
-                        self.excluded_sessions = list(excluded_sessions.keys())
-                if "stimuli_session_mapping" in yaml_dict:
-                    self.session_stimulus_mapping = yaml_dict["stimuli_session_mapping"]
-
-        else:
-            # create the file so that we can write to it later
-            with open(manual_corrections, "w", encoding="utf8") as f:
-                yaml.dump({"excluded_sessions": {}}, f)
-
-        return []
 
     def _load_session_names(self, session: str | list[str] | None) -> list[str]:
         """
