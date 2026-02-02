@@ -8,12 +8,12 @@
 
 from datetime import datetime
 
-from sphinx.search import languages
+# from sphinx.search import languages
 
-project = 'MultiplEYE Preprocessing pEYEpline'
+project = "MultiplEYE Preprocessing pEYEpline"
 copyright = f"2024–{datetime.now().year}, Deborah N. Jakobi et al"
-author = 'Deborah N. Jakobi et al.'
-release = '0.0.0'
+author = "Deborah N. Jakobi et al."
+release = "0.0.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -24,15 +24,16 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
-    "sphinx_design"
+    "sphinx_design",
+    "sphinx_copybutton",
 ]
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 bibtex_bibfiles = ["refs.bib"]
-bibtex_encoding = 'utf-8'
-bibtex_default_style = 'alpha'
+bibtex_encoding = "utf-8"
+bibtex_default_style = "alpha"
 
 language = "en"
 
@@ -42,8 +43,8 @@ myst_links_external_new_tab = True
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_book_theme'
-html_static_path = ['_static']
+html_theme = "sphinx_book_theme"
+html_static_path = ["_static"]
 html_theme_options = {
     "repository_url": "https://github.com/theDebbister/multipleye-preprocessing/",
     "use_repository_button": True,
