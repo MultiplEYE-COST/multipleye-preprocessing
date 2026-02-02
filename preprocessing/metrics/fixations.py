@@ -27,7 +27,9 @@ def annotate_fixations(
         .sort(group_columns + ["onset"])
     )
 
-    # ---- runs ----
+    # -------------------------------------------------
+    # Reading runs (contiguous fixations on the same word)
+    # -------------------------------------------------
     fix = fix.with_columns(
         (pl.col("word_idx") != pl.col("word_idx").shift().over(group_columns))
         .fill_null(True)
@@ -42,17 +44,17 @@ def annotate_fixations(
         .alias("run_id")
     )
 
-    # -------------------------------------------------
-    # Neighbouring words (for regression detection)
-    # -------------------------------------------------
+    # -----------------------------------------------------
+    # Neighbouring fixated words (for regression detection)
+    # -----------------------------------------------------
     fix = fix.with_columns([
-        pl.col("word_idx").shift().over(group_columns).alias("prev_word"),
-        pl.col("word_idx").shift(-1).over(group_columns).alias("next_word"),
+        pl.col("word_idx").shift().over(group_columns).alias("prev_word_idx"),
+        pl.col("word_idx").shift(-1).over(group_columns).alias("next_word_idx"),
     ])
 
     fix = fix.with_columns([
-        (pl.col("word_idx") - pl.col("prev_word")).alias("delta_in"),
-        (pl.col("next_word") - pl.col("word_idx")).alias("delta_out"),
+        (pl.col("word_idx") - pl.col("prev_word_idx")).alias("delta_in"),
+        (pl.col("next_word_idx") - pl.col("word_idx")).alias("delta_out"),
     ])
 
     fix = fix.with_columns([
@@ -79,8 +81,8 @@ def annotate_fixations(
         """
         Mark fixations that belong to the first-pass reading of a word.
 
-        First-pass is defined at the *run* level:
-        - A run is first-pass if:
+        First-pass is defined at the *run* level.
+        A run is first-pass if:
             1. It is the first time the reader enters the word, AND
             2. The word is entered from the left (forward reading direction)
 
@@ -100,7 +102,7 @@ def annotate_fixations(
         for row in df.iter_rows(named=True):
             w = row["word_idx"]
             run = row["run_id"]
-            prev_w = row["prev_word"]
+            prev_w = row["prev_word_idx"]
 
             new_run = run != prev_run
 
@@ -108,8 +110,8 @@ def annotate_fixations(
                 entered_from_left = prev_w is None or w > prev_w
 
                 current_run_is_first_pass = (
-                    entered_from_left and not word_has_been_exited.get(
-                        w, False)
+                    entered_from_left
+                    and not word_has_been_exited.get(w, False)
                 )
 
             # All fixations in the same run inherit the same label
@@ -132,5 +134,5 @@ def annotate_fixations(
 
     return fix.select([
         "trial", "page", "fixation_id", "onset", "word_idx", "char_idx", "char",
-        "run_id", "is_first_pass", "duration", "word", "prev_word", "next_word", "is_reg_in", "is_reg_out", "is_first_fix"
+        "run_id", "is_first_pass", "duration", "word", "prev_word_idx", "next_word_idx", "is_reg_in", "is_reg_out", "is_first_fix"
     ])

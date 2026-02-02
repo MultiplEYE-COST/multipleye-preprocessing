@@ -24,7 +24,7 @@ RRT - (re-reading time) sum of the durations of all fixations on a word that do 
 RR - (re-reading) 1 if the word was fixated after the first-pass reading, otherwise 0 (sign(RRT))
 
 
-### TODO: Transition-based Measures ###
+### Transition-based Measures ###
 
 RPD_inc - (exclusive regression-path duration) sum of all fixation durations starting from the first first-pass fixation on a word until fixating a word to the right of this word (including all regressive fixations on previous words), 0 if the word was not fixated in the first-pass (RPD_exc + RBRT)
 

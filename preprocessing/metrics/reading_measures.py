@@ -154,7 +154,7 @@ def compute_sl_in(fix: pl.DataFrame) -> pl.DataFrame:
     return (
         fix
         .filter(pl.col("is_first_fix"))
-        .with_columns((pl.col("word_idx") - pl.col("prev_word")).alias("SL_in"))
+        .with_columns((pl.col("word_idx") - pl.col("prev_word_idx")).alias("SL_in"))
         .select(["trial", "page", "word_idx", "SL_in"])
     )
 
@@ -182,7 +182,7 @@ def compute_sl_out(fix: pl.DataFrame) -> pl.DataFrame:
     return (
         last_fix
         .with_columns(
-            (pl.col("next_word") - pl.col("word_idx"))
+            (pl.col("next_word_idx") - pl.col("word_idx"))
             .fill_null(0)
             .alias("SL_out")
         )
