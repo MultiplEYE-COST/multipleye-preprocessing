@@ -3,7 +3,7 @@ import pymovements as pm
 
 
 def annotate_fixations(
-    gaze: pl.DataFrame,
+    gaze_events: pl.DataFrame,
     group_columns: list[str] | None = None,
 ) -> pl.DataFrame:
     """
@@ -18,7 +18,7 @@ def annotate_fixations(
         group_columns = ["trial", "stimulus", "page"]
 
     fix = (
-        gaze
+        gaze_events
         .filter(
             (pl.col("name") == "fixation") &
             (pl.col("word_idx").is_not_null())
@@ -27,7 +27,7 @@ def annotate_fixations(
         .sort(group_columns + ["onset"])
     )
 
-    # ---- runs ----
+    # ----  identifies runs ----
     fix = fix.with_columns(
         (pl.col("word_idx") != pl.col("word_idx").shift().over(group_columns))
         .fill_null(True)
