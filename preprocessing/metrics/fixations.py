@@ -13,6 +13,10 @@ def annotate_fixations(
     - run_id: contiguous fixations on the same word
     - first-pass: a new run (visit) to a word that starts from the left and
       the word has not been exited before
+
+      :param gaze_events: DataFrame containing pymovements' fixation events. Needs to be mapped to aois.
+      :param group_columns: list of column names to group the fixations by. E.g., trial, stimulus, page.
+      If None, defaults to ["trial", "stimulus", "page"].
     """
     if group_columns is None:
         group_columns = ["trial", "stimulus", "page"]
@@ -89,6 +93,9 @@ def annotate_fixations(
         All fixations within such a run are labeled `is_first_pass = True`.
         Any later revisit to the word, or entries from the right (regressions),
         are not part of first-pass.
+
+        :param df: DataFrame containing pymovements fixation events. Needs to be mapped to aois, and annotated with
+        run_id and prev_word_idx. See annotate_fixations() for details.
         """
         df = df.sort("onset")
 

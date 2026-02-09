@@ -148,7 +148,7 @@ def compute_landing_position(fix: pl.DataFrame) -> pl.DataFrame:
 def compute_sl_in(fix: pl.DataFrame) -> pl.DataFrame:
     """
     Saccade Length In (SL_in):
-    Number of words between the current word and the previous word
+    Number of *words* between the current word and the previous word
     during the first fixation on the word.
     """
     return (
@@ -162,7 +162,7 @@ def compute_sl_in(fix: pl.DataFrame) -> pl.DataFrame:
 def compute_sl_out(fix: pl.DataFrame) -> pl.DataFrame:
     """
     Saccade Length Out (SL_out):
-    Number of words between the current word and the next word
+    Number of *words* between the current word and the next word
     during the last fixation of the first pass on the word.
     """
     first_run = (

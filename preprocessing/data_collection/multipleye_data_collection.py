@@ -1316,7 +1316,7 @@ class MultipleyeDataCollection:
         for idx, session in (
             pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))
         ):
-            pbar.set_description(f"Parsing participant data : {session}")
+            pbar.set_description(f"Parsing participant data {session}")
             notes = ""
             folder = Path(self.sessions[session].session_folder_path)
             try:
