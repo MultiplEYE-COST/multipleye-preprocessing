@@ -9,12 +9,13 @@ from preprocessing import constants
 
 
 def run_multipleye_preprocessing(config_path: str):
-
     this_repo = Path().resolve()
     config = yaml.load(open(this_repo / config_path), Loader=yaml.SafeLoader)
 
     data_collection_name = config["data_collection_name"]
-    print(f'Running MultiplEYE preprocessing for data collection: {data_collection_name}')
+    print(
+        f"Running MultiplEYE preprocessing for data collection: {data_collection_name}"
+    )
 
     preprocessing.utils.prepare_language_folder(data_collection_name)
 
@@ -23,9 +24,9 @@ def run_multipleye_preprocessing(config_path: str):
     multipleye = (
         preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
             data_folder_path,
-            include_pilots=config['include_pilots'],
-            excluded_sessions=config['exclude_sessions'],
-            included_sessions=config['include_sessions'],
+            include_pilots=config["include_pilots"],
+            excluded_sessions=config["exclude_sessions"],
+            included_sessions=config["include_sessions"],
         )
     )
 
@@ -160,7 +161,7 @@ def main():
     parser = ArgumentParser(description="Run MultiplEYE preprocessing.")
 
     parser.add_argument(
-        '--config_path',
+        "--config_path",
         type=str,
         default="multipleye_settings_preprocessing.yaml",
         help="Path to the preprocessing configuration YAML file.",

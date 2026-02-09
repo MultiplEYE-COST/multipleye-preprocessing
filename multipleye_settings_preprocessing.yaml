@@ -10,4 +10,3 @@ include_pilots: True
 
 # if any sessions do not use the standard stimulus version, specify so here
 session_to_stimuli:
-
