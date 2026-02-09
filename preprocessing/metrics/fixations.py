@@ -38,7 +38,8 @@ def annotate_fixations(
     )
 
     fix = fix.with_columns(
-        pl.col("new_run").cast(pl.Int8).cum_sum().over(group_columns).alias("run_id")
+        pl.col("new_run").cast(pl.Int8).cum_sum().over(
+            group_columns).alias("run_id")
     )
 
     # -----------------------------------------------------
@@ -46,7 +47,8 @@ def annotate_fixations(
     # -----------------------------------------------------
     fix = fix.with_columns(
         [
-            pl.col("word_idx").shift().over(group_columns).alias("prev_word_idx"),
+            pl.col("word_idx").shift().over(
+                group_columns).alias("prev_word_idx"),
             pl.col("word_idx").shift(-1).over(group_columns).alias("next_word_idx"),
         ]
     )
@@ -86,8 +88,11 @@ def annotate_fixations(
 
         First-pass is defined at the *run* level.
         A run is first-pass if:
-            1. It is the first time the reader enters the word, AND
+            1. It is the first time the reader enters the word 
+            (not necessarily the first fixation, but the first run)
             2. The word is entered from the left (forward reading direction)
+            3. No words with a higher index have been fixated before 
+            (i.e. the word has not been exited or skipped)
 
         All fixations within such a run are labeled `is_first_pass = True`.
         Any later revisit to the word, or entries from the right (regressions),
@@ -98,12 +103,14 @@ def annotate_fixations(
         """
         df = df.sort("onset")
 
-        word_has_been_exited: dict[int, bool] = {}
         first_pass_flags: list[bool] = []
 
-        prev_word = None
         prev_run = None
-        current_run_is_first_pass = False  # state carried within a run
+        rightmost_word_seen = None
+        current_run_is_first_pass = False
+
+        # set of words that have been entered at the start of any prior run
+        words_ever_entered: set[int] = set()
 
         for row in df.iter_rows(named=True):
             w = row["word_idx"]
@@ -113,25 +120,32 @@ def annotate_fixations(
             new_run = run != prev_run
 
             if new_run:
-                entered_from_left = prev_w is None or w > prev_w
+                entered_from_left = (prev_w is None) or (w > prev_w)
+
+                no_higher_word_seen = (rightmost_word_seen is None) or (
+                    w >= rightmost_word_seen)
+
+                first_time_entering_word = (w not in words_ever_entered)
 
                 current_run_is_first_pass = (
-                    entered_from_left and not word_has_been_exited.get(w, False)
+                    entered_from_left and
+                    no_higher_word_seen and
+                    first_time_entering_word
                 )
 
-            # All fixations in the same run inherit the same label
+                words_ever_entered.add(w)
+
             first_pass_flags.append(current_run_is_first_pass)
 
-            # If we moved away from a word, mark that word as "exited"
-            if prev_word is not None and w != prev_word:
-                word_has_been_exited[prev_word] = True
+            if rightmost_word_seen is None or w > rightmost_word_seen:
+                rightmost_word_seen = w
 
-            prev_word = w
             prev_run = run
 
         return df.with_columns(pl.Series("is_first_pass", first_pass_flags))
 
-    fix = fix.group_by(*group_columns, maintain_order=True).map_groups(mark_first_pass)
+    fix = fix.group_by(
+        *group_columns, maintain_order=True).map_groups(mark_first_pass)
 
     return fix.select(
         [
