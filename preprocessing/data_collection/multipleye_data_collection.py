@@ -136,7 +136,6 @@ class MultipleyeDataCollection:
         self.excluded_sessions = excluded_sessions
         self.included_sessions = included_sessions
 
-
         open(self.data_root.parent / "preprocessing_logs.txt", "w").close()
 
         if not self.reports_dir:
@@ -199,7 +198,12 @@ class MultipleyeDataCollection:
     def __getitem__(self, item):
         return self.sessions[item]
 
-    def add_recorded_sessions(self, data_root: Path, session_folder_regex: str = "", session_file_suffix: str = "") -> None:
+    def add_recorded_sessions(
+        self,
+        data_root: Path,
+        session_folder_regex: str = "",
+        session_file_suffix: str = "",
+    ) -> None:
         """
         Checks what sessions there exist for this data collection and adds them to the sessions dict. No preprocessing or anything happends in here.
         :param data_root: Specifies the root folder where the data is stored
@@ -231,9 +235,19 @@ class MultipleyeDataCollection:
             for item in items:
                 if item.is_dir():
                     if re.match(session_folder_regex, item.name, re.IGNORECASE):
-                        if (self.excluded_sessions and item.name not in self.excluded_sessions) or (
-                                self.included_sessions and item.name in self.included_sessions) or (
-                                not self.excluded_sessions and not self.included_sessions
+                        if (
+                            (
+                                self.excluded_sessions
+                                and item.name not in self.excluded_sessions
+                            )
+                            or (
+                                self.included_sessions
+                                and item.name in self.included_sessions
+                            )
+                            or (
+                                not self.excluded_sessions
+                                and not self.included_sessions
+                            )
                         ):
                             session_file = list(
                                 Path(item.path).glob("*" + session_file_suffix)
@@ -272,7 +286,6 @@ class MultipleyeDataCollection:
                             f"Folder {item.name} does not match the regex pattern "
                             f"{session_folder_regex}. Not considered as session."
                         )
-
 
     @eyelink
     def convert_edf_to_asc(self) -> None:
@@ -508,7 +521,6 @@ class MultipleyeDataCollection:
 
             if plotting:
                 self._create_plots(gaze, stimuli, session_name, aoi=True)
-
 
     def _load_session_names(self, session: str | list[str] | None) -> list[str]:
         """

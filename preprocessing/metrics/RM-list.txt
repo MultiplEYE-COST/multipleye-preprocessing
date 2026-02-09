@@ -1,14 +1,14 @@
 #### Fixation-based Measures ####
 
-FPF - (first-pass fixation) 1 if the word was fixated in the first-pass, otherwise 0 
+FPF - (first-pass fixation) 1 if the word was fixated in the first-pass, otherwise 0
 
 SFD - (single-fixation duration) duration of the only first-pass fixation on a word, 0 if the word was skipped or more than one fixations occurred in the first-pass (equals FFD in case of a single first-pass fixation)
 
-FFD - (first-fixation duration) duration of the first fixation on a word if this word is fixated in first-pass reading, otherwise 0 
+FFD - (first-fixation duration) duration of the first fixation on a word if this word is fixated in first-pass reading, otherwise 0
 
 FPRT - (first-pass reading time) sum of the durations of all first-pass fixations on a word (0 if the word was skipped in the first-pass)
 
-FPFC - (first pass fixation count) number of of all first-pass fixations on a word 
+FPFC - (first pass fixation count) number of of all first-pass fixations on a word
 
 FD - (first duration) duration of the first fixation on a word (identical to FFD if not skipped in the first-pass)
 

@@ -1,5 +1,4 @@
 import polars as pl
-import pymovements as pm
 
 
 def annotate_fixations(
@@ -22,10 +21,8 @@ def annotate_fixations(
         group_columns = ["trial", "stimulus", "page"]
 
     fix = (
-        gaze_events
-        .filter(
-            (pl.col("name") == "fixation") &
-            (pl.col("word_idx").is_not_null())
+        gaze_events.filter(
+            (pl.col("name") == "fixation") & (pl.col("word_idx").is_not_null())
         )
         .with_row_count("fixation_id")
         .sort(group_columns + ["onset"])
@@ -41,30 +38,32 @@ def annotate_fixations(
     )
 
     fix = fix.with_columns(
-        pl.col("new_run")
-        .cast(pl.Int8)
-        .cum_sum()
-        .over(group_columns)
-        .alias("run_id")
+        pl.col("new_run").cast(pl.Int8).cum_sum().over(group_columns).alias("run_id")
     )
 
     # -----------------------------------------------------
     # Neighbouring fixated words (for regression detection)
     # -----------------------------------------------------
-    fix = fix.with_columns([
-        pl.col("word_idx").shift().over(group_columns).alias("prev_word_idx"),
-        pl.col("word_idx").shift(-1).over(group_columns).alias("next_word_idx"),
-    ])
+    fix = fix.with_columns(
+        [
+            pl.col("word_idx").shift().over(group_columns).alias("prev_word_idx"),
+            pl.col("word_idx").shift(-1).over(group_columns).alias("next_word_idx"),
+        ]
+    )
 
-    fix = fix.with_columns([
-        (pl.col("word_idx") - pl.col("prev_word_idx")).alias("delta_in"),
-        (pl.col("next_word_idx") - pl.col("word_idx")).alias("delta_out"),
-    ])
+    fix = fix.with_columns(
+        [
+            (pl.col("word_idx") - pl.col("prev_word_idx")).alias("delta_in"),
+            (pl.col("next_word_idx") - pl.col("word_idx")).alias("delta_out"),
+        ]
+    )
 
-    fix = fix.with_columns([
-        (pl.col("delta_in") < 0).alias("is_reg_in"),
-        (pl.col("delta_out") < 0).alias("is_reg_out"),
-    ])
+    fix = fix.with_columns(
+        [
+            (pl.col("delta_in") < 0).alias("is_reg_in"),
+            (pl.col("delta_out") < 0).alias("is_reg_out"),
+        ]
+    )
 
     # -------------------------------------------------
     # First fix on word
@@ -117,8 +116,7 @@ def annotate_fixations(
                 entered_from_left = prev_w is None or w > prev_w
 
                 current_run_is_first_pass = (
-                    entered_from_left
-                    and not word_has_been_exited.get(w, False)
+                    entered_from_left and not word_has_been_exited.get(w, False)
                 )
 
             # All fixations in the same run inherit the same label
@@ -133,13 +131,25 @@ def annotate_fixations(
 
         return df.with_columns(pl.Series("is_first_pass", first_pass_flags))
 
-    fix = (
-        fix
-        .group_by(*group_columns, maintain_order=True)
-        .map_groups(mark_first_pass)
-    )
+    fix = fix.group_by(*group_columns, maintain_order=True).map_groups(mark_first_pass)
 
-    return fix.select([
-        "trial", "page", "fixation_id", "onset", "word_idx", "char_idx", "char",
-        "run_id", "is_first_pass", "duration", "word", "prev_word_idx", "next_word_idx", "is_reg_in", "is_reg_out", "is_first_fix"
-    ])
+    return fix.select(
+        [
+            "trial",
+            "page",
+            "fixation_id",
+            "onset",
+            "word_idx",
+            "char_idx",
+            "char",
+            "run_id",
+            "is_first_pass",
+            "duration",
+            "word",
+            "prev_word_idx",
+            "next_word_idx",
+            "is_reg_in",
+            "is_reg_out",
+            "is_first_fix",
+        ]
+    )
