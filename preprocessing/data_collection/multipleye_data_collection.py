@@ -16,6 +16,7 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
+from preprocessing.utils import pid_from_session
 from ..constants import (
     FIXATION,
     START_RECORDING_REGEX,
@@ -583,7 +584,7 @@ class MultipleyeDataCollection:
 
         for session in (pbar := tqdm(self.sessions.keys(), total=len(self.sessions))):
             pbar.set_description(f"Preparing session {session}")
-            p_id = session.split("_")[0]
+            p_id = pid_from_session(session)
 
             if "start_after_trial" in session:
                 if p_id not in self.crashed_session_ids:
@@ -753,7 +754,7 @@ class MultipleyeDataCollection:
 
         completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
 
-        p_id = session_identifier.split("_")[0]
+        p_id = pid_from_session(session_identifier)
 
         # load trial to stimulus mapping
         trial_ids = completed_stimuli["trial_id"].to_list()
@@ -798,7 +799,7 @@ class MultipleyeDataCollection:
         self, session_identifier, logfile_order_version: int
     ) -> list[int]:
         # if the session crashed, only load the stimuli that were actually completed in that session
-        p_id = session_identifier.split("_")[0]
+        p_id = pid_from_session(session_identifier)
         incomplete_order = []
         if p_id in self.crashed_session_ids:
             incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
@@ -1207,7 +1208,7 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier. eg "005_ET_EE_1_ET1"
         """
 
-        p_id = session_identifier.split("_")[0]
+        p_id = pid_from_session(session_identifier)
         check_messages(
             messages,
             stimuli,
