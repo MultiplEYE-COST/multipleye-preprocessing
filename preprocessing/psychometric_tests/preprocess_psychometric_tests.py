@@ -415,7 +415,7 @@ def preprocess_lwmc(lwmc_dir: Path):
     # Each non-NaN in base_text_intertrial.started indicates a new trial boundary.
     df["trial_id"] = df["base_text_intertrial.started"].notna().cumsum()
 
-    df = df[~df["is_practice"]].copy()  # remove all practice trials
+    df = df[not df["is_practice"]].copy()  # remove all practice trials
     if df.empty:
         raise ValueError("No non-practice trials found in WMC CSV")
 
@@ -581,7 +581,6 @@ def preprocess_wikivocab(wv_dir: Path):
           https://www.lextale.com/scoring.html
         - WikiVocab_pseudo_correct: Fraction of correct pseudo words
         - WikiVocab_real_correct: Fraction of correct real words
-        - WikiVocab_overall_correct: Overall fraction correct
     """
     df = _find_one_filetype_with_columns(
         wv_dir, ["correct_answer", "real_answer", "RT"], allow_nan=False
@@ -603,7 +602,6 @@ def preprocess_wikivocab(wv_dir: Path):
         if num_real > 0
         else float("nan")
     )
-    overall_correct = df["correctness"].mean()
 
     # Calculate incorrect_correct score
     incorrect_correct = (real_correct + pseudo_correct) / 2
@@ -621,7 +619,6 @@ def preprocess_wikivocab(wv_dir: Path):
         "WikiVocab_incorrect_correct_score": incorrect_correct,
         "WikiVocab_pseudo_correct": pseudo_correct,
         "WikiVocab_real_correct": real_correct,
-        "WikiVocab_overall_correct": overall_correct,
     }
 
 
