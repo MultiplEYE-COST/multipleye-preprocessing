@@ -112,7 +112,7 @@ def test_two_first_pass_fixations(run_pipeline, simple_aois):
     assert mali.select("RR").item() == 0
 
 
-def test_early_regression_multiple_rereading(run_pipeline, simple_aois):
+def test_regression_multiple_rereading(run_pipeline, simple_aois):
     gaze = pl.DataFrame({
         "name": ["fixation"] * 4,
         "stimulus": ["stim_1"] * 4,
