@@ -1,21 +1,21 @@
-import pytest
 import polars as pl
 
 
 def test_space_fixation_counts_toward_word(run_pipeline, simple_aois):
-
-    gaze_events = pl.DataFrame({
-        "name": ["fixation"],
-        "stimulus": ["stim_1"],
-        "trial": ["trial_1"],
-        "page": ["page_1"],
-        "onset": [100],
-        "duration": [200],
-        "word_idx": [0],  # fixation on space belonging to Mali
-        "char_idx": [4],
-        "char": [" "],
-        "word": [" "],
-    })
+    gaze_events = pl.DataFrame(
+        {
+            "name": ["fixation"],
+            "stimulus": ["stim_1"],
+            "trial": ["trial_1"],
+            "page": ["page_1"],
+            "onset": [100],
+            "duration": [200],
+            "word_idx": [0],  # fixation on space belonging to Mali
+            "char_idx": [4],
+            "char": [" "],
+            "word": [" "],
+        }
+    )
 
     word_level_table = run_pipeline(simple_aois, gaze_events)
 
@@ -30,18 +30,20 @@ def test_space_fixation_counts_toward_word(run_pipeline, simple_aois):
 
 
 def test_skipped_word(run_pipeline, simple_aois):
-    gaze = pl.DataFrame({
-        "name": ["fixation"],
-        "stimulus": ["stim_1"],
-        "trial": ["trial_1"],
-        "page": ["page_1"],
-        "onset": [100],
-        "duration": [200],
-        "word_idx": [0],
-        "char_idx": [1],
-        "char": ["a"],
-        "word": ["Mali"],
-    })
+    gaze = pl.DataFrame(
+        {
+            "name": ["fixation"],
+            "stimulus": ["stim_1"],
+            "trial": ["trial_1"],
+            "page": ["page_1"],
+            "onset": [100],
+            "duration": [200],
+            "word_idx": [0],
+            "char_idx": [1],
+            "char": ["a"],
+            "word": ["Mali"],
+        }
+    )
 
     wlt = run_pipeline(simple_aois, gaze)
 
@@ -58,18 +60,20 @@ def test_skipped_word(run_pipeline, simple_aois):
 
 
 def test_two_first_pass_fixations(run_pipeline, simple_aois):
-    gaze = pl.DataFrame({
-        "name": ["fixation", "fixation"],
-        "stimulus": ["stim_1"] * 2,
-        "trial": ["trial_1"] * 2,
-        "page": ["page_1"] * 2,
-        "onset": [100, 400],
-        "duration": [200, 150],
-        "word_idx": [0, 0],
-        "char_idx": [1, 2],
-        "char": ["a", "l"],
-        "word": ["Mali", "Mali"],
-    })
+    gaze = pl.DataFrame(
+        {
+            "name": ["fixation", "fixation"],
+            "stimulus": ["stim_1"] * 2,
+            "trial": ["trial_1"] * 2,
+            "page": ["page_1"] * 2,
+            "onset": [100, 400],
+            "duration": [200, 150],
+            "word_idx": [0, 0],
+            "char_idx": [1, 2],
+            "char": ["a", "l"],
+            "word": ["Mali", "Mali"],
+        }
+    )
 
     wlt = run_pipeline(simple_aois, gaze)
 
@@ -89,18 +93,20 @@ def test_two_first_pass_fixations(run_pipeline, simple_aois):
 
 
 def test_regression_multiple_rereading(run_pipeline, simple_aois):
-    gaze = pl.DataFrame({
-        "name": ["fixation"] * 4,
-        "stimulus": ["stim_1"] * 4,
-        "trial": ["trial_1"] * 4,
-        "page": ["page_1"] * 4,
-        "onset": [100, 300, 600, 900],
-        "duration": [115, 327, 261, 260],
-        "word_idx": [0, 1, 0, 0],
-        "char_idx": [2, 6, 1, 2],
-        "char": ["l", "a", "a", "l"],
-        "word": ["Mali", "Magjik", "Mali", "Mali"],
-    })
+    gaze = pl.DataFrame(
+        {
+            "name": ["fixation"] * 4,
+            "stimulus": ["stim_1"] * 4,
+            "trial": ["trial_1"] * 4,
+            "page": ["page_1"] * 4,
+            "onset": [100, 300, 600, 900],
+            "duration": [115, 327, 261, 260],
+            "word_idx": [0, 1, 0, 0],
+            "char_idx": [2, 6, 1, 2],
+            "char": ["l", "a", "a", "l"],
+            "word": ["Mali", "Magjik", "Mali", "Mali"],
+        }
+    )
 
     wlt = run_pipeline(simple_aois, gaze)
     word = wlt.filter(pl.col("word_idx") == 0)
