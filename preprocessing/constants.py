@@ -7,10 +7,37 @@ Parameters in the `config.py` file are considered user-configurable.
 import re
 from pathlib import Path
 
+import yaml
+
+THIS_REPO = Path().resolve()
+
+# USER CONFIGURABLE SETTINGS
+# load from .yaml file
+user_configs = yaml.safe_load(
+    open(THIS_REPO / "multipleye_settings_preprocessing.yaml")
+)
+DATA_COLLECTION_NAME = user_configs["data_collection_name"]
+DATASET_DIR = THIS_REPO / "data" / user_configs["data_collection_name"]
+
+_, LANGUAGE, COUNTRY, CITY, LAB, YEAR = user_configs["data_collection_name"].split("_")
+
+OUTPUT_DIR = THIS_REPO / "preprocessed_data" / user_configs["data_collection_name"]
+
+INCLUDE_PILOTS = user_configs["include_pilots"]
+EXCLUDE_SESSIONS = user_configs["exclude_sessions"]
+INCLUDE_SESSIONS = user_configs["include_sessions"]
+
+EXPECTED_SAMPLING_RATE_HZ = user_configs["expected_sampling_rate_hz"]
+
 # GENERAL SETTINGS
 TRIAL_COLS = ["trial", "stimulus", "page"]
 
 ### Psychometric Tests Sessions
+PSYCHOMETRIC_TESTS_DIR = DATASET_DIR / "psychometric-tests-sessions"
+PSYM_CORE_DATA = PSYCHOMETRIC_TESTS_DIR / "core_data"
+PSYM_PARTICIPANT_CONFIGS = (
+    PSYM_CORE_DATA / f"participant_configs_{LANGUAGE}_{CITY}_{LAB}"
+)
 
 #### Tests - folder names inside PSYCHOMETRIC_TESTS_DIR folder / per-participant folder after restructuring
 PSYM_LWMC_DIR = Path("WMC/")

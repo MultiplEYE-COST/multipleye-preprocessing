@@ -74,7 +74,7 @@ def check_all_screens_logfile(
             ).item(
                 0, "trial_number"
             )  # get the trial number for the stimulus as ratingscreens don't have an entry in the stimulus_number column
-        except pl.exceptions.NoRowsReturnedError:
+        except pl.exceptions.NoRowsReturnedError or IndexError:
             trial_id = logfile.filter(
                 (pl.col("stimulus_number") == str(float(stimulus.id)))
             ).item(0, "trial_number")

@@ -1,12 +1,15 @@
-data_collection_name: "MultiplEYE_SL_SI_Ljubljana_1_2025"
+data_collection_name: "MultiplEYE_LV_LV_Riga_1_2025"
 
 # pick either include or exclude sessions, if none is specified, all sessions are included
 include_sessions:
 
 exclude_sessions:
-  - "116_SL_SI_1_ET1"
 
 include_pilots: True
 
-# if any sessions do not use the standard stimulus version, specify so here
+# Hardware settings
+expected_sampling_rate_hz: 1000  # Hz
+
+
+# NOT YET IN USE; IGNORE. if any sessions do not use the standard stimulus version, specify so here
 session_to_stimuli:

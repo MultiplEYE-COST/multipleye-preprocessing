@@ -9,6 +9,7 @@ import pymovements as pm
 
 
 def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
+    directory = Path(directory) / session / "raw_data"
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()

@@ -230,7 +230,8 @@ class MultipleyeDataCollection:
             pilots = []
             if self.include_pilots:
                 pilots = os.scandir(self.data_root / self.pilot_folder)
-                items = list(items) + list(pilots)
+                pilots = list(pilots)
+                items = list(items) + pilots
 
             for item in items:
                 if item.is_dir():
@@ -553,7 +554,13 @@ class MultipleyeDataCollection:
         else:
             overview_path = path / f"{self.data_collection_name}_overview.yaml"
 
-        num_sessions = len(self.sessions)
+        num_sessions = len(
+            [
+                session
+                for session in self.sessions
+                if not self.sessions[session].is_pilot
+            ]
+        )
         num_pilots = len(
             [session for session in self.sessions if self.sessions[session].is_pilot]
         )

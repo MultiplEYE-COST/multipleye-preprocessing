@@ -1,3 +1,4 @@
+import os
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -20,6 +21,12 @@ def run_multipleye_preprocessing(config_path: str):
     preprocessing.utils.prepare_language_folder(data_collection_name)
 
     data_folder_path = this_repo / "data" / data_collection_name
+
+    if not os.path.exists(data_folder_path):
+        raise FileNotFoundError(
+            f"Data folder {data_folder_path} does not exist. Please make sure to download the data and place it in the correct folder. "
+            f"And check if you have filled in the correct data collection name in the config file {config_path}."
+        )
 
     multipleye = (
         preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
