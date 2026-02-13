@@ -29,30 +29,6 @@ def test_space_fixation_counts_toward_word(run_pipeline, simple_aois):
     assert dy.select("skipped").item() == 1
 
 
-def test_rereading_regression(run_pipeline, simple_aois):
-    gaze = pl.DataFrame({
-        "name": ["fixation", "fixation", "fixation"],
-        "stimulus": ["stim_1"] * 3,
-        "trial": ["trial_1"] * 3,
-        "page": ["page_1"] * 3,
-        "onset": [100, 400, 700],
-        "duration": [200, 150, 100],
-        "word_idx": [0, 1, 0],
-        "char_idx": [2, 6, 1],
-        "char": ["l", "a", "a"],
-        "word": ["Mali", "Magjik", "Mali"],
-    })
-
-    wlt = run_pipeline(simple_aois, gaze)
-    word = wlt.filter(pl.col("word_idx") == 0)
-
-    assert word.select("TFC").item() == 2
-    assert word.select("FPRT").item() == 200
-    assert word.select("TFT").item() == 300
-    assert word.select("RRT").item() == 100
-    assert word.select("RR").item() == 1
-
-
 def test_skipped_word(run_pipeline, simple_aois):
     gaze = pl.DataFrame({
         "name": ["fixation"],
@@ -128,6 +104,8 @@ def test_regression_multiple_rereading(run_pipeline, simple_aois):
 
     wlt = run_pipeline(simple_aois, gaze)
     word = wlt.filter(pl.col("word_idx") == 0)
+
+    assert word.select("TFC").item() == 3
 
     # First-pass only first fixation
     assert word.select("FPRT").item() == 115
