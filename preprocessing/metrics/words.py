@@ -44,8 +44,7 @@ def repair_word_labels(df: pl.DataFrame) -> pl.DataFrame:
     return (
         df.sort(group_cols + ["char_idx_in_line"])
         .with_columns(
-            pl.when(pl.col("word").is_null() | (
-                pl.col("word").str.strip_chars() == ""))
+            pl.when(pl.col("word").is_null() | (pl.col("word").str.strip_chars() == ""))
             .then(None)
             .otherwise(pl.col("word"))
             .alias("_word_tmp")
