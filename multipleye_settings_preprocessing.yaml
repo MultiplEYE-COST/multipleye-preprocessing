@@ -2,7 +2,8 @@ data_collection_name: "MultiplEYE_LV_LV_Riga_1_2025"
 
 # pick either include or exclude sessions, if none is specified, all sessions are included
 include_sessions:
-  - 001_LV_LV_1_ET1
+
+
 exclude_sessions:
 
 include_pilots: True

@@ -111,7 +111,6 @@ class MultipleyeDataCollection:
         self.include_pilots = kwargs.get("include_pilots", False)
         self.reports_dir = kwargs.get("output_dir", "")
         self.pilot_folder = kwargs.get("pilot_folder", "")
-        self.preprocessing_dir = kwargs.get("preprocessing_dir", "")
 
         for short_name, long_name in EYETRACKER_NAMES.items():
             if eye_tracker in long_name:
@@ -141,10 +140,6 @@ class MultipleyeDataCollection:
         if not self.reports_dir:
             self.reports_dir = self.data_root.parent / "quality_reports"
             self.reports_dir.mkdir(exist_ok=True)
-
-        if not self.preprocessing_dir:
-            self.preprocessing_dir = self.data_root.parent / "preprocessing"
-            self.preprocessing_dir.mkdir(exist_ok=True)
 
         self.add_recorded_sessions(self.data_root, self.session_folder_regex)
 
@@ -477,10 +472,10 @@ class MultipleyeDataCollection:
         if not output_dir:
             output_dir = self.reports_dir
 
-        session_results = output_dir / session_name
+        session_results = output_dir / session_name / "sanity_checks"
         os.makedirs(session_results, exist_ok=True)
 
-        report_file_path = output_dir / session_name / f"{session_name}_report.txt"
+        report_file_path = session_results / f"{session_name}_{self.city}_report.txt"
         self.sessions[session_name].sanity_report_path = report_file_path
 
         if not report_file_path.exists() or overwrite:
@@ -514,14 +509,14 @@ class MultipleyeDataCollection:
             fix_report = self._check_avg_fix_durations(gaze)
 
             fix_report.write_csv(
-                file=self.reports_dir
-                / session_name
-                / f"fixation_statistics_per_page_{session_name}.tsv",
+                session_results / f"fixation_statistics_per_page_{session_name}.tsv",
                 separator="\t",
             )
 
             if plotting:
-                self._create_plots(gaze, stimuli, session_name, aoi=True)
+                self._create_plots(
+                    gaze, stimuli, session_name, session_results, aoi=True
+                )
 
     def _load_session_names(self, session: str | list[str] | None) -> list[str]:
         """
@@ -588,7 +583,7 @@ class MultipleyeDataCollection:
         if not path:
             overview_path = self.data_root.parent / f"{session_idf}_overview.yaml"
         else:
-            overview_path = path / f"{session_idf}_overview.yaml"
+            overview_path = path / session_idf / f"{session_idf}_overview.yaml"
 
         with open(overview_path, "w", encoding="utf8") as f:
             yaml.dump(sess.create_overview(), f)
@@ -1316,8 +1311,8 @@ class MultipleyeDataCollection:
             self.sessions[session_identifier].sanity_report_path,
         )
 
-    def _create_plots(self, gaze, stimuli, session_identifier, aoi=False):
-        plot_dir = self.reports_dir / session_identifier / f"{session_identifier}_plots"
+    def _create_plots(self, gaze, stimuli, session_identifier, directory, aoi=False):
+        plot_dir = directory / f"{session_identifier}_plots"
         plot_dir.mkdir(exist_ok=True)
 
         plot_main_sequence(gaze.events, plot_dir)
