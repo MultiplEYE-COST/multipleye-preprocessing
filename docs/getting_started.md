@@ -61,20 +61,19 @@ pip install -e .
 In order to run the preprocessing pipeline, there are eye-tracker specific libraries required.
 At the moment, only EyeLink eye-trackers are supported.
 
+(eyelink_dev_kit)=
+
 ### EyeLink Developers Kit
 Before we can {ref}`run the pipelines <running_pipelines>`,
 we need to install the EyeLink Developers Kit.
 This is needed to convert files from the proprietary `.edf` format to the parsable `.asc` format,
 the binary `edf2asc` needs to be installed.
 
-(eyelink_dev_kit)=
-
 The `edf2asc` utility is being delivered with the EyeLink Developers Kit and is owned by
 SR Research Ltd., being distributed through their forum website.
 To access the download, an account must be created first.
 If you do not own an account on the SR Support Forum yet,
-[register in their support forum](https://www.sr-research.com/support/member.php?action=register).
-For a registration:
+[register in their support forum](https://www.sr-research.com/support/member.php?action=register):
 
 1. Fill in the *Account Details* and *Preferences*.
 2. In the *Required Information* section, select the EyeLink system you use
@@ -119,7 +118,7 @@ formats, please read into the more detailled {ref}`reference_guide` chapter.
 To run a pipeline you wil have to fill in the relevant information in the `multipleye_settings_preprocessing.yaml` file.
 
 Currently, there is one pipeline available which has been moved to `preprocessing.scripts`
-and should be called by its registered name. The main pipelines require the config file path as an arugment. However,
+and should be called by its registered name. The main pipelines require the config file path as an argument. However,
 the default config file is `multipleye_settings_preprocessing.yaml`, so if you have
 updated the relevant information in that file, you can run the pipelines without providing the path to the config file.
 

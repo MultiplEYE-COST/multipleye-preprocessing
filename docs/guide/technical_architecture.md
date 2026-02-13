@@ -3,8 +3,7 @@
 # Technical Architecture
 
 This section provides detailed technical specifications of the MultiplEYE preprocessing pipeline.
-For user-facing instructions on how to run the preprocessing, please refer to the {ref}
-`preprocessing_guide`.
+For user-facing instructions on how to run the preprocessing, please refer to the {ref}`preprocessing_guide`.
 
 (multiplEYE_data_structure)=
 
