@@ -1,6 +1,5 @@
 import os
 from argparse import ArgumentParser
-from pathlib import Path
 
 import yaml
 from tqdm import tqdm
@@ -10,7 +9,7 @@ from preprocessing import constants
 
 
 def run_multipleye_preprocessing(config_path: str):
-    this_repo = Path().resolve()
+    this_repo = constants.THIS_REPO
     config = yaml.load(open(this_repo / config_path), Loader=yaml.SafeLoader)
 
     data_collection_name = config["data_collection_name"]
@@ -76,7 +75,7 @@ def run_multipleye_preprocessing(config_path: str):
                 session_idf=idf,
                 trial_cols=constants.TRIAL_COLS,
             )
-            preprocessing.save_raw_data(raw_data_folder, session_save_name, gaze)
+            preprocessing.save_raw_data(constants.OUTPUT_DIR, session_save_name, gaze)
             preprocessing.save_session_metadata(gaze, output_folder)
 
         sess.pm_gaze_metadata = gaze._metadata
@@ -164,7 +163,7 @@ def run_multipleye_preprocessing(config_path: str):
 
 
 def main():
-    """Run MultiplEYE preprocessing with the argument as data collection name."""
+    """Run MultiplEYE preprocessing with the config file as argument."""
     parser = ArgumentParser(description="Run MultiplEYE preprocessing.")
 
     parser.add_argument(
@@ -175,3 +174,7 @@ def main():
     )
     args = parser.parse_args()
     run_multipleye_preprocessing(args.config_path)
+
+
+if __name__ == "__main__":
+    main()

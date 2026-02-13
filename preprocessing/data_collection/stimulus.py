@@ -110,10 +110,7 @@ class Stimulus:
         lang = lang.lower()
         country = country.lower()
 
-        if lang == "lv":
-            stimulus_id = float(stimulus_row["stimulus_id"])
-        else:
-            stimulus_id = stimulus_row["stimulus_id"]
+        stimulus_id = int(stimulus_row["stimulus_id"])
         stimulus_type = stimulus_row["stimulus_type"]
         assert stimulus_type in [
             "experiment",

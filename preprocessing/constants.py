@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-THIS_REPO = Path().resolve()
+THIS_REPO = Path(__file__).parent.parent
 
 # USER CONFIGURABLE SETTINGS
 # load from .yaml file
