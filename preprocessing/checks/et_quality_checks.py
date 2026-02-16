@@ -3,7 +3,7 @@ from typing import Any, Callable, TextIO
 
 import polars as pl
 
-from .. import config, constants
+from .. import constants
 from ..data_collection.stimulus import Stimulus
 from ..utils import _report_to_file
 
@@ -369,5 +369,5 @@ def check_metadata(
     report(
         "Sampling rate",
         sampling_rate,
-        config.EXPECTED_SAMPLING_RATE_HZ,
+        constants.EXPECTED_SAMPLING_RATE_HZ,
     )

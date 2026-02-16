@@ -30,7 +30,7 @@ from ..constants import (
     PSYM_PLAB_DIR,
     PSYM_WIKIVOCAB_DIR,
 )
-from ..config import PSYCHOMETRIC_TESTS_DIR
+from ..constants import PSYCHOMETRIC_TESTS_DIR
 from ..utils import pid_from_session
 
 

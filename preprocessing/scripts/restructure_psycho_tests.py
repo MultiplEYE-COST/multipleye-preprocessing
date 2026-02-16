@@ -4,7 +4,7 @@ import argparse
 import shutil
 from pathlib import Path
 
-from preprocessing.config import (
+from preprocessing.constants import (
     PSYM_PARTICIPANT_CONFIGS,
     PSYCHOMETRIC_TESTS_DIR,
     PSYM_CORE_DATA,

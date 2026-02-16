@@ -6,9 +6,11 @@ from pathlib import Path
 import polars as pl
 
 import pymovements as pm
+from .. import constants
 
 
 def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
+    directory = Path(directory) / session / constants.RAW_DATA_FOLDER
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()
@@ -38,6 +40,25 @@ def save_events_data(
     file_columns: list[str],
     data: pm.Gaze,
 ) -> None:
+    """
+    Saves events data (fixations or saccades) in separate csv files. The input is expected to be
+    produced with pymovements.
+    :param event_type: what type of event should be stored. Either "fixation" or "saccade".
+    :param directory: the directory where the events data should be stored. The function will create a subfolder
+    for the session and event type (fixations or saccades).
+    :param session: The name of the session.
+    :param split_column: What column to split the events data by. The function will create a separate file for each
+    unique value in this column.
+    :param name_columns: Column values per split that should be included in the file name.
+    :param file_columns: Columns that should be included in the saved csv file.
+    :param data: The events data as a pymovements Gaze object.
+    """
+
+    directory = (
+        Path(directory) / session / constants.FIXATIONS_FOLDER
+        if event_type == "fixation"
+        else Path(directory) / session / constants.SACCADES_FOLDER
+    )
     directory.mkdir(parents=True, exist_ok=True)
 
     data_copy = data.clone()
@@ -59,6 +80,7 @@ def save_events_data(
 
 
 def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
+    directory = Path(directory) / session / constants.SCANPATHS_FOLDER
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()
@@ -105,7 +127,8 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
         df.write_csv(directory / name)
 
 
-def save_session_metadata(gaze: pm.Gaze, directory: Path) -> None:
+def save_session_metadata(directory: Path, session: str, gaze: pm.Gaze) -> None:
+    directory = Path(directory) / session
     directory.mkdir(parents=True, exist_ok=True)
 
     metadata = gaze._metadata
