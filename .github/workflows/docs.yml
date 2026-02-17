@@ -24,7 +24,7 @@ jobs:
         uses: ./.github/actions/setup-uv
 
       - name: Build documentation
-        run: sphinx-build docs/ public -b dirhtml
+        run: uv run sphinx-build docs/ public -b dirhtml
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
