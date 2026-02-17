@@ -83,7 +83,7 @@ def load_gaze_data(
             {"pattern": r"stop_recording_", "column": "practice", "value": None},
         ],
         trial_columns=trial_cols,
-        add_columns={"session": session_idf},
+        metadata={"session": session_idf},
     )
 
     # Filter out data outside of trials
