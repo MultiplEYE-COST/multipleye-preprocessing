@@ -36,23 +36,22 @@ To use the pipeline, we expect you to have python set up on your machine.
 Make sure to use an up-to-date python version.
 The pipeline has been developed with `3.13` and up in mind.
 
-WE recommend using `uv` to set up your environment, as it will automatically install the
+We recommend using `uv` to set up your environment, as it will automatically install the
 dependencies
 as specified in `pyproject.toml`.
 
 1. Install `uv` by following the instructions on
    their [website](https://docs.astral.sh/uv/getting-started/installation/).
 2. Clone the repository and navigate into it (see above).
-3. Now, you will have to create an environment using `uv`.
-    ```
-    uv venv [your-name]
-    ```
-   Please see [here](https://docs.astral.sh/uv/pip/environments/) for more information
-4. Then you can set the environment up using [`uv`](https://docs.astral.sh/uv/):
+3. Now, you can set the environment up using [`uv`](https://docs.astral.sh/uv/):
 
     ```bash
     uv sync
     ```
+4. And activate it:
+   ```
+   source .venv/bin/activate
+   ```
 
 ```{note}
 If you do not want to use `uv`, you can install the pipeline in editable mode:
@@ -152,7 +151,8 @@ You have only been granted access to this folder if you are part of the data col
 
 ### Preprocess your data
 
-To run the MultiplEye preprocessing pipeline (if you used `uv` for installation):
+To run the MultiplEye preprocessing pipeline (if you used `uv` for installation and activated the
+environment):
 
 ```bash
 run_multipleye_preprocessing
