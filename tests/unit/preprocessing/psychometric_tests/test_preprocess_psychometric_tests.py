@@ -597,7 +597,6 @@ def test_preprocess_ran_errors(tmp_path: Path, make_text_file, header, body, err
                 "WikiVocab_incorrect_correct_score": 0.5,
                 "WikiVocab_pseudo_correct": 0.5,
                 "WikiVocab_real_correct": 0.5,
-                "WikiVocab_overall_correct": 0.5,
             },
         ),
         (
@@ -615,7 +614,6 @@ def test_preprocess_ran_errors(tmp_path: Path, make_text_file, header, body, err
                 "WikiVocab_incorrect_correct_score": math.nan,
                 "WikiVocab_pseudo_correct": 0.5,
                 "WikiVocab_real_correct": math.nan,
-                "WikiVocab_overall_correct": 0.5,
             },
         ),
     ],
