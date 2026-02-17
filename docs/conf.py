@@ -46,7 +46,7 @@ myst_links_external_new_tab = True
 html_theme = "sphinx_book_theme"
 html_static_path = ["_static"]
 html_theme_options = {
-    "repository_url": "https://github.com/theDebbister/multipleye-preprocessing/",
+    "repository_url": "https://github.com/MultiplEYE-COST/multipleye-preprocessing/",
     "use_repository_button": True,
     "use_issues_button": True,
     "use_edit_page_button": True,
