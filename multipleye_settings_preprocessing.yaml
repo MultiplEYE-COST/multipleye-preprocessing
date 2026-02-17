@@ -1,8 +1,7 @@
-data_collection_name: "MultiplEYE_LV_LV_Riga_1_2025"
+data_collection_name: "MultiplEYE_SQ_CH_Zurich_1_2025"
 
 # pick either include or exclude sessions, if none is specified, all sessions are included
 include_sessions:
-
 
 exclude_sessions:
 
