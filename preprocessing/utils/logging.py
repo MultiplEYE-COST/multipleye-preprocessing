@@ -1,7 +1,53 @@
 from __future__ import annotations
 
 import logging
+import subprocess
+from importlib import metadata
 from pathlib import Path
+
+import pymovements as pm
+
+
+def get_pipeline_info() -> tuple[str, str]:
+    """Get the pipeline version and last update date.
+
+    Returns
+    -------
+    tuple[str, str]
+        Pipeline version and last update date.
+    """
+    version = "unknown"
+    try:
+        version = metadata.version("MultiplEYE-preprocessing")
+    except metadata.PackageNotFoundError:
+        # Fallback to pyproject.toml if not installed
+        pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
+        if pyproject_path.exists():
+            with open(pyproject_path, encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("version ="):
+                        version = line.split("=")[1].strip().strip('"')
+                        break
+
+    last_update = "unknown"
+    try:
+        # Try to get git tag/commit and date
+        repo_path = Path(__file__).parent.parent.parent
+        git_info = subprocess.check_output(
+            ["git", "-C", str(repo_path), "describe", "--tags", "--always"],
+            stderr=subprocess.STDOUT,
+            text=True,
+        ).strip()
+        git_date = subprocess.check_output(
+            ["git", "-C", str(repo_path), "log", "-1", "--format=%ci"],
+            stderr=subprocess.STDOUT,
+            text=True,
+        ).strip()
+        last_update = f"{git_info} ({git_date})"
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    return version, last_update
 
 
 def setup_logging(
@@ -38,6 +84,12 @@ def setup_logging(
 
     logger = logging.getLogger(__name__)
     logger.info("MultiplEYE preprocessing package loaded.")
+
+    # Log versions
+    pipeline_version, last_update = get_pipeline_info()
+    logger.info(f"Pipeline version: {pipeline_version}")
+    logger.info(f"Last updated (git): {last_update}")
+    logger.info(f"pymovements version: {pm.__version__}")
 
     # Optional: specialised filter/formatter for specific warnings if needed
     # For now, captureWarnings(True) will redirect all warnings to a logger named 'py.warnings'
