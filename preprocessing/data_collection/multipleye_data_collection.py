@@ -142,15 +142,6 @@ class MultipleyeDataCollection:
         self.included_sessions = included_sessions
         self.logger = logging.getLogger(__name__)
 
-        log_file = self.data_root.parent / "preprocessing_logs.txt"
-        if not LOG_APPEND:
-            clear_log_file(log_file)
-        setup_logging(
-            log_file=log_file,
-            console_level=CONSOLE_LOG_LEVEL,
-            file_level=FILE_LOG_LEVEL,
-        )
-
         self.logger.info(
             f"MultipleyeDataCollection initialized. data_root: {self.data_root}"
         )
@@ -409,6 +400,16 @@ class MultipleyeDataCollection:
                 f"Stimulus language {stimulus_language} of the data collection name is "
                 f"not a valid language code. It should be a 2 letter code."
             )
+
+        # Initialise logging
+        log_file = data_dir / "preprocessing_logs.txt"
+        if not LOG_APPEND:
+            clear_log_file(log_file)
+        setup_logging(
+            log_file=log_file,
+            console_level=CONSOLE_LOG_LEVEL,
+            file_level=FILE_LOG_LEVEL,
+        )
 
         session_folder_regex = (
             r"\d\d\d" + f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"

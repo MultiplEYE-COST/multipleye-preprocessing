@@ -17,9 +17,9 @@ THIS_REPO = Path(__file__).parent.parent
 CONFIG_PATH = THIS_REPO / "multipleye_settings_preprocessing.yaml"
 user_configs = yaml.safe_load(open(CONFIG_PATH))
 
-# Log config load (this might be logged once logging is configured)
+# Log config load
 logger = logging.getLogger(__name__)
-logger.info(f"User configuration loaded from {CONFIG_PATH}")
+logger.debug(f"Initial configuration loaded from {CONFIG_PATH}")
 DATA_COLLECTION_NAME = user_configs["data_collection_name"]
 DATASET_DIR = THIS_REPO / "data" / user_configs["data_collection_name"]
 
