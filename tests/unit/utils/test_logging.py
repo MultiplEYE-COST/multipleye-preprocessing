@@ -90,6 +90,8 @@ def test_warning_capture(warnings_to_log, temp_log_file):
         content = f.read()
         assert test_warning_msg in content
 
+    assert any(test_warning_msg in msg for msg in logging._captured_warnings)  # type: ignore
+
 
 @pytest.mark.parametrize(
     "append_flag, initial_kept, message",

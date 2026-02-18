@@ -31,6 +31,7 @@ from ..constants import (
 from ..utils.conversion import convert_to_time_str
 from ..utils.logging import clear_log_file
 from ..utils.logging import setup_logging
+from ..utils.logging import get_logger
 from ..checks.et_quality_checks import (
     check_comprehension_question_answers,
     check_metadata,
@@ -140,7 +141,7 @@ class MultipleyeDataCollection:
         self.psychometric_tests = kwargs.get("psychometric_tests", [])
         self.excluded_sessions = excluded_sessions
         self.included_sessions = included_sessions
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger(__name__)
 
         self.logger.info(
             f"MultipleyeDataCollection initialized. data_root: {self.data_root}"
@@ -590,6 +591,10 @@ class MultipleyeDataCollection:
             "Number of eye-tracking (ET) sessions per participant": self.num_sessions,
         }
 
+        # Add warnings to overview
+        if hasattr(logging, "_captured_warnings") and logging._captured_warnings:
+            overview["Warnings"] = list(set(logging._captured_warnings))
+
         with open(overview_path, "w", encoding="utf8") as f:
             yaml.dump(overview, f)
 
@@ -644,15 +649,19 @@ class MultipleyeDataCollection:
             # TODO: lab config should be changeable for each session
             self.sessions[session].lab_config = self.lab_configuration
 
-            if (
-                self.sessions[session].stimulus_order_ids
-                != self.sessions[session].completed_stimuli_ids
-            ):
-                if p_id not in self.crashed_session_ids:
-                    self.logger.warning(
-                        f"Stimulus order and completed stimuli do not match for "
-                        f"session {session}. Please check the files carefully."
-                    )
+        if (
+            self.sessions[session].stimulus_order_ids
+            != self.sessions[session].completed_stimuli_ids
+        ):
+            if p_id not in self.crashed_session_ids:
+                msg = (
+                    f"Stimulus order and completed stimuli do not match for "
+                    f"session {session}. Please check the files carefully."
+                )
+                self.logger.warning(msg)
+                if not hasattr(logging, "_captured_warnings"):
+                    logging._captured_warnings = []  # type: ignore
+                logging._captured_warnings.append(msg)  # type: ignore
 
             self.sessions[session].stimuli = self._load_session_stimuli(
                 self.stimulus_dir,
