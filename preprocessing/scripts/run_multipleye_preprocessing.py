@@ -112,7 +112,7 @@ def run_multipleye_preprocessing(config_path: str):
 
             preprocessing.save_events_data(
                 "fixation",
-                fixation_data_folder,
+                constants.OUTPUT_DIR,
                 session_save_name,
                 "trial",
                 ["trial", "stimulus"],
@@ -122,7 +122,7 @@ def run_multipleye_preprocessing(config_path: str):
 
             preprocessing.save_events_data(
                 "saccade",
-                saccade_data_folder,
+                constants.OUTPUT_DIR,
                 session_save_name,
                 "trial",
                 ["trial", "stimulus"],

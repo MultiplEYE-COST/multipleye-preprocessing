@@ -7,3 +7,7 @@ sanity checks:
   -
 - TESTS!!!
 	- the ones that are there atm were just a first draft
+
+
+- integrate loading of the stimuli into the session object at init
+- make sure naming is correct
