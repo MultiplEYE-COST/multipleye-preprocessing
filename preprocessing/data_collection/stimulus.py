@@ -1,5 +1,6 @@
 import importlib
 import json
+import logging
 import warnings
 from dataclasses import dataclass
 from glob import glob
@@ -319,6 +320,10 @@ class LabConfig:
 
         with open(json_config_path) as f:
             json_config = json.load(f)
+
+        logger = logging.getLogger(__name__)
+        logger.info(f"Lab config loaded from {config_path}")
+        logger.info(f"JSON lab config loaded from {json_config_path}")
 
         # if the final data has been collected and this is not just a sanity check
         if final_metadata_path.exists():

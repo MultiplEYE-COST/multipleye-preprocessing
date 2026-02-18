@@ -36,6 +36,9 @@ def setup_logging(
     # Capture warnings
     logging.captureWarnings(True)
 
+    logger = logging.getLogger(__name__)
+    logger.info("MultiplEYE preprocessing package loaded.")
+
     # Optional: specialised filter/formatter for specific warnings if needed
     # For now, captureWarnings(True) will redirect all warnings to a logger named 'py.warnings'
 

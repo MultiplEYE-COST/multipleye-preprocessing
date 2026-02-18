@@ -24,6 +24,7 @@ from ..constants import (
     MESSAGE_REGEX,
     STIMULUS_NAME_MAPPING,
     IGNORED_SESSION_FOLDERS,
+    LOG_APPEND,
 )
 from ..utils.conversion import convert_to_time_str
 from ..utils.logging import clear_log_file
@@ -137,11 +138,17 @@ class MultipleyeDataCollection:
         self.psychometric_tests = kwargs.get("psychometric_tests", [])
         self.excluded_sessions = excluded_sessions
         self.included_sessions = included_sessions
+        self.logger = logging.getLogger(__name__)
 
         log_file = self.data_root.parent / "preprocessing_logs.txt"
-        clear_log_file(log_file)
+        if not LOG_APPEND:
+            clear_log_file(log_file)
         setup_logging(log_file=log_file)
-        self.logger = logging.getLogger(__name__)
+
+        self.logger.info(
+            f"MultipleyeDataCollection initialized. data_root: {self.data_root}"
+        )
+        self.logger.info(f"Main config loaded from {self.config_file}")
 
         if not self.reports_dir:
             self.reports_dir = self.data_root.parent / "quality_reports"

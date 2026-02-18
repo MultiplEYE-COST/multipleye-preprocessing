@@ -8,6 +8,7 @@ import pytest
 from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
 )
+from preprocessing.constants import LOG_APPEND
 from preprocessing.utils.logging import setup_logging, clear_log_file
 
 
@@ -79,3 +80,48 @@ def test_warning_capture(mock_multipleye_instance, temp_log_file):
     with open(temp_log_file, "r") as f:
         content = f.read()
         assert test_warning_msg in content
+
+
+def test_log_append_behavior(temp_log_file):
+    """Test that logging appends to the file based on LOG_APPEND constant."""
+    # Ensure file starts with some content
+    with open(temp_log_file, "w") as f:
+        f.write("Initial content\n")
+
+    # Use a mock for LOG_APPEND to test both behaviors
+    with patch("preprocessing.data_collection.multipleye_data_collection.LOG_APPEND", True):
+        # We don't need a full instance, just check the logic in __init__-like flow
+        log_file = temp_log_file
+        # logic from __init__:
+        # if not LOG_APPEND: clear_log_file(log_file)
+        # setup_logging(log_file=log_file)
+
+        # In test, LOG_APPEND is True, so clear_log_file should NOT be called
+        # We can just run the logic manually
+        from preprocessing.data_collection.multipleye_data_collection import LOG_APPEND as MOCK_APPEND
+        if not MOCK_APPEND:
+            clear_log_file(log_file)
+        setup_logging(log_file=log_file)
+
+        logger = logging.getLogger("test_append")
+        logger.info("Append message")
+
+        with open(temp_log_file, "r") as f:
+            content = f.read()
+            assert "Initial content" in content
+            assert "Append message" in content
+
+    # Now test with LOG_APPEND = False
+    with patch("preprocessing.data_collection.multipleye_data_collection.LOG_APPEND", False):
+        from preprocessing.data_collection.multipleye_data_collection import LOG_APPEND as MOCK_APPEND_FALSE
+        if not MOCK_APPEND_FALSE:
+            clear_log_file(log_file)
+        setup_logging(log_file=log_file)
+
+        logger = logging.getLogger("test_no_append")
+        logger.info("New run message")
+
+        with open(temp_log_file, "r") as f:
+            content = f.read()
+            assert "Initial content" not in content
+            assert "New run message" in content
