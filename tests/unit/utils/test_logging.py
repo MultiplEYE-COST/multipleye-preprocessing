@@ -43,6 +43,18 @@ def mock_multipleye_instance(temp_log_file):
         return instance
 
 
+@pytest.fixture
+def warnings_to_log(temp_log_file):
+    """Configure logging to capture warnings into the log file and ensure flush."""
+    setup_logging(log_file=temp_log_file)
+    logging.captureWarnings(True)
+    yield
+    for logger_name in ("", "py.warnings"):
+        logger = logging.getLogger(logger_name)
+        for handler in logger.handlers:
+            if hasattr(handler, "flush"):
+                handler.flush()
+
 def test_logging_to_file(mock_multipleye_instance, temp_log_file):
     """Test that logger correctly writes to the log file."""
     test_message = "Test log message"
@@ -56,25 +68,13 @@ def test_logging_to_file(mock_multipleye_instance, temp_log_file):
         assert "WARNING" in content
 
 
-def test_warning_capture(mock_multipleye_instance, temp_log_file):
+def test_warning_capture(warnings_to_log, temp_log_file):
     """Test that standard warnings are captured by the logging system."""
     test_warning_msg = "This is a captured warning"
-
-    # Reconfigure logging and ensure warnings are redirected
-    setup_logging(log_file=temp_log_file)
-    logging.captureWarnings(True)
 
     # Emit via warnings (should be captured) and directly via the py.warnings logger
     warnings.warn(test_warning_msg, UserWarning)
     logging.getLogger("py.warnings").warning(test_warning_msg)
-
-    # Flush any pending logs to the file
-    for handler in logging.getLogger().handlers:
-        if hasattr(handler, "flush"):
-            handler.flush()
-    for handler in logging.getLogger("py.warnings").handlers:
-        if hasattr(handler, "flush"):
-            handler.flush()
 
     assert temp_log_file.exists()
     with open(temp_log_file, "r") as f:
@@ -82,46 +82,34 @@ def test_warning_capture(mock_multipleye_instance, temp_log_file):
         assert test_warning_msg in content
 
 
-def test_log_append_behavior(temp_log_file):
+@pytest.mark.parametrize(
+    "append_flag, initial_kept, message",
+    [
+        (True, True, "Append message"),
+        (False, False, "New run message"),
+    ],
+)
+def test_log_append_behavior(temp_log_file, monkeypatch, append_flag, initial_kept, message):
     """Test that logging appends to the file based on LOG_APPEND constant."""
     # Ensure file starts with some content
     with open(temp_log_file, "w") as f:
         f.write("Initial content\n")
 
-    # Use a mock for LOG_APPEND to test both behaviors
-    with patch("preprocessing.data_collection.multipleye_data_collection.LOG_APPEND", True):
-        # We don't need a full instance, just check the logic in __init__-like flow
-        log_file = temp_log_file
-        # logic from __init__:
-        # if not LOG_APPEND: clear_log_file(log_file)
-        # setup_logging(log_file=log_file)
+    # Patch LOG_APPEND and simulate the __init__-like flow
+    monkeypatch.setattr(
+        "preprocessing.data_collection.multipleye_data_collection.LOG_APPEND",
+        append_flag,
+        raising=False,
+    )
 
-        # In test, LOG_APPEND is True, so clear_log_file should NOT be called
-        # We can just run the logic manually
-        from preprocessing.data_collection.multipleye_data_collection import LOG_APPEND as MOCK_APPEND
-        if not MOCK_APPEND:
-            clear_log_file(log_file)
-        setup_logging(log_file=log_file)
+    if not append_flag:
+        clear_log_file(temp_log_file)
+    setup_logging(log_file=temp_log_file)
 
-        logger = logging.getLogger("test_append")
-        logger.info("Append message")
+    logger = logging.getLogger("test_append" if append_flag else "test_no_append")
+    logger.info(message)
 
-        with open(temp_log_file, "r") as f:
-            content = f.read()
-            assert "Initial content" in content
-            assert "Append message" in content
-
-    # Now test with LOG_APPEND = False
-    with patch("preprocessing.data_collection.multipleye_data_collection.LOG_APPEND", False):
-        from preprocessing.data_collection.multipleye_data_collection import LOG_APPEND as MOCK_APPEND_FALSE
-        if not MOCK_APPEND_FALSE:
-            clear_log_file(log_file)
-        setup_logging(log_file=log_file)
-
-        logger = logging.getLogger("test_no_append")
-        logger.info("New run message")
-
-        with open(temp_log_file, "r") as f:
-            content = f.read()
-            assert "Initial content" not in content
-            assert "New run message" in content
+    with open(temp_log_file, "r") as f:
+        content = f.read()
+        assert ("Initial content" in content) == initial_kept
+        assert message in content
