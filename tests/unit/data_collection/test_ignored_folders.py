@@ -32,6 +32,8 @@ def mock_multipleye_instance():
         instance.include_pilots = False
         instance.excluded_sessions = []
         instance.included_sessions = []
+        # Provide a mocked logger used by the method under test
+        instance.logger = MagicMock()
         return instance
 
 
@@ -63,12 +65,11 @@ def test_add_recorded_sessions_logging(
     if re.match(regex, folder_name, re.IGNORECASE):
         # We don't want to test the matching branch here, just ensure it doesn't crash
         # or we can just skip the globbing by making it not a dir for that part if possible
-        # but the code calls glob if it matches.
+        # but the code calls glob if it matches
         pass
 
     with (
         patch("os.scandir", return_value=[mock_entry]),
-        patch("builtins.print") as mock_print,
         patch("pathlib.Path.glob", return_value=[Path("fake.edf")]),
     ):  # Mock edf file if matches
         instance.add_recorded_sessions(data_root, regex)
@@ -76,8 +77,8 @@ def test_add_recorded_sessions_logging(
         warning_msg = f"Folder {folder_name} does not match the regex pattern {regex}. Not considered as session."
 
         if should_warn:
-            mock_print.assert_called_with(warning_msg)
+            instance.logger.warning.assert_called_with(warning_msg)
         else:
-            # Ensure it was NOT called with the warning message
-            for call in mock_print.call_args_list:
-                assert warning_msg not in call[0][0]
+            # Ensure warning not emitted for ignored or matching folders
+            calls = [args[0] for args, _ in instance.logger.warning.call_args_list]
+            assert warning_msg not in calls

@@ -26,6 +26,8 @@ from ..constants import (
     IGNORED_SESSION_FOLDERS,
 )
 from ..utils.conversion import convert_to_time_str
+from ..utils.logging import clear_log_file
+from ..utils.logging import setup_logging
 from ..checks.et_quality_checks import (
     check_comprehension_question_answers,
     check_metadata,
@@ -136,7 +138,10 @@ class MultipleyeDataCollection:
         self.excluded_sessions = excluded_sessions
         self.included_sessions = included_sessions
 
-        open(self.data_root.parent / "preprocessing_logs.txt", "w").close()
+        log_file = self.data_root.parent / "preprocessing_logs.txt"
+        clear_log_file(log_file)
+        setup_logging(log_file=log_file)
+        self.logger = logging.getLogger(__name__)
 
         if not self.reports_dir:
             self.reports_dir = self.data_root.parent / "quality_reports"
@@ -280,7 +285,7 @@ class MultipleyeDataCollection:
 
                     else:
                         if item.name not in IGNORED_SESSION_FOLDERS:
-                            print(
+                            self.logger.warning(
                                 f"Folder {item.name} does not match the regex pattern "
                                 f"{session_folder_regex}. Not considered as session."
                             )
@@ -302,7 +307,6 @@ class MultipleyeDataCollection:
             else:
                 asc_path = path.with_suffix(".asc")
                 self.sessions[session].asc_path = asc_path
-                # print(f'ASC file already exists for {session}.')
 
     @staticmethod
     def load_lab_config(
@@ -486,9 +490,7 @@ class MultipleyeDataCollection:
             messages = self.sessions[session_name].messages
 
             if not messages:
-                self._write_to_logfile(
-                    f"No messages found in asc file of {session_name}."
-                )
+                self.logger.warning(f"No messages found in asc file of {session_name}.")
 
             stimuli = self.sessions[session_name].stimuli
 
@@ -604,7 +606,7 @@ class MultipleyeDataCollection:
             if "start_after_trial" in session:
                 if p_id not in self.crashed_session_ids:
                     self.crashed_session_ids.append(p_id)
-                    self._write_to_logfile(
+                    self.logger.warning(
                         f"Session {session} started after a trial. Only the completed stimuli will be considered."
                     )
 
@@ -633,7 +635,7 @@ class MultipleyeDataCollection:
                 != self.sessions[session].completed_stimuli_ids
             ):
                 if p_id not in self.crashed_session_ids:
-                    self._write_to_logfile(
+                    self.logger.warning(
                         f"Stimulus order and completed stimuli do not match for "
                         f"session {session}. Please check the files carefully."
                     )
@@ -797,7 +799,7 @@ class MultipleyeDataCollection:
         if completed_stimuli["completed"].cast(pl.Utf8).str.contains("restart").any():
             if p_id not in self.crashed_session_ids:
                 self.crashed_session_ids.append(p_id)
-                self._write_to_logfile(
+                self.logger.warning(
                     f"Session {session_identifier} has been restarted. Only the completed stimuli will be considered."
                 )
             # delete the last row in the csv if it contains 'restart' in the completed column
@@ -824,7 +826,7 @@ class MultipleyeDataCollection:
             self.stim_order_versions["participant_id"] == int(p_id)
         ]
         if len(stim_order_version) == 0:
-            self._write_to_logfile(
+            self.logger.warning(
                 f"Participant ID {p_id} not found in stimulus order versions. Please check the "
                 f"participant IDs in the stimulus order versions file. It is possible that the team did not "
                 f"upload the correct stimulus version from the experiment folder. Extracting version "
@@ -835,7 +837,7 @@ class MultipleyeDataCollection:
             )
 
             if version == logfile_order_version:
-                self._write_to_logfile(
+                self.logger.warning(
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
                     f"extracted from the asc file ({version}) for participant ID {p_id}. Using the "
                     f"version from the logfile."
@@ -845,7 +847,7 @@ class MultipleyeDataCollection:
                 ]
 
             else:
-                self._write_to_logfile(
+                self.logger.warning(
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
                     f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
                     f"Please check the files "
@@ -855,7 +857,7 @@ class MultipleyeDataCollection:
         if len(stim_order_version) == 1:
             version = stim_order_version["version_number"].values[0]
             if logfile_order_version != version:
-                self._write_to_logfile(
+                self.logger.warning(
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
                     f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the "
                     f"version from the logfile."
@@ -1036,7 +1038,7 @@ class MultipleyeDataCollection:
                     index=False,
                 )
             else:
-                self._write_to_logfile(
+                self.logger.warning(
                     f"Session {session_identifier} did not finish a break properly, "
                     f"missing end message."
                 )
@@ -1280,7 +1282,7 @@ class MultipleyeDataCollection:
                     / session_identifier
                 )
                 if not test_path.exists():
-                    self._write_to_logfile(
+                    self.logger.warning(
                         f"Psychometric test path {test_path} does not exist for session {session_identifier}."
                     )
                 else:  # TODO: just use preprocess_all_sessions(), this calculates all tests if possible
@@ -1297,7 +1299,7 @@ class MultipleyeDataCollection:
                     elif test == "LWMC":
                         preprocess_lwmc(path=test_path)
                     else:
-                        self._write_to_logfile(
+                        self.logger.warning(
                             f"Psychometric test {test} not recognized. "
                             f"Please check the psychometric tests configuration in the lab configuration yaml file."
                         )
@@ -1407,11 +1409,6 @@ class MultipleyeDataCollection:
                 self.participant_data_path = path
 
             participant_data.to_csv(self.participant_data_path, index=False)
-
-    def _write_to_logfile(self, message: str) -> None:
-        log_file = self.data_root.parent / "preprocessing_logs.txt"
-        with open(log_file, "a", encoding="utf-8") as logs:
-            logs.write(message + "\n")
 
 
 if __name__ == "__main__":
