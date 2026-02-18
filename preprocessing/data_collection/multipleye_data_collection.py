@@ -23,6 +23,7 @@ from ..constants import (
     EYETRACKER_NAMES,
     MESSAGE_REGEX,
     STIMULUS_NAME_MAPPING,
+    IGNORED_SESSION_FOLDERS,
 )
 from ..utils.conversion import convert_to_time_str
 from ..checks.et_quality_checks import (
@@ -278,10 +279,11 @@ class MultipleyeDataCollection:
                             self.sessions[item.name] = ses
 
                     else:
-                        print(
-                            f"Folder {item.name} does not match the regex pattern "
-                            f"{session_folder_regex}. Not considered as session."
-                        )
+                        if item.name not in IGNORED_SESSION_FOLDERS:
+                            print(
+                                f"Folder {item.name} does not match the regex pattern "
+                                f"{session_folder_regex}. Not considered as session."
+                            )
 
     @eyelink
     def convert_edf_to_asc(self) -> None:

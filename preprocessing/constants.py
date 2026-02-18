@@ -81,6 +81,8 @@ STOP_RECORDING_REGEX = re.compile(
 )
 
 # Data collection
+IGNORED_SESSION_FOLDERS = ["test_sessions", "core_sessions", "pilot_sessions"]
+
 EYETRACKER_NAMES = {
     "eyelink": [
         "EyeLink 1000 Plus",
