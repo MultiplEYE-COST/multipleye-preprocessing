@@ -51,7 +51,9 @@ def get_pipeline_info() -> tuple[str, str]:
 
 
 def setup_logging(
-    log_file: Path | str | None = None, level: int = logging.INFO
+    log_file: Path | str | None = None,
+    console_level: int = logging.WARNING,
+    file_level: int = logging.INFO,
 ) -> None:
     """Set up logging to console and optionally to a file.
 
@@ -59,21 +61,28 @@ def setup_logging(
     ----------
     log_file : Path | str, optional
         Path to the log file.
-    level : int, optional
-        Logging level (default logging.INFO).
+    console_level : int, optional
+        Logging level for console output (default logging.WARNING).
+    file_level : int, optional
+        Logging level for file output (default logging.INFO).
     """
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    handlers: list[logging.Handler] = []
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(console_level)
+    handlers.append(console_handler)
 
     if log_file:
         log_file = Path(log_file)
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        # Use 'w' mode to overwrite/clear existing log file on start if desired,
-        # but standard logging usually appends. Given open(..., 'w').close() was used before,
-        # we might want to clear it once at the start of the collection.
-        handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
+        # File handler
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setLevel(file_level)
+        handlers.append(file_handler)
 
     logging.basicConfig(
-        level=level,
+        level=min(console_level, file_level) if log_file else console_level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=handlers,
         force=True,

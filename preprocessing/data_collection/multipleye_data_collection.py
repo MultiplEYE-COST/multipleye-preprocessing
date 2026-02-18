@@ -25,6 +25,8 @@ from ..constants import (
     STIMULUS_NAME_MAPPING,
     IGNORED_SESSION_FOLDERS,
     LOG_APPEND,
+    CONSOLE_LOG_LEVEL,
+    FILE_LOG_LEVEL,
 )
 from ..utils.conversion import convert_to_time_str
 from ..utils.logging import clear_log_file
@@ -143,7 +145,11 @@ class MultipleyeDataCollection:
         log_file = self.data_root.parent / "preprocessing_logs.txt"
         if not LOG_APPEND:
             clear_log_file(log_file)
-        setup_logging(log_file=log_file)
+        setup_logging(
+            log_file=log_file,
+            console_level=CONSOLE_LOG_LEVEL,
+            file_level=FILE_LOG_LEVEL,
+        )
 
         self.logger.info(
             f"MultipleyeDataCollection initialized. data_root: {self.data_root}"

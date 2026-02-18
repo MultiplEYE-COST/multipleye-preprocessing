@@ -84,10 +84,13 @@ STOP_RECORDING_REGEX = re.compile(
     r"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)"
 )
 
-# Data collection
+# Logging
 IGNORED_SESSION_FOLDERS = ["test_sessions", "core_sessions", "pilot_sessions"]
 LOG_APPEND = True  # Set False if it should be deleted at DataCollection initialisation
+CONSOLE_LOG_LEVEL = logging.WARNING
+FILE_LOG_LEVEL = logging.INFO
 
+# Data collection
 EYETRACKER_NAMES = {
     "eyelink": [
         "EyeLink 1000 Plus",
