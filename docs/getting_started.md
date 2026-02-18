@@ -52,7 +52,7 @@ as specified in `pyproject.toml`.
    ```
    source .venv/bin/activate
    ```
-   
+
    Or for Windows:
    ```
    .venv\Scripts\activate
