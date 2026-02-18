@@ -64,7 +64,6 @@ def check_comprehension_question_answers(
             & (pl.col("stimulus_number") == f"{stimulus.id}")
         )
         answers = stimulus_frame.filter(pl.col("message").str.contains("FINAL ANSWER"))
-        print(answers)
         correct_answers = stimulus_frame.filter(pl.col("message").str.contains("True"))
         overall_correct_answers += len(correct_answers)
         overall_answers += len(answers)
