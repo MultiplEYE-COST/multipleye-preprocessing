@@ -48,9 +48,14 @@ as specified in `pyproject.toml`.
     ```bash
     uv sync
     ```
-4. And activate it:
+4. And activate it, with Unix (Mac/Linux):
    ```
    source .venv/bin/activate
+   ```
+   
+   Or for Windows:
+   ```
+   .venv\Scripts\activate
    ```
 
 ```{note}
