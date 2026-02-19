@@ -248,7 +248,7 @@ class Stimulus:
 
         if stimulus_type == "experiment":
             assert len(questions) == QUESTION_NUMBERS["experiment"], (
-                f"{stimulus_id} has {len(questions)} questions instead of 6"
+                f"{stimulus_id} has {len(questions)} questions instead of 6 "
             )
         elif stimulus_type == "practice":
             assert len(questions) == QUESTION_NUMBERS["practice"], (
