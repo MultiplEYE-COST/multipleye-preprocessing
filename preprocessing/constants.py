@@ -87,6 +87,7 @@ EYETRACKER_NAMES = {
         "EyeLink II",
         "EyeLink 1000",
         "EyeLink Portable Duo",
+        "Eyelink 1000 Plus"
     ],
 }
 STIMULUS_NAME_MAPPING = {
