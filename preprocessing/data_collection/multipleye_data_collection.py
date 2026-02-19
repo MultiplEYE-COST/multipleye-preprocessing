@@ -234,9 +234,11 @@ class MultipleyeDataCollection:
                 pilots = list(pilots)
                 items = list(items) + pilots
 
+            found_sessions = set()
             for item in items:
                 if item.is_dir():
                     if re.match(session_folder_regex, item.name, re.IGNORECASE):
+                        found_sessions.add(item.name)
                         if (
                             (
                                 self.excluded_sessions
@@ -289,6 +291,22 @@ class MultipleyeDataCollection:
                                 f"Folder {item.name} does not match the regex pattern "
                                 f"{session_folder_regex}. Not considered as session."
                             )
+
+        if self.included_sessions:
+            missing_included = set(self.included_sessions) - found_sessions
+            if missing_included:
+                self.logger.warning(
+                    f"The following sessions were specified in 'include_sessions' but "
+                    f"were not found in the data folder: {sorted(list(missing_included))}"
+                )
+
+        if self.excluded_sessions:
+            missing_excluded = set(self.excluded_sessions) - found_sessions
+            if missing_excluded:
+                self.logger.debug(
+                    f"The following sessions were specified in 'exclude_sessions' but "
+                    f"were not found in the data folder: {sorted(list(missing_excluded))}"
+                )
 
     @eyelink
     def convert_edf_to_asc(self) -> None:
