@@ -2,6 +2,41 @@ import polars as pl
 
 
 def repair_word_labels(df: pl.DataFrame) -> pl.DataFrame:
+    """
+    Ensure consistent word string labels within each word index group.
+
+    This function normalizes the `word` column so that all characters
+    belonging to the same (`trial`, `page`, `line_idx`, `word_idx`)
+    share an identical word label.
+
+    Specifically:
+    - Whitespace-only or empty `word` entries are treated as missing.
+    - Missing values are forward- and backward-filled within each
+      word group.
+    - The `word_idx` column is not modified.
+
+    This is primarily used to assign a proper word label to characters
+    such as inter-word spaces that are already associated with a valid
+    `word_idx`, ensuring downstream processing operates on consistent
+    word-level labels.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        Character-level AOI table containing at least:
+        - `word_idx`
+        - `word`
+        - `char_idx_in_line`
+        Optionally grouped by:
+        - `trial`, `page`, `line_idx`
+
+    Returns
+    -------
+    pl.DataFrame
+        A copy of the input DataFrame with normalized `word` labels.
+        No rows are added or removed, and `word_idx` assignments remain unchanged.
+    """
+
     # Use only grouping columns that actually exist
     base_cols = ["trial", "page", "line_idx", "word_idx"]
     group_cols = [c for c in base_cols if c in df.columns]
