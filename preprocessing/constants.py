@@ -19,7 +19,7 @@ user_configs = yaml.safe_load(open(CONFIG_PATH))
 
 # Module logger retains full module path in records
 logger = logging.getLogger(__name__)
-logger.debug(f"Initial configuration loaded from {CONFIG_PATH}")
+logger.info(f"Initial configuration loaded from {CONFIG_PATH}")
 DATA_COLLECTION_NAME = user_configs["data_collection_name"]
 DATASET_DIR = THIS_REPO / "data" / user_configs["data_collection_name"]
 

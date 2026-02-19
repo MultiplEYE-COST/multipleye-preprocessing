@@ -86,26 +86,52 @@ def setup_logging(
     )
     resolved_file_level = FILE_LOG_LEVEL if file_level is None else file_level
 
+    # --- Formatter definitions ---
+    base_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+    # ANSI colors (only for console)
+    RESET = "\033[0m"
+    COLORS = {
+        logging.DEBUG: "\033[36m",  # Cyan
+        logging.INFO: "\033[37m",  # Light gray
+        logging.WARNING: "\033[33m",  # Yellow
+        logging.ERROR: "\033[31m",  # Red
+        logging.CRITICAL: "\033[1;41m",  # Bold on red background
+    }
+
+    class ColorFormatter(logging.Formatter):
+        def format(self, record: logging.LogRecord) -> str:
+            color = COLORS.get(record.levelno, "")
+            # Emphasise captured warnings specifically
+            if record.name == "py.warnings":
+                # Magenta for warnings redirected from warnings module
+                color = "\033[35m"
+                record.levelname = f"PYWARN:{record.levelname}"
+            msg = super().format(record)
+            # Only colorise if stream is a TTY (most notebooks and terminals support ANSI)
+            return f"{color}{msg}{RESET}" if color else msg
+
     handlers: list[logging.Handler] = []
 
     # Console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(resolved_console_level)
+    console_handler.setFormatter(ColorFormatter(base_format))
     handlers.append(console_handler)
 
+    # File handler (plain formatter)
     if log_file:
         log_file = Path(log_file)
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        # File handler
         file_handler = logging.FileHandler(log_file, encoding="utf-8")
         file_handler.setLevel(resolved_file_level)
+        file_handler.setFormatter(logging.Formatter(base_format))
         handlers.append(file_handler)
 
     logging.basicConfig(
         level=min(resolved_console_level, resolved_file_level)
         if log_file
         else resolved_console_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=handlers,
         force=True,
     )
