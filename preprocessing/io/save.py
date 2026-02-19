@@ -19,7 +19,7 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
         stimulus_id = trial.frame["stimulus"][0]
         filename = f"{session}_{trial_id}_{stimulus_id}_raw_data.csv"
 
-        trial.unnest()
+        trial.unnest('pixel')
         trial.frame = trial.frame["time", "pixel_x", "pixel_y", "pupil", "page"]
 
         trial.save_samples(directory / filename)
