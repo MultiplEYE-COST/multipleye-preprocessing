@@ -15,14 +15,13 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
 
     new_data = data.clone()
 
-    try:
-        new_data.unnest()
-    except Warning:
-        pass
-
     trials = new_data.split(by="trial", as_dict=False)
 
     for trial in trials:
+        try:
+            trial.unnest()
+        except Warning:
+            pass
         df = trial.frame
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
