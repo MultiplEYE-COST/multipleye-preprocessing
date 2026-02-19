@@ -23,7 +23,7 @@ from ..constants import (
     EYETRACKER_NAMES,
     MESSAGE_REGEX,
     STIMULUS_NAME_MAPPING,
-    STIMULI_VERSION_TO_SESSION
+    STIMULI_VERSION_TO_SESSION,
 )
 from ..utils.conversion import convert_to_time_str
 from ..checks.et_quality_checks import (
@@ -397,13 +397,22 @@ class MultipleyeDataCollection:
         session_folder_regex = (
             r"\d\d\d" + f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
         )
-        
+
         if STIMULI_VERSION_TO_SESSION:
-            stimulus_folder_path = data_dir / f"stimuli_{data_folder_name}_{STIMULI_VERSION_TO_SESSION['default_stimuli_version']}"
-            stim_version_mapping = {item: key for key, values in STIMULI_VERSION_TO_SESSION["other_versions_mapping"].items() for item in values}
+            stimulus_folder_path = (
+                data_dir
+                / f"stimuli_{data_folder_name}_{STIMULI_VERSION_TO_SESSION['default_stimuli_version']}"
+            )
+            stim_version_mapping = {
+                item: key
+                for key, values in STIMULI_VERSION_TO_SESSION[
+                    "other_versions_mapping"
+                ].items()
+                for item in values
+            }
         else:
             stimulus_folder_path = data_dir / f"stimuli_{data_folder_name}"
-            
+
         config_file = (
             stimulus_folder_path
             / "config"
@@ -452,7 +461,9 @@ class MultipleyeDataCollection:
             ps_tests_path=ps_tests_path,
             included_sessions=included_sessions,
             excluded_sessions=excluded_sessions,
-            stimuli_version_mapping=stim_version_mapping if STIMULI_VERSION_TO_SESSION else None,
+            stimuli_version_mapping=stim_version_mapping
+            if STIMULI_VERSION_TO_SESSION
+            else None,
         )
 
     def create_sanity_check_report(
@@ -644,20 +655,20 @@ class MultipleyeDataCollection:
                         f"Stimulus order and completed stimuli do not match for "
                         f"session {session}. Please check the files carefully."
                     )
-            
+
             stimulus_dir = self.stimulus_dir
-            
+
             if self.stimuli_version_mapping:
                 if session[:3] in self.stimuli_version_mapping:
-                    # replace the stimulus order version in the stimulus folder name with the one from the mapping          
+                    # replace the stimulus order version in the stimulus folder name with the one from the mapping
                     old_stimulus_dir_name = self.stimulus_dir.name
                     new_stimulus_dir_name = re.sub(
                         r"v(\d+)",
                         f"{self.stimuli_version_mapping[session[:3]]}",
-                        old_stimulus_dir_name
+                        old_stimulus_dir_name,
                     )
                     stimulus_dir = self.stimulus_dir.parent / new_stimulus_dir_name
-            
+
             self.sessions[session].stimuli = self._load_session_stimuli(
                 stimulus_dir,
                 self.language,
