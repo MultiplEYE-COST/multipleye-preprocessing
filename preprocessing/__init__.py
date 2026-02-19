@@ -6,7 +6,10 @@ from .utils.logging import clear_log_file, setup_logging
 # Initialise logging for the entire package upon import
 log_file = DATASET_DIR / "preprocessing_logs.txt"
 
-if not LOG_APPEND:
+# Only log to file if the data directory exists. Otherwise, log only to console.
+if not DATASET_DIR.exists():
+    log_file = None
+elif not LOG_APPEND:
     clear_log_file(log_file)
 
 setup_logging(

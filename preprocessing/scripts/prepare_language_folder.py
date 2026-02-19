@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 from preprocessing import constants
 
+from ..utils.data_path_utils import check_data_collection_exists
 from ..utils.logging import get_logger
 from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
 
@@ -16,13 +17,9 @@ def prepare_language_folder(data_collection_name):
     logger = get_logger(__name__)
 
     # Check if the data collection folder exists
-    this_repo = constants.THIS_REPO
-    data_folder_path = this_repo / "data" / data_collection_name
-    if not data_folder_path.exists():
-        raise FileNotFoundError(
-            f"The data collection folder '{data_folder_path}' does not exist. "
-            "Please check the name or path provided and make sure it is unzipped."
-        )
+    data_folder_path = check_data_collection_exists(
+        data_collection_name, constants.THIS_REPO / "data"
+    )
 
     # check if there exists an eye-tracking-sessions folder
     eye_tracking_sessions_path = data_folder_path / "eye-tracking-sessions"
