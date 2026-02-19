@@ -148,3 +148,7 @@ def save_session_metadata(directory: Path, session: str, gaze: pm.Gaze) -> None:
 
     validations.write_csv(directory / "validations.tsv", separator="\t")
     calibrations.write_csv(directory / "calibrations.tsv", separator="\t")
+
+
+def save_reading_measures():
+    pass

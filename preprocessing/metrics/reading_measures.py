@@ -283,3 +283,7 @@ def build_word_level_table(
             ]
         )
     )
+
+
+def calculate_reading_measures():
+    pass
