@@ -152,7 +152,11 @@ def run_multipleye_preprocessing(config_path: str):
         )
         pbar.set_description(f"Creating sanity check report {idf}")
         multipleye.create_sanity_check_report(
-            gaze, sess.session_identifier, plotting=True, overwrite=True
+            gaze,
+            sess.session_identifier,
+            plotting=True,
+            overwrite=True,
+            output_dir=constants.OUTPUT_DIR,
         )
 
     multipleye.create_dataset_overview(path=constants.OUTPUT_DIR)
