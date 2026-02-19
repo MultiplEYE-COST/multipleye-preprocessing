@@ -101,55 +101,92 @@ def prepare_language_folder(data_collection_name):
                 )
                 # remove the zip file after extraction
                 pilot_participant_folder.unlink()
-
-    stimulus_folder_path = data_folder_path / f"stimuli_{data_collection_name}"
-
-    if not stimulus_folder_path.exists():
-        print(
-            f"The stimulus folder stimuli_{data_collection_name} does not exist. Check and if necessary, ask team to upload."
-        )
+    
+    stimuli_version_to_session = constants.STIMULI_VERSION_TO_SESSION
+    if (stimuli_version_to_session):
+        if (not stimuli_version_to_session.get("default_stimuli_version") or not stimuli_version_to_session.get("other_versions_mapping")):
+            raise ValueError("Invalid stimuli version mapping in the config. Please provide both 'default_stimuli_version' and 'other_versions_mapping' keys with valid values.")
+        
+        # check that the values of default_stimuli_version and other_versions_mapping.keys use correct format
+        version_pattern = r"^v\d+$"
+        if not re.match(version_pattern, stimuli_version_to_session["default_stimuli_version"]):
+            raise ValueError(f"Invalid format for default_stimuli_version: '{stimuli_version_to_session['default_stimuli_version']}'. Expected format is 'v<number>'.")
+        for version in stimuli_version_to_session["other_versions_mapping"].keys():
+            if not re.match(version_pattern, version):
+                raise ValueError(f"Invalid format for stimuli version in other_versions_mapping: '{version}'. Expected format is 'v<number>'.")
+        
+        # check that the default_stimuli_version is not also included in the other_versions_mapping keys
+        if stimuli_version_to_session["default_stimuli_version"] in stimuli_version_to_session["other_versions_mapping"].keys():
+            raise ValueError(f"The default_stimuli_version '{stimuli_version_to_session['default_stimuli_version']}' should not be included in the other_versions_mapping keys.")
+        
+        # check that there are no duplicate versions in the other_versions_mapping values
+        other_versions = list(stimuli_version_to_session["other_versions_mapping"].keys())
+        if len(other_versions) != len(set(other_versions)):
+            raise ValueError("Duplicate stimulus versions found in other_versions_mapping keys. Please ensure each version appears only once.")
+                
+        stimulus_folder_paths = [data_folder_path / f"stimuli_{data_collection_name}_{stimuli_version_to_session['default_stimuli_version']}"]
+        for version in stimuli_version_to_session["other_versions_mapping"].keys():
+            stimulus_folder_paths.append(
+                data_folder_path / f"stimuli_{data_collection_name}_{version}"
+            )
+        
+        # check that there are no sessions that are mapped to multiple stimulus versions
+        all_mapped_sessions = []
+        for version, sessions in stimuli_version_to_session["other_versions_mapping"].items():
+            for session in sessions:
+                if session in all_mapped_sessions:
+                    raise ValueError(f"Session '{session}' is mapped to multiple stimulus versions. Please ensure each session is mapped to only one version.")
+                all_mapped_sessions.append(session)
     else:
-        config_path = stimulus_folder_path / "config"
-        if not config_path.exists():
-            raise FileNotFoundError(
-                f"The stimulus config folder not found in '{stimulus_folder_path}'. "
-                "Please check and restructure or possibly unzip the stimulus folder."
+        stimulus_folder_paths = [data_folder_path / f"stimuli_{data_collection_name}"]
+        
+    for stimulus_folder_path in stimulus_folder_paths:
+        if not stimulus_folder_path.exists():
+            print(
+                f"The stimulus folder '{stimulus_folder_path}' does not exist. Check and if necessary, ask the team to upload. If you have more than one stimulus version, make sure to specify the mapping in the config file."
             )
+        else:
+            config_path = stimulus_folder_path / "config"
+            if not config_path.exists():
+                raise FileNotFoundError(
+                    f"The stimulus config folder not found in '{stimulus_folder_path}'. "
+                    "Please check and restructure or possibly unzip the stimulus folder."
+                )
 
-    # if aoi files are not yet split into questions and texts, do it here:
-    aoi_path = (
-        data_folder_path
-        / stimulus_folder_path
-        / f"aoi_stimuli_{lang}_{country}_{lab_no}"
-    )
-
-    # get all aoi files, if there are only 12 files, they are not yet split
-    aoi_files = list(aoi_path.glob("*.csv"))
-    if len(aoi_files) == 12:
-        print("Splitting AOI files into text and question AOIs...")
-        for aoi_file in aoi_files:
-            aoi_df = pd.read_csv(aoi_file)
-            # split the aoi_df into two parts, one for the stimulus and one for the questions
-            aoi_df_texts = aoi_df[~aoi_df["page"].str.contains("question", na=False)]
-            aoi_df_texts.drop(
-                columns=["question_image_version"], inplace=True, errors="ignore"
-            )
-            aoi_df_questions = aoi_df[aoi_df["page"].str.contains("question", na=False)]
-
-            aoi_df_texts.to_csv(aoi_file, sep=",", index=False, encoding="UTF-8")
-
-            question_path = aoi_path / (aoi_file.stem + "_questions" + aoi_file.suffix)
-            aoi_df_questions.to_csv(
-                question_path, sep=",", index=False, encoding="UTF-8"
-            )
-
-    elif len(aoi_files) == 24:
-        pass
-    else:
-        raise ValueError(
-            f"Unexpected number of AOI files ({len(aoi_files)}) found in '{aoi_path}'. "
-            "Expected 12 (not split) or 24 (already split into texts and questions)."
+        # if aoi files are not yet split into questions and texts, do it here:
+        aoi_path = (
+            data_folder_path
+            / stimulus_folder_path
+            / f"aoi_stimuli_{lang}_{country}_{lab_no}"
         )
+
+        # get all aoi files, if there are only 12 files, they are not yet split
+        aoi_files = list(aoi_path.glob("*.csv"))
+        if len(aoi_files) == 12:
+            print(f"Splitting AOI files into text and question AOIs for {stimulus_folder_path.name}...")
+            for aoi_file in aoi_files:
+                aoi_df = pd.read_csv(aoi_file)
+                # split the aoi_df into two parts, one for the stimulus and one for the questions
+                aoi_df_texts = aoi_df[~aoi_df["page"].str.contains("question", na=False)]
+                aoi_df_texts.drop(
+                    columns=["question_image_version"], inplace=True, errors="ignore"
+                )
+                aoi_df_questions = aoi_df[aoi_df["page"].str.contains("question", na=False)]
+
+                aoi_df_texts.to_csv(aoi_file, sep=",", index=False, encoding="UTF-8")
+
+                question_path = aoi_path / (aoi_file.stem + "_questions" + aoi_file.suffix)
+                aoi_df_questions.to_csv(
+                    question_path, sep=",", index=False, encoding="UTF-8"
+                )
+
+        elif len(aoi_files) == 24:
+            pass
+        else:
+            raise ValueError(
+                f"Unexpected number of AOI files ({len(aoi_files)}) found in '{aoi_path}'. "
+                "Expected 12 (not split) or 24 (already split into texts and questions)."
+            )
 
 
 def extract_stimulus_version_number_from_asc(asc_file_path: Path) -> int:
