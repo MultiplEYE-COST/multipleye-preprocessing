@@ -231,7 +231,7 @@ class Stimulus:
             )
             instruction_image_path = (
                 stimulus_dir
-                / f"participant_instructions_images_{lang}_{country}_1/{instruction_row['instruction_screen_img_name']}"
+                / f"participant_instructions_images_{lang}_{country}_{labnum}/{instruction_row['instruction_screen_img_name']}"
             )
 
             instruction = class_name(
