@@ -46,6 +46,18 @@ def load_gaze_data(
         and experimental details.
     """
 
+    # Initialize experiment config from lab config. Although sampling rate and resolution are automatically inferred
+    # in from_asc(), the function will emit a warning in case the parsed values do not match the experiment specification.
+    # This way we perform a sanity check for the experiment configuration.
+    experiment = pm.Experiment(
+        screen_width_px=lab_config.image_resolution[0],
+        screen_height_px=lab_config.image_resolution[1],
+        screen_width_cm=lab_config.image_size_cm[0],
+        screen_height_cm=lab_config.image_size_cm[1],
+        distance_cm=lab_config.screen_distance_cm,
+        sampling_rate=lab_config.sampling_frequency_hz,
+    )
+
     gaze = pm.gaze.from_asc(
         asc_file,
         # TODO: move patterns form here to config, pm dataset definition?
@@ -84,6 +96,7 @@ def load_gaze_data(
         ],
         trial_columns=trial_cols,
         add_columns={"session": session_idf},
+        experiment=experiment,
     )
 
     # Filter out data outside of trials
@@ -91,26 +104,6 @@ def load_gaze_data(
     gaze.frame = gaze.frame.filter(
         pl.col("trial").is_not_null() & pl.col("page").is_not_null()
     )
-
-    # Initialize experiment config from lab config. Sampling rate is automatically inferred in from_asc, but we use
-    # the one from the final metadata form to perform a sanity check. for pilot data, the value will not be handed
-    # to the exp. Atm we need to set the experiment only after parsing gaze because there is a bug / feat which
-    # needs to be solved first: https://github.com/pymovements/pymovements/issues/1286
-    experiment = pm.Experiment(
-        screen_width_px=lab_config.image_resolution[0],
-        screen_height_px=lab_config.image_resolution[1],
-        screen_width_cm=lab_config.image_size_cm[0],
-        screen_height_cm=lab_config.image_size_cm[1],
-        distance_cm=lab_config.screen_distance_cm,
-    )
-
-    if lab_config.sampling_frequency_hz is not None:
-        experiment.sampling_rate = lab_config.sampling_frequency_hz
-
-    else:
-        experiment.sampling_rate = gaze._metadata["sampling_rate"]
-
-    gaze.experiment = experiment
 
     return gaze
 

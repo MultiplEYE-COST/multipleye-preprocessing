@@ -9,6 +9,8 @@ from typing import Literal
 import polars as pl
 import pymovements as pm
 
+from preprocessing import constants
+
 warnings.filterwarnings(
     "ignore",
     message=r"Data Validation extension is not supported.*",
@@ -327,7 +329,7 @@ class LabConfig:
             sampling_frequency_hz = final_metadata_json["Default_frequency"]
 
         else:
-            sampling_frequency_hz = None
+            sampling_frequency_hz = constants.EXPECTED_SAMPLING_RATE_HZ
 
         tests = list(json_config.get("Psychometric_tests", []).keys())
 
