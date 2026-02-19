@@ -38,7 +38,6 @@ FIXATIONS_FOLDER = Path("fixations/")
 SACCADES_FOLDER = Path("saccades/")
 SCANPATHS_FOLDER = Path("scanpaths/")
 
-
 ### Psychometric Tests Sessions
 PSYCHOMETRIC_TESTS_DIR = DATASET_DIR / "psychometric-tests-sessions"
 PSYM_CORE_DATA = PSYCHOMETRIC_TESTS_DIR / "core_data"
@@ -72,12 +71,12 @@ FIXATION = "fixation"
 SACCADE = "saccade"
 
 # Regular Expressions
-MESSAGE_REGEX = re.compile(r"MSG\s+(?P<timestamp>\d+[.]?\d*)\s+(?P<message>.*)")
+MESSAGE_REGEX = re.compile(r"(?P<message>.*)")
 START_RECORDING_REGEX = re.compile(
-    r"MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)"
+    r"(?P<type>start_recording)_(?P<trials>(PRACTICE_)?trial_\d\d?)_stimulus_(?P<stimulus_name>\S*?_\S*?)_(?P<stimulus_id>\d+)_(?P<pages>\S*)"
 )
 STOP_RECORDING_REGEX = re.compile(
-    r"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)"
+    r"(?P<type>stop_recording)_(?P<trials>(PRACTICE_)?trial_\d\d?)_stimulus_(?P<stimulus_name>\S*?_\S*?)_(?P<stimulus_id>\d+)_(?P<pages>\S*)"
 )
 
 # Data collection
@@ -87,7 +86,7 @@ EYETRACKER_NAMES = {
         "EyeLink II",
         "EyeLink 1000",
         "EyeLink Portable Duo",
-        "Eyelink 1000 Plus"
+        "Eyelink 1000 Plus",
     ],
 }
 STIMULUS_NAME_MAPPING = {
@@ -104,3 +103,35 @@ STIMULUS_NAME_MAPPING = {
     "Enc_WikiMoon": 13,
     "Lit_NorthWind": 7,
 }
+
+MESSAGES = {
+    "other_screens": [
+        "welcome_screen",
+        "informed_consent_screen",
+        "start_experiment",
+        "stimulus_order_version",
+        "showing_instruction_screen",
+        "camera_setup_screen",
+        "practice_text_starting_screen",
+        "transition_screen",
+        "final_validation",
+        "show_final_screen",
+        "optional_break_screen",
+        "fixation_trigger:skipped_by_experimenter",
+        "fixation_trigger:experimenter_calibration_triggered",
+        "recalibration",
+        "empty_screen",
+        "obligatory_break",
+        "optional_break",
+    ],
+    "break_msgs": [
+        "optional_break_duration",
+        "optional_break_end",
+        "optional_break_",
+        "obligatory_break_duration",
+        "obligatory_break_endobligatory_break",
+    ],
+}
+
+BREAK_REGEX = re.compile("|".join(map(re.escape, MESSAGES["break_msgs"])))
+OTHER_SCREENS_REGEX = re.compile("|".join(map(re.escape, MESSAGES["other_screens"])))
