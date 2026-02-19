@@ -150,10 +150,19 @@ class MultipleyeDataCollection:
         self.add_recorded_sessions(self.data_root, self.session_folder_regex)
 
         if len(self.sessions) == 0:
-            raise ValueError(
-                f"No sessions found in {self.data_root}. "
-                f"Please check the session_folder_regex and the data_root."
-            )
+            msg = f"No sessions found in {self.data_root}. "
+            if self.included_sessions:
+                msg += (
+                    f"Check if 'include_sessions' {self.included_sessions} is correct. "
+                )
+            if self.excluded_sessions:
+                msg += (
+                    f"Check if 'exclude_sessions' {self.excluded_sessions} "
+                    "is filtering all available data. "
+                )
+
+            msg += "Please check the session_folder_regex and the data_root."
+            raise ValueError(msg)
 
         # load stimulus order versions to know what stimulus randomization was used for
         # each participant
@@ -303,7 +312,7 @@ class MultipleyeDataCollection:
         if self.excluded_sessions:
             missing_excluded = set(self.excluded_sessions) - found_sessions
             if missing_excluded:
-                self.logger.debug(
+                self.logger.warning(
                     f"The following sessions were specified in 'exclude_sessions' but "
                     f"were not found in the data folder: {sorted(list(missing_excluded))}"
                 )
