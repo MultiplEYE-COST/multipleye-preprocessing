@@ -29,6 +29,8 @@ INCLUDE_SESSIONS = user_configs["include_sessions"]
 
 EXPECTED_SAMPLING_RATE_HZ = user_configs["expected_sampling_rate_hz"]
 
+STIMULI_VERSION_TO_SESSION = user_configs["stimuli_version_to_session"]
+
 # GENERAL SETTINGS
 TRIAL_COLS = ["trial", "stimulus", "page"]
 
