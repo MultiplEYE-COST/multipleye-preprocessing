@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 from pathlib import Path
 
+from ..utils.logging import get_logger
 from tqdm import tqdm
 
 import preprocessing
@@ -82,5 +83,6 @@ def main():
         help="Data collection name (folder name in data/ folder).",
     )
     args = parser.parse_args()
-    print(f"Running MERID preprocessing for '{args.data_collection_name}'.")
+    logger = get_logger(__name__)
+    logger.info(f"Running MERID preprocessing for '{args.data_collection_name}'.")
     run_multipleye_preprocessing(args.data_collection_name)

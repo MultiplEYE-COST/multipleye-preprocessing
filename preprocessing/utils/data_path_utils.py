@@ -58,3 +58,52 @@ def pid_from_session(folder: Path | str) -> str:
         )
 
     return pid
+
+
+def check_data_collection_exists(data_collection_name: str, data_root: Path) -> Path:
+    """
+    Checks if the data collection folder exists in the data directory.
+
+    Parameters
+    ----------
+    data_collection_name : str
+        The name of the data collection.
+    data_root : Path
+        The root directory for the data.
+
+    Returns
+    -------
+    Path
+        The path to the data collection folder.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the data collection folder does not exist.
+    """
+    data_folder_path = data_root / data_collection_name
+
+    if not data_folder_path.exists():
+        raise FileNotFoundError(
+            f"The data collection folder '{data_collection_name}' was not found in '{data_root}'.\n"
+            f"Please check if 'data_collection_name' is correctly set in the config file "
+            "and that the folder exists and is unzipped."
+        )
+
+    # Check if the folder is essentially empty or only contains log files
+    contents = list(data_folder_path.glob("*"))
+    # Filter out log files and hidden files
+    meaningful_contents = [
+        c
+        for c in contents
+        if c.name != "preprocessing_logs.txt" and not c.name.startswith(".")
+    ]
+
+    if not meaningful_contents:
+        raise FileNotFoundError(
+            f"The data collection folder '{data_collection_name}' exists but appears to be empty "
+            "(or only contains log files).\n"
+            "Please ensure the data collection is correctly unzipped and structured."
+        )
+
+    return data_folder_path

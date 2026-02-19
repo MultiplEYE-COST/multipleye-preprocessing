@@ -4,16 +4,18 @@ from argparse import ArgumentParser
 import yaml
 from tqdm import tqdm
 
+from ..utils.logging import get_logger
 import preprocessing
 from preprocessing import constants
 
 
 def run_multipleye_preprocessing(config_path: str):
     this_repo = constants.THIS_REPO
+    logger = get_logger(__name__)
     config = yaml.load(open(this_repo / config_path), Loader=yaml.SafeLoader)
 
     data_collection_name = config["data_collection_name"]
-    print(
+    logger.info(
         f"Running MultiplEYE preprocessing for data collection: {data_collection_name}"
     )
 

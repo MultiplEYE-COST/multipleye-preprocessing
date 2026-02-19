@@ -9,6 +9,10 @@ from typing import Literal
 import polars as pl
 import pymovements as pm
 
+from ..utils.logging import get_logger
+
+logger = get_logger(__name__)
+
 warnings.filterwarnings(
     "ignore",
     message=r"Data Validation extension is not supported.*",
@@ -319,6 +323,9 @@ class LabConfig:
 
         with open(json_config_path) as f:
             json_config = json.load(f)
+
+        logger.info(f"Lab config loaded from {config_path}")
+        logger.info(f"JSON lab config loaded from {json_config_path}")
 
         # if the final data has been collected and this is not just a sanity check
         if final_metadata_path.exists():
