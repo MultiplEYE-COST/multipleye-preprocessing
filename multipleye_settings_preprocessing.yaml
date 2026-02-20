@@ -1,13 +1,13 @@
-data_collection_name: "MultiplEYE_SQ_CH_Zurich_1_2025"
+data_collection_name: "MultiplEYE_CS_CZ_Prague_2_2026"
 
 # pick either include or exclude sessions, if none is specified, all sessions are included
 include_sessions:
-  - 006_SQ_CH_1_ET1
 
 
 exclude_sessions:
 
-include_pilots: True
+
+include_pilots: False
 
 # Hardware settings
 expected_sampling_rate_hz: 1000  # Hz
