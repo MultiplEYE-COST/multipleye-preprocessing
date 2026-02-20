@@ -38,7 +38,6 @@ FIXATIONS_FOLDER = Path("fixations/")
 SACCADES_FOLDER = Path("saccades/")
 SCANPATHS_FOLDER = Path("scanpaths/")
 
-
 ### Psychometric Tests Sessions
 PSYCHOMETRIC_TESTS_DIR = DATASET_DIR / "psychometric-tests-sessions"
 PSYM_CORE_DATA = PSYCHOMETRIC_TESTS_DIR / "core_data"
@@ -72,6 +71,7 @@ FIXATION = "fixation"
 SACCADE = "saccade"
 
 # Regular Expressions
+
 MESSAGE_REGEX = re.compile(r"MSG\s+(?P<timestamp>\d+[.]?\d*)\s+(?P<message>.*)")
 START_RECORDING_REGEX = re.compile(
     r"MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)"
@@ -79,7 +79,6 @@ START_RECORDING_REGEX = re.compile(
 STOP_RECORDING_REGEX = re.compile(
     r"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)"
 )
-
 # Data collection
 EYETRACKER_NAMES = {
     "eyelink": [
@@ -87,6 +86,7 @@ EYETRACKER_NAMES = {
         "EyeLink II",
         "EyeLink 1000",
         "EyeLink Portable Duo",
+        "Eyelink 1000 Plus",
     ],
 }
 STIMULUS_NAME_MAPPING = {

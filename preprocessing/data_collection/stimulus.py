@@ -231,7 +231,7 @@ class Stimulus:
             )
             instruction_image_path = (
                 stimulus_dir
-                / f"participant_instructions_images_{lang}_{country}_1/{instruction_row['instruction_screen_img_name']}"
+                / f"participant_instructions_images_{lang}_{country}_{labnum}/{instruction_row['instruction_screen_img_name']}"
             )
 
             instruction = class_name(
@@ -248,7 +248,7 @@ class Stimulus:
 
         if stimulus_type == "experiment":
             assert len(questions) == QUESTION_NUMBERS["experiment"], (
-                f"{stimulus_id} has {len(questions)} questions instead of 6"
+                f"{stimulus_id} has {len(questions)} questions instead of 6 "
             )
         elif stimulus_type == "practice":
             assert len(questions) == QUESTION_NUMBERS["practice"], (

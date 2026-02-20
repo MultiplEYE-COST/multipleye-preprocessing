@@ -1,71 +1,155 @@
 from argparse import ArgumentParser
-from pathlib import Path
-
+import os
+import yaml
 from tqdm import tqdm
 
 import preprocessing
-from preprocessing.data_collection.merid_data_collection import Merid
-from preprocessing.scripts.prepare_language_folder import prepare_language_folder
+from preprocessing import constants
 
 
-def run_multipleye_preprocessing(data_collection_name: str):
-    prepare_language_folder(data_collection_name)
+def run_multipleye_preprocessing(config_path: str):
+    this_repo = constants.THIS_REPO
+    config = yaml.load(open(this_repo / config_path), Loader=yaml.SafeLoader)
 
-    this_repo = Path().resolve()
+    data_collection_name = config["data_collection_name"]
+    print(f"Running MERID preprocessing for data collection: {data_collection_name}")
+    preprocessing.utils.prepare_language_folder(data_collection_name)
+
     data_folder_path = this_repo / "data" / data_collection_name
 
-    merid = Merid.create_from_data_folder(data_folder_path)
+    if not os.path.exists(data_folder_path):
+        raise FileNotFoundError(
+            f"Data folder {data_folder_path} does not exist. Please make sure to download the data and place it in the correct folder. "
+            f"And check if you have filled in the correct data collection name in the config file {config_path}."
+        )
+    merid = preprocessing.data_collection.Merid.create_from_data_folder(
+        data_folder_path,
+        include_pilots=config["include_pilots"],
+        excluded_sessions=config["exclude_sessions"],
+        included_sessions=config["include_sessions"],
+    )
 
-    preprocessed_data_folder = this_repo / "preprocessed_data" / data_collection_name
-    preprocessed_data_folder.mkdir(parents=True, exist_ok=True)
+    merid.convert_edf_to_asc()
+    merid.prepare_session_level_information()
 
     sessions = [s for s in merid]
 
     for sess in (pbar := tqdm(sessions)):
         idf = sess.session_identifier
+
+        # this is a bit of a hack to make the session names consistent for the file names as the multipleye
+        # session names contain infos when it was restarted
+        session_save_name = idf.split("_")[:5]
+        session_save_name = "_".join(session_save_name)
         pbar.set_description(f"Preprocessing session {idf}:")
 
         asc = sess.asc_path
-        output_folder = preprocessed_data_folder / idf
+        output_folder = constants.OUTPUT_DIR / idf
         output_folder.mkdir(parents=True, exist_ok=True)
 
-        # TODO pm: it would make a lot more sense if the gaze object was not called gaze but instead session or
-        #  something like that. Because ET preprocessing works on the session level and it is odd that there is no session
-        gaze, gaze_metadata = preprocessing.create_gaze_data(  # unavailable
-            asc_file=asc,
-            lab_config=sess.lab_config,
-            session_idf=idf,
-        )
-        preprocessing.save_raw_data(
-            output_folder / "raw_data", sess.session_identifier, gaze
-        )
+        # create or load raw data
+        raw_data_folder = output_folder / constants.RAW_DATA_FOLDER
+        if raw_data_folder.exists():
+            pbar.set_description(f"Loading samples {idf}:")
+            gaze = preprocessing.load_trial_level_raw_data(
+                raw_data_folder,
+                trial_columns=constants.TRIAL_COLS,
+                metadata_path=output_folder,
+            )
 
-        sess.pm_gaze_metadata = gaze_metadata
+        else:
+            pbar.set_description(f"Extracting samples {idf}:")
+            gaze = preprocessing.load_gaze_data(
+                asc_file=asc,
+                lab_config=sess.lab_config,
+                session_idf=idf,
+                trial_cols=constants.TRIAL_COLS,
+            )
+            preprocessing.save_raw_data(constants.OUTPUT_DIR, session_save_name, gaze)
+            preprocessing.save_session_metadata(constants.OUTPUT_DIR, idf, gaze)
 
-        preprocessing.detect_fixations(
+        sess.pm_gaze_metadata = gaze._metadata
+        sess.calibrations = gaze.calibrations
+        sess.validations = gaze.validations
+
+        # preprocess gaze data
+        pbar.set_description(f"Preprocessing samples {idf}:")
+        preprocessing.preprocess_gaze(
             gaze,
         )
 
-        preprocessing.detect_saccades(
-            gaze,
-        )
-        # note that saccades are not yet saved
-        preprocessing.save_events_data(
-            output_folder / "fixations", sess.session_identifier, gaze
-        )
+        # create or load fixation data
+        fixation_data_folder = output_folder / constants.FIXATIONS_FOLDER
+        saccade_data_folder = output_folder / constants.SACCADES_FOLDER
+        if fixation_data_folder.exists():
+            pbar.set_description(f"Loading events {idf}:")
+            gaze = preprocessing.load_trial_level_events_data(
+                gaze,
+                fixation_data_folder,
+                event_type="fixation",
+                file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_fixation.csv",
+            )
 
+            gaze = preprocessing.load_trial_level_events_data(
+                gaze,
+                saccade_data_folder,
+                event_type="saccade",
+                file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_saccade.csv",
+            )
+
+        else:
+            pbar.set_description(f"Detecting events {idf}:")
+
+            preprocessing.detect_fixations(gaze)
+            preprocessing.detect_saccades(gaze)
+
+            preprocessing.save_events_data(
+                "fixation",
+                fixation_data_folder,
+                session_save_name,
+                "trial",
+                ["trial", "stimulus"],
+                ["onset", "duration", "location_x", "location_y", "page"],
+                gaze,
+            )
+
+            preprocessing.save_events_data(
+                "saccade",
+                saccade_data_folder,
+                session_save_name,
+                "trial",
+                ["trial", "stimulus"],
+                [
+                    "onset",
+                    "duration",
+                    "amplitude",
+                    "peak_velocity",
+                    "dispersion",
+                    "page",
+                ],
+                gaze,
+            )
+
+        # map to AOIs and create scanpaths
         preprocessing.map_fixations_to_aois(
             gaze,
             sess.stimuli,
         )
-        preprocessing.save_scanpaths(
-            output_folder / "scanpaths", sess.session_identifier, gaze
+        preprocessing.save_scanpaths(constants.OUTPUT_DIR, session_save_name, gaze)
+
+        preprocessing.save_session_metadata(constants.OUTPUT_DIR, idf, gaze)
+
+        # perform the multipleye specific stuff
+        merid.create_session_overview(
+            sess.session_identifier, path=constants.OUTPUT_DIR
+        )
+        pbar.set_description(f"Creating sanity check report {idf}")
+        merid.create_sanity_check_report(
+            gaze, sess.session_identifier, plotting=True, overwrite=True
         )
 
-        preprocessing.save_session_metadata(gaze, output_folder)
-        merid.create_session_overview(sess.session_identifier, path=output_folder)
-
-    merid.create_dataset_overview(path=preprocessed_data_folder)
+    merid.create_dataset_overview(path=constants.OUTPUT_DIR)
+    merid.parse_participant_data(constants.OUTPUT_DIR / "participant_data.csv")
 
 
 if __name__ == "__main__":
@@ -76,11 +160,12 @@ if __name__ == "__main__":
 def main():
     """Run MERID preprocessing for a given data collection name."""
     parser = ArgumentParser(description="Run MERID preprocessing.")
+
     parser.add_argument(
-        "data_collection_name",
+        "--config_path",
         type=str,
-        help="Data collection name (folder name in data/ folder).",
+        default="multipleye_settings_preprocessing.yaml",
+        help="Path to the preprocessing configuration YAML file.",
     )
     args = parser.parse_args()
-    print(f"Running MERID preprocessing for '{args.data_collection_name}'.")
-    run_multipleye_preprocessing(args.data_collection_name)
+    run_multipleye_preprocessing(args.config_path)
