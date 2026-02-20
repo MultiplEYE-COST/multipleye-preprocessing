@@ -13,11 +13,12 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
     directory = Path(directory) / session / constants.RAW_DATA_FOLDER
     directory.mkdir(parents=True, exist_ok=True)
 
-    trials = data.split(by="trial", as_dict=True)
+    trials = data.split(by=["trial", "stimulus"])
 
-    for (trial_id, _), trial in trials.items():
-        stimulus_id = trial.frame["stimulus"][0]
-        filename = f"{session}_{trial_id}_{stimulus_id}_raw_data.csv"
+    for trial in trials:
+        trial_id = trial.metadata["trial"]
+        stimulus = trial.metadata["stimulus"]
+        filename = f"{session}_{trial_id}_{stimulus}_raw_data.csv"
 
         trial.unnest("pixel")
         trial.frame = trial.frame["time", "pixel_x", "pixel_y", "pupil", "page"]
