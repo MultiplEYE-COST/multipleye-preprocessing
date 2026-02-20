@@ -169,5 +169,3 @@ def main():
     )
     args = parser.parse_args()
     run_multipleye_preprocessing(args.config_path)
-
-    print(f"Running MERID preprocessing for '{args.data_collection_name}'.")

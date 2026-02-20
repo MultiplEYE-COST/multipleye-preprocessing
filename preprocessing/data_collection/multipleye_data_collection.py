@@ -20,12 +20,9 @@ from ..constants import (
     FIXATION,
     START_RECORDING_REGEX,
     STOP_RECORDING_REGEX,
-    START_RECORDING_REGEX_NEW,
-    STOP_RECORDING_REGEX_NEW,
     EYETRACKER_NAMES,
     MESSAGE_REGEX,
     STIMULUS_NAME_MAPPING,
-    BREAK_REGEX,
 )
 from ..utils.conversion import convert_to_time_str
 from ..checks.et_quality_checks import (
@@ -900,128 +897,6 @@ class MultipleyeDataCollection:
                 f"Please check the stimulus order versions file for duplicates."
             )
 
-    def _create_empty_rt_frame(self, session_identifier: str):
-        """create an empty dataframe for the reading times of the stimuli in the session, the dataframe will be filled
-        with the information from the messages extracted by pm. The dataframe is created based on the stimulus trial mapping,
-         so that all  completed stimuli are included in the dataframe. It also serves as a reference frame for the number of expected messages
-         This is important for the sanity checks
-         Also the data frame schema is here defined and can be adjusted"""  # ToDo unsure if it works with interupted sessions yet
-
-        rt_schema = pl.Schema(
-            {
-                "stimulus_name": pl.String,
-                "start_ts": pl.String,
-                "stop_ts": pl.String,
-                "start_msg": pl.String,
-                "stop_msg": pl.String,
-                "duration_ms": pl.String,
-                "duration_str": pl.String,
-                "trials": pl.String,
-                "pages": pl.String,
-                "status": pl.String,
-            }
-        )
-
-        num_of_pages_per_trial = {
-            stimulus.name: [page.number for page in stimulus.pages]
-            for stimulus in self.sessions[session_identifier].stimuli
-        }
-        d = {"stimulus": [], "pages": []}
-        num_of_pages = 0
-        for stimulus in self.sessions[
-            session_identifier
-        ].stimuli_trial_mapping.values():
-            d["stimulus"].extend([stimulus] * len(num_of_pages_per_trial[stimulus]))
-            d["pages"].extend(
-                [f"page_{num}" for num in num_of_pages_per_trial[stimulus]]
-            )
-            num_of_pages += len(num_of_pages_per_trial[stimulus])
-
-        rt_df = pl.DataFrame(
-            {
-                "stimulus_name": d["stimulus"],
-                "start_ts": [None] * num_of_pages,
-                "stop_ts": [None] * num_of_pages,
-                "start_msg": [None] * num_of_pages,
-                "stop_msg": [None] * num_of_pages,
-                "duration_ms": [None] * num_of_pages,
-                "duration_str": [None] * num_of_pages,
-                "trials": [None] * num_of_pages,
-                "pages": d["pages"],
-                "status": [None] * num_of_pages,
-            },
-            schema=rt_schema,
-        )
-        return rt_df
-
-    def _create_empty_break_frame(self, session_identifier: str):
-        """create an empty dataframe for the break data, the dataframe will be filled
-        with the information from the messages extracted by pm. The dataframe is created based on the stimulus trial mapping,
-        so that all completed stimuli are included in the dataframe. It also serves as a reference frame for the number of expected messages
-        This is important for the sanity checks
-        Also the data frame schema is here defined and can be adjusted"""
-        breaks_schema = pl.Schema(
-            {
-                "start_ts": pl.String(),
-                "stop_ts": pl.String(),
-                "duration_ms": pl.String(),
-                "type": pl.String(),
-            }
-        )
-        num_of_breaks = -1  # we start with -1 because there is always one break less than the number of stimuli
-        for stimulus in self.sessions[session_identifier].stimuli:
-            num_of_breaks += (
-                1
-                if stimulus.type == "experiment"
-                and stimulus.name
-                in list(
-                    self.sessions[session_identifier].stimuli_trial_mapping.values()
-                )
-                else 0
-            )
-
-        breaks_df = pl.DataFrame(
-            {
-                "start_ts": [None] * num_of_breaks,
-                "stop_ts": [None] * num_of_breaks,
-                "duration_ms": [None] * num_of_breaks,
-                "type": [None] * num_of_breaks,
-            },
-            schema=breaks_schema,
-        )
-
-        return breaks_df
-
-    def _parse_messages(self, session_identifier: str):
-        """function to parse the messages create by pm, intended to replace _parse_asc"""
-
-        rt_frame = multipleye._create_empty_rt_frame(session_identifier)
-
-        break_msg = []
-        messages = self.sessions[session_identifier].messages.copy()
-        for _ in range(len(self.sessions[session_identifier].messages)):
-            msg = messages.pop(
-                0
-            )  # zero has to be added because otherwise the last item in the list gets popped instead of the first one, which is what we want
-            if match := BREAK_REGEX.match(msg["message"]):
-                break_msg.append(msg)
-
-            elif match := START_RECORDING_REGEX_NEW.match(msg["message"]):
-                event = match.groupdict()
-                timestamp = msg["timestamp"]
-                event["start_ts"] = timestamp
-                df = pl.DataFrame(event)
-                rt_frame = rt_frame.update(df, on="stimulus_name", how="left")
-
-            elif match := STOP_RECORDING_REGEX_NEW.match(msg["message"]):
-                event = match.groupdict()
-                timestamp = msg["timestamp"]
-                event["stop_ts"] = timestamp
-                df = pl.DataFrame(event)
-                rt_frame = rt_frame.update(df, on="stimulus_name", how="left")
-
-        return rt_frame
-
     def _parse_asc(self, session_identifier: str):
         """
         qick fix for now, should be replaced by the summary experiment frame later on, however the extraction of the
@@ -1152,13 +1027,12 @@ class MultipleyeDataCollection:
             )
 
             if not in_break:
-                pass
-                # breaks_df = pd.DataFrame(breaks)
-                # breaks_df.to_csv(
-                #    result_folder / f"breaks_{session_identifier}.tsv",
-                #    sep="\t",
-                #    index=False,
-                # )
+                breaks_df = pd.DataFrame(breaks)
+                breaks_df.to_csv(
+                    result_folder / f"breaks_{session_identifier}.tsv",
+                    sep="\t",
+                    index=False,
+                )
             else:
                 self._write_to_logfile(
                     f"Session {session_identifier} did not finish a break properly, "
