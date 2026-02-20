@@ -995,7 +995,7 @@ class MultipleyeDataCollection:
     def _parse_messages(self, session_identifier: str):
         """function to parse the messages create by pm, intended to replace _parse_asc"""
 
-        rt_frame = multipleye._create_empty_rt_frame(session_identifier)
+        rt_frame = self._create_empty_rt_frame(session_identifier)
 
         break_msg = []
         messages = self.sessions[session_identifier].messages.copy()
@@ -1011,14 +1011,18 @@ class MultipleyeDataCollection:
                 timestamp = msg["timestamp"]
                 event["start_ts"] = timestamp
                 df = pl.DataFrame(event)
-                rt_frame = rt_frame.update(df, on="stimulus_name", how="left")
+                rt_frame = rt_frame.update(
+                    df, on=["stimulus_name", "pages"], how="left"
+                )
 
             elif match := STOP_RECORDING_REGEX_NEW.match(msg["message"]):
                 event = match.groupdict()
                 timestamp = msg["timestamp"]
                 event["stop_ts"] = timestamp
                 df = pl.DataFrame(event)
-                rt_frame = rt_frame.update(df, on="stimulus_name", how="left")
+                rt_frame = rt_frame.update(
+                    df, on=["stimulus_name", "pages"], how="left"
+                )
 
         return rt_frame
 
