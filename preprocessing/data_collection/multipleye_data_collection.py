@@ -20,6 +20,8 @@ from ..constants import (
     FIXATION,
     START_RECORDING_REGEX,
     STOP_RECORDING_REGEX,
+    START_RECORDING_REGEX_NEW,
+    STOP_RECORDING_REGEX_NEW,
     EYETRACKER_NAMES,
     MESSAGE_REGEX,
     STIMULUS_NAME_MAPPING,
@@ -903,8 +905,7 @@ class MultipleyeDataCollection:
         with the information from the messages extracted by pm. The dataframe is created based on the stimulus trial mapping,
          so that all  completed stimuli are included in the dataframe. It also serves as a reference frame for the number of expected messages
          This is important for the sanity checks
-         Also the data frame schema is here defined and can be adjusted"""
-        stimuli_trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
+         Also the data frame schema is here defined and can be adjusted"""  # ToDo unsure if it works with interupted sessions yet
 
         rt_schema = pl.Schema(
             {
@@ -921,20 +922,33 @@ class MultipleyeDataCollection:
             }
         )
 
-        stimulus_names = list(stimuli_trial_mapping.values())
-        num_of_trials = len(stimulus_names)
+        num_of_pages_per_trial = {
+            stimulus.name: [page.number for page in stimulus.pages]
+            for stimulus in self.sessions[session_identifier].stimuli
+        }
+        d = {"stimulus": [], "pages": []}
+        num_of_pages = 0
+        for stimulus in self.sessions[
+            session_identifier
+        ].stimuli_trial_mapping.values():
+            d["stimulus"].extend([stimulus] * len(num_of_pages_per_trial[stimulus]))
+            d["pages"].extend(
+                [f"page_{num}" for num in num_of_pages_per_trial[stimulus]]
+            )
+            num_of_pages += len(num_of_pages_per_trial[stimulus])
+
         rt_df = pl.DataFrame(
             {
-                "stimulus_name": stimulus_names,
-                "start_ts": [None] * num_of_trials,
-                "stop_ts": [None] * num_of_trials,
-                "start_msg": [None] * num_of_trials,
-                "stop_msg": [None] * num_of_trials,
-                "duration_ms": [None] * num_of_trials,
-                "duration_str": [None] * num_of_trials,
-                "trials": [None] * num_of_trials,
-                "pages": [None] * num_of_trials,
-                "status": [None] * num_of_trials,
+                "stimulus_name": d["stimulus"],
+                "start_ts": [None] * num_of_pages,
+                "stop_ts": [None] * num_of_pages,
+                "start_msg": [None] * num_of_pages,
+                "stop_msg": [None] * num_of_pages,
+                "duration_ms": [None] * num_of_pages,
+                "duration_str": [None] * num_of_pages,
+                "trials": [None] * num_of_pages,
+                "pages": d["pages"],
+                "status": [None] * num_of_pages,
             },
             schema=rt_schema,
         )
@@ -956,7 +970,15 @@ class MultipleyeDataCollection:
         )
         num_of_breaks = -1  # we start with -1 because there is always one break less than the number of stimuli
         for stimulus in self.sessions[session_identifier].stimuli:
-            num_of_breaks += 1 if stimulus.type == "experiment" else 0
+            num_of_breaks += (
+                1
+                if stimulus.type == "experiment"
+                and stimulus.name
+                in list(
+                    self.sessions[session_identifier].stimuli_trial_mapping.values()
+                )
+                else 0
+            )
 
         breaks_df = pl.DataFrame(
             {
@@ -984,21 +1006,21 @@ class MultipleyeDataCollection:
             if match := BREAK_REGEX.match(msg["message"]):
                 break_msg.append(msg)
 
-            elif match := START_RECORDING_REGEX.match(msg["message"]):
+            elif match := START_RECORDING_REGEX_NEW.match(msg["message"]):
                 event = match.groupdict()
                 timestamp = msg["timestamp"]
                 event["start_ts"] = timestamp
                 df = pl.DataFrame(event)
                 rt_frame = rt_frame.update(df, on="stimulus_name", how="left")
 
-            elif match := STOP_RECORDING_REGEX.match(msg["message"]):
+            elif match := STOP_RECORDING_REGEX_NEW.match(msg["message"]):
                 event = match.groupdict()
                 timestamp = msg["timestamp"]
                 event["stop_ts"] = timestamp
                 df = pl.DataFrame(event)
                 rt_frame = rt_frame.update(df, on="stimulus_name", how="left")
 
-        print(rt_frame)
+        return rt_frame
 
     def _parse_asc(self, session_identifier: str):
         """
@@ -1041,8 +1063,8 @@ class MultipleyeDataCollection:
             "stop_msg": [],
             "duration_ms": [],
             "duration_str": [],
-            "trial": [],
-            "page": [],
+            "trials": [],
+            "pages": [],
             "status": [],
             "stimulus_name": [],
         }
@@ -1130,12 +1152,13 @@ class MultipleyeDataCollection:
             )
 
             if not in_break:
-                breaks_df = pd.DataFrame(breaks)
-                breaks_df.to_csv(
-                    result_folder / f"breaks_{session_identifier}.tsv",
-                    sep="\t",
-                    index=False,
-                )
+                pass
+                # breaks_df = pd.DataFrame(breaks)
+                # breaks_df.to_csv(
+                #    result_folder / f"breaks_{session_identifier}.tsv",
+                #    sep="\t",
+                #    index=False,
+                # )
             else:
                 self._write_to_logfile(
                     f"Session {session_identifier} did not finish a break properly, "

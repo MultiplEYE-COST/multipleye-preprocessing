@@ -71,14 +71,20 @@ FIXATION = "fixation"
 SACCADE = "saccade"
 
 # Regular Expressions
-MESSAGE_REGEX = re.compile(r"(?P<message>.*)")
-START_RECORDING_REGEX = re.compile(
+MESSAGE_REGEX_NEW = re.compile(r"(?P<message>.*)")
+START_RECORDING_REGEX_NEW = re.compile(
     r"(?P<type>start_recording)_(?P<trials>(PRACTICE_)?trial_\d\d?)_stimulus_(?P<stimulus_name>\S*?_\S*?)_(?P<stimulus_id>\d+)_(?P<pages>\S*)"
 )
-STOP_RECORDING_REGEX = re.compile(
+STOP_RECORDING_REGEX_NEW = re.compile(
     r"(?P<type>stop_recording)_(?P<trials>(PRACTICE_)?trial_\d\d?)_stimulus_(?P<stimulus_name>\S*?_\S*?)_(?P<stimulus_id>\d+)_(?P<pages>\S*)"
 )
-
+MESSAGE_REGEX = re.compile(r"MSG\s+(?P<timestamp>\d+[.]?\d*)\s+(?P<message>.*)")
+START_RECORDING_REGEX = re.compile(
+    r"MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)"
+)
+STOP_RECORDING_REGEX = re.compile(
+    r"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)"
+)
 # Data collection
 EYETRACKER_NAMES = {
     "eyelink": [
