@@ -20,7 +20,8 @@ Start your endeavour here!
 :link: reference_guide
 :link-type: ref
 
-Theoretical background...
+If you are interested in the details of the preprocessing pipeline,
+this section is for you.
 
 +++
 {ref}`Learn more »<reference_guide>`
@@ -28,18 +29,22 @@ Theoretical background...
 
 ::::
 
-The preprocessing pipeline for the MultiplEYE corpus by {cite:t}`JakobiDingEtAl2025MultipleyeCorpus`.
-This website documents the current state of the preprocessing pipeline, **which is still under development**. This pipeline
+The preprocessing pipeline for the MultiplEYE corpus by
+{cite:t}`JakobiDingEtAl2025MultipleyeCorpus`.
+This website documents the current state of the preprocessing pipeline, **which is still under
+development**. This pipeline
 is designed to process the raw eye-tracking data and psychometric test data
-collected in the MultiplEYE project, transforming it into a standardized format suitable for analysis
-and sharing with the research community.
+collected in the MultiplEYE project, transforming it into a standardized format suitable for
+analysis and sharing with the research community.
 
 The pipeline is built in Python and its core functionalities rely on the `pymovements` library,
-which provides tools for processing eye-tracking data. See [pymovements website](https://github.com/pymovements/pymovements)
+which provides tools for processing eye-tracking data.
+See [pymovements website](https://github.com/pymovements/pymovements)
 
 ## Setup and use
 
-In order to use the preprocessing pipeline, please follow the instructions in the {ref}`getting_started` section.
+To use the preprocessing pipeline, please follow the instructions in the
+{ref}`getting_started` section.
 This section will guide you through the setup of the pipeline, including how to install
 dependencies and run the preprocessing on your data collection.
 
@@ -62,7 +67,6 @@ This project has been partially funded by:
 - MultiplEYE COST Action, CA21131
 - Swiss National Science Foundation (SNSF), 212276 (MeRID)
 - swissuniversities, OpenEye
-
 
 ```{eval-rst}
 .. toctree::
