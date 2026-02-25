@@ -9,6 +9,8 @@ from typing import Literal
 import polars as pl
 import pymovements as pm
 
+from ..config import settings
+
 warnings.filterwarnings(
     "ignore",
     message=r"Data Validation extension is not supported.*",
@@ -247,12 +249,12 @@ class Stimulus:
             list_name.append(instruction)
 
         if stimulus_type == "experiment":
-            assert len(questions) == QUESTION_NUMBERS["experiment"], (
-                f"{stimulus_id} has {len(questions)} questions instead of 6"
+            assert len(questions) == settings.NUM_QUESTIONS_EXPERIMENT, (
+                f"{stimulus_id} has {len(questions)} questions instead of {settings.NUM_QUESTIONS_EXPERIMENT}"
             )
         elif stimulus_type == "practice":
-            assert len(questions) == QUESTION_NUMBERS["practice"], (
-                f"{stimulus_id} has {len(questions)} questions instead of 2"
+            assert len(questions) == settings.NUM_QUESTIONS_PRACTICE, (
+                f"{stimulus_id} has {len(questions)} questions instead of {settings.NUM_QUESTIONS_PRACTICE}"
             )
 
         stim = cls(

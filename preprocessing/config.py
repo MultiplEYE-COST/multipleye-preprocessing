@@ -33,6 +33,20 @@ class Settings:
         #: The expected sampling rate of the eye tracker in Hertz.
         self.EXPECTED_SAMPLING_RATE_HZ: int = 1000
 
+        # --- CONSTANTS FOR EXPERIMENT ---
+
+        #: Expected number of practice trials.
+        self.NUM_PRACTICE_TRIALS = 2
+
+        #: Expected minimum number of experimental trials.
+        self.NUM_TRIALS = 12
+
+        #: Expected number of questions for experimental stimuli.
+        self.NUM_QUESTIONS_EXPERIMENT = 6
+
+        #: Expected number of questions for practice stimuli.
+        self.NUM_QUESTIONS_PRACTICE = 2
+
         # --- FOLDER AND FILE NAMES ---
 
         #: Columns that uniquely identify a trial.
@@ -94,6 +108,27 @@ class Settings:
         #: Expected minimum number of experimental trials.
         self.ACCEPTABLE_NUM_TRIALS = 10
 
+        #: Column name for the activity identifier.
+        self.ACTIVITY_COL = "activity"
+
+        #: Column name for the practice flag.
+        self.PRACTICE_COL = "practice"
+
+        #: Prefix for page names.
+        self.PAGE_PREFIX = "page_"
+
+        #: Prefix for question names.
+        self.QUESTION_PREFIX = "question_"
+
+        #: Pattern for reading activity.
+        self.READING_ACTIVITY_PATTERN = r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+(\.0)?_page_\d+"
+
+        #: Pattern for question activity.
+        self.QUESTION_ACTIVITY_PATTERN = r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+(\.0)?_question_\d+"
+
+        #: Pattern for rating activity.
+        self.RATING_ACTIVITY_PATTERN = r"start_recording_(?:PRACTICE_)?trial_\d+_(familiarity_rating_screen_\d+|subject_difficulty_screen)"
+
         # --- DATA CHARACTERISTICS ---
 
         #: Labels used for eye tracking.
@@ -114,12 +149,12 @@ class Settings:
 
         #: Regex to identify the start of a recording for a trial/page.
         self.START_RECORDING_REGEX = re.compile(
-            r"MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)"
+            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_(?P<{self.TRIAL_COL}>(PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.*)"
         )
 
         #: Regex to identify the stop of a recording for a trial/page.
         self.STOP_RECORDING_REGEX = re.compile(
-            r"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)"
+            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<{self.TRIAL_COL}>(PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.*)"
         )
 
         #: Glob pattern for raw data files.
@@ -139,10 +174,10 @@ class Settings:
         )
 
         #: Regex to extract trial and stimulus info from raw data file names.
-        self.RAW_DATA_FILENAME_REGEX = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
+        self.RAW_DATA_FILENAME_REGEX = rf".+_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d+)_(?P<{self.STIMULUS_COL}>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
 
         #: Regex to extract trial and stimulus info from event data file names.
-        self.EVENT_DATA_FILENAME_REGEX = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_{event_type}.csv"
+        self.EVENT_DATA_FILENAME_REGEX = rf".+_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d+)_(?P<{self.STIMULUS_COL}>[^_]+_[^_]+_\d+(\.0)?)_{{event_type}}.csv"
 
         # --- HARDWARE AND STIMULI MAPPINGS ---
 
@@ -193,37 +228,37 @@ class Settings:
 
         #: Patterns used by pymovements to parse ASC files and assign columns.
         self.GAZE_PATTERNS = [
-            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_(?P<page>.+)",
-            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<page>familiarity_rating_screen_\d+|subject_difficulty_screen)",
-            {"pattern": r"stop_recording_", "column": "trial", "value": None},
-            {"pattern": r"stop_recording_", "column": "page", "value": None},
+            rf"start_recording_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<{self.STIMULUS_COL}>[^_]+_[^_]+_\d+(\.0)?)_(?P<{self.PAGE_COL}>.+)",
+            rf"start_recording_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d+)_(?P<{self.PAGE_COL}>familiarity_rating_screen_\d+|subject_difficulty_screen)",
+            {"pattern": r"stop_recording_", "column": self.TRIAL_COL, "value": None},
+            {"pattern": r"stop_recording_", "column": self.PAGE_COL, "value": None},
             {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+(\.0)?_page_\d+",
-                "column": "activity",
+                "pattern": self.READING_ACTIVITY_PATTERN,
+                "column": self.ACTIVITY_COL,
                 "value": "reading",
             },
             {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+(\.0)?_question_\d+",
-                "column": "activity",
+                "pattern": self.QUESTION_ACTIVITY_PATTERN,
+                "column": self.ACTIVITY_COL,
                 "value": "question",
             },
             {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_(familiarity_rating_screen_\d+|subject_difficulty_screen)",
-                "column": "activity",
+                "pattern": self.RATING_ACTIVITY_PATTERN,
+                "column": self.ACTIVITY_COL,
                 "value": "rating",
             },
-            {"pattern": r"stop_recording_", "column": "activity", "value": None},
+            {"pattern": r"stop_recording_", "column": self.ACTIVITY_COL, "value": None},
             {
                 "pattern": r"start_recording_PRACTICE_trial_",
-                "column": "practice",
+                "column": self.PRACTICE_COL,
                 "value": True,
             },
             {
                 "pattern": r"start_recording_trial_",
-                "column": "practice",
+                "column": self.PRACTICE_COL,
                 "value": False,
             },
-            {"pattern": r"stop_recording_", "column": "practice", "value": None},
+            {"pattern": r"stop_recording_", "column": self.PRACTICE_COL, "value": None},
         ]
 
         #: Properties to compute for each event type.
