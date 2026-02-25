@@ -30,6 +30,12 @@ The main settings include:
 - `INCLUDE_SESSIONS`: List of session IDs to include (if provided, only these will be processed).
 - `EXPECTED_SAMPLING_RATE_HZ`: The expected sampling rate of the eye tracker (default: `1000`).
 
+### Logging Configuration
+
+- `CONSOLE_LOG_LEVEL`: Log level for the console output (default: `INFO`).
+- `FILE_LOG_LEVEL`: Log level for the file output (default: `DEBUG`).
+- `LOG_LEVEL`: Default log level for the package/Python (default: `INFO`).
+
 ### Programmatic Usage (Notebooks)
 
 In a Jupyter notebook, you can load your configuration explicitly:

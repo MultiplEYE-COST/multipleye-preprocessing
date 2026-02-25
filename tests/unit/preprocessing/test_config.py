@@ -39,10 +39,29 @@ def test_settings_default_values(settings_obj, attr, expected):
 def test_settings_direct_set_logging(settings_obj, caplog, attr, value, expected_log):
     """Test that setting attributes directly logs the changes."""
     settings_obj._loaded = True  # Avoid auto-loading
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.DEBUG):
         setattr(settings_obj, attr, value)
 
     assert expected_log in caplog.text
+
+
+def test_settings_setup_logging(settings_obj, tmp_path):
+    """Test that setup_logging configures handlers correctly."""
+    log_file = tmp_path / "test.log"
+    settings_obj.CONSOLE_LOG_LEVEL = "ERROR"
+    settings_obj.FILE_LOG_LEVEL = "DEBUG"
+    settings_obj.setup_logging(log_file=log_file)
+
+    logger = logging.getLogger("preprocessing")
+    handlers = logger.handlers
+    assert len(handlers) == 2
+
+    stream_handler = next(h for h in handlers if isinstance(h, logging.StreamHandler))
+    file_handler = next(h for h in handlers if isinstance(h, logging.FileHandler))
+
+    assert stream_handler.level == logging.ERROR
+    assert file_handler.level == logging.DEBUG
+    assert str(file_handler.baseFilename) == str(log_file.resolve())
 
 
 @pytest.mark.parametrize(
@@ -59,7 +78,7 @@ def test_settings_direct_set_logging(settings_obj, caplog, attr, value, expected
 def test_settings_update_logging(settings_obj, caplog, update_dict, expected_logs):
     """Test that updating settings logs the changes correctly."""
     settings_obj._loaded = True  # Avoid auto-loading
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.DEBUG):
         settings_obj.update(update_dict)
 
     for log_msg in expected_logs:
@@ -81,7 +100,7 @@ def test_settings_load_from_yaml_logging(settings_obj, caplog, tmp_path, config_
     with open(config_file, "w") as f:
         yaml.dump(config_data, f)
 
-    with caplog.at_level(logging.INFO):
+    with caplog.at_level(logging.DEBUG):
         settings_obj.load(path=config_file)
 
     assert f"Loading config from: {config_file.resolve()}" in caplog.text
@@ -125,6 +144,26 @@ def test_settings_validation_error(settings_obj):
     """Test that missing required fields raise an error."""
     with pytest.raises(ValueError, match="DATA_COLLECTION_NAME is required"):
         settings_obj._validate()
+
+
+def test_prepare_language_folder_none_error():
+    """Test that prepare_language_folder raises a ValueError when name is None and no config."""
+    from preprocessing.scripts.prepare_language_folder import prepare_language_folder
+    from preprocessing.config import Settings
+    import preprocessing
+
+    # Use a fresh settings object without a config file
+    s = Settings()
+    s._loaded = True  # mock as loaded with no config found
+
+    # Temporarily monkeypatch the global settings
+    original_settings = preprocessing.settings
+    preprocessing.settings = s
+    try:
+        with pytest.raises(ValueError, match="data_collection_name is None"):
+            prepare_language_folder(None)
+    finally:
+        preprocessing.settings = original_settings
 
 
 @pytest.mark.parametrize(

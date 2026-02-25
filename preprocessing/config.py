@@ -21,6 +21,20 @@ class Settings:
         #: Name of the data collection (e.g., 'ME_EN_UK_LON_LAB1_2025').
         self.DATA_COLLECTION_NAME: str | None = None
 
+        self._init_defaults()
+        self._repo_root = Path(__file__).parent.parent
+        self._initialized = True
+
+    @property
+    def DATA_COLLECTION_NAME(self) -> str | None:
+        self._ensure_loaded()
+        return self.__dict__.get("DATA_COLLECTION_NAME")
+
+    @DATA_COLLECTION_NAME.setter
+    def DATA_COLLECTION_NAME(self, value: str | None) -> None:
+        self.__dict__["DATA_COLLECTION_NAME"] = value
+
+    def _init_defaults(self) -> None:
         #: Whether to include sessions from the pilot folder.
         self.INCLUDE_PILOTS: bool = False
 
@@ -29,6 +43,15 @@ class Settings:
 
         #: List of session identifiers to explicitly include. If not empty, only these are processed.
         self.INCLUDE_SESSIONS: list[str] = []
+
+        #: Default log level for the package/Python.
+        self.LOG_LEVEL: str = "INFO"
+
+        #: Log level for the console output.
+        self.CONSOLE_LOG_LEVEL: str = "INFO"
+
+        #: Log level for the file output.
+        self.FILE_LOG_LEVEL: str = "DEBUG"
 
         #: The expected sampling rate of the eye tracker in Hertz.
         self.EXPECTED_SAMPLING_RATE_HZ: int = 1000
@@ -276,8 +299,6 @@ class Settings:
 
         self._loaded = False
         self._loading = False
-        self._repo_root = Path(__file__).parent.parent
-        self._initialized = True
 
     @property
     def THIS_REPO(self) -> Path:
@@ -353,8 +374,48 @@ class Settings:
         """Validate required settings."""
         if self._loading:  # Skip validation during initial loading of parts
             return
-        if not self.DATA_COLLECTION_NAME:
+        # avoid infinite recursion with property
+        if not self.__dict__.get("DATA_COLLECTION_NAME"):
             raise ValueError("DATA_COLLECTION_NAME is required in settings.")
+
+    def setup_logging(self, log_file: str | Path | None = None) -> None:
+        """Configure logging with separate levels for console and file.
+
+        To be replaced by https://github.com/MultiplEYE-COST/multipleye-preprocessing/pull/64
+        """
+        # Root logger or specific package logger
+        root_logger = logging.getLogger("preprocessing")
+
+        # Clear existing handlers
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+
+        root_logger.setLevel(logging.DEBUG)  # Capture everything, filter in handlers
+
+        # Console handler
+        console_handler = logging.StreamHandler()
+        console_level = getattr(logging, self.CONSOLE_LOG_LEVEL.upper(), logging.INFO)
+        console_handler.setLevel(console_level)
+        console_formatter = logging.Formatter("%(levelname)s:%(name)s:%(message)s")
+        console_handler.setFormatter(console_formatter)
+        root_logger.addHandler(console_handler)
+
+        # File handler
+        if log_file:
+            log_file = Path(log_file)
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = logging.FileHandler(log_file, encoding="utf-8")
+            file_level = getattr(logging, self.FILE_LOG_LEVEL.upper(), logging.DEBUG)
+            file_handler.setLevel(file_level)
+            file_formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            file_handler.setFormatter(file_formatter)
+            root_logger.addHandler(file_handler)
+
+        # Also set the level for the root logger if needed
+        # (if we want to affect non-preprocessing loggers)
+        # logging.getLogger().setLevel(getattr(logging, self.LOG_LEVEL.upper(), logging.WARNING))
 
     def __setattr__(self, name: str, value: Any) -> None:
         if not name.startswith("_"):
@@ -362,17 +423,17 @@ class Settings:
             if hasattr(self, name):
                 old_value = getattr(self, name)
                 if old_value != value:
-                    logger.info(f"Changing setting {name}: {old_value} -> {value}")
+                    logger.debug(f"Changing setting {name}: {old_value} -> {value}")
             else:
                 # If we are not in _loading and not in __init__, it's a new attribute, using a flag
                 if hasattr(self, "_initialized") and self._initialized:
-                    logger.info(f"Setting new attribute {name}: {value}")
+                    logger.debug(f"Setting new attribute {name}: {value}")
 
         super().__setattr__(name, value)
 
     def __getattr__(self, name: str) -> Any:
-        # Avoid recursion for private attributes
-        if name.startswith("_"):
+        # Avoid recursion for private attributes or property-backed attributes
+        if name.startswith("_") or name == "DATA_COLLECTION_NAME":
             raise AttributeError(name)
 
         # For legacy compatibility and to ensure loading
@@ -392,8 +453,10 @@ class Settings:
             if self.DATA_COLLECTION_NAME is None:
                 # If we are here and it's None, it means no config was found
                 raise ValueError(
-                    "Settings not initialized: DATA_COLLECTION_NAME is None. "
-                    "Please load a config file."
+                    f"Settings attribute '{name}' cannot be computed because "
+                    "DATA_COLLECTION_NAME is None. Please load a configuration file "
+                    "(e.g., settings.load_from_yaml('your_config.yaml')) or set "
+                    "the DATA_COLLECTION_NAME attribute directly."
                 )
 
             parts = self.DATA_COLLECTION_NAME.split("_")

@@ -9,8 +9,17 @@ import pandas as pd
 from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
 
 
-def prepare_language_folder(data_collection_name):
+def prepare_language_folder(data_collection_name: str | None = None):
     from preprocessing import settings
+
+    if data_collection_name is None:
+        data_collection_name = settings.DATA_COLLECTION_NAME
+
+    if data_collection_name is None:
+        raise ValueError(
+            "data_collection_name is None. Please provide a valid data collection name "
+            "as an argument or load a configuration via settings.load()."
+        )
 
     _, lang, country, city, lab_no, year = data_collection_name.split("_")
 

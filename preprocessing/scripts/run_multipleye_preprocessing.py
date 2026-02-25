@@ -9,6 +9,9 @@ from preprocessing import settings
 
 def run_multipleye_preprocessing(config_path: str | None = None):
     settings.load(config_path)
+    settings.setup_logging(
+        log_file=settings.DATASET_DIR.parent / "preprocessing_logs.txt"
+    )
 
     data_collection_name = settings.DATA_COLLECTION_NAME
     print(

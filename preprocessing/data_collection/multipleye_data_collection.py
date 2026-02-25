@@ -1405,7 +1405,9 @@ class MultipleyeDataCollection:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    from preprocessing import settings
+
+    settings.setup_logging()
     data_collection_folder = "MultiplEYE_ET_EE_Tartu_1_2025"
 
     this_repo = Path().resolve().parent
