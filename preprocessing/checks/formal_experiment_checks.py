@@ -123,13 +123,17 @@ def sanity_check_gaze_frame(gaze, stimuli, report_file):
         ).unique(settings.PAGE_COL)
         # check if all pages are present
         for page in stimulus.pages:
-            if f"{settings.PAGE_PREFIX}{page.number}" not in stimulus_frame[settings.PAGE_COL].to_list():
+            if (
+                f"{settings.PAGE_PREFIX}{page.number}"
+                not in stimulus_frame[settings.PAGE_COL].to_list()
+            ):
                 # print(f"Missing page {page.number}")
                 _report_warning(f"Missing page {page.number} in asc file", report_file)
         # check if all questions are present
         for question in stimulus.questions:
             if (
-                f"{settings.QUESTION_PREFIX}{question.id}" not in stimulus_frame[settings.PAGE_COL].to_list()
+                f"{settings.QUESTION_PREFIX}{question.id}"
+                not in stimulus_frame[settings.PAGE_COL].to_list()
                 and f"{settings.QUESTION_PREFIX}{question.id[1:]}"
                 not in stimulus_frame[settings.PAGE_COL].to_list()
             ):

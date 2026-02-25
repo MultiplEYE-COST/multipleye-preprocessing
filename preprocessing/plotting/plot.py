@@ -75,9 +75,7 @@ def plot_gaze(
         plt.close(fig)
 
     for question in stimulus.questions:
-        screen_name = (
-            f"{settings.QUESTION_PREFIX}{int(question.id)}"  # Screen names don't have leading zeros
-        )
+        screen_name = f"{settings.QUESTION_PREFIX}{int(question.id)}"  # Screen names don't have leading zeros
         page_samples = data.frame.filter(
             (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
             & (pl.col(settings.PAGE_COL) == screen_name)

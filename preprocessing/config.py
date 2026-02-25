@@ -149,12 +149,12 @@ class Settings:
 
         #: Regex to identify the start of a recording for a trial/page.
         self.START_RECORDING_REGEX = re.compile(
-            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_(?P<{self.TRIAL_COL}>(PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.*)"
+            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.*)"
         )
 
         #: Regex to identify the stop of a recording for a trial/page.
         self.STOP_RECORDING_REGEX = re.compile(
-            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<{self.TRIAL_COL}>(PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.*)"
+            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.*)"
         )
 
         #: Glob pattern for raw data files.
