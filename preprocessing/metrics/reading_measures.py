@@ -1,5 +1,7 @@
 import polars as pl
 
+from ..config import settings
+
 # ---------------------------
 # Basic fixation-based counts
 # ---------------------------
@@ -10,7 +12,11 @@ def compute_total_fixation_count(fix: pl.DataFrame) -> pl.DataFrame:
     Total Fixation Count (TFC):
     Total number of fixations on the word.
     """
-    return fix.group_by(["trial", "page", "word_idx"]).len().rename({"len": "TFC"})
+    return (
+        fix.group_by([settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL])
+        .len()
+        .rename({"len": "TFC"})
+    )
 
 
 def compute_first_pass_fixation_count(
@@ -22,7 +28,7 @@ def compute_first_pass_fixation_count(
     """
     return (
         fix.filter(pl.col("is_first_pass"))
-        .group_by(["trial", "page", "word_idx"])
+        .group_by([settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL])
         .len()
         .rename({"len": "FPFC"})
     )
@@ -33,9 +39,9 @@ def compute_first_duration(fix: pl.DataFrame) -> pl.DataFrame:
     First Duration (FD):
     Duration of the first fixation on the word, regardless of pass
     """
-    return fix.group_by(["trial", "page", "word_idx"]).agg(
-        pl.col("duration").sort_by("onset").first().alias("FD")
-    )
+    return fix.group_by(
+        [settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL]
+    ).agg(pl.col("duration").sort_by("onset").first().alias("FD"))
 
 
 def compute_first_reading_time(fix: pl.DataFrame) -> pl.DataFrame:
@@ -44,12 +50,21 @@ def compute_first_reading_time(fix: pl.DataFrame) -> pl.DataFrame:
     Sum of fixations from first entering word until first leaving it (first run)
     """
     return (
-        fix.group_by(["trial", "page", "word_idx", "run_id"])
+        fix.group_by(
+            [settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL, "run_id"]
+        )
         .agg(pl.col("duration").sum().alias("run_duration"))
-        .sort(["trial", "page", "word_idx", "run_id"])
-        .group_by(["trial", "page", "word_idx"])
+        .sort([settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL, "run_id"])
+        .group_by([settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL])
         .first()
-        .select(["trial", "page", "word_idx", "run_duration"])
+        .select(
+            [
+                settings.TRIAL_COL,
+                settings.PAGE_COL,
+                settings.WORD_IDX_COL,
+                "run_duration",
+            ]
+        )
         .rename({"run_duration": "FRT"})
     )
 
@@ -58,7 +73,7 @@ def compute_first_fixation_duration(fix: pl.DataFrame) -> pl.DataFrame:
     """First fixation during first-pass only"""
     return (
         fix.filter(pl.col("is_first_pass"))
-        .group_by(["trial", "page", "word_idx"])
+        .group_by([settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL])
         .agg(pl.col("duration").sort_by("onset").first().alias("FFD"))
     )
 
@@ -70,7 +85,7 @@ def compute_first_pass_reading_time(fix: pl.DataFrame) -> pl.DataFrame:
     """
     return (
         fix.filter(pl.col("is_first_pass"))
-        .group_by(["trial", "page", "word_idx"])
+        .group_by([settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL])
         .agg(pl.col("duration").sum().alias("FPRT"))
     )
 
@@ -82,7 +97,7 @@ def compute_rereading_time(fix: pl.DataFrame) -> pl.DataFrame:
     """
     return (
         fix.filter(~pl.col("is_first_pass"))
-        .group_by(["trial", "page", "word_idx"])
+        .group_by([settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL])
         .agg(pl.col("duration").sum().alias("RRT"))
     )
 
@@ -97,7 +112,9 @@ def compute_trc_in_out(fix: pl.DataFrame) -> pl.DataFrame:
     Total Regression Count (TRC):
     Number of regressions into (TRC_in) and out of (TRC_out) the word.
     """
-    return fix.group_by(["trial", "page", "word_idx"]).agg(
+    return fix.group_by(
+        [settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL]
+    ).agg(
         [
             pl.col("is_reg_in").sum().alias("TRC_in"),
             pl.col("is_reg_out").sum().alias("TRC_out"),
@@ -110,9 +127,9 @@ def compute_landing_position(fix: pl.DataFrame) -> pl.DataFrame:
     Landing Position (LP):
     Character index of the first fixation on the word.
     """
-    return fix.group_by(["trial", "page", "word_idx"]).agg(
-        pl.col("char_idx").sort_by("onset").first().alias("LP")
-    )
+    return fix.group_by(
+        [settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL]
+    ).agg(pl.col(settings.CHAR_IDX_COL).sort_by("onset").first().alias("LP"))
 
 
 def compute_sl_in(fix: pl.DataFrame) -> pl.DataFrame:
@@ -123,8 +140,10 @@ def compute_sl_in(fix: pl.DataFrame) -> pl.DataFrame:
     """
     return (
         fix.filter(pl.col("is_first_fix"))
-        .with_columns((pl.col("word_idx") - pl.col("prev_word_idx")).alias("SL_in"))
-        .select(["trial", "page", "word_idx", "SL_in"])
+        .with_columns(
+            (pl.col(settings.WORD_IDX_COL) - pl.col("prev_word_idx")).alias("SL_in")
+        )
+        .select([settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL, "SL_in"])
     )
 
 
@@ -134,20 +153,24 @@ def compute_sl_out(fix: pl.DataFrame) -> pl.DataFrame:
     Number of *words* between the current word and the next word
     during the last fixation of the first pass on the word.
     """
-    first_run = fix.group_by(["trial", "page", "word_idx"]).agg(
-        pl.col("run_id").min().alias("first_run")
-    )
+    first_run = fix.group_by(
+        [settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL]
+    ).agg(pl.col("run_id").min().alias("first_run"))
 
     last_fix = (
-        fix.join(first_run, on=["trial", "page", "word_idx"])
+        fix.join(
+            first_run, on=[settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL]
+        )
         .filter(pl.col("run_id") == pl.col("first_run"))
-        .group_by(["trial", "page", "word_idx"])
+        .group_by([settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL])
         .agg(pl.all().sort_by("onset").last())
     )
 
     return last_fix.with_columns(
-        (pl.col("next_word_idx") - pl.col("word_idx")).fill_null(0).alias("SL_out")
-    ).select(["trial", "page", "word_idx", "SL_out"])
+        (pl.col("next_word_idx") - pl.col(settings.WORD_IDX_COL))
+        .fill_null(0)
+        .alias("SL_out")
+    ).select([settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL, "SL_out"])
 
 
 # ---------------------------
@@ -171,9 +194,11 @@ def compute_rpd_measures(fix: pl.DataFrame) -> pl.DataFrame:
     def per_group(df: pl.DataFrame) -> pl.DataFrame:
         rows = []
 
-        for w in df["word_idx"].unique().to_list():
+        for w in df[settings.WORD_IDX_COL].unique().to_list():
             first = (
-                df.filter((pl.col("word_idx") == w) & (pl.col("is_first_pass")))
+                df.filter(
+                    (pl.col(settings.WORD_IDX_COL) == w) & (pl.col("is_first_pass"))
+                )
                 .sort("onset")
                 .head(1)
             )
@@ -186,7 +211,9 @@ def compute_rpd_measures(fix: pl.DataFrame) -> pl.DataFrame:
 
             after = df.filter(pl.col("onset") >= start_onset)
 
-            exit_right = after.filter(pl.col("word_idx") > w).sort("onset").head(1)
+            exit_right = (
+                after.filter(pl.col(settings.WORD_IDX_COL) > w).sort("onset").head(1)
+            )
 
             if exit_right.height > 0:
                 stop_onset = exit_right["onset"][0]
@@ -194,23 +221,27 @@ def compute_rpd_measures(fix: pl.DataFrame) -> pl.DataFrame:
             else:
                 window = after
 
-            rbrt = window.filter(pl.col("word_idx") == w)["duration"].sum()
-            rpd_exc = window.filter(pl.col("word_idx") != w)["duration"].sum()
+            rbrt = window.filter(pl.col(settings.WORD_IDX_COL) == w)["duration"].sum()
+            rpd_exc = window.filter(pl.col(settings.WORD_IDX_COL) != w)[
+                "duration"
+            ].sum()
             rpd_inc = rbrt + rpd_exc
 
             rows.append((w, rpd_inc, rpd_exc, rbrt))
 
         return pl.DataFrame(
             rows,
-            schema=["word_idx", "RPD_inc", "RPD_exc", "RBRT"],
+            schema=[settings.WORD_IDX_COL, "RPD_inc", "RPD_exc", "RBRT"],
         ).with_columns(
             [
-                pl.lit(df["trial"][0]).alias("trial"),
-                pl.lit(df["page"][0]).alias("page"),
+                pl.lit(df[settings.TRIAL_COL][0]).alias(settings.TRIAL_COL),
+                pl.lit(df[settings.PAGE_COL][0]).alias(settings.PAGE_COL),
             ]
         )
 
-    return fix.group_by("trial", "page", maintain_order=True).map_groups(per_group)
+    return fix.group_by(
+        settings.TRIAL_COL, settings.PAGE_COL, maintain_order=True
+    ).map_groups(per_group)
 
 
 # ---------------------------
@@ -235,19 +266,20 @@ def build_word_level_table(
     sl_out = compute_sl_out(fix)
     rpd = compute_rpd_measures(fix)
 
+    join_on = [settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL]
     return (
-        words.join(tfc, on=["trial", "page", "word_idx"], how="left")
-        .join(fd, on=["trial", "page", "word_idx"], how="left")
-        .join(ffd, on=["trial", "page", "word_idx"], how="left")
-        .join(fprt, on=["trial", "page", "word_idx"], how="left")
-        .join(frt, on=["trial", "page", "word_idx"], how="left")
-        .join(rrt, on=["trial", "page", "word_idx"], how="left")
-        .join(fpfc, on=["trial", "page", "word_idx"], how="left")
-        .join(trc, on=["trial", "page", "word_idx"], how="left")
-        .join(lp, on=["trial", "page", "word_idx"], how="left")
-        .join(sl_in, on=["trial", "page", "word_idx"], how="left")
-        .join(sl_out, on=["trial", "page", "word_idx"], how="left")
-        .join(rpd, on=["trial", "page", "word_idx"], how="left")
+        words.join(tfc, on=join_on, how="left")
+        .join(fd, on=join_on, how="left")
+        .join(ffd, on=join_on, how="left")
+        .join(fprt, on=join_on, how="left")
+        .join(frt, on=join_on, how="left")
+        .join(rrt, on=join_on, how="left")
+        .join(fpfc, on=join_on, how="left")
+        .join(trc, on=join_on, how="left")
+        .join(lp, on=join_on, how="left")
+        .join(sl_in, on=join_on, how="left")
+        .join(sl_out, on=join_on, how="left")
+        .join(rpd, on=join_on, how="left")
         .with_columns(
             [
                 pl.col("TFC").fill_null(0),

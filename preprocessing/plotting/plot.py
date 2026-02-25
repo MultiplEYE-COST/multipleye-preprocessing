@@ -7,7 +7,7 @@ import polars as pl
 import pymovements as pm
 from matplotlib.patches import Circle
 
-from ..constants import FIXATION
+from ..config import settings
 from ..data_collection.stimulus import Stimulus
 
 
@@ -33,7 +33,7 @@ def plot_gaze(
         page_events = data.events.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == f"page_{page.number}")
-            & (pl.col("name") == FIXATION)
+            & (pl.col("name") == settings.FIXATION)
         ).select(
             pl.col("duration"),
             pl.col("location_x"),
@@ -88,7 +88,7 @@ def plot_gaze(
         page_events = data.events.frame.filter(
             (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
             & (pl.col("page") == screen_name)
-            & (pl.col("name") == FIXATION)
+            & (pl.col("name") == settings.FIXATION)
         ).select(
             pl.col("duration"),
             pl.col("location_x"),
@@ -141,7 +141,7 @@ def plot_gaze(
         page_events = data.events.frame.filter(
             (pl.col("stimulus") == f"trial_{stimulus.id}")
             & (pl.col("page") == screen_name)
-            & (pl.col("name") == FIXATION)
+            & (pl.col("name") == settings.FIXATION)
         ).select(
             pl.col("duration"),
             pl.col("location_x"),

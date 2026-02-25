@@ -23,18 +23,11 @@ from pathlib import Path
 from pandas import read_csv, DataFrame
 import pandas as pd
 
-from ..constants import (
-    PSYM_LWMC_DIR,
-    PSYM_RAN_DIR,
-    PSYM_STROOP_FLANKER_DIR,
-    PSYM_PLAB_DIR,
-    PSYM_WIKIVOCAB_DIR,
-)
-from ..constants import PSYCHOMETRIC_TESTS_DIR
+from ..config import settings
 from ..utils import pid_from_session
 
 
-def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) -> Path:
+def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
     """Preprocess all sessions and write two types of outputs:
 
     1) Overview CSV (one row per session) saved directly under the
@@ -57,6 +50,8 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
       overview vs. detailed outputs.
     - Returns the path to the written overview CSV.
     """
+    if test_session_folder is None:
+        test_session_folder = settings.PSYCHOMETRIC_TESTS_DIR
     # Collect session folders
     session_folders = test_session_folder.iterdir()
     session_folders = [p for p in session_folders if _is_valid_folder(p)]
@@ -83,7 +78,7 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
         }
 
         # LWMC
-        lwmc_dir = session / PSYM_LWMC_DIR
+        lwmc_dir = session / settings.PSYM_LWMC_DIR
         if lwmc_dir.exists():
             try:
                 res_lwmc = preprocess_lwmc(lwmc_dir)  # dict
@@ -107,7 +102,7 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
                 )
 
         # RAN
-        ran_dir = session / PSYM_RAN_DIR
+        ran_dir = session / settings.PSYM_RAN_DIR
         if ran_dir.exists():
             try:
                 res_ran = preprocess_ran(ran_dir)
@@ -123,7 +118,7 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
                 )
 
         # Stroop & Flanker
-        sf_dir = session / PSYM_STROOP_FLANKER_DIR
+        sf_dir = session / settings.PSYM_STROOP_FLANKER_DIR
         if sf_dir.exists():
             try:
                 res_stroop = preprocess_stroop(sf_dir)  # DataFrame
@@ -173,7 +168,7 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
                 )
 
         # WikiVocab (tuple[rt_mean, accuracy])
-        wv_dir = session / PSYM_WIKIVOCAB_DIR
+        wv_dir = session / settings.PSYM_WIKIVOCAB_DIR
         if wv_dir.exists():
             try:
                 res_wv = preprocess_wikivocab(wv_dir)
@@ -195,7 +190,7 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
                 )
 
         # PLAB (tuple[rt_mean, accuracy])
-        plab_dir = session / PSYM_PLAB_DIR
+        plab_dir = session / settings.PSYM_PLAB_DIR
         if plab_dir.exists():
             try:
                 res_plab = preprocess_plab(plab_dir)

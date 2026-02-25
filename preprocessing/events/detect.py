@@ -1,8 +1,7 @@
 """Event detection functions."""
 
-from ..constants import FIXATION, SACCADE
+from ..config import settings
 from ..events.properties import compute_event_properties
-from ..io.load import DEFAULT_EVENT_PROPERTIES
 
 
 def detect_fixations(
@@ -48,7 +47,9 @@ def detect_fixations(
         method, minimum_duration=minimum_duration, velocity_threshold=velocity_threshold
     )
 
-    compute_event_properties(gaze, FIXATION, DEFAULT_EVENT_PROPERTIES[FIXATION])
+    compute_event_properties(
+        gaze, settings.FIXATION, settings.EVENT_PROPERTIES[settings.FIXATION]
+    )
 
 
 def detect_saccades(
@@ -87,4 +88,6 @@ def detect_saccades(
         threshold_factor=threshold_factor,
     )
 
-    compute_event_properties(gaze, SACCADE, DEFAULT_EVENT_PROPERTIES[SACCADE])
+    compute_event_properties(
+        gaze, settings.SACCADE, settings.EVENT_PROPERTIES[settings.SACCADE]
+    )
