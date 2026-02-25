@@ -39,7 +39,7 @@ analysis and sharing with the research community.
 
 The pipeline is built in Python and its core functionalities rely on the `pymovements` library,
 which provides tools for processing eye-tracking data.
-See [pymovements website](https://github.com/pymovements/pymovements)
+See [pymovements website](https://pymovements.readthedocs.io/en/stable/).
 
 ## Setup and use
 
