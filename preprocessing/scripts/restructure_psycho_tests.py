@@ -4,18 +4,20 @@ import argparse
 import shutil
 from pathlib import Path
 
-from preprocessing.constants import (
-    PSYM_PARTICIPANT_CONFIGS,
-    PSYCHOMETRIC_TESTS_DIR,
-    PSYM_CORE_DATA,
-)
-
 
 def fix_psycho_tests_structure(
-    config_folder: Path = PSYM_PARTICIPANT_CONFIGS,
-    data_folder: Path = PSYM_CORE_DATA,
-    out_folder: Path = PSYCHOMETRIC_TESTS_DIR,
+    config_folder: Path | None = None,
+    data_folder: Path | None = None,
+    out_folder: Path | None = None,
 ):
+    from preprocessing import settings
+
+    if config_folder is None:
+        config_folder = settings.PSYM_PARTICIPANT_CONFIGS
+    if data_folder is None:
+        data_folder = settings.PSYM_CORE_DATA
+    if out_folder is None:
+        out_folder = settings.PSYCHOMETRIC_TESTS_DIR
     """
     Restructures psychometric tests data into per-participant folders.
 
@@ -137,27 +139,29 @@ def main():
         "--config_folder",
         type=str,
         help="Path to the folder containing the psychometric tests configuration files.",
-        default=PSYM_PARTICIPANT_CONFIGS,
+        default=None,
     )
     parser.add_argument(
         "--data_folder",
         type=str,
         help="Path to the folder containing the data collection.",
-        default=PSYM_CORE_DATA,
+        default=None,
     )
     parser.add_argument(
         "--out_folder",
         type=str,
         help="Path to the session folder where the restructured data / user folders will be saved.",
-        default=PSYCHOMETRIC_TESTS_DIR,
+        default=None,
     )
     args = parser.parse_args()
 
+    config_p = Path(args.config_folder) if args.config_folder else None
+    data_p = Path(args.data_folder) if args.data_folder else None
+    out_p = Path(args.out_folder) if args.out_folder else None
+
     print(
-        f"Restructuring psychometric tests data from \ndata_folder: {args.data_folder}\n"
-        f"to out_folder: {args.out_folder}\nwith config_folder: {args.config_folder}"
+        f"Restructuring psychometric tests data from \ndata_folder: {data_p}\n"
+        f"to out_folder: {out_p}\nwith config_folder: {config_p}"
     )
 
-    fix_psycho_tests_structure(
-        Path(args.config_folder), Path(args.data_folder), Path(args.out_folder)
-    )
+    fix_psycho_tests_structure(config_p, data_p, out_p)

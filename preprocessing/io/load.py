@@ -9,7 +9,7 @@ import yaml
 
 import pymovements as pm
 
-from ..constants import FIXATION, SACCADE
+from ..config import settings
 from ..data_collection.stimulus import LabConfig
 
 
@@ -48,40 +48,7 @@ def load_gaze_data(
 
     gaze = pm.gaze.from_asc(
         asc_file,
-        # TODO: move patterns form here to config, pm dataset definition?
-        patterns=[
-            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_(?P<page>.+)",
-            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<page>familiarity_rating_screen_\d+|subject_difficulty_screen)",
-            {"pattern": r"stop_recording_", "column": "trial", "value": None},
-            {"pattern": r"stop_recording_", "column": "page", "value": None},
-            {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+(\.0)?_page_\d+",
-                "column": "activity",
-                "value": "reading",
-            },
-            {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+(\.0)?_question_\d+",
-                "column": "activity",
-                "value": "question",
-            },
-            {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_(familiarity_rating_screen_\d+|subject_difficulty_screen)",
-                "column": "activity",
-                "value": "rating",
-            },
-            {"pattern": r"stop_recording_", "column": "activity", "value": None},
-            {
-                "pattern": r"start_recording_PRACTICE_trial_",
-                "column": "practice",
-                "value": True,
-            },
-            {
-                "pattern": r"start_recording_trial_",
-                "column": "practice",
-                "value": False,
-            },
-            {"pattern": r"stop_recording_", "column": "practice", "value": None},
-        ],
+        patterns=settings.GAZE_PATTERNS,
         trial_columns=trial_cols,
         add_columns={"session": session_idf},
     )
@@ -115,23 +82,10 @@ def load_gaze_data(
     return gaze
 
 
-DEFAULT_EVENT_PROPERTIES = {
-    FIXATION: [
-        ("location", {"position_column": "pixel"}),
-        ("dispersion", {}),
-    ],
-    SACCADE: [
-        ("amplitude", {}),
-        ("peak_velocity", {}),
-        ("dispersion", {}),
-    ],
-}
-
-
 def load_trial_level_raw_data(
     data_folder: Path,
     trial_columns: list[str],
-    file_pattern: str = "*_raw_data.csv",
+    file_pattern: str | None = None,
     metadata_path: Path = None,
 ) -> pm.Gaze:
     """Load trial-level raw data from multiple CSV files and construct a gaze object.
@@ -145,7 +99,7 @@ def load_trial_level_raw_data(
     trial_columns : list of str
         Column names that uniquely identify a trial within the data.
     file_pattern : str, optional
-        The file search pattern for raw data CSV files. Defaults to '*_raw_data.csv'.
+        The file search pattern for raw data CSV files. Defaults to None, which uses settings.RAW_DATA_FILE_GLOB.
     metadata_path : Path, optional
         The folder containing metadata files (`gaze_metadata.json`, `experiment.yaml`,
         `validations.tsv`, `calibrations.tsv`) used to enrich the gaze object.
@@ -156,7 +110,10 @@ def load_trial_level_raw_data(
         A gaze object containing the trial-level aggregated gaze data along with
         any associated metadata, validations, calibrations, and experiment settings, if provided.
     """
-    regex_name = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
+    if file_pattern is None:
+        file_pattern = settings.RAW_DATA_FILE_GLOB
+
+    regex_name = settings.RAW_DATA_FILENAME_REGEX
 
     initial_df = pl.DataFrame()
 
@@ -215,7 +172,7 @@ def load_trial_level_events_data(
     gaze: pm.Gaze,
     data_folder: Path,
     event_type: str,
-    file_pattern: str = "*_fixation",
+    file_pattern: str | None = None,
 ) -> pm.Gaze:
     """Load and processes trial-level event data for a given type.
 
@@ -233,16 +190,20 @@ def load_trial_level_events_data(
     event_type : str
         The type of event to load, must be one of the keys in `DEFAULT_EVENT_PROPERTIES`.
     file_pattern : str, optional
-        A pattern for matching CSV file names to extract relevant groups, by default '*_fixation'.
+        A pattern for matching CSV file names to extract relevant groups.
+        If None, defaults to settings.EVENT_DATA_FILE_GLOB formatted with event_type.
 
     Returns
     -------
     pm.Gaze
         The updated gaze object with the loaded and integrated event data.
     """
-    if event_type not in DEFAULT_EVENT_PROPERTIES.keys():
+    if file_pattern is None:
+        file_pattern = settings.EVENT_DATA_FILE_GLOB.format(event_type=event_type)
+
+    if event_type not in settings.EVENT_PROPERTIES.keys():
         raise ValueError(
-            f"event_type must be {DEFAULT_EVENT_PROPERTIES.keys()}, got {event_type}"
+            f"event_type must be {list(settings.EVENT_PROPERTIES.keys())}, got {event_type}"
         )
 
     all_events = pl.DataFrame()

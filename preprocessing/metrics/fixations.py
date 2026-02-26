@@ -18,11 +18,14 @@ def annotate_fixations(
       If None, defaults to ["trial", "stimulus", "page"].
     """
     if group_columns is None:
-        group_columns = ["trial", "stimulus", "page"]
+        from ..config import settings
+
+        group_columns = [settings.TRIAL_COL, settings.STIMULUS_COL, settings.PAGE_COL]
 
     fix = (
         gaze_events.filter(
-            (pl.col("name") == "fixation") & (pl.col("word_idx").is_not_null())
+            (pl.col("name") == settings.FIXATION)
+            & (pl.col(settings.WORD_IDX_COL).is_not_null())
         )
         .with_row_count("fixation_id")
         .sort(group_columns + ["onset"])
@@ -32,7 +35,10 @@ def annotate_fixations(
     # Reading runs (contiguous fixations on the same word)
     # -------------------------------------------------
     fix = fix.with_columns(
-        (pl.col("word_idx") != pl.col("word_idx").shift().over(group_columns))
+        (
+            pl.col(settings.WORD_IDX_COL)
+            != pl.col(settings.WORD_IDX_COL).shift().over(group_columns)
+        )
         .fill_null(True)
         .alias("new_run")
     )
@@ -46,15 +52,23 @@ def annotate_fixations(
     # -----------------------------------------------------
     fix = fix.with_columns(
         [
-            pl.col("word_idx").shift().over(group_columns).alias("prev_word_idx"),
-            pl.col("word_idx").shift(-1).over(group_columns).alias("next_word_idx"),
+            pl.col(settings.WORD_IDX_COL)
+            .shift()
+            .over(group_columns)
+            .alias("prev_word_idx"),
+            pl.col(settings.WORD_IDX_COL)
+            .shift(-1)
+            .over(group_columns)
+            .alias("next_word_idx"),
         ]
     )
 
     fix = fix.with_columns(
         [
-            (pl.col("word_idx") - pl.col("prev_word_idx")).alias("delta_in"),
-            (pl.col("next_word_idx") - pl.col("word_idx")).alias("delta_out"),
+            (pl.col(settings.WORD_IDX_COL) - pl.col("prev_word_idx")).alias("delta_in"),
+            (pl.col("next_word_idx") - pl.col(settings.WORD_IDX_COL)).alias(
+                "delta_out"
+            ),
         ]
     )
 
@@ -69,9 +83,9 @@ def annotate_fixations(
     # First fix on word
     # -------------------------------------------------
     fix = fix.with_columns(
-        pl.col("word_idx")
+        pl.col(settings.WORD_IDX_COL)
         .cum_count()
-        .over(group_columns + ["word_idx"])
+        .over(group_columns + [settings.WORD_IDX_COL])
         .eq(1)
         .alias("is_first_fix")
     )
@@ -111,7 +125,9 @@ def annotate_fixations(
         words_ever_entered: set[int] = set()
 
         for row in df.iter_rows(named=True):
-            w = row["word_idx"]
+            from ..config import settings
+
+            w = row[settings.WORD_IDX_COL]
             run = row["run_id"]
             prev_w = row["prev_word_idx"]
 
@@ -147,12 +163,12 @@ def annotate_fixations(
 
     return fix.select(
         [
-            "trial",
-            "page",
+            settings.TRIAL_COL,
+            settings.PAGE_COL,
             "fixation_id",
             "onset",
-            "word_idx",
-            "char_idx",
+            settings.WORD_IDX_COL,
+            settings.CHAR_IDX_COL,
             "char",
             "run_id",
             "is_first_pass",

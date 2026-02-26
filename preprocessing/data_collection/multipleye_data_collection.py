@@ -16,14 +16,7 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
-from ..constants import (
-    FIXATION,
-    START_RECORDING_REGEX,
-    STOP_RECORDING_REGEX,
-    EYETRACKER_NAMES,
-    MESSAGE_REGEX,
-    STIMULUS_NAME_MAPPING,
-)
+from ..config import settings
 from ..utils.conversion import convert_to_time_str
 from ..checks.et_quality_checks import (
     check_comprehension_question_answers,
@@ -112,7 +105,7 @@ class MultipleyeDataCollection:
         self.reports_dir = kwargs.get("output_dir", "")
         self.pilot_folder = kwargs.get("pilot_folder", "")
 
-        for short_name, long_name in EYETRACKER_NAMES.items():
+        for short_name, long_name in settings.EYETRACKER_NAMES.items():
             if eye_tracker in long_name:
                 self.eye_tracker = short_name
                 self.eye_tracker_name = long_name
@@ -122,7 +115,7 @@ class MultipleyeDataCollection:
             raise ValueError(
                 f"Eye tracker {eye_tracker} not yet supported. "
                 f"Supported eye trackers are: "
-                f"{np.array([val for k, val in EYETRACKER_NAMES.items()]).flatten()}"
+                f"{np.array([val for k, val in settings.EYETRACKER_NAMES.items()]).flatten()}"
             )
         self.config_file = config_file
         self.stimulus_dir = stimulus_dir
@@ -670,7 +663,7 @@ class MultipleyeDataCollection:
         if stimulus_names is None:
             stimulus_names = [
                 name
-                for name, num in STIMULUS_NAME_MAPPING.items()
+                for name, num in settings.STIMULUS_NAME_MAPPING.items()
                 if num in self.sessions[session_identifier].completed_stimuli_ids
             ]
 
@@ -713,7 +706,7 @@ class MultipleyeDataCollection:
             f"Logfile path {general_logfile} does not exist."
         )
 
-        regex = r"(STIMULUS_ORDER_VERSION_)(?P<order_version>\d+)"
+        regex = settings.LOGFILE_ORDER_VERSION_REGEX
         with open(general_logfile, "r", encoding="utf-8") as f:
             text = f.read()
         match = re.search(regex, text)
@@ -960,7 +953,7 @@ class MultipleyeDataCollection:
 
         with open(asc_file, "r", encoding="utf-8") as f:
             for line in f.readlines():
-                if match := MESSAGE_REGEX.match(line):
+                if match := settings.MESSAGE_REGEX.match(line):
                     messages.append(match.groupdict())
                     msg = match.groupdict()["message"]
                     ts = match.groupdict()["timestamp"]
@@ -993,7 +986,7 @@ class MultipleyeDataCollection:
                     elif msg.split()[0] == "obligatory_break_duration:":
                         breaks["duration_ms"].append(msg.split()[1])
 
-                if match := START_RECORDING_REGEX.match(line):
+                if match := settings.START_RECORDING_REGEX.match(line):
                     reading_times["start_ts"].append(match.groupdict()["timestamp"])
                     reading_times["start_msg"].append(match.groupdict()["type"])
 
@@ -1010,7 +1003,7 @@ class MultipleyeDataCollection:
 
                     reading_times["pages"].append(match.groupdict()["page"])
                     reading_times["status"].append("reading time")
-                elif match := STOP_RECORDING_REGEX.match(line):
+                elif match := settings.STOP_RECORDING_REGEX.match(line):
                     reading_times["stop_ts"].append(match.groupdict()["timestamp"])
                     reading_times["stop_msg"].append(match.groupdict()["type"])
 
@@ -1252,7 +1245,7 @@ class MultipleyeDataCollection:
 
         # for each gaze and page compute the average fixation duration
         fixation_durations_page_avg = (
-            gaze.events.frame.filter(pl.col("name") == FIXATION)
+            gaze.events.frame.filter(pl.col("name") == settings.FIXATION)
             .group_by(gaze.trial_columns)
             .agg(
                 [
@@ -1412,7 +1405,9 @@ class MultipleyeDataCollection:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    from preprocessing import settings
+
+    settings.setup_logging()
     data_collection_folder = "MultiplEYE_ET_EE_Tartu_1_2025"
 
     this_repo = Path().resolve().parent

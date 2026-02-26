@@ -6,11 +6,11 @@ from pathlib import Path
 import polars as pl
 
 import pymovements as pm
-from .. import constants
+from ..config import settings
 
 
 def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
-    directory = Path(directory) / session / constants.RAW_DATA_FOLDER
+    directory = Path(directory) / session / settings.RAW_DATA_FOLDER
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()
@@ -54,9 +54,9 @@ def save_events_data(
     """
 
     directory = (
-        Path(directory) / session / constants.FIXATIONS_FOLDER
+        Path(directory) / session / settings.FIXATIONS_FOLDER
         if event_type == "fixation"
-        else Path(directory) / session / constants.SACCADES_FOLDER
+        else Path(directory) / session / settings.SACCADES_FOLDER
     )
     directory.mkdir(parents=True, exist_ok=True)
 
@@ -79,7 +79,7 @@ def save_events_data(
 
 
 def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
-    directory = Path(directory) / session / constants.SCANPATHS_FOLDER
+    directory = Path(directory) / session / settings.SCANPATHS_FOLDER
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()

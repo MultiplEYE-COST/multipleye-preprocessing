@@ -1,38 +1,39 @@
 import os
 from argparse import ArgumentParser
 
-import yaml
 from tqdm import tqdm
 
 import preprocessing
-from preprocessing import constants
+from preprocessing import settings
 
 
-def run_multipleye_preprocessing(config_path: str):
-    this_repo = constants.THIS_REPO
-    config = yaml.load(open(this_repo / config_path), Loader=yaml.SafeLoader)
+def run_multipleye_preprocessing(config_path: str | None = None):
+    settings.load(config_path)
+    settings.setup_logging(
+        log_file=settings.DATASET_DIR.parent / "preprocessing_logs.txt"
+    )
 
-    data_collection_name = config["data_collection_name"]
+    data_collection_name = settings.DATA_COLLECTION_NAME
     print(
         f"Running MultiplEYE preprocessing for data collection: {data_collection_name}"
     )
 
     preprocessing.utils.prepare_language_folder(data_collection_name)
 
-    data_folder_path = this_repo / "data" / data_collection_name
+    data_folder_path = settings.DATASET_DIR
 
     if not os.path.exists(data_folder_path):
         raise FileNotFoundError(
             f"Data folder {data_folder_path} does not exist. Please make sure to download the data and place it in the correct folder. "
-            f"And check if you have filled in the correct data collection name in the config file {config_path}."
+            f"And check if you have filled in the correct data collection name in the settings."
         )
 
     multipleye = (
         preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
             data_folder_path,
-            include_pilots=config["include_pilots"],
-            excluded_sessions=config["exclude_sessions"],
-            included_sessions=config["include_sessions"],
+            include_pilots=settings.INCLUDE_PILOTS,
+            excluded_sessions=settings.EXCLUDE_SESSIONS,
+            included_sessions=settings.INCLUDE_SESSIONS,
         )
     )
 
@@ -51,16 +52,16 @@ def run_multipleye_preprocessing(config_path: str):
         pbar.set_description(f"Preprocessing session {idf}:")
 
         asc = sess.asc_path
-        output_folder = constants.OUTPUT_DIR / idf
+        output_folder = settings.OUTPUT_DIR / idf
         output_folder.mkdir(parents=True, exist_ok=True)
 
         # create or load raw data
-        raw_data_folder = output_folder / constants.RAW_DATA_FOLDER
+        raw_data_folder = output_folder / settings.RAW_DATA_FOLDER
         if raw_data_folder.exists():
             pbar.set_description(f"Loading samples {idf}:")
             gaze = preprocessing.load_trial_level_raw_data(
                 raw_data_folder,
-                trial_columns=constants.TRIAL_COLS,
+                trial_columns=settings.TRIAL_COLS,
                 metadata_path=output_folder,
             )
 
@@ -70,10 +71,10 @@ def run_multipleye_preprocessing(config_path: str):
                 asc_file=asc,
                 lab_config=sess.lab_config,
                 session_idf=idf,
-                trial_cols=constants.TRIAL_COLS,
+                trial_cols=settings.TRIAL_COLS,
             )
-            preprocessing.save_raw_data(constants.OUTPUT_DIR, session_save_name, gaze)
-            preprocessing.save_session_metadata(constants.OUTPUT_DIR, idf, gaze)
+            preprocessing.save_raw_data(settings.OUTPUT_DIR, session_save_name, gaze)
+            preprocessing.save_session_metadata(settings.OUTPUT_DIR, idf, gaze)
 
         sess.pm_gaze_metadata = gaze._metadata
         sess.calibrations = gaze.calibrations
@@ -86,22 +87,22 @@ def run_multipleye_preprocessing(config_path: str):
         )
 
         # create or load fixation data
-        fixation_data_folder = output_folder / constants.FIXATIONS_FOLDER
-        saccade_data_folder = output_folder / constants.SACCADES_FOLDER
+        fixation_data_folder = output_folder / settings.FIXATIONS_FOLDER
+        saccade_data_folder = output_folder / settings.SACCADES_FOLDER
         if fixation_data_folder.exists():
             pbar.set_description(f"Loading events {idf}:")
             gaze = preprocessing.load_trial_level_events_data(
                 gaze,
                 fixation_data_folder,
-                event_type="fixation",
-                file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_fixation.csv",
+                event_type=settings.FIXATION,
+                file_pattern=None,
             )
 
             gaze = preprocessing.load_trial_level_events_data(
                 gaze,
                 saccade_data_folder,
-                event_type="saccade",
-                file_pattern=r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_saccade.csv",
+                event_type=settings.SACCADE,
+                file_pattern=None,
             )
 
         else:
@@ -111,8 +112,8 @@ def run_multipleye_preprocessing(config_path: str):
             preprocessing.detect_saccades(gaze)
 
             preprocessing.save_events_data(
-                "fixation",
-                constants.OUTPUT_DIR,
+                settings.FIXATION,
+                settings.OUTPUT_DIR,
                 session_save_name,
                 "trial",
                 ["trial", "stimulus"],
@@ -121,8 +122,8 @@ def run_multipleye_preprocessing(config_path: str):
             )
 
             preprocessing.save_events_data(
-                "saccade",
-                constants.OUTPUT_DIR,
+                settings.SACCADE,
+                settings.OUTPUT_DIR,
                 session_save_name,
                 "trial",
                 ["trial", "stimulus"],
@@ -142,13 +143,13 @@ def run_multipleye_preprocessing(config_path: str):
             gaze,
             sess.stimuli,
         )
-        preprocessing.save_scanpaths(constants.OUTPUT_DIR, session_save_name, gaze)
+        preprocessing.save_scanpaths(settings.OUTPUT_DIR, session_save_name, gaze)
 
-        preprocessing.save_session_metadata(constants.OUTPUT_DIR, idf, gaze)
+        preprocessing.save_session_metadata(settings.OUTPUT_DIR, idf, gaze)
 
         # perform the multipleye specific stuff
         multipleye.create_session_overview(
-            sess.session_identifier, path=constants.OUTPUT_DIR
+            sess.session_identifier, path=settings.OUTPUT_DIR
         )
         pbar.set_description(f"Creating sanity check report {idf}")
         multipleye.create_sanity_check_report(
@@ -156,11 +157,11 @@ def run_multipleye_preprocessing(config_path: str):
             sess.session_identifier,
             plotting=True,
             overwrite=True,
-            output_dir=constants.OUTPUT_DIR,
+            output_dir=settings.OUTPUT_DIR,
         )
 
-    multipleye.create_dataset_overview(path=constants.OUTPUT_DIR)
-    multipleye.parse_participant_data(constants.OUTPUT_DIR / "participant_data.csv")
+    multipleye.create_dataset_overview(path=settings.OUTPUT_DIR)
+    multipleye.parse_participant_data(settings.OUTPUT_DIR / "participant_data.csv")
 
 
 def main():
@@ -170,7 +171,7 @@ def main():
     parser.add_argument(
         "--config_path",
         type=str,
-        default="multipleye_settings_preprocessing.yaml",
+        default=None,
         help="Path to the preprocessing configuration YAML file.",
     )
     args = parser.parse_args()

@@ -5,17 +5,26 @@ import tarfile
 from pathlib import Path
 
 import pandas as pd
-from preprocessing import constants
 
 from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
 
 
-def prepare_language_folder(data_collection_name):
+def prepare_language_folder(data_collection_name: str | None = None):
+    from preprocessing import settings
+
+    if data_collection_name is None:
+        data_collection_name = settings.DATA_COLLECTION_NAME
+
+    if data_collection_name is None:
+        raise ValueError(
+            "data_collection_name is None. Please provide a valid data collection name "
+            "as an argument or load a configuration via settings.load()."
+        )
+
     _, lang, country, city, lab_no, year = data_collection_name.split("_")
 
     # Check if the data collection folder exists
-    this_repo = constants.THIS_REPO
-    data_folder_path = this_repo / "data" / data_collection_name
+    data_folder_path = settings.THIS_REPO / "data" / data_collection_name
     if not data_folder_path.exists():
         raise FileNotFoundError(
             f"The data collection folder '{data_folder_path}' does not exist. "
@@ -153,7 +162,9 @@ def prepare_language_folder(data_collection_name):
 
 
 def extract_stimulus_version_number_from_asc(asc_file_path: Path) -> int:
-    pattern = r"MSG\s+\d+\s+stimulus_order_version:\s+(?P<version_num>\d\d?\d?)\n"
+    from preprocessing import settings
+
+    pattern = settings.STIMULUS_ORDER_VERSION_REGEX
 
     with open(asc_file_path) as asc_file:
         for line in asc_file:

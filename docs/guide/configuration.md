@@ -2,58 +2,63 @@
 
 # Configuration
 
-The configuration of the preprocessing pipeline is handled by the `config.py` and `constants.py`
-files.
-You can find these files in the `preprocessing/` directory.
-As the names suggest, `config.py` contains user-configurable settings for your specific data
-collection, while `constants.py` contains technical constants that should be kept as default values
-unless you know what you are doing.
-Edits must be made manually. While some processing commands can be passed explicit variables,
-it is best just to set the values once centrally, so throughout the pipeline no values need to be
-passed.
+The configuration of the preprocessing pipeline is handled by the `preprocessing/config.py` file.
 
-For detailed information about the pipeline architecture and how configuration parameters are used in each processing step, please refer to the {ref}`technical_architecture` section.
+The `settings` object in `preprocessing/config.py` manages all configuration parameters, with
+built-in defaults and a flexible loading mechanism.
+
+## Loading Precedence
+
+The pipeline loads configuration settings with the following precedence:
+
+1. **Explicit path**: Using `--config_path` in CLI or `settings.load(path)` in API.
+2. **Environment variable**: `MULTIPLEYE_CONFIG` pointing to a YAML file.
+3. **Local default**: `multipleye_settings_preprocessing.yaml` in the current working directory.
+4. **Legacy location**: `multipleye_settings_preprocessing.yaml` in the repository root
+   (deprecated).
 
 ## Configuration Settings
 
-The main configuration file (`preprocessing/config.py`) contains the following key settings:
+The main settings include:
 
 ### Data Collection Configuration
 
-- `BASE_DATA_DIR`: Root `data/` directory where your data is stored
-- `DATA_COLLECTION_ID`: Identifier for your data collection (e.g., "MultiplEYE_SQ_CH_Zurich_1_2025")
-  inside `BASE_DATA_DIR`.
-- `PSYCHOMETRIC_TESTS_DIR`: Directory containing psychometric test sessions
+- `DATA_COLLECTION_NAME`: Identifier for your data collection (e.g., `ME_EN_UK_LON_LAB1_2025`).
+  **(Required)**
+- `INCLUDE_PILOTS`: Whether to include pilot data (default: `False`).
+- `EXCLUDE_SESSIONS`: List of session IDs to exclude.
+- `INCLUDE_SESSIONS`: List of session IDs to include (if provided, only these will be processed).
+- `EXPECTED_SAMPLING_RATE_HZ`: The expected sampling rate of the eye tracker (default: `1000`).
 
-[//]: # (- `OUTPUT_DIR`: Directory where processed results will be saved)
+### Logging Configuration
 
-### Psychometric Test Settings
+- `CONSOLE_LOG_LEVEL`: Log level for the console output (default: `INFO`).
+- `FILE_LOG_LEVEL`: Log level for the file output (default: `DEBUG`).
+- `LOG_LEVEL`: Default log level for the package/Python (default: `INFO`).
 
-- ...
+### Programmatic Usage (Notebooks)
 
-### Processing Parameters
+In a Jupyter notebook, you can load your configuration explicitly:
 
-- ...
+```python
+from preprocessing import settings
 
-## Constants
+settings.load_from_yaml("path/to/your_config.yaml")
+```
 
-The constants file (`preprocessing/constants.py`) contains technical parameters that should not need
+### CLI Usage
+
+When running the preprocessing script:
+
+```bash
+python -m preprocessing.scripts.run_multipleye_preprocessing --config_path your_config.yaml
+```
+
+## Internal Constants
+
+The `settings` object also contains technical parameters that should generally not need
 modification:
 
-- Standard data structure
+- Standard data structure (`RAW_DATA_FOLDER`, `FIXATIONS_FOLDER`, etc.)
 - Sanity check acceptable thresholds
 - Eyetracker names and stimulus name mappings
-
-## Modifying Configuration
-
-To modify the configuration for your data collection:
-
-1. Open `preprocessing/config.py`
-2. Update the `DATA_COLLECTION_ID` and directory paths as needed
-3. Adjust any test-specific parameters if your data format differs
-4. Save the file - changes will take effect on the next run
-
-```{note}
-Is is useful to test with a small subset of data first and backing up your `config.py`
-before making changes.
-```
