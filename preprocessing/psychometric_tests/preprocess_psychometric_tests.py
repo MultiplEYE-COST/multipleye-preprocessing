@@ -243,7 +243,9 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
     df = df[["participant_id"] + flag_cols + remaining]
     df.to_csv(out_path, index=False)
 
-    print(f"Wrote overview: {out_path}")
+    from ..utils.logging import get_logger
+
+    get_logger(__name__).info(f"Wrote overview: {out_path}")
     return out_path
 
 

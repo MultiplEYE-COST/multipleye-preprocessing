@@ -7,20 +7,19 @@ from pathlib import Path
 import pandas as pd
 from preprocessing import constants
 
+from ..utils.data_path_utils import check_data_collection_exists
+from ..utils.logging import get_logger
 from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
 
 
 def prepare_language_folder(data_collection_name):
     _, lang, country, city, lab_no, year = data_collection_name.split("_")
+    logger = get_logger(__name__)
 
     # Check if the data collection folder exists
-    this_repo = constants.THIS_REPO
-    data_folder_path = this_repo / "data" / data_collection_name
-    if not data_folder_path.exists():
-        raise FileNotFoundError(
-            f"The data collection folder '{data_folder_path}' does not exist. "
-            "Please check the name or path provided and make sure it is unzipped."
-        )
+    data_folder_path = check_data_collection_exists(
+        data_collection_name, constants.THIS_REPO / "data"
+    )
 
     # check if there exists an eye-tracking-sessions folder
     eye_tracking_sessions_path = data_folder_path / "eye-tracking-sessions"
@@ -32,7 +31,7 @@ def prepare_language_folder(data_collection_name):
 
             with tarfile.open(zipped_path, "r") as tar:
                 tar.extractall(path=data_folder_path)
-            print(f"Extracted 'eye-tracking-sessions' from '{zipped_path}'")
+            logger.info(f"Extracted 'eye-tracking-sessions' from '{zipped_path}'")
         else:
             raise FileNotFoundError(
                 f"The 'eye-tracking-sessions' folder does not exist in '{data_folder_path}'. "
@@ -51,7 +50,7 @@ def prepare_language_folder(data_collection_name):
                 for folder in core_folders:
                     shutil.move(str(folder), str(eye_tracking_sessions_path))
                 shutil.rmtree(core_session_path)
-                print(
+                logger.info(
                     "Moved folders from 'core_sessions' to 'eye-tracking-sessions' "
                     "and removed 'core_sessions' folder."
                 )
@@ -63,7 +62,7 @@ def prepare_language_folder(data_collection_name):
         if tar_path.exists():
             with tarfile.open(tar_path, "r") as tar:
                 tar.extractall(path=data_folder_path)
-            print(f"Extracted 'psychometric-tests' from '{tar_path}'")
+            logger.info(f"Extracted 'psychometric-tests' from '{tar_path}'")
         else:
             raise FileNotFoundError(
                 f"The 'psychometric-tests-sessions' folder does not exist in '{data_folder_path}'. "
@@ -76,7 +75,9 @@ def prepare_language_folder(data_collection_name):
     )
     data_path = psychometric_tests_path / f"psychometric_test_{lang}_{country}_{lab_no}"
     if config_path.exists() and data_path.exists():
-        print(f"Preparing psychometric tests structure for {data_collection_name}...")
+        logger.info(
+            f"Preparing psychometric tests structure for {data_collection_name}..."
+        )
         fix_psycho_tests_structure(config_path, data_path)
 
     # check if the participant folders are zipped and if yes, unzip them
@@ -85,7 +86,7 @@ def prepare_language_folder(data_collection_name):
             shutil.unpack_archive(
                 participant_folder, extract_dir=eye_tracking_sessions_path
             )
-            print(f"Extracted participant data from '{participant_folder}'")
+            logger.info(f"Extracted participant data from '{participant_folder}'")
             # remove the zip file after extraction
             participant_folder.unlink()
 
@@ -96,7 +97,7 @@ def prepare_language_folder(data_collection_name):
                 shutil.unpack_archive(
                     pilot_participant_folder, extract_dir=pilot_folder
                 )
-                print(
+                logger.info(
                     f"Extracted pilot participant data from '{pilot_participant_folder}'"
                 )
                 # remove the zip file after extraction
@@ -105,7 +106,7 @@ def prepare_language_folder(data_collection_name):
     stimulus_folder_path = data_folder_path / f"stimuli_{data_collection_name}"
 
     if not stimulus_folder_path.exists():
-        print(
+        logger.warning(
             f"The stimulus folder stimuli_{data_collection_name} does not exist. Check and if necessary, ask team to upload."
         )
     else:
@@ -126,7 +127,7 @@ def prepare_language_folder(data_collection_name):
     # get all aoi files, if there are only 12 files, they are not yet split
     aoi_files = list(aoi_path.glob("*.csv"))
     if len(aoi_files) == 12:
-        print("Splitting AOI files into text and question AOIs...")
+        logger.info("Splitting AOI files into text and question AOIs...")
         for aoi_file in aoi_files:
             aoi_df = pd.read_csv(aoi_file)
             # split the aoi_df into two parts, one for the stimulus and one for the questions
@@ -180,7 +181,8 @@ def parse_args():
 
 def main():
     args = parse_args()
+    logger = get_logger(__name__)
 
-    print(f"Preparing language folder for {args.data_collection_name}...")
+    logger.info(f"Preparing language folder for {args.data_collection_name}...")
 
     prepare_language_folder(args.data_collection_name)
