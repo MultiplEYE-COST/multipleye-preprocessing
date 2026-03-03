@@ -13,21 +13,17 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
     directory = Path(directory) / session / constants.RAW_DATA_FOLDER
     directory.mkdir(parents=True, exist_ok=True)
 
-    new_data = data.clone()
-
-    trials = new_data.split(by="trial", as_dict=False)
+    trials = data.split(by=["trial", "stimulus"])
 
     for trial in trials:
-        try:
-            trial.unnest()
-        except Warning:
-            pass
-        df = trial.frame
-        trial = df["trial"][0]
-        stimulus = df["stimulus"][0]
-        name = f"{session}_{trial}_{stimulus}_raw_data.csv"
-        df = df["time", "pixel_x", "pixel_y", "pupil", "page"]
-        df.write_csv(directory / name)
+        trial_id = trial.metadata["trial"]
+        stimulus = trial.metadata["stimulus"]
+        filename = f"{session}_{trial_id}_{stimulus}_raw_data.csv"
+
+        trial.unnest("pixel")
+        trial.frame = trial.frame["time", "pixel_x", "pixel_y", "pupil", "page"]
+
+        trial.save_samples(directory / filename)
 
 
 def save_events_data(
