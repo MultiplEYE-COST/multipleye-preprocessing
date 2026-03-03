@@ -12,7 +12,7 @@ Additionally, the {ref}`psychometric_tests` section describes how to process
 the psychometric tests. This step is rather fast.
 
 ```{warning}
-To be done!
+These pages are work in progress.
 ```
 
 ```{toctree}

@@ -43,7 +43,7 @@ SCANPATHS_FOLDER = Path("scanpaths/")
 PSYCHOMETRIC_TESTS_DIR = DATASET_DIR / "psychometric-tests-sessions"
 PSYM_CORE_DATA = PSYCHOMETRIC_TESTS_DIR / "core_data"
 PSYM_PARTICIPANT_CONFIGS = (
-    PSYM_CORE_DATA / f"participant_configs_{LANGUAGE}_{CITY}_{LAB}"
+    PSYM_CORE_DATA / f"participant_configs_{LANGUAGE}_{COUNTRY}_{LAB}"
 )
 
 #### Tests - folder names inside PSYCHOMETRIC_TESTS_DIR folder / per-participant folder after restructuring

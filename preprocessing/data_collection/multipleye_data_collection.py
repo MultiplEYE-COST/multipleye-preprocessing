@@ -300,7 +300,6 @@ class MultipleyeDataCollection:
             else:
                 asc_path = path.with_suffix(".asc")
                 self.sessions[session].asc_path = asc_path
-                # print(f'ASC file already exists for {session}.')
 
     @staticmethod
     def load_lab_config(
