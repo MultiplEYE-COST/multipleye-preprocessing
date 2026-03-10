@@ -5,6 +5,7 @@ import tarfile
 from pathlib import Path
 
 import pandas as pd
+from preprocessing import constants
 
 from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
 
@@ -13,7 +14,7 @@ def prepare_language_folder(data_collection_name):
     _, lang, country, city, lab_no, year = data_collection_name.split("_")
 
     # Check if the data collection folder exists
-    this_repo = Path().resolve()
+    this_repo = constants.THIS_REPO
     data_folder_path = this_repo / "data" / data_collection_name
     if not data_folder_path.exists():
         raise FileNotFoundError(

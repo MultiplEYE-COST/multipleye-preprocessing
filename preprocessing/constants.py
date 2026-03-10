@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-THIS_REPO = Path().resolve()
+THIS_REPO = Path(__file__).parent.parent
 
 # USER CONFIGURABLE SETTINGS
 # load from .yaml file
@@ -32,11 +32,18 @@ EXPECTED_SAMPLING_RATE_HZ = user_configs["expected_sampling_rate_hz"]
 # GENERAL SETTINGS
 TRIAL_COLS = ["trial", "stimulus", "page"]
 
+## Folder names
+RAW_DATA_FOLDER = Path("raw_data/")
+FIXATIONS_FOLDER = Path("fixations/")
+SACCADES_FOLDER = Path("saccades/")
+SCANPATHS_FOLDER = Path("scanpaths/")
+
+
 ### Psychometric Tests Sessions
 PSYCHOMETRIC_TESTS_DIR = DATASET_DIR / "psychometric-tests-sessions"
 PSYM_CORE_DATA = PSYCHOMETRIC_TESTS_DIR / "core_data"
 PSYM_PARTICIPANT_CONFIGS = (
-    PSYM_CORE_DATA / f"participant_configs_{LANGUAGE}_{CITY}_{LAB}"
+    PSYM_CORE_DATA / f"participant_configs_{LANGUAGE}_{COUNTRY}_{LAB}"
 )
 
 #### Tests - folder names inside PSYCHOMETRIC_TESTS_DIR folder / per-participant folder after restructuring

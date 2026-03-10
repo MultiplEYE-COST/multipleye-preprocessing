@@ -55,14 +55,14 @@ def check_comprehension_question_answers(
     overall_correct_answers = 0
     overall_answers = 0
     for stimulus in stimuli:
-        if stimulus.type == "practice":
-            continue
-
         # get the trial number for the stimulus as rating screens don't have an entry in the stimulus_number column
         trial_id = logfile.filter((pl.col("stimulus_number") == f"{stimulus.id}")).item(
             0, "trial_number"
         )
-        stimulus_frame = logfile.filter((pl.col("trial_number") == f"{trial_id}"))
+        stimulus_frame = logfile.filter(
+            (pl.col("trial_number") == f"{trial_id}")
+            & (pl.col("stimulus_number") == f"{stimulus.id}")
+        )
         answers = stimulus_frame.filter(pl.col("message").str.contains("FINAL ANSWER"))
         correct_answers = stimulus_frame.filter(pl.col("message").str.contains("True"))
         overall_correct_answers += len(correct_answers)
