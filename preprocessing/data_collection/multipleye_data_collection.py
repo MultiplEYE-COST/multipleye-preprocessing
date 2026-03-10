@@ -661,19 +661,19 @@ class MultipleyeDataCollection:
             # TODO: lab config should be changeable for each session
             self.sessions[session].lab_config = self.lab_configuration
 
-        if (
-            self.sessions[session].stimulus_order_ids
-            != self.sessions[session].completed_stimuli_ids
-        ):
-            if p_id not in self.crashed_session_ids:
-                msg = (
-                    f"Stimulus order and completed stimuli do not match for "
-                    f"session {session}. Please check the files carefully."
-                )
-                self.logger.warning(msg)
-                if not hasattr(logging, "_captured_warnings"):
-                    logging._captured_warnings = []  # type: ignore
-                logging._captured_warnings.append(msg)  # type: ignore
+            if (
+                self.sessions[session].stimulus_order_ids
+                != self.sessions[session].completed_stimuli_ids
+            ):
+                if p_id not in self.crashed_session_ids:
+                    msg = (
+                        f"Stimulus order and completed stimuli do not match for "
+                        f"session {session}. Please check the files carefully."
+                    )
+                    self.logger.warning(msg)
+                    if not hasattr(logging, "_captured_warnings"):
+                        logging._captured_warnings = []  # type: ignore
+                    logging._captured_warnings.append(msg)  # type: ignore
 
             self.sessions[session].stimuli = self._load_session_stimuli(
                 self.stimulus_dir,

@@ -8,6 +8,8 @@ from ..utils.logging import get_logger
 import preprocessing
 from preprocessing import constants
 
+from preprocessing.scripts.prepare_language_folder import prepare_language_folder
+
 
 def run_multipleye_preprocessing(config_path: str):
     this_repo = constants.THIS_REPO
@@ -19,7 +21,7 @@ def run_multipleye_preprocessing(config_path: str):
         f"Running MultiplEYE preprocessing for data collection: {data_collection_name}"
     )
 
-    preprocessing.utils.prepare_language_folder(data_collection_name)
+    prepare_language_folder(data_collection_name)
 
     data_folder_path = this_repo / "data" / data_collection_name
 
@@ -40,6 +42,10 @@ def run_multipleye_preprocessing(config_path: str):
 
     multipleye.convert_edf_to_asc()
     multipleye.prepare_session_level_information()
+
+    # for sess in multipleye:
+    #     if sess.stimuli == 'unknown':
+    #         print(sess.session_identifier)
 
     sessions = [s for s in multipleye]
 
