@@ -114,7 +114,7 @@ def run_multipleye_preprocessing(config_path: str):
 
             preprocessing.save_events_data(
                 "fixation",
-                fixation_data_folder,
+                constants.OUTPUT_DIR,
                 session_save_name,
                 "trial",
                 ["trial", "stimulus"],
@@ -124,7 +124,7 @@ def run_multipleye_preprocessing(config_path: str):
 
             preprocessing.save_events_data(
                 "saccade",
-                saccade_data_folder,
+                constants.OUTPUT_DIR,
                 session_save_name,
                 "trial",
                 ["trial", "stimulus"],
@@ -154,7 +154,11 @@ def run_multipleye_preprocessing(config_path: str):
         )
         pbar.set_description(f"Creating sanity check report {idf}")
         multipleye.create_sanity_check_report(
-            gaze, sess.session_identifier, plotting=True, overwrite=True
+            gaze,
+            sess.session_identifier,
+            plotting=True,
+            overwrite=True,
+            output_dir=constants.OUTPUT_DIR,
         )
 
     multipleye.create_dataset_overview(path=constants.OUTPUT_DIR)

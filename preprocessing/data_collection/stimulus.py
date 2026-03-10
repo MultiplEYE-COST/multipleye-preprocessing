@@ -10,6 +10,7 @@ import polars as pl
 import pymovements as pm
 
 from ..utils.logging import get_logger
+from preprocessing import constants
 
 logger = get_logger(__name__)
 
@@ -334,7 +335,7 @@ class LabConfig:
             sampling_frequency_hz = final_metadata_json["Default_frequency"]
 
         else:
-            sampling_frequency_hz = None
+            sampling_frequency_hz = constants.EXPECTED_SAMPLING_RATE_HZ
 
         tests = list(json_config.get("Psychometric_tests", []).keys())
 
