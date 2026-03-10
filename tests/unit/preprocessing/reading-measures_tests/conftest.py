@@ -28,7 +28,7 @@ def run_pipeline():
 
 @pytest.fixture
 def simple_aois():
-    "create a sample aois table"
+    """Create a sample aois table"""
     return pl.DataFrame(
         {
             "page": ["page_1"] * 8,

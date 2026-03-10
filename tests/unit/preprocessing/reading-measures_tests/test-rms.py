@@ -11,7 +11,7 @@ def test_space_fixation_counts_toward_word(run_pipeline, simple_aois):
             "onset": [100],
             "duration": [200],
             "word_idx": [0],  # fixation on space belonging to Mali
-            "char_idx": [4],
+            "char_idx": [4],  # space after the first word which has 4 chars
             "char": [" "],
             "word": [" "],
         }
