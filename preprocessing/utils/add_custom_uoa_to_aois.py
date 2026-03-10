@@ -9,6 +9,7 @@ This script:
 - loads all MultiplEYE aoi files and renames the columns for publication
 - adds custom uoa aois from a provided from custom files for each language
 """
+
 from pathlib import Path
 
 import pandas as pd
@@ -25,7 +26,10 @@ def refactor_aoi_file(data_collection_name: str) -> None:
 
     _, language, country, city, lab, year = data_collection_name.split("_")
 
-    aoi_dir_path = config.DEFAULT_STIMULI_DIR / f"aoi_stimuli_{language.lower()}_{country.lower()}_{lab}"
+    aoi_dir_path = (
+        config.DEFAULT_STIMULI_DIR
+        / f"aoi_stimuli_{language.lower()}_{country.lower()}_{lab}"
+    )
 
     aoi_files = Path(aoi_dir_path).glob("*.csv")
     for aoi_file in aoi_files:
