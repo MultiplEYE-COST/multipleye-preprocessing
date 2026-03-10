@@ -4,13 +4,51 @@ The variables here are considered fixed.
 Parameters in the `config.py` file are considered user-configurable.
 """
 
+import logging
 import re
 from pathlib import Path
+
+import yaml
+
+THIS_REPO = Path(__file__).parent.parent
+
+# USER CONFIGURABLE SETTINGS
+# load from .yaml file
+CONFIG_PATH = THIS_REPO / "multipleye_settings_preprocessing.yaml"
+user_configs = yaml.safe_load(open(CONFIG_PATH))
+
+# Module logger retains full module path in records
+logger = logging.getLogger(__name__)
+logger.info(f"Initial configuration loaded from {CONFIG_PATH}")
+DATA_COLLECTION_NAME = user_configs["data_collection_name"]
+DATASET_DIR = THIS_REPO / "data" / user_configs["data_collection_name"]
+
+_, LANGUAGE, COUNTRY, CITY, LAB, YEAR = user_configs["data_collection_name"].split("_")
+
+OUTPUT_DIR = THIS_REPO / "preprocessed_data" / user_configs["data_collection_name"]
+
+INCLUDE_PILOTS = user_configs["include_pilots"]
+EXCLUDE_SESSIONS = user_configs["exclude_sessions"]
+INCLUDE_SESSIONS = user_configs["include_sessions"]
+
+EXPECTED_SAMPLING_RATE_HZ = user_configs["expected_sampling_rate_hz"]
 
 # GENERAL SETTINGS
 TRIAL_COLS = ["trial", "stimulus", "page"]
 
+## Folder names
+RAW_DATA_FOLDER = Path("raw_data/")
+FIXATIONS_FOLDER = Path("fixations/")
+SACCADES_FOLDER = Path("saccades/")
+SCANPATHS_FOLDER = Path("scanpaths/")
+
+
 ### Psychometric Tests Sessions
+PSYCHOMETRIC_TESTS_DIR = DATASET_DIR / "psychometric-tests-sessions"
+PSYM_CORE_DATA = PSYCHOMETRIC_TESTS_DIR / "core_data"
+PSYM_PARTICIPANT_CONFIGS = (
+    PSYM_CORE_DATA / f"participant_configs_{LANGUAGE}_{COUNTRY}_{LAB}"
+)
 
 #### Tests - folder names inside PSYCHOMETRIC_TESTS_DIR folder / per-participant folder after restructuring
 PSYM_LWMC_DIR = Path("WMC/")
@@ -44,6 +82,29 @@ START_RECORDING_REGEX = re.compile(
 )
 STOP_RECORDING_REGEX = re.compile(
     r"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_(?P<page>.*)"
+)
+
+# Logging
+IGNORED_SESSION_FOLDERS = ["test_sessions", "core_sessions", "pilot_sessions"]
+LOG_APPEND = user_configs.get("log_append", True)
+
+_LOG_LEVEL_MAPPING = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
+
+CONSOLE_LOG_LEVEL = _LOG_LEVEL_MAPPING.get(
+    user_configs.get("console_log_level", "WARNING").upper(), logging.WARNING
+)
+FILE_LOG_LEVEL = _LOG_LEVEL_MAPPING.get(
+    user_configs.get("file_log_level", "INFO").upper(), logging.INFO
+)
+
+WARNINGS_CAPTURE_LEVEL = _LOG_LEVEL_MAPPING.get(
+    user_configs.get("warnings_capture_level", "WARNING").upper(), logging.WARNING
 )
 
 # Data collection

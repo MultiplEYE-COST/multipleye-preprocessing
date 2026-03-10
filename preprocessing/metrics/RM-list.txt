@@ -1,0 +1,43 @@
+#### Fixation-based Measures ####
+
+FPF - (first-pass fixation) 1 if the word was fixated in the first-pass, otherwise 0
+
+SFD - (single-fixation duration) duration of the only first-pass fixation on a word, 0 if the word was skipped or more than one fixations occurred in the first-pass (equals FFD in case of a single first-pass fixation)
+
+FFD - (first-fixation duration) duration of the first fixation on a word if this word is fixated in first-pass reading, otherwise 0
+
+FPRT - (first-pass reading time) sum of the durations of all first-pass fixations on a word (0 if the word was skipped in the first-pass)
+
+FPFC - (first pass fixation count) number of of all first-pass fixations on a word
+
+FD - (first duration) duration of the first fixation on a word (identical to FFD if not skipped in the first-pass)
+
+FRT - (first-reading time) sum of the duration of all fixations from first fixating the word (independent if the first fixations occur in first-pass reading) until leaving the word for the first time (equals FPRT in case the word was fixated in the first-pass)
+
+TFT - (total-fixation time) sum of all fixations on a word (FPRT +
+RRT)
+
+TFC - (total fixation count) number of all fixations on a word
+
+RRT - (re-reading time) sum of the durations of all fixations on a word that do not belong to the first-pass (TFT−FPRT)
+
+RR - (re-reading) 1 if the word was fixated after the first-pass reading, otherwise 0 (sign(RRT))
+
+
+### Transition-based Measures ###
+
+RPD_inc - (exclusive regression-path duration) sum of all fixation durations starting from the first first-pass fixation on a word until fixating a word to the right of this word (including all regressive fixations on previous words), 0 if the word was not fixated in the first-pass (RPD_exc + RBRT)
+
+RPD_exc - (exclusive regression-path duration) sum of all fixation durations after initiating a first-pass regression from a word until fixating a word to the right of this word, without counting fixations on the word itself (RPD_inc − RBRT)
+
+RBRT - (right-bounded reading time) sum of all fixation durations on a word until a word to the right of this word is fixated (RPD_inc − RPD_exc).
+
+TRC_in - (total count of incoming regressions) total number of regressive saccades landing on this word
+
+TRC_out - (total count of outgoing regressions) total number of regressive saccades initiated from this word
+
+LP - (landing position) position of the first saccade on the word expressed by ordinal position of the fixated character
+
+SL_in - (incoming saccade length) length of the saccade that leads to first fixation on a word in number of words; positive sign if the saccade is a progressive one, negative sign if it is a regression
+
+SL_out - (outgoing saccade length) length of the first saccade that leaves the word in number of words; positive sign if the saccade is a progressive one, negative sign if it is a regression; 0 if the word is never fixated

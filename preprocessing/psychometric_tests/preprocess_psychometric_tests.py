@@ -30,7 +30,7 @@ from ..constants import (
     PSYM_PLAB_DIR,
     PSYM_WIKIVOCAB_DIR,
 )
-from ..config import PSYCHOMETRIC_TESTS_DIR
+from ..constants import PSYCHOMETRIC_TESTS_DIR
 from ..utils import pid_from_session
 
 
@@ -243,7 +243,9 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
     df = df[["participant_id"] + flag_cols + remaining]
     df.to_csv(out_path, index=False)
 
-    print(f"Wrote overview: {out_path}")
+    from ..utils.logging import get_logger
+
+    get_logger(__name__).info(f"Wrote overview: {out_path}")
     return out_path
 
 
@@ -415,7 +417,7 @@ def preprocess_lwmc(lwmc_dir: Path):
     # Each non-NaN in base_text_intertrial.started indicates a new trial boundary.
     df["trial_id"] = df["base_text_intertrial.started"].notna().cumsum()
 
-    df = df[not df["is_practice"]].copy()  # remove all practice trials
+    df = df[~df["is_practice"]].copy()  # remove all practice trials
     if df.empty:
         raise ValueError("No non-practice trials found in WMC CSV")
 

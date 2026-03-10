@@ -66,11 +66,11 @@ tasks.
 
 For each trial, the score is calculated as the proportion of correctly recalled items:
 
-$$\text{Trial_Score}_{\textrm{task}} = \frac{\sum \text{correct_items_in_trial}}{\text{num_items_in_trial}}$$
+$$\mathrm{Trial\_Score}_{\mathrm{task}} = \frac{\sum \mathrm{correct\_items\_in\_trial}}{\mathrm{num\_items\_in\_trial}}$$
 
 The final task score is the mean of all trial scores:
 
-$$\text{Task_Score} = \text{mean}(\text{Trial_Score}_{\textrm{task}})$$
+$$\mathrm{Task\_Score} = \mathrm{mean}(\mathrm{Trial\_Score}_{\mathrm{task}})$$
 
 For the spatial task is scored on pattern similarity, computed as the sum of the dot-to-dot
 similarities.
@@ -79,11 +79,11 @@ dot and a presented dot, 1 point for a deviation of one cell in any direction,
 and 0 points if the deviation exceeded one cell".
 Finally, this score is normalized:
 
-$$\text{SSTM_Score} = \frac{\text{SSTM_raw_score}}{240.0}$$
+$$\mathrm{SSTM\_Score} = \frac{\mathrm{SSTM\_raw\_score}}{240.0}$$
 
 The total WMC score is the average across all tasks:
 
-$$\text{Total_Score} = \frac{\text{MU_Score} + \text{OS_Score} + \text{SS_Score} + \text{SSTM_Score}}{4.0}$$
+$$\mathrm{Total\_Score} = \frac{\mathrm{MU\_Score} + \mathrm{OS\_Score} + \mathrm{SS\_Score} + \mathrm{SSTM\_Score}}{4.0}$$
 
 This implementation processes data from CSV files rather than the original .dat format
 described in the paper, but maintains the same scoring logic and produces equivalent results. For
@@ -139,15 +139,15 @@ control {cite:p}`Stroop1935`.
 
 For each condition (incongruent, congruent, neutral), basic metrics are calculated as:
 
-$$\text{Accuracy}_{\textrm{condition}} = \frac{\sum \text{correct_trials}_{\textrm{condition}}}{\text{total_trials}_{\textrm{condition}}}$$
+$$\mathrm{Accuracy}_{\mathrm{condition}} = \frac{\sum \mathrm{correct\_trials}_{\mathrm{condition}}}{\mathrm{total\_trials}_{\mathrm{condition}}}$$
 
-$$\text{RT}_{\textrm{condition}} = \text{mean}(\text{rt}_{\textrm{condition}})$$
+$$\mathrm{RT}_{\mathrm{condition}} = \mathrm{mean}(\mathrm{rt}_{\mathrm{condition}})$$
 
 Interference effects (focused on congruent vs incongruent comparison):
 
-$$\text{AccuracyEffect} = \text{Accuracy}_{\textrm{incongruent}} - \text{Accuracy}_{\textrm{congruent}}$$
+$$\mathrm{AccuracyEffect} = \mathrm{Accuracy}_{\mathrm{incongruent}} - \mathrm{Accuracy}_{\mathrm{congruent}}$$
 
-$$\text{RTEffect}_{\textrm{sec}} = \text{RT}_{\textrm{incongruent}} - \text{RT}_{\textrm{congruent}}$$
+$$\mathrm{RTEffect}_{\mathrm{sec}} = \mathrm{RT}_{\mathrm{incongruent}} - \mathrm{RT}_{\mathrm{congruent}}$$
 
 **Returned Results**:
 
@@ -181,15 +181,15 @@ interference {cite:p}`Eriksen1974`.
 
 For each condition (incongruent, congruent), basic metrics are calculated as:
 
-$$\text{Accuracy}_{\textrm{condition}} = \frac{\sum \text{correct_trials}_{\textrm{condition}}}{\text{total_trials}_{\textrm{condition}}}$$
+$$\mathrm{Accuracy}_{\mathrm{condition}} = \frac{\sum \mathrm{correct\_trials}_{\mathrm{condition}}}{\mathrm{total\_trials}_{\mathrm{condition}}}$$
 
-$$\text{RT}_{\textrm{condition}} = \text{mean}(\text{rt}_{\textrm{condition}})$$
+$$\mathrm{RT}_{\mathrm{condition}} = \mathrm{mean}(\mathrm{rt}_{\mathrm{condition}})$$
 
 Spatial interference effects:
 
-$$\text{AccuracyEffect} = \text{Accuracy}_{\textrm{incongruent}} - \text{Accuracy}_{\textrm{congruent}}$$
+$$\mathrm{AccuracyEffect} = \mathrm{Accuracy}_{\mathrm{incongruent}} - \mathrm{Accuracy}_{\mathrm{congruent}}$$
 
-$$\text{RTEffect}_{\textrm{sec}} = \text{RT}_{\textrm{incongruent}} - \text{RT}_{\textrm{congruent}}$$
+$$\mathrm{RTEffect}_{\mathrm{sec}} = \mathrm{RT}_{\mathrm{incongruent}} - \mathrm{RT}_{\mathrm{congruent}}$$
 
 **Returned Results**:
 
@@ -243,13 +243,13 @@ writing systems and vocabulary structures {cite:p}`vanRijn2023`.
 
 Accuracy calculations for real and pseudo words:
 
-$$\text{Real_Correct} = \frac{\text{correct_real_words}}{\text{total_real_words}}$$
+$$\mathrm{Real\_Correct} = \frac{\mathrm{correct\_real\_words}}{\mathrm{total\_real\_words}}$$
 
-$$\text{Pseudo_Correct} = \frac{\text{correct_pseudo_words}}{\text{total_pseudo_words}}$$
+$$\mathrm{Pseudo\_Correct} = \frac{\mathrm{correct\_pseudo\_words}}{\mathrm{total\_pseudo\_words}}$$
 
 Balanced LexTALE-style scoring:
 
-$$\text{Incorrect_Correct_Score} = \frac{\text{Real_Correct} + \text{Pseudo_Correct}}{2}$$
+$$\mathrm{Incorrect\_Correct\_Score} = \frac{\mathrm{Real\_Correct} + \mathrm{Pseudo\_Correct}}{2}$$
 
 **Returned Results**:
 
