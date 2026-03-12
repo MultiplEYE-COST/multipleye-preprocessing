@@ -6,15 +6,13 @@ from preprocessing.metrics.reading.reading_measures import build_word_level_tabl
 from preprocessing.metrics.reading.words import (
     all_tokens_from_aois,
     mark_skipped_tokens,
-    repair_word_labels,
 )
 
 
 @pytest.fixture
 def run_pipeline():
     def _run(aois, gaze_events):
-        aois_clean = repair_word_labels(aois)
-        word_lookup = all_tokens_from_aois(aois_clean, trial="trial_1")
+        word_lookup = all_tokens_from_aois(aois, trial="trial_1")
         fixation_table = annotate_fixations(gaze_events)
         words_with_skip = mark_skipped_tokens(word_lookup, fixation_table)
 
