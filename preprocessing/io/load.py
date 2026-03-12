@@ -292,3 +292,9 @@ def load_trial_level_events_data(
     )
 
     return gaze
+
+
+def load_reading_measures(
+    data_folder: Path,
+) -> pl.DataFrame:
+    pass

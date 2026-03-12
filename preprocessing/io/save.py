@@ -126,6 +126,11 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
         df.write_csv(directory / name)
 
 
+def save_reading_measures(directory: Path, session: str, data: pm.Gaze) -> None:
+    directory = Path(directory) / session
+    directory.mkdir(parents=True, exist_ok=True)
+
+
 def save_session_metadata(directory: Path, session: str, gaze: pm.Gaze) -> None:
     directory = Path(directory) / session
     directory.mkdir(parents=True, exist_ok=True)

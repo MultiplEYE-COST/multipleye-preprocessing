@@ -9,6 +9,7 @@ from .io.save import (
     save_events_data,
     save_scanpaths,
     save_session_metadata,
+    save_reading_measures,
 )
 from .io.load import (
     load_gaze_data,
@@ -31,6 +32,7 @@ __all__ = [
     "save_events_data",
     "save_scanpaths",
     "save_session_metadata",
+    "save_reading_measures",
     "load_gaze_data",
     "load_trial_level_raw_data",
     "load_trial_level_events_data",
