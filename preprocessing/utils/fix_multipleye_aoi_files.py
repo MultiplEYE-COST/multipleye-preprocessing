@@ -17,7 +17,6 @@ def remap_space_to_following_word(aoi_file_path: str | Path) -> None:
     for i in range(len(aoi_df) - 1):
         if pd.isna(aoi_df.loc[i, "word"]) and aoi_df.loc[i, "char"] == " ":
             if aoi_df.loc[i, "word_idx"] == 1 and not found_space:
-                print("not chaning aoi file")
                 logger.info(f"Aoi file has already been remapped: {aoi_file_path}")
                 return
             aoi_df.loc[i, "word_idx"] = aoi_df.loc[i + 1, "word_idx"]
