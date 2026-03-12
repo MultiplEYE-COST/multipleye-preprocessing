@@ -151,8 +151,19 @@ def run_multipleye_preprocessing(config_path: str):
             sess.stimuli,
         )
         preprocessing.save_scanpaths(constants.OUTPUT_DIR, session_save_name, gaze)
-
         preprocessing.save_session_metadata(constants.OUTPUT_DIR, idf, gaze)
+
+        rm_folder = output_folder / constants.READING_MEASURES_FOLDER
+
+        if not rm_folder.exists():
+            pbar.set_description(f"Calculating reading measures {idf}:")
+            reading_measures = preprocessing.calculate_reading_measures(
+                gaze,
+                sess.stimuli,
+            )
+            preprocessing.save_reading_measures(
+                constants.OUTPUT_DIR, session_save_name, reading_measures
+            )
 
         # perform the multipleye specific stuff
         multipleye.create_session_overview(

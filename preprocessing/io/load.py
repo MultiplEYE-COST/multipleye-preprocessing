@@ -296,5 +296,24 @@ def load_trial_level_events_data(
 
 def load_reading_measures(
     data_folder: Path,
+    file_pattern: str = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_reading_measures.csv",
 ) -> pl.DataFrame:
-    pass
+    files = list(data_folder.glob(file_pattern))
+
+    if len(files) == 0:
+        raise ValueError(f"No files found in {data_folder} with pattern {file_pattern}")
+
+    all_trials = []
+
+    for file in files:
+        df = pl.read_csv(file)
+        # get trial and stimulus from file name
+        match = re.match(file_pattern, file.stem)
+        trial_df = df.with_columns(
+            pl.lit(match.group("trial")).alias("trial"),
+            pl.lit(match.group("stimulus")).alias("stimulus"),
+        )
+
+        all_trials.append(trial_df)
+
+    return pl.concat(all_trials)

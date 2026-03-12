@@ -8,7 +8,9 @@ from typing import Literal
 
 import polars as pl
 import pymovements as pm
+from pymovements.stimulus import TextStimulus
 
+from ..mapping.aoi import enlarge_aois
 from ..utils.logging import get_logger
 from preprocessing import constants
 
@@ -156,8 +158,12 @@ class Stimulus:
             / f"aoi_stimuli_{lang}_{country}_{labnum}"
             / f"{stimulus_name.lower()}_{int(stimulus_id)}_aoi.csv"
         )
-        text_stimulus = pm.stimulus.text.from_file(
-            aoi_path,
+
+        aois_df = pl.read_csv(aoi_path)
+        aois_df = enlarge_aois(aois_df)
+
+        text_stimulus = TextStimulus(
+            aois_df,
             aoi_column="char",
             start_x_column="top_left_x",
             start_y_column="top_left_y",

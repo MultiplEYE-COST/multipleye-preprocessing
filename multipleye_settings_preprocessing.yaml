@@ -4,7 +4,6 @@ data_collection_name: "MultiplEYE_SQ_CH_Zurich_1_2025"
 include_sessions:
 
 exclude_sessions:
-  - 006_SQ_CH_1_ET1
 
 include_pilots: True
 

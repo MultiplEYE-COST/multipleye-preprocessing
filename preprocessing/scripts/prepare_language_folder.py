@@ -10,7 +10,10 @@ from preprocessing import constants
 from ..utils.data_path_utils import check_data_collection_exists
 from ..utils.logging import get_logger
 from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
-from ..utils.fix_multipleye_aoi_files import remap_space_to_following_word
+from ..utils.fix_multipleye_aoi_files import (
+    remap_space_to_following_word,
+    repair_word_labels,
+)
 
 
 def prepare_language_folder(data_collection_name):
@@ -155,6 +158,7 @@ def prepare_language_folder(data_collection_name):
     aoi_files_restructured = list(aoi_path.glob("*.csv"))
     for aoi_file in aoi_files_restructured:
         remap_space_to_following_word(aoi_file)
+        repair_word_labels(aoi_file)
 
 
 def extract_stimulus_version_number_from_asc(asc_file_path: Path) -> int:

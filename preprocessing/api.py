@@ -1,5 +1,6 @@
 """pEYEpline: API for the MultiplEYE preprocessing pipeline"""
 
+from .metrics.calculate import calculate_reading_measures
 from .signals.preprocess import preprocess_gaze
 from .events.properties import compute_event_properties
 from .events.detect import detect_fixations, detect_saccades
@@ -25,6 +26,7 @@ __all__ = [
     "fix_psycho_tests_structure",
     "preprocess_gaze",
     "compute_event_properties",  # needed in API? - not directly used in the preprocessing pipeline
+    "calculate_reading_measures",
     "detect_fixations",
     "detect_saccades",
     "map_fixations_to_aois",

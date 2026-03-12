@@ -126,9 +126,18 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
         df.write_csv(directory / name)
 
 
-def save_reading_measures(directory: Path, session: str, data: pm.Gaze) -> None:
-    directory = Path(directory) / session
+def save_reading_measures(directory: Path, session: str, data: pl.DataFrame) -> None:
+    directory = Path(directory) / session / constants.READING_MEASURES_FOLDER
     directory.mkdir(parents=True, exist_ok=True)
+
+    trials = data.partition_by(by="trial", as_dict=False)
+
+    for trial in trials:
+        trial_id = trial["trial"][0]
+        stimulus = trial["stimulus"][0]
+        name = f"{session}_{trial_id}_{stimulus}_reading_measures.csv"
+        trial = trial.drop("stimulus", "trial")
+        trial.write_csv(directory / name)
 
 
 def save_session_metadata(directory: Path, session: str, gaze: pm.Gaze) -> None:
