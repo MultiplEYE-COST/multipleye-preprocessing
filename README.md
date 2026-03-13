@@ -87,6 +87,7 @@ source .venv/bin/activate  # Unix/Mac
 |--------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|
 | [Getting Started](https://multipleye-cost.github.io/multipleye-preprocessing/getting_started/)                     | Installation, requirements, and running the pipeline |
 | [Preprocessing](https://multipleye-cost.github.io/multipleye-preprocessing/guide/preprocessing/)                   | Detailed preprocessing pipeline documentation        |
+| [Reading Measures](https://multipleye-cost.github.io/multipleye-preprocessing/guide/reading_measures/)            | Reading measures from preprocessed eye-tracking data |
 | [Psychometric Tests](https://multipleye-cost.github.io/multipleye-preprocessing/guide/psychometric_tests/)         | Test descriptions and scoring details                |
 | [Configuration](https://multipleye-cost.github.io/multipleye-preprocessing/guide/configuration/)                   | Configuration file options                           |
 | [Technical Architecture](https://multipleye-cost.github.io/multipleye-preprocessing/guide/technical_architecture/) | Code structure and design                            |
