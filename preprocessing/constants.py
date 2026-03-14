@@ -41,6 +41,7 @@ RAW_DATA_FOLDER = Path("raw_data/")
 FIXATIONS_FOLDER = Path("fixations/")
 SACCADES_FOLDER = Path("saccades/")
 SCANPATHS_FOLDER = Path("scanpaths/")
+READING_MEASURES_FOLDER = Path("reading_measures/")
 
 
 ### Psychometric Tests Sessions

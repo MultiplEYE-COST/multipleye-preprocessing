@@ -16,6 +16,7 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
+from preprocessing.utils import pid_from_session
 from ..constants import (
     FIXATION,
     START_RECORDING_REGEX,
@@ -632,7 +633,7 @@ class MultipleyeDataCollection:
 
         for session in (pbar := tqdm(self.sessions.keys(), total=len(self.sessions))):
             pbar.set_description(f"Preparing session {session}")
-            p_id = session.split("_")[0]
+            p_id = pid_from_session(session)
 
             if "start_after_trial" in session:
                 if p_id not in self.crashed_session_ids:
@@ -806,7 +807,7 @@ class MultipleyeDataCollection:
 
         completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
 
-        p_id = session_identifier.split("_")[0]
+        p_id = pid_from_session(session_identifier)
 
         # load trial to stimulus mapping
         trial_ids = completed_stimuli["trial_id"].to_list()
@@ -851,7 +852,7 @@ class MultipleyeDataCollection:
         self, session_identifier, logfile_order_version: int
     ) -> list[int]:
         # if the session crashed, only load the stimuli that were actually completed in that session
-        p_id = session_identifier.split("_")[0]
+        p_id = pid_from_session(session_identifier)
         incomplete_order = []
         if p_id in self.crashed_session_ids:
             incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
@@ -1260,7 +1261,7 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier. eg "005_ET_EE_1_ET1"
         """
 
-        p_id = session_identifier.split("_")[0]
+        p_id = pid_from_session(session_identifier)
         check_messages(
             messages,
             stimuli,
@@ -1309,41 +1310,54 @@ class MultipleyeDataCollection:
         return fixation_durations_page_avg
 
     def _load_psychometric_tests(self, session_identifier: str):
+        # sometimes people use session number 2 for the psychotests session. both is ok, but we need to check which.
+        session_name_pt1 = session_identifier.replace("ET1", "PT1")
+        session_name_pt2 = session_identifier.replace("ET1", "PT2")
+
         if self.psychometric_tests:
             for test in self.psychometric_tests:
                 test_path = (
                     self.data_root.parent
                     / "psychometric-tests-sessions"
-                    / session_identifier
+                    / session_name_pt1
                 )
                 if not test_path.exists():
-                    self.logger.warning(
-                        f"Psychometric test path {test_path} does not exist for session {session_identifier}."
+                    test_path = (
+                        self.data_root.parent
+                        / "psychometric-tests-sessions"
+                        / session_name_pt2
                     )
+                    if not test_path.exists():
+                        self.logger.warning(
+                            f"Psychometric test path {test_path} does not exist for session {session_identifier}."
+                        )
+
                 else:  # TODO: just use preprocess_all_sessions(), this calculates all tests if possible
                     if test == "PLAB":
-                        preprocess_plab(path=test_path)
+                        preprocess_plab(test_path)
                     elif test == "RAN":
-                        preprocess_ran(path=test_path)
+                        preprocess_ran(test_path)
                     elif test == "Stroop":
-                        preprocess_stroop(path=test_path)
+                        preprocess_stroop(test_path)
                     elif test == "Flanker":
-                        preprocess_flanker(path=test_path)
+                        preprocess_flanker(test_path)
                     elif test == "WikiVocab":
-                        preprocess_wikivocab(path=test_path)
+                        preprocess_wikivocab(test_path)
                     elif test == "LWMC":
-                        preprocess_lwmc(path=test_path)
+                        preprocess_lwmc(test_path)
                     else:
                         self.logger.warning(
                             f"Psychometric test {test} not recognized. "
                             f"Please check the psychometric tests configuration in the lab configuration yaml file."
                         )
 
+            self.sessions[
+                session_identifier
+            ].psychometric_tests_session = test_path.name
+
     def _extract_question_answers(
         self, stimuli: list[Stimulus], session_identifier: str
     ) -> None:
-        # TODO: Jana
-
         check_comprehension_question_answers(
             self.sessions[session_identifier].logfile,
             stimuli,
