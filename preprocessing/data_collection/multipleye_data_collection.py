@@ -42,14 +42,6 @@ from ..checks.formal_experiment_checks import (
 from ..data_collection.session import Session
 from ..data_collection.stimulus import LabConfig, Stimulus
 from ..plotting.plot import plot_gaze, plot_main_sequence
-from ..psychometric_tests.preprocess_psychometric_tests import (
-    preprocess_plab,
-    preprocess_ran,
-    preprocess_stroop,
-    preprocess_flanker,
-    preprocess_wikivocab,
-    preprocess_lwmc,
-)
 from ..utils.fix_pq_data import remap_wrong_pq_values
 from preprocessing.scripts.prepare_language_folder import (
     extract_stimulus_version_number_from_asc,
@@ -934,7 +926,7 @@ class MultipleyeDataCollection:
         else:
             raise ValueError(
                 f"More than one or no entry found for participant ID {p_id} in stimulus order versions. "
-                f"Please check the stimulus order versions file for duplicates."
+                f"Please add the used stimulus folder from the experiment. Or check the stimulus order versions file for missing IDs or duplicates."
             )
 
     def _parse_asc(self, session_identifier: str):
@@ -1329,26 +1321,7 @@ class MultipleyeDataCollection:
                     )
                     if not test_path.exists():
                         self.logger.warning(
-                            f"Psychometric test path {test_path} does not exist for session {session_identifier}."
-                        )
-
-                else:  # TODO: just use preprocess_all_sessions(), this calculates all tests if possible
-                    if test == "PLAB":
-                        preprocess_plab(test_path)
-                    elif test == "RAN":
-                        preprocess_ran(test_path)
-                    elif test == "Stroop":
-                        preprocess_stroop(test_path)
-                    elif test == "Flanker":
-                        preprocess_flanker(test_path)
-                    elif test == "WikiVocab":
-                        preprocess_wikivocab(test_path)
-                    elif test == "LWMC":
-                        preprocess_lwmc(test_path)
-                    else:
-                        self.logger.warning(
-                            f"Psychometric test {test} not recognized. "
-                            f"Please check the psychometric tests configuration in the lab configuration yaml file."
+                            f"No psychometric tests session folder for {session_identifier} could be found. Please check."
                         )
 
             self.sessions[
