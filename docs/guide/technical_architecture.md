@@ -108,15 +108,14 @@ number/identifier.
 
 The metadata should be extracted on trial- and session-level.
 
-Trial-level
-*TBD: one file contains all trials (preferred) or one file per trial*
+Trial-level (one file contains all trials):
 
 - stimulus item
 - reading time
 - answers to all 6 comprehension questions
 - answers to all 3 rating questions
 - last validation before stimulus + scores
-- blinks (?)
+- blinks
 
 Session-level
 Filename: session-id_metadata.json

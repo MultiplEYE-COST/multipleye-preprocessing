@@ -31,9 +31,7 @@ this section is for you.
 
 The preprocessing pipeline for the MultiplEYE corpus by
 {cite:t}`JakobiDingEtAl2025MultipleyeCorpus`.
-This website documents the current state of the preprocessing pipeline, **which is still under
-development**. This pipeline
-is designed to process the raw eye-tracking data and psychometric test data
+This pipeline is designed to process the raw eye-tracking data and psychometric test data
 collected in the MultiplEYE project, transforming it into a standardized format suitable for
 analysis and sharing with the research community.
 
@@ -48,17 +46,12 @@ To use the preprocessing pipeline, please follow the instructions in the
 This section will guide you through the setup of the pipeline, including how to install
 dependencies and run the preprocessing on your data collection.
 
-
-[//]: # (TODO: write section)
-
 ## How to cite
 
 If you use this preprocessing pipeline, or parts of it in your research,
 please cite the pipeline as specified in {cite:t}`Jakobi2026MultiplEYEPreprocessing`.
 You can also find citation information for this project in the `CITATION.cff`
 file in the repository and cite it accordingly.
-
-[//]: # (TODO: add citation)
 
 ## Acknowledgments
 
