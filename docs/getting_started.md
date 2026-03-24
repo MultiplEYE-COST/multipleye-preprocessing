@@ -129,17 +129,6 @@ formats, please read into the more detailled {ref}`reference_guide` chapter.
 To run a pipeline you wil have to fill in the relevant information in the
 `multipleye_settings_preprocessing.yaml` file.
 
-Currently, there is one pipeline available which has been moved to `preprocessing.scripts`
-and should be called by its registered name. The main pipelines require the config file path as an
-argument. However,
-the default config file is `multipleye_settings_preprocessing.yaml`, so if you have
-updated the relevant information in that file, you can run the pipelines without providing the path
-to the config file.
-
-```{note}
-All other pipelines and scripts are under development and should not be used yet.
-```
-
 ### Download your MultiplEYE data
 
 ```{attention}

@@ -59,6 +59,9 @@ class Session:
     pm_gaze_path: Path = field(default="unknown", init=False)
     pm_gaze_metadata: dict = field(default="unknown", init=False)
 
+    # psychometric tests
+    psychometric_tests_session: str = field(default="unknown", init=False)
+
     trials = list[Trial]
 
     def create_overview(self):

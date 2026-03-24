@@ -2,13 +2,13 @@
 
 # Configuration
 
-The configuration of the preprocessing pipeline is handled by the `config.py` and `constants.py`
-files.
-You can find these files in the `preprocessing/` directory.
-As the names suggest, `config.py` contains user-configurable settings for your specific data
-collection, while `constants.py` contains technical constants that should be kept as default values
-unless you know what you are doing.
-Edits must be made manually. While some processing commands can be passed explicit variables,
+The configuration of the preprocessing pipeline is handled by the YAML configuration file
+`multipleye_settings_preprocessing.yaml`.
+You can find this file in the repository root.
+As the name suggests, this file contains user-configurable settings for your specific data
+collection, while internal constants are defined in `preprocessing/constants.py`
+and should be kept as default values unless you know what you are doing.
+Edits must be made manually in the YAML file. While some processing commands can be passed explicit variables,
 it is best just to set the values once centrally, so throughout the pipeline no values need to be
 passed.
 
@@ -29,11 +29,15 @@ The main configuration file (`preprocessing/config.py`) contains the following k
 
 ### Psychometric Test Settings
 
-- ...
+- `PSYCHOMETRIC_TESTS_DIR`: Directory containing psychometric test sessions (configured per data collection)
 
 ### Processing Parameters
 
-- ...
+- `expected_sampling_rate_hz`: Expected sampling rate of the eye tracker in Hz (default: 1000)
+- `include_sessions`: Optional list of specific session IDs to process
+- `exclude_sessions`: Optional list of session IDs to exclude from processing
+- `include_pilots`: Whether to include pilot sessions in the processing (default: True)
+- `session_to_stimuli`: Mapping for non-standard stimulus versions (not yet in use)
 
 ## Constants
 
@@ -54,6 +58,7 @@ To modify the configuration for your data collection:
 4. Save the file - changes will take effect on the next run
 
 ```{note}
-Is is useful to test with a small subset of data first and backing up your `config.py`
+It is useful to test with a small subset of data first and backing up your
+`multipleye_settings_preprocessing.yaml`
 before making changes.
 ```

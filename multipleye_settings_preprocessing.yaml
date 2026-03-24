@@ -3,7 +3,6 @@ data_collection_name: "MultiplEYE_CS_CZ_Prague_2_2026"
 # pick either include or exclude sessions, if none is specified, all sessions are included
 include_sessions:
 
-
 exclude_sessions:
 
 
@@ -15,6 +14,3 @@ expected_sampling_rate_hz: 1000  # Hz
 
 # NOT YET IN USE; IGNORE. if any sessions do not use the standard stimulus version, specify so here
 session_to_stimuli:
-  - "session":
-
-default_stimulus_version:

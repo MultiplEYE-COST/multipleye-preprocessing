@@ -8,6 +8,13 @@ from typing import Literal
 
 import polars as pl
 import pymovements as pm
+from pymovements.stimulus import TextStimulus
+
+from ..mapping.aoi import enlarge_aois
+from ..utils.logging import get_logger
+from preprocessing import constants
+
+logger = get_logger(__name__)
 
 warnings.filterwarnings(
     "ignore",
@@ -151,8 +158,12 @@ class Stimulus:
             / f"aoi_stimuli_{lang}_{country}_{labnum}"
             / f"{stimulus_name.lower()}_{int(stimulus_id)}_aoi.csv"
         )
-        text_stimulus = pm.stimulus.text.from_file(
-            aoi_path,
+
+        aois_df = pl.read_csv(aoi_path)
+        aois_df = enlarge_aois(aois_df)
+
+        text_stimulus = TextStimulus(
+            aois_df,
             aoi_column="char",
             start_x_column="top_left_x",
             start_y_column="top_left_y",
@@ -320,6 +331,9 @@ class LabConfig:
         with open(json_config_path) as f:
             json_config = json.load(f)
 
+        logger.info(f"Lab config loaded from {config_path}")
+        logger.info(f"JSON lab config loaded from {json_config_path}")
+
         # if the final data has been collected and this is not just a sanity check
         if final_metadata_path.exists():
             with open(final_metadata_path) as f:
@@ -327,7 +341,7 @@ class LabConfig:
             sampling_frequency_hz = final_metadata_json["Default_frequency"]
 
         else:
-            sampling_frequency_hz = None
+            sampling_frequency_hz = constants.EXPECTED_SAMPLING_RATE_HZ
 
         tests = list(json_config.get("Psychometric_tests", []).keys())
 

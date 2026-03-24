@@ -4,20 +4,24 @@ from argparse import ArgumentParser
 import yaml
 from tqdm import tqdm
 
+from ..utils.logging import get_logger
 import preprocessing
 from preprocessing import constants
+
+from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
 
 def run_multipleye_preprocessing(config_path: str):
     this_repo = constants.THIS_REPO
+    logger = get_logger(__name__)
     config = yaml.load(open(this_repo / config_path), Loader=yaml.SafeLoader)
 
     data_collection_name = config["data_collection_name"]
-    print(
+    logger.info(
         f"Running MultiplEYE preprocessing for data collection: {data_collection_name}"
     )
 
-    preprocessing.utils.prepare_language_folder(data_collection_name)
+    prepare_language_folder(data_collection_name)
 
     data_folder_path = this_repo / "data" / data_collection_name
 
@@ -38,6 +42,10 @@ def run_multipleye_preprocessing(config_path: str):
 
     multipleye.convert_edf_to_asc()
     multipleye.prepare_session_level_information()
+
+    # for sess in multipleye:
+    #     if sess.stimuli == 'unknown':
+    #         print(sess.session_identifier)
 
     sessions = [s for s in multipleye]
 
@@ -143,8 +151,19 @@ def run_multipleye_preprocessing(config_path: str):
             sess.stimuli,
         )
         preprocessing.save_scanpaths(constants.OUTPUT_DIR, session_save_name, gaze)
-
         preprocessing.save_session_metadata(constants.OUTPUT_DIR, idf, gaze)
+
+        rm_folder = output_folder / constants.READING_MEASURES_FOLDER
+
+        if not rm_folder.exists():
+            pbar.set_description(f"Calculating reading measures {idf}:")
+            reading_measures = preprocessing.calculate_reading_measures(
+                gaze,
+                sess.stimuli,
+            )
+            preprocessing.save_reading_measures(
+                constants.OUTPUT_DIR, session_save_name, reading_measures
+            )
 
         # perform the multipleye specific stuff
         multipleye.create_session_overview(
@@ -152,7 +171,11 @@ def run_multipleye_preprocessing(config_path: str):
         )
         pbar.set_description(f"Creating sanity check report {idf}")
         multipleye.create_sanity_check_report(
-            gaze, sess.session_identifier, plotting=True, overwrite=True
+            gaze,
+            sess.session_identifier,
+            plotting=True,
+            overwrite=True,
+            output_dir=constants.OUTPUT_DIR,
         )
 
     multipleye.create_dataset_overview(path=constants.OUTPUT_DIR)

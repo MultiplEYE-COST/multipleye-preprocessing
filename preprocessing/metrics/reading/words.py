@@ -1,30 +1,6 @@
 import polars as pl
 
 
-def repair_word_labels(df: pl.DataFrame) -> pl.DataFrame:
-    # Use only grouping columns that actually exist
-    base_cols = ["trial", "page", "line_idx", "word_idx"]
-    group_cols = [c for c in base_cols if c in df.columns]
-
-    return (
-        df.sort(group_cols + ["char_idx_in_line"])
-        .with_columns(
-            pl.when(pl.col("word").is_null() | (pl.col("word").str.strip_chars() == ""))
-            .then(None)
-            .otherwise(pl.col("word"))
-            .alias("_word_tmp")
-        )
-        .with_columns(
-            pl.col("_word_tmp")
-            .forward_fill()
-            .backward_fill()
-            .over(group_cols)
-            .alias("word")
-        )
-        .drop("_word_tmp")
-    )
-
-
 def all_tokens_from_aois(
     aois: pl.DataFrame,
     trial: str = None,
