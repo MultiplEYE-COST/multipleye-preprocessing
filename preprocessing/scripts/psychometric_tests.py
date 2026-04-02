@@ -1,6 +1,7 @@
 """Main script for the psychmetric test processing."""
 
 import argparse
+from ..utils.logging import get_logger
 from pathlib import Path
 
 from ..config import PSYCHOMETRIC_TESTS_DIR
@@ -20,7 +21,10 @@ def process_all_psychometric_test_sessions():
     )
 
     args = parser.parse_args()
+    logger = get_logger(__name__)
 
-    print(f"Processing psychometric test sessions from {args.test_session_folder}")
+    logger.info(
+        f"Processing psychometric test sessions from {args.test_session_folder}"
+    )
 
     preprocess_all_sessions(Path(args.test_session_folder))

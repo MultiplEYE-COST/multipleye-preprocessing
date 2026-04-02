@@ -3,22 +3,23 @@ from argparse import ArgumentParser
 
 from tqdm import tqdm
 
+from ..utils.logging import get_logger
 import preprocessing
 from preprocessing import settings
+
+from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
 
 def run_multipleye_preprocessing(config_path: str | None = None):
     settings.load(config_path)
-    settings.setup_logging(
-        log_file=settings.DATASET_DIR.parent / "preprocessing_logs.txt"
-    )
+    logger = get_logger(__name__)
 
     data_collection_name = settings.DATA_COLLECTION_NAME
-    print(
+    logger.info(
         f"Running MultiplEYE preprocessing for data collection: {data_collection_name}"
     )
 
-    preprocessing.utils.prepare_language_folder(data_collection_name)
+    prepare_language_folder(data_collection_name)
 
     data_folder_path = settings.DATASET_DIR
 
@@ -39,6 +40,10 @@ def run_multipleye_preprocessing(config_path: str | None = None):
 
     multipleye.convert_edf_to_asc()
     multipleye.prepare_session_level_information()
+
+    # for sess in multipleye:
+    #     if sess.stimuli == 'unknown':
+    #         print(sess.session_identifier)
 
     sessions = [s for s in multipleye]
 
@@ -146,6 +151,18 @@ def run_multipleye_preprocessing(config_path: str | None = None):
         preprocessing.save_scanpaths(settings.OUTPUT_DIR, session_save_name, gaze)
 
         preprocessing.save_session_metadata(settings.OUTPUT_DIR, idf, gaze)
+
+        rm_folder = output_folder / settings.READING_MEASURES_FOLDER
+
+        if not rm_folder.exists():
+            pbar.set_description(f"Calculating reading measures {idf}:")
+            reading_measures = preprocessing.calculate_reading_measures(
+                gaze,
+                sess.stimuli,
+            )
+            preprocessing.save_reading_measures(
+                settings.OUTPUT_DIR, session_save_name, reading_measures
+            )
 
         # perform the multipleye specific stuff
         multipleye.create_session_overview(

@@ -46,11 +46,24 @@ def load_gaze_data(
         and experimental details.
     """
 
+    # Initialize experiment config from lab config. Although sampling rate and resolution are automatically inferred
+    # in from_asc(), the function will emit a warning in case the parsed values do not match the experiment specification.
+    # This way we perform a sanity check for the experiment configuration.
+    experiment = pm.Experiment(
+        screen_width_px=lab_config.image_resolution[0],
+        screen_height_px=lab_config.image_resolution[1],
+        screen_width_cm=lab_config.image_size_cm[0],
+        screen_height_cm=lab_config.image_size_cm[1],
+        distance_cm=lab_config.screen_distance_cm,
+        sampling_rate=lab_config.sampling_frequency_hz,
+    )
+
     gaze = pm.gaze.from_asc(
         asc_file,
         patterns=settings.GAZE_PATTERNS,
         trial_columns=trial_cols,
         add_columns={"session": session_idf},
+        experiment=experiment,
     )
 
     # Filter out data outside of trials
@@ -58,26 +71,6 @@ def load_gaze_data(
     gaze.frame = gaze.frame.filter(
         pl.col("trial").is_not_null() & pl.col("page").is_not_null()
     )
-
-    # Initialize experiment config from lab config. Sampling rate is automatically inferred in from_asc, but we use
-    # the one from the final metadata form to perform a sanity check. for pilot data, the value will not be handed
-    # to the exp. Atm we need to set the experiment only after parsing gaze because there is a bug / feat which
-    # needs to be solved first: https://github.com/pymovements/pymovements/issues/1286
-    experiment = pm.Experiment(
-        screen_width_px=lab_config.image_resolution[0],
-        screen_height_px=lab_config.image_resolution[1],
-        screen_width_cm=lab_config.image_size_cm[0],
-        screen_height_cm=lab_config.image_size_cm[1],
-        distance_cm=lab_config.screen_distance_cm,
-    )
-
-    if lab_config.sampling_frequency_hz is not None:
-        experiment.sampling_rate = lab_config.sampling_frequency_hz
-
-    else:
-        experiment.sampling_rate = gaze._metadata["sampling_rate"]
-
-    gaze.experiment = experiment
 
     return gaze
 
@@ -260,3 +253,28 @@ def load_trial_level_events_data(
     )
 
     return gaze
+
+
+def load_reading_measures(
+    data_folder: Path,
+    file_pattern: str = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_reading_measures.csv",
+) -> pl.DataFrame:
+    files = list(data_folder.glob(file_pattern))
+
+    if len(files) == 0:
+        raise ValueError(f"No files found in {data_folder} with pattern {file_pattern}")
+
+    all_trials = []
+
+    for file in files:
+        df = pl.read_csv(file)
+        # get trial and stimulus from file name
+        match = re.match(file_pattern, file.stem)
+        trial_df = df.with_columns(
+            pl.lit(match.group("trial")).alias("trial"),
+            pl.lit(match.group("stimulus")).alias("stimulus"),
+        )
+
+        all_trials.append(trial_df)
+
+    return pl.concat(all_trials)

@@ -35,17 +35,19 @@ repository. Find details about it in the project's `README.md`.
 The psychometric tests in the MultiplEYE battery are carefully selected to provide a comprehensive
 assessment of cognitive abilities relevant to language processing and eye-tracking research.
 Each test targets specific cognitive domains while maintaining cross-linguistic validity
-and experimental efficiency. _(confirm)_
+and experimental efficiency.
 
 (lewandowsky_wmc_battery_test)=
 
 ### Lewandowsky WMC Battery
 
 Working Memory Capacity (WMC) is a fundamental cognitive construct that represents the amount of
-information that can be held in mind and simultaneously processed. WMC is correlated with
-general intelligence (g-factor), language comprehension, and reading ability. _(confirm)_ The
-Lewandowsky WMC
-battery provides a comprehensive assessment through four complementary tasks:
+information that can be temporarily stored and manipulated to support higher-level cognitive
+processes
+(such as text comprehension). WMC is correlated with
+general intelligence (g-factor), language comprehension, and reading ability {cite:p}`Daneman1980`.
+The Lewandowsky WMC battery assesses two working memory domains (verbal/numerical and spatial)
+through four complementary tasks:
 
 - **Memory Update (MU)**: Participants continuously update a running memory store with new
   information while discarding old items. This task measures the ability to dynamically manipulate
@@ -110,13 +112,16 @@ consistent with the maximum attainable score in the current version.
 
 Rapid Automatized Naming is a classic measure of processing speed and automaticity in
 cognitive retrieval. Originally developed to predict reading ability, RAN assesses the efficiency
-with which participants can access and articulate well-learned information. The task requires
-participants to name a series of familiar items (typically digits or letters) as quickly as
-possible. RAN performance is strongly predictive of reading fluency across languages and is
-considered a marker of the automaticity of cognitive processes _(citation?)_.
+with which participants can access and articulate phonological word forms corresponding to visually
+presented stimuli. The task is described as a "microcosm" of reading as it involves sequential
+shifts of visual attention, lexical access, and articulatory planning {cite:p}`WolfBowers1999`.
+The task requires participants to name a series of familiar items (typically digits or letters) as
+quickly as possible. RAN performance is strongly predictive of reading fluency across languages and
+is
+considered a marker of the automaticity of cognitive processes {cite:p}`Denckla1976`.
 
 For our data, there are two trials per session.
-Both trials consist of _(...)_ _(confirm)_.
+Both trials consist of a $5 \times 10$ digit matrix.
 The results are the times each of the two trials took to complete.
 
 **Returned Results**:
@@ -129,11 +134,11 @@ The results are the times each of the two trials took to complete.
 ### Stroop Test
 
 The Stroop test is one of the most widely used measures of cognitive control and inhibitory
-functioning. It demonstrates the phenomenon of interference---when automatic processing conflicts
-with task demands. In the color-word Stroop, participants must inhibit the automatic tendency to
-read words while naming the ink color. The difference in performance between congruent (word matches
-color) and incongruent (word conflicts with color) trials provides a sensitive measure of inhibitory
-control {cite:p}`Stroop1935`.
+functioning. It demonstrates the phenomenon of interference---when automatic processing (reading)
+conflicts with task demands (color naming). In the color-word Stroop, participants must inhibit
+the automatic tendency to read words while naming the font color. The difference in performance
+between congruent (word matches color) and incongruent (word conflicts with color) trials provides
+a sensitive measure of inhibitory control {cite:p}`Stroop1935`.
 
 **Mathematical Formulas**:
 
@@ -211,9 +216,9 @@ $$\mathrm{RTEffect}_{\mathrm{sec}} = \mathrm{RT}_{\mathrm{incongruent}} - \mathr
 
 The PLAB test assesses language learning aptitude through a battery of tasks that measure
 different components of language ability. Unlike the other cognitive tests, PLAB specifically
-targets abilities relevant to second language acquisition, including auditory discrimination, memory
-for foreign language sounds, and grammatical pattern recognition. This makes it particularly
-valuable for research on multilingualism and language learning {cite:p}`Pimsleur2004`.
+targets metalinguistic awareness and the ability to consciously infer and apply grammatical rules
+and generalizations. This makes it particularly valuable for research on multilingualism and
+language learning {cite:p}`Pimsleur2004`.
 
 **Returned Results**:
 
@@ -230,9 +235,12 @@ valuable for research on multilingualism and language learning {cite:p}`Pimsleur
 
 WikiVocab is a modern vocabulary assessment that uses items drawn from Wikipedia corpora across
 multiple languages. It provides a cross-linguistically valid measure of vocabulary breadth by
-including both real words and carefully constructed pseudo-words. The balanced scoring approach
-(averaging performance on real and pseudo-words) makes it comparable across languages with different
-writing systems and vocabulary structures {cite:p}`vanRijn2023`.
+including both real words and carefully constructed pseudo-words. Vocabulary breadth is
+operationalized as the number of words for which a person has at least partial knowledge.
+The balanced scoring approach (averaging performance on real and pseudo-words) helps control for
+individual response tendencies, such as a bias towards accepting or rejecting items, and makes it
+comparable across languages with different writing systems and vocabulary structures {cite:p}
+`vanRijn2023`.
 
 - Large, representative item pools from Wikipedia
 - Balanced scoring controls for response biases

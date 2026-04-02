@@ -36,6 +36,18 @@ The main settings include:
 - `FILE_LOG_LEVEL`: Log level for the file output (default: `DEBUG`).
 - `LOG_LEVEL`: Default log level for the package/Python (default: `INFO`).
 
+### Psychometric Test Settings
+
+- `PSYCHOMETRIC_TESTS_DIR`: Directory containing psychometric test sessions (configured per data collection)
+
+### Processing Parameters
+
+- `expected_sampling_rate_hz`: Expected sampling rate of the eye tracker in Hz (default: 1000)
+- `include_sessions`: Optional list of specific session IDs to process
+- `exclude_sessions`: Optional list of session IDs to exclude from processing
+- `include_pilots`: Whether to include pilot sessions in the processing (default: True)
+- `session_to_stimuli`: Mapping for non-standard stimulus versions (not yet in use)
+
 ### Programmatic Usage (Notebooks)
 
 In a Jupyter notebook, you can load your configuration explicitly:
