@@ -127,7 +127,7 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
 
 
 def save_reading_measures(directory: Path, session: str, data: pl.DataFrame) -> None:
-    directory = Path(directory) / session / constants.READING_MEASURES_FOLDER
+    directory = Path(directory) / session / settings.READING_MEASURES_FOLDER
     directory.mkdir(parents=True, exist_ok=True)
 
     trials = data.partition_by(by="trial", as_dict=False)

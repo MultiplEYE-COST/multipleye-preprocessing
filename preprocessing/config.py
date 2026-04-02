@@ -53,6 +53,19 @@ class Settings:
         #: Log level for the file output.
         self.FILE_LOG_LEVEL: str = "DEBUG"
 
+        #: Log level for warnings capture.
+        self.WARNINGS_CAPTURE_LEVEL = logging.WARNING
+
+        #: List of folder names to ignore when scanning for session folders.
+        self.IGNORED_SESSION_FOLDERS: list[str] = [
+            "test_sessions",
+            "core_sessions",
+            "pilot_sessions",
+        ]
+
+        #: Append to existing log files instead of overwriting.
+        self.APPEND_LOGS: bool = False
+
         #: The expected sampling rate of the eye tracker in Hertz.
         self.EXPECTED_SAMPLING_RATE_HZ: int = 1000
 

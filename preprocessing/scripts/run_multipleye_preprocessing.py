@@ -152,7 +152,9 @@ def run_multipleye_preprocessing(config_path: str | None = None):
 
         preprocessing.save_session_metadata(settings.OUTPUT_DIR, idf, gaze)
 
-        rm_folder = output_folder / settings.READING_MEASURES_FOLDER
+        rm_folder = (
+            settings.OUTPUT_DIR / session_save_name / settings.READING_MEASURES_FOLDER
+        )
 
         if not rm_folder.exists():
             pbar.set_description(f"Calculating reading measures {idf}:")

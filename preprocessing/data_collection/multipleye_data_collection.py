@@ -34,14 +34,6 @@ from ..checks.formal_experiment_checks import (
 from ..data_collection.session import Session
 from ..data_collection.stimulus import LabConfig, Stimulus
 from ..plotting.plot import plot_gaze, plot_main_sequence
-from ..psychometric_tests.preprocess_psychometric_tests import (
-    preprocess_plab,
-    preprocess_ran,
-    preprocess_stroop,
-    preprocess_flanker,
-    preprocess_wikivocab,
-    preprocess_lwmc,
-)
 from ..utils.fix_pq_data import remap_wrong_pq_values
 from preprocessing.scripts.prepare_language_folder import (
     extract_stimulus_version_number_from_asc,

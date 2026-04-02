@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+from ..config import settings
 import logging
 import subprocess
 from importlib import metadata
 from pathlib import Path
 
 import pymovements as pm
-
-from ..constants import CONSOLE_LOG_LEVEL, FILE_LOG_LEVEL, WARNINGS_CAPTURE_LEVEL
 
 logger = logging.getLogger("preprocessing")
 
@@ -66,8 +65,8 @@ def get_pipeline_info() -> tuple[str, str]:
 
 def setup_logging(
     log_file: Path | str | None = None,
-    console_level: int | None = None,
-    file_level: int | None = None,
+    console_level: int | str | None = None,
+    file_level: int | str | None = None,
 ) -> None:
     """Set up logging to console and optionally to a file.
 
@@ -75,16 +74,22 @@ def setup_logging(
     ----------
     log_file : Path | str, optional
         Path to the log file.
-    console_level : int, optional
+    console_level : int | str, optional
         Logging level for console output (default logging.WARNING).
-    file_level : int, optional
+    file_level : int | str, optional
         Logging level for file output (default logging.INFO).
     """
     # Resolve defaults from constants if not provided
     resolved_console_level = (
-        CONSOLE_LOG_LEVEL if console_level is None else console_level
+        settings.CONSOLE_LOG_LEVEL if console_level is None else console_level
     )
-    resolved_file_level = FILE_LOG_LEVEL if file_level is None else file_level
+    resolved_file_level = settings.FILE_LOG_LEVEL if file_level is None else file_level
+
+    # Ensure both levels are integers for comparison
+    if isinstance(resolved_console_level, str):
+        resolved_console_level = logging.getLevelName(resolved_console_level.upper())
+    if isinstance(resolved_file_level, str):
+        resolved_file_level = logging.getLevelName(resolved_file_level.upper())
 
     # --- Formatter definitions ---
     base_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -158,7 +163,7 @@ def setup_logging(
                 logging._captured_warnings.append(record.getMessage())  # type: ignore
 
     capture_handler = WarningCaptureHandler()
-    capture_handler.setLevel(WARNINGS_CAPTURE_LEVEL)
+    capture_handler.setLevel(settings.WARNINGS_CAPTURE_LEVEL)
     logging.getLogger("py.warnings").addHandler(capture_handler)
 
 

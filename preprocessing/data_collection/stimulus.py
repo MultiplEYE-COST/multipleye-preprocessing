@@ -10,13 +10,11 @@ import polars as pl
 import pymovements as pm
 from pymovements.stimulus import TextStimulus
 
+from ..config import settings
 from ..mapping.aoi import enlarge_aois
 from ..utils.logging import get_logger
-from preprocessing import constants
 
 logger = get_logger(__name__)
-
-from ..config import settings
 
 warnings.filterwarnings(
     "ignore",
@@ -343,7 +341,7 @@ class LabConfig:
             sampling_frequency_hz = final_metadata_json["Default_frequency"]
 
         else:
-            sampling_frequency_hz = constants.EXPECTED_SAMPLING_RATE_HZ
+            sampling_frequency_hz = settings.EXPECTED_SAMPLING_RATE_HZ
 
         tests = list(json_config.get("Psychometric_tests", []).keys())
 

@@ -1,6 +1,6 @@
 import polars as pl
 
-from ..config import settings
+from ...config import settings
 
 # ---------------------------
 # Basic fixation-based counts
