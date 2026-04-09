@@ -27,6 +27,17 @@ this section is for you.
 {ref}`Learn more »<reference_guide>`
 :::
 
+:::{grid-item-card} {material-regular}`help_outline;2em` FAQ & Common Issues
+:link: faq
+:link-type: ref
+
+Answers to frequently asked questions and solutions to common warnings\
+and errors encountered during data collection.
+
++++
+{ref}`Learn more »<faq>`
+:::
+
 ::::
 
 The preprocessing pipeline for the MultiplEYE corpus by
@@ -69,7 +80,8 @@ This project has been partially funded by:
    :maxdepth: 1
    :glob:
 
-   getting_started
-   guide/index
-   bibliography
+    getting_started
+    guide/index
+    faq
+    bibliography
 ```
