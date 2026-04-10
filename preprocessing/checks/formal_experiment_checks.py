@@ -432,15 +432,46 @@ def _extract_reading_time(
 
 
 def _check_validation_screen(messages, file, stimulus_name):
-    # print(last_index, index_next_stimulus)
     if (
         "validation_before_stimulus" not in messages
         and "final_validation" not in messages
     ):
-        _report_warning(
-            f"{stimulus_name}: Missing validation_before_stimulus screen in asc file",
-            file,
-        )
+        # check if instead a recalibration screen was shown
+        if "recalibration" not in messages:
+            _report_warning(
+                f"{stimulus_name}: Missing validation_before_stimulus and no recalibration screen in asc file. One should be there.",
+                file,
+            )
+
+        else:
+            # get all recalibration occurences and indices
+            indices_recal = [i for i, x in enumerate(messages) if x == "recalibration"]
+            for index in indices_recal:
+                # get five next messages, there should be a calibration
+                next_messages = messages[index : index + 5]
+                _report_information("Recalibration screen found", file)
+                if "!CAL " not in next_messages:
+                    # check if there is a validation
+                    for msg in next_messages:
+                        if msg.startswith("!CAL VALIDATION"):
+                            # check if there is a calibration within 20 messages
+                            for msg in messages[index : index + 20]:
+                                if msg == "!CAL ":
+                                    _report_information(
+                                        "Calibration screen after recalibration screen found.",
+                                        file,
+                                    )
+                                    break
+                            else:
+                                _report_warning(
+                                    "Missing calibration screen found after recalibration screen. Please check manually in the asc file.",
+                                    file,
+                                )
+
+                else:
+                    _report_information(
+                        "Calibration screen after recalibration screen found.", file
+                    )
 
 
 def _check_rating_screens(messages, file):
