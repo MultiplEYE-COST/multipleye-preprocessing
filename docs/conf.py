@@ -48,8 +48,13 @@ html_static_path = ["_static"]
 html_js_files = ["custom-icons.js", "faq-search.js"]
 html_css_files = ["custom.css"]
 html_sidebars = {
-    "**": ["navbar-logo.html", "icon-links.html", "search-button-field.html", "sbt-sidebar-nav.html"],
-    "index": ["navbar-logo.html", "icon-links.html", "search-button-field.html"]
+    "**": [
+        "navbar-logo.html",
+        "icon-links.html",
+        "search-button-field.html",
+        "sbt-sidebar-nav.html",
+    ],
+    "index": ["navbar-logo.html", "icon-links.html", "search-button-field.html"],
 }
 html_theme_options = {
     "repository_url": "https://github.com/MultiplEYE-COST/multipleye-preprocessing/",
