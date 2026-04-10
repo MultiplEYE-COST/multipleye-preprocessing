@@ -45,12 +45,43 @@ myst_links_external_new_tab = True
 
 html_theme = "sphinx_book_theme"
 html_static_path = ["_static"]
+html_js_files = ["custom-icons.js"]
+html_sidebars = {
+    "**": ["navbar-logo.html", "icon-links.html", "search-button-field.html", "sbt-sidebar-nav.html"],
+    "index": ["navbar-logo.html", "icon-links.html", "search-button-field.html"]
+}
 html_theme_options = {
     "repository_url": "https://github.com/MultiplEYE-COST/multipleye-preprocessing/",
     "use_repository_button": True,
     "use_issues_button": True,
     "use_edit_page_button": True,
     "path_to_docs": "docs",
+    "icon_links": [
+        {
+            "name": "MultiplEYE",
+            "url": "https://multipleye.eu/",
+            "icon": "fa-solid fa-eye",
+            "type": "fontawesome",
+        },
+        {
+            "name": "GitHub",
+            "url": "https://github.com/MultiplEYE-COST/multipleye-preprocessing",
+            "icon": "fa-brands fa-square-github",
+            "type": "fontawesome",
+        },
+        {
+            "name": "Digital Linguistics Group",
+            "url": "https://www.cl.uzh.ch/en/research-groups/digital-linguistics.html",
+            "icon": "fa-solid fa-graduation-cap",
+            "type": "fontawesome",
+        },
+        {
+            "name": "PyMovements",
+            "url": "https://pymovements.readthedocs.io/",
+            "icon": "fa-custom fa-pymovements",
+            "type": "fontawesome",
+        },
+    ],
 }
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
