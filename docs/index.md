@@ -27,15 +27,24 @@ this section is for you.
 {ref}`Learn more »<reference_guide>`
 :::
 
-:::{grid-item-card} {material-regular}`help_outline;2em` FAQ & Common Issues
+:::{grid-item-card} {material-regular}`help_outline;2em` FAQ
 :link: faq
 :link-type: ref
 
-Answers to frequently asked questions and solutions to common warnings\
-and errors encountered during data collection.
+Answers to frequently asked questions.
 
 +++
 {ref}`Learn more »<faq>`
+:::
+
+:::{grid-item-card} {material-regular}`warning;2em` Troubleshooting
+:link: troubleshooting
+:link-type: ref
+
+Solutions to common warnings and errors.
+
++++
+{ref}`Learn more »<troubleshooting>`
 :::
 
 ::::
@@ -77,11 +86,12 @@ This project has been partially funded by:
    :hidden:
    :name: table_of_contents
    :caption: Table of Contents
-   :maxdepth: 1
+   :maxdepth: 2
    :glob:
 
     getting_started
     guide/index
     faq
+    troubleshooting
     bibliography
 ```

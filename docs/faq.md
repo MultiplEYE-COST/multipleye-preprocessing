@@ -1,14 +1,12 @@
 (faq)=
 
-# Frequently Asked Questions & Common Warnings and Errors
+# Frequently Asked Questions
 
 *Introductionary text, Introductionary text, Introductionary text, Introductionary text,
 Introductionary text, Introductionary text ,Introductionary text, Introductionary text,
 Introductionary text, Introductionary text, Introductionary text, Introductionary text.*
 
 ---
-
-## Frequently Asked Questions
 
 ```{eval-rst}
 .. raw:: html
@@ -20,7 +18,7 @@ Introductionary text, Introductionary text, Introductionary text, Introductionar
 
 (faq_general)=
 
-### General
+## General
 
 :::{dropdown} How do I set up the preprocessing pipeline?
 :open:
@@ -40,7 +38,7 @@ Introductionary text, Introductionary text, Introductionary text, Introductionar
 
 (faq_equipment)=
 
-### Eye-Tracking Equipment
+## Eye-Tracking Equipment
 
 :::{dropdown} What eye-tracking equipment is supported?
 
@@ -57,9 +55,9 @@ Introductionary text, Introductionary text, Introductionary text, Introductionar
 *Content to be added.*
 :::
 
-(faq_troubleshooting)=
+(faq_other)=
 
-### Troubleshooting
+## Other section
 
 :::{dropdown} Why is my preprocessing failing with a "missing XYZ" error?
 
@@ -71,109 +69,22 @@ Introductionary text, Introductionary text, Introductionary text, Introductionar
 *Content to be added.*
 :::
 
-*Add more specific errors from user requests.*
-
 ---
 
-(common_warnings_errors)=
+```{eval-rst}
+.. raw:: html
 
-## Common Warnings and Errors
-
-(warnings_data_quality)=
-
-### Data Quality Warnings
-
-:::{dropdown} High ratio of missing data points - what should I do?
-
-*Content to be added.*
-:::
-
-:::{dropdown} Excessive number of blinks detected during recording
-
-*Content to be added.*
-:::
-
-(errors_processing)=
-
-### Processing Errors
-
-:::{dropdown} ValueError: Invalid timestamp format
-
-*Content to be added.*
-:::
-
-:::{dropdown} RuntimeError: Out of memory during large file processing
-
-*Content to be added.*
-:::
-
-:::{dropdown} FileNotFoundError: Configuration file not found
-
-*Content to be added.*
-:::
-
-(errors_configuration)=
-
-### Configuration Errors
-
-:::{dropdown} KeyError: Missing required setting in config file
-
-*Content to be added.*
-:::
-
-:::{dropdown} TypeError: Invalid value for parameter X
-
-*Content to be added.*
-:::
+   <div id="faq-no-results" class="faq-no-results" style="display: none;">
+       No results found. Try a different search term.
+   </div>
+```
 
 ---
 
 ```{eval-rst}
 .. raw:: html
 
-   <script>
-   document.addEventListener('DOMContentLoaded', function() {
-       var input = document.getElementById('faq-search');
-       if (!input) return;
-
-       input.addEventListener('input', function() {
-           var filter = input.value.toLowerCase();
-           var dropdowns = document.querySelectorAll('.sd-dropdown');
-
-           dropdowns.forEach(function(dropdown) {
-               var title = dropdown.querySelector('.sd-summary-text').textContent.toLowerCase();
-               var body = dropdown.querySelector('.sd-summary-content').textContent.toLowerCase();
-               var container = dropdown.closest('section');
-
-               if (title.indexOf(filter) > -1 || body.indexOf(filter) > -1) {
-                   container.style.display = '';
-               } else if (filter === '') {
-                   container.style.display = '';
-               } else {
-                   container.style.display = 'none';
-               }
-           });
-       });
-   });
-   </script>
-
-   <style>
-   .faq-search-container {
-       text-align: center;
-       margin-bottom: 2rem;
-   }
-   #faq-search {
-       width: 100%;
-       max-width: 500px;
-       padding: 0.75rem 1rem;
-       font-size: 1rem;
-       border: 2px solid #e0e0e0;
-       border-radius: 8px;
-       transition: border-color 0.3s;
-   }
-   #faq-search:focus {
-       outline: none;
-       border-color: #4a90d9;
-   }
-   </style>
+   <div id="faq-fallback" class="faq-fallback">
+       <em>If none of this works, maybe look on the <a href="../troubleshooting">Troubleshooting</a> page for answers. Finally, you can reach out to the maintainers.</em>
+   </div>
 ```

@@ -45,6 +45,8 @@ myst_links_external_new_tab = True
 
 html_theme = "sphinx_book_theme"
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
+html_js_files = ["faq-search.js"]
 html_theme_options = {
     "repository_url": "https://github.com/MultiplEYE-COST/multipleye-preprocessing/",
     "use_repository_button": True,
