@@ -412,7 +412,10 @@ def preprocess_lwmc(lwmc_dir: Path):
     # Each non-NaN in base_text_intertrial.started indicates a new trial boundary.
     df["trial_id"] = df["base_text_intertrial.started"].notna().cumsum()
 
-    df = df[~df["is_practice"]].copy()  # remove all practice trials
+    mask = df["is_practice"].fillna(False)
+    if mask.dtype != bool:
+        mask = mask.astype(bool)
+    df = df[~mask].copy()
     if df.empty:
         raise ValueError("No non-practice trials found in WMC CSV")
 
