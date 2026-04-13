@@ -12,6 +12,8 @@ import yaml
 
 THIS_REPO = Path(__file__).parent.parent
 
+DEVELOPMENT = False
+
 # USER CONFIGURABLE SETTINGS
 # load from .yaml file
 CONFIG_PATH = THIS_REPO / "multipleye_settings_preprocessing.yaml"

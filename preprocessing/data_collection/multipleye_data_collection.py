@@ -16,6 +16,7 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
+from preprocessing import constants
 from preprocessing.utils import pid_from_session
 from ..constants import (
     FIXATION,
@@ -42,7 +43,7 @@ from ..checks.formal_experiment_checks import (
 from ..data_collection.session import Session
 from ..data_collection.stimulus import LabConfig, Stimulus
 from ..plotting.plot import plot_gaze, plot_main_sequence
-from ..utils.fix_pq_data import remap_wrong_pq_values
+from ..utils.fix_questionnaire_data import remap_wrong_pq_values
 from preprocessing.scripts.prepare_language_folder import (
     extract_stimulus_version_number_from_asc,
 )
@@ -221,6 +222,8 @@ class MultipleyeDataCollection:
         self.data_root = data_root
         self.session_folder_regex = session_folder_regex
 
+        found_sessions = []
+
         if not session_file_suffix:
             # TODO: add configs for each eye tracker such that we don't always have to loop through all eye trackers
             #  but can write generic code. E.g. self.eye_tracker.session_file_regex
@@ -236,11 +239,10 @@ class MultipleyeDataCollection:
                 pilots = list(pilots)
                 items = list(items) + pilots
 
-            found_sessions = set()
             for item in items:
                 if item.is_dir():
                     if re.match(session_folder_regex, item.name, re.IGNORECASE):
-                        found_sessions.add(item.name)
+                        found_sessions.append(item.name)
                         if (
                             (
                                 self.excluded_sessions
@@ -290,12 +292,24 @@ class MultipleyeDataCollection:
                     else:
                         if item.name not in IGNORED_SESSION_FOLDERS:
                             self.logger.warning(
-                                f"Folder {item.name} does not match the regex pattern "
-                                f"{session_folder_regex}. Not considered as session."
+                                f"Folder in eye-tracking-sessions {item.name} does not match the eye-tracking session regex pattern "
+                                f"{session_folder_regex}. Not considered an eye-tracking session."
                             )
 
+        if not found_sessions:
+            raise ValueError(f"No sessions found in data folder {self.data_root}")
+
+        unique_sessions = set(found_sessions)
+
+        if len(unique_sessions) != len(found_sessions):
+            raise ValueError(
+                "Session identifiers are not unique. PLease check if one identifier has been used twice. "
+                "For example for a pilot session AND a core session."
+                "Should that be the case, please contact the multipleye team."
+            )
+
         if self.included_sessions:
-            missing_included = set(self.included_sessions) - found_sessions
+            missing_included = set(self.included_sessions) - unique_sessions
             if missing_included:
                 self.logger.warning(
                     f"The following sessions were specified in 'include_sessions' but "
@@ -303,7 +317,7 @@ class MultipleyeDataCollection:
                 )
 
         if self.excluded_sessions:
-            missing_excluded = set(self.excluded_sessions) - found_sessions
+            missing_excluded = set(self.excluded_sessions) - unique_sessions
             if missing_excluded:
                 self.logger.warning(
                     f"The following sessions were specified in 'exclude_sessions' but "
@@ -853,26 +867,38 @@ class MultipleyeDataCollection:
         stim_order_version = self.stim_order_versions[
             self.stim_order_versions["participant_id"] == int(p_id)
         ]
-        if len(stim_order_version) == 0:
+
+        if stim_order_version.empty:
             self.logger.warning(
                 f"Participant ID {p_id} not found in stimulus order versions. Please check the "
                 f"participant IDs in the stimulus order versions file. It is possible that the team did not "
                 f"upload the correct stimulus version from the experiment folder. Extracting version "
-                f"from asc file"
+                f"from asc file."
             )
             version = extract_stimulus_version_number_from_asc(
                 self.sessions[session_identifier].asc_path
             )
 
+            version = int(version)
+
             if version == logfile_order_version:
-                self.logger.warning(
-                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                    f"extracted from the asc file ({version}) for participant ID {p_id}. Using the "
-                    f"version from the logfile."
-                )
-                stim_order_version = self.stim_order_versions[
-                    self.stim_order_versions["version_number"] == version
-                ]
+                if constants.DEVELOPMENT:
+                    # only in develop mode we allow ignoring missing version numbers in the stimulus folder
+                    stim_order_version = self.stim_order_versions[
+                        self.stim_order_versions["version_number"] == version
+                    ]
+
+                    if stim_order_version.empty:
+                        raise ValueError(
+                            "Stimulus order version from the asc cannot be found in the version csv. "
+                            "The team should upload the correct stimulus folder. It could be that a "
+                            "test version is uploaded. "
+                        )
+
+                    self.logger.warning(
+                        "Using the stimulus order version in logfile. The team should still "
+                        "upload the correct stimulus folder!!"
+                    )
 
             else:
                 self.logger.warning(

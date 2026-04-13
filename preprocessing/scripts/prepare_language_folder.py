@@ -51,6 +51,10 @@ def prepare_language_folder(data_collection_name):
         if core_session_path.exists():
             core_folders = list(core_session_path.glob("*"))
             if len(core_folders) > 0:
+                logger.info(
+                    "Starting to move folders from 'core_sessions' to 'eye-tracking-sessions' "
+                    "and removed 'core_sessions' folder."
+                )
                 for folder in core_folders:
                     shutil.move(str(folder), str(eye_tracking_sessions_path))
                 shutil.rmtree(core_session_path)

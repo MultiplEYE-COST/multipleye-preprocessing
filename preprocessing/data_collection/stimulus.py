@@ -109,7 +109,7 @@ class Stimulus:
         stimulus_df_path = stimulus_dir / f"multipleye_stimuli_experiment_{lang}.xlsx"
         assert stimulus_df_path.exists(), f"File {stimulus_df_path} does not exist"
 
-        stimulus_df = pl.read_excel(stimulus_df_path, engine="openpyxl")
+        stimulus_df = pl.read_excel(stimulus_df_path, engine="calamine")
         stimulus_row = stimulus_df.row(
             by_predicate=pl.col("stimulus_name") == stimulus_name, named=True
         )
