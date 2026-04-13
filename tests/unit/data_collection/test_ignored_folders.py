@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -55,26 +54,26 @@ def test_add_recorded_sessions_logging(
     data_root = Path("/tmp/fake_data_root")
     regex = r"^\d{3}_EE_EN_1_ET\d$"
 
-    # Mock directory entry
+    # Mock directory entry for the folder under test
     mock_entry = MagicMock()
     mock_entry.name = folder_name
     mock_entry.is_dir.return_value = True
     mock_entry.path = str(data_root / folder_name)
 
-    # If it matches the regex, we need to mock glob to avoid errors in the matching branch
-    if re.match(regex, folder_name, re.IGNORECASE):
-        # We don't want to test the matching branch here, just ensure it doesn't crash
-        # or we can just skip the globbing by making it not a dir for that part if possible
-        # but the code calls glob if it matches
-        pass
+    # Mock directory entry for a valid session folder to avoid ValueError: No sessions found
+    valid_folder_name = "001_EE_EN_1_ET1"
+    valid_entry = MagicMock()
+    valid_entry.name = valid_folder_name
+    valid_entry.is_dir.return_value = True
+    valid_entry.path = str(data_root / valid_folder_name)
 
     with (
-        patch("os.scandir", return_value=[mock_entry]),
-        patch("pathlib.Path.glob", return_value=[Path("fake.edf")]),
-    ):  # Mock edf file if matches
+        patch("os.scandir", return_value=[mock_entry, valid_entry]),
+        patch("pathlib.Path.glob", return_value=[Path("001_EE_EN_1_ET1_test.edf")]),
+    ):
         instance.add_recorded_sessions(data_root, regex)
 
-        warning_msg = f"Folder {folder_name} does not match the regex pattern {regex}. Not considered as session."
+        warning_msg = f"Folder in eye-tracking-sessions {folder_name} does not match the eye-tracking session regex pattern {regex}. Not considered an eye-tracking session."
 
         if should_warn:
             instance.logger.warning.assert_called_with(warning_msg)
