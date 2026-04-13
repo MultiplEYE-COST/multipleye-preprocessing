@@ -59,6 +59,11 @@ class Settings:
         #: Log level for warnings capture.
         self.WARNINGS_CAPTURE_LEVEL = logging.WARNING
 
+        #: List of regex patterns to ignore in log messages.
+        self.IGNORED_LOG_REGEXES: list[str] = [
+            r"Could not determine dtype for column \d+, falling back to string",
+        ]
+
         #: List of folder names to ignore when scanning for session folders.
         self.IGNORED_SESSION_FOLDERS: list[str] = [
             "test_sessions",

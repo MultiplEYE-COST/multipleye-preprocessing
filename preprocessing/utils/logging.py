@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ..config import settings
 import logging
+import re
 import subprocess
 from importlib import metadata
 from pathlib import Path
@@ -146,6 +147,31 @@ def setup_logging(
 
     # Note: We use the package-level logger defined at module level
     logger.info("MultiplEYE preprocessing package loaded.")
+
+    # Add regex filter to root logger and py.warnings logger
+    class RegexFilter(logging.Filter):
+        def __init__(self, patterns: list[str]):
+            super().__init__()
+            self.patterns = [re.compile(p) for p in patterns]
+
+        def filter(self, record: logging.LogRecord) -> bool:
+            msg = record.getMessage()
+            for pattern in self.patterns:
+                if pattern.search(msg):
+                    return False
+            return True
+
+    if hasattr(settings, "IGNORED_LOG_REGEXES") and settings.IGNORED_LOG_REGEXES:
+        regex_filter = RegexFilter(settings.IGNORED_LOG_REGEXES)
+        logging.getLogger().addFilter(regex_filter)
+        for handler in logging.getLogger().handlers:
+            handler.addFilter(regex_filter)
+        # Also ensure the filter is on the py.warnings logger
+        # which might have its own handlers or be attached to root
+        warn_logger = logging.getLogger("py.warnings")
+        warn_logger.addFilter(regex_filter)
+        for handler in warn_logger.handlers:
+            handler.addFilter(regex_filter)
 
     # Log versions
     pipeline_version, last_update = get_pipeline_info()
