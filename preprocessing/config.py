@@ -35,6 +35,9 @@ class Settings:
         self.__dict__["DATA_COLLECTION_NAME"] = value
 
     def _init_defaults(self) -> None:
+        #: Whether to enable development mode.
+        self.DEVELOPMENT: bool = False
+
         #: Whether to include sessions from the pilot folder.
         self.INCLUDE_PILOTS: bool = False
 

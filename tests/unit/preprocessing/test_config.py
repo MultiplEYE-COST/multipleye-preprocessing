@@ -14,6 +14,7 @@ def settings_obj():
     "attr, expected",
     [
         ("INCLUDE_PILOTS", False),
+        ("DEVELOPMENT", False),
         ("EXPECTED_SAMPLING_RATE_HZ", 1000),
         ("FIXATION", "fixation"),
         ("SACCADE", "saccade"),
