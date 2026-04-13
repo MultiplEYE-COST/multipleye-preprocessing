@@ -263,7 +263,7 @@ def test__reaction_time_accuracy_grouped_missing_column(group_by_col, expect_err
             ["a", "c"],
             False,
             None,
-            lambda df: (list(df.columns) == ["a", "c"] and df.shape == (2, 2)),
+            lambda df: list(df.columns) == ["a", "c"] and df.shape == (2, 2),
         ),
         # No CSV files -> ValueError
         (
@@ -295,7 +295,7 @@ def test__reaction_time_accuracy_grouped_missing_column(group_by_col, expect_err
             ["m", "n"],
             False,
             None,
-            lambda df: (list(df.columns) == ["m", "n"] and df.shape == (0, 2)),
+            lambda df: list(df.columns) == ["m", "n"] and df.shape == (0, 2),
         ),
         # Multiple CSVs that partially match, only one exactly -> returns DataFrame
         (
@@ -303,7 +303,7 @@ def test__reaction_time_accuracy_grouped_missing_column(group_by_col, expect_err
             ["v", "w"],
             False,
             None,
-            lambda df: (list(df.columns) == ["v", "w"] and df.shape == (1, 2)),
+            lambda df: list(df.columns) == ["v", "w"] and df.shape == (1, 2),
         ),
         # One CSV with NaN values in required columns, allowed -> no error
         (
@@ -311,7 +311,7 @@ def test__reaction_time_accuracy_grouped_missing_column(group_by_col, expect_err
             ["a", "b"],
             True,
             None,
-            lambda df: (list(df.columns) == ["a", "b"] and df.shape == (1, 2)),
+            lambda df: list(df.columns) == ["a", "b"] and df.shape == (1, 2),
         ),
         # One CSV with NaN values in required columns, not allowed -> raises ValueError
         (

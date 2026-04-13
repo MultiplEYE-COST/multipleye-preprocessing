@@ -8,6 +8,7 @@ import pytest
 from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
 )
+from preprocessing.config import settings
 from preprocessing.utils.logging import setup_logging, clear_log_file
 
 
@@ -91,6 +92,49 @@ def test_warning_capture(warnings_to_log, temp_log_file):
         assert test_warning_msg in content
 
     assert any(test_warning_msg in msg for msg in logging._captured_warnings)  # type: ignore
+
+
+def test_ignored_log_regexes(temp_log_file, monkeypatch):
+    """Test that log messages matching IGNORED_LOG_REGEXES are filtered out."""
+    ignored_msg = "Could not determine dtype for column 19, falling back to string"
+    allowed_msg = "This is an allowed message"
+
+    # Set up settings with our regex
+    monkeypatch.setattr(
+        settings,
+        "IGNORED_LOG_REGEXES",
+        [r"Could not determine dtype for column \d+, falling back to string"],
+    )
+
+    # Initialize logging with the new settings
+    setup_logging(log_file=temp_log_file, file_level=logging.WARNING)
+
+    # Create a logger and log both messages
+    test_logger = logging.getLogger("fastexcel.types.dtype")
+    test_logger.warning(ignored_msg)
+    test_logger.warning(allowed_msg)
+
+    # Also test via py.warnings
+    logging.getLogger("py.warnings").warning(ignored_msg)
+    logging.getLogger("py.warnings").warning(allowed_msg)
+
+    # Check the log file
+    assert temp_log_file.exists()
+    with open(temp_log_file, "r") as f:
+        content = f.read()
+        assert ignored_msg not in content
+        assert allowed_msg in content
+
+    # Test that regex-based filtering also works for captured warnings via warnings.warn
+    with pytest.warns(UserWarning, match=ignored_msg):
+        warnings.warn(ignored_msg, UserWarning)
+    with pytest.warns(UserWarning, match=allowed_msg):
+        warnings.warn(allowed_msg, UserWarning)
+
+    with open(temp_log_file, "r") as f:
+        content = f.read()
+        assert ignored_msg not in content
+        assert allowed_msg in content
 
 
 @pytest.mark.parametrize(

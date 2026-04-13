@@ -2,6 +2,7 @@ from pathlib import Path
 
 import polars as pl
 
+from ..config import settings
 from ..data_collection.stimulus import Stimulus
 
 OME_TIME_SCREENS = [
@@ -118,28 +119,32 @@ def sanity_check_gaze_frame(gaze, stimuli, report_file):
     for stimulus in stimuli:
         # print(f"Checking {stimulus.name}")
         stimulus_frame = gaze.frame.filter(
-            (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
-        ).unique("page")
+            (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
+        ).unique(settings.PAGE_COL)
         # check if all pages are present
         for page in stimulus.pages:
-            if f"page_{page.number}" not in stimulus_frame["page"].to_list():
+            if (
+                f"{settings.PAGE_PREFIX}{page.number}"
+                not in stimulus_frame[settings.PAGE_COL].to_list()
+            ):
                 # print(f"Missing page {page.number}")
                 _report_warning(f"Missing page {page.number} in asc file", report_file)
         # check if all questions are present
         for question in stimulus.questions:
             if (
-                f"question_{question.id}" not in stimulus_frame["page"].to_list()
-                and f"question_{question.id[1:]}"
-                not in stimulus_frame["page"].to_list()
+                f"{settings.QUESTION_PREFIX}{question.id}"
+                not in stimulus_frame[settings.PAGE_COL].to_list()
+                and f"{settings.QUESTION_PREFIX}{question.id[1:]}"
+                not in stimulus_frame[settings.PAGE_COL].to_list()
             ):
                 _report_warning(
-                    f"Missing question_{question.name} in asc file or in experiment frame",
+                    f"Missing {settings.QUESTION_PREFIX}{question.name} in asc file or in experiment frame",
                     report_file,
                 )
             # print(stimulus_frame["screen"])
 
         for rating in stimulus.ratings:
-            if f"{rating.name}" not in stimulus_frame["page"].to_list():
+            if f"{rating.name}" not in stimulus_frame[settings.PAGE_COL].to_list():
                 # print(f"Missing instruction {rating.name}")
                 _report_warning(
                     f"Missing rating {rating.name} in asc file", report_file

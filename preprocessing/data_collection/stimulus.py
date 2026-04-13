@@ -10,9 +10,9 @@ import polars as pl
 import pymovements as pm
 from pymovements.stimulus import TextStimulus
 
+from ..config import settings
 from ..mapping.aoi import enlarge_aois
 from ..utils.logging import get_logger
-from preprocessing import constants
 
 logger = get_logger(__name__)
 
@@ -258,12 +258,12 @@ class Stimulus:
             list_name.append(instruction)
 
         if stimulus_type == "experiment":
-            assert len(questions) == QUESTION_NUMBERS["experiment"], (
-                f"{stimulus_id} has {len(questions)} questions instead of 6"
+            assert len(questions) == settings.NUM_QUESTIONS_EXPERIMENT, (
+                f"{stimulus_id} has {len(questions)} questions instead of {settings.NUM_QUESTIONS_EXPERIMENT}"
             )
         elif stimulus_type == "practice":
-            assert len(questions) == QUESTION_NUMBERS["practice"], (
-                f"{stimulus_id} has {len(questions)} questions instead of 2"
+            assert len(questions) == settings.NUM_QUESTIONS_PRACTICE, (
+                f"{stimulus_id} has {len(questions)} questions instead of {settings.NUM_QUESTIONS_PRACTICE}"
             )
 
         stim = cls(
@@ -341,7 +341,7 @@ class LabConfig:
             sampling_frequency_hz = final_metadata_json["Default_frequency"]
 
         else:
-            sampling_frequency_hz = constants.EXPECTED_SAMPLING_RATE_HZ
+            sampling_frequency_hz = settings.EXPECTED_SAMPLING_RATE_HZ
 
         tests = list(json_config.get("Psychometric_tests", []).keys())
 

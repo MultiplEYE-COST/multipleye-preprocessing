@@ -7,7 +7,7 @@ import polars as pl
 import pymovements as pm
 from matplotlib.patches import Circle
 
-from ..constants import FIXATION
+from ..config import settings
 from ..data_collection.stimulus import Stimulus
 
 
@@ -26,14 +26,14 @@ def plot_gaze(
 
     for page in stimulus.pages:
         page_samples = data.frame.filter(
-            (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
-            & (pl.col("page") == f"page_{page.number}")
+            (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
+            & (pl.col(settings.PAGE_COL) == f"{settings.PAGE_PREFIX}{page.number}")
         ).select(pl.col("pixel_x"), pl.col("pixel_y"))
 
         page_events = data.events.frame.filter(
-            (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
-            & (pl.col("page") == f"page_{page.number}")
-            & (pl.col("name") == FIXATION)
+            (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
+            & (pl.col(settings.PAGE_COL) == f"{settings.PAGE_PREFIX}{page.number}")
+            & (pl.col("name") == settings.FIXATION)
         ).select(
             pl.col("duration"),
             pl.col("location_x"),
@@ -75,20 +75,18 @@ def plot_gaze(
         plt.close(fig)
 
     for question in stimulus.questions:
-        screen_name = (
-            f"question_{int(question.id)}"  # Screen names don't have leading zeros
-        )
+        screen_name = f"{settings.QUESTION_PREFIX}{int(question.id)}"  # Screen names don't have leading zeros
         page_samples = data.frame.filter(
-            (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
-            & (pl.col("page") == screen_name)
+            (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
+            & (pl.col(settings.PAGE_COL) == screen_name)
         ).select(
             pl.col("pixel_x"),
             pl.col("pixel_y"),
         )
         page_events = data.events.frame.filter(
-            (pl.col("stimulus") == f"{stimulus.name}_{stimulus.id}")
-            & (pl.col("page") == screen_name)
-            & (pl.col("name") == FIXATION)
+            (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
+            & (pl.col(settings.PAGE_COL) == screen_name)
+            & (pl.col("name") == settings.FIXATION)
         ).select(
             pl.col("duration"),
             pl.col("location_x"),
@@ -132,16 +130,16 @@ def plot_gaze(
     for rating in stimulus.ratings:
         screen_name = f"{rating.name}"  # Screen names don't have leading zeros
         page_samples = data.frame.filter(
-            (pl.col("trial") == f"trial_{stimulus.id}")
-            & (pl.col("page") == screen_name)
+            (pl.col(settings.TRIAL_COL) == f"trial_{stimulus.id}")
+            & (pl.col(settings.PAGE_COL) == screen_name)
         ).select(
             pl.col("pixel_x"),
             pl.col("pixel_y"),
         )
         page_events = data.events.frame.filter(
-            (pl.col("stimulus") == f"trial_{stimulus.id}")
-            & (pl.col("page") == screen_name)
-            & (pl.col("name") == FIXATION)
+            (pl.col(settings.STIMULUS_COL) == f"trial_{stimulus.id}")
+            & (pl.col(settings.PAGE_COL) == screen_name)
+            & (pl.col("name") == settings.FIXATION)
         ).select(
             pl.col("duration"),
             pl.col("location_x"),

@@ -3,7 +3,7 @@ from typing import Any, Callable, TextIO
 
 import polars as pl
 
-from .. import constants
+from ..config import settings
 from ..data_collection.stimulus import Stimulus
 from ..utils import _report_to_file
 
@@ -310,25 +310,25 @@ def check_metadata(
     report(
         "Number of calibrations",
         num_calibrations,
-        constants.ACCEPTABLE_NUM_CALIBRATIONS,
+        settings.ACCEPTABLE_NUM_CALIBRATIONS,
     )
 
     validation_scores_avg = validations["accuracy_avg"].cast(pl.Float32).to_list()
 
     num_validations = len(validations)
     report(
-        "Number of validations", num_validations, constants.ACCEPTABLE_NUM_CALIBRATIONS
+        "Number of validations", num_validations, settings.ACCEPTABLE_NUM_CALIBRATIONS
     )
     report(
         "AVG validation scores",
         validation_scores_avg,
-        constants.ACCEPTABLE_AVG_VALIDATION_SCORES,
+        settings.ACCEPTABLE_AVG_VALIDATION_SCORES,
     )
     validation_scores_max = validations["accuracy_max"].cast(pl.Float32).to_list()
     report(
         "MAX validation scores",
         validation_scores_max,
-        constants.TRACKED_EYE,
+        settings.TRACKED_EYE,
     )
 
     # this has been excluded in pm, but as we have the accuracy values this is enough...
@@ -336,7 +336,7 @@ def check_metadata(
     # report("Validation errors", validation_errors, config.ACCEPTABLE_VALIDATION_ERRORS)
 
     tracked_eye = metadata["tracked_eye"]
-    report("tracked_eye", tracked_eye, constants.TRACKED_EYE)
+    report("tracked_eye", tracked_eye, settings.TRACKED_EYE)
 
     validation_eye = validations["eye"].to_list()
 
@@ -349,25 +349,25 @@ def check_metadata(
     report(
         "Data loss ratio",
         data_loss_ratio,
-        constants.ACCEPTABLE_DATA_LOSS_RATIOS,
+        settings.ACCEPTABLE_DATA_LOSS_RATIOS,
         percentage=True,
     )
     data_loss_ratio_blinks = metadata["data_loss_ratio_blinks"]
     report(
         "Data loss ratio due to blinks",
         data_loss_ratio_blinks,
-        constants.ACCEPTABLE_DATA_LOSS_RATIOS,
+        settings.ACCEPTABLE_DATA_LOSS_RATIOS,
         percentage=True,
     )
     total_recording_duration = metadata["total_recording_duration_ms"] / 60000
     report(
         "Total recording duration",
         total_recording_duration,
-        constants.ACCEPTABLE_RECORDING_DURATIONS,
+        settings.ACCEPTABLE_RECORDING_DURATIONS,
     )
     sampling_rate = metadata["sampling_rate"]
     report(
         "Sampling rate",
         sampling_rate,
-        constants.EXPECTED_SAMPLING_RATE_HZ,
+        settings.EXPECTED_SAMPLING_RATE_HZ,
     )

@@ -5,7 +5,6 @@ import tarfile
 from pathlib import Path
 
 import pandas as pd
-from preprocessing import constants
 
 from ..utils.data_path_utils import check_data_collection_exists
 from ..utils.logging import get_logger
@@ -16,13 +15,24 @@ from ..utils.fix_multipleye_aoi_files import (
 )
 
 
-def prepare_language_folder(data_collection_name):
+def prepare_language_folder(data_collection_name: str | None = None):
+    from preprocessing import settings
+
+    if data_collection_name is None:
+        data_collection_name = settings.DATA_COLLECTION_NAME
+
+    if data_collection_name is None:
+        raise ValueError(
+            "data_collection_name is None. Please provide a valid data collection name "
+            "as an argument or load a configuration via settings.load()."
+        )
+
     _, lang, country, city, lab_no, year = data_collection_name.split("_")
     logger = get_logger(__name__)
 
     # Check if the data collection folder exists
     data_folder_path = check_data_collection_exists(
-        data_collection_name, constants.THIS_REPO / "data"
+        data_collection_name, settings.THIS_REPO / "data"
     )
 
     # check if there exists an eye-tracking-sessions folder
@@ -166,7 +176,9 @@ def prepare_language_folder(data_collection_name):
 
 
 def extract_stimulus_version_number_from_asc(asc_file_path: Path) -> int:
-    pattern = r"MSG\s+\d+\s+stimulus_order_version:\s+(?P<version_num>\d\d?\d?)\n"
+    from preprocessing import settings
+
+    pattern = settings.STIMULUS_ORDER_VERSION_REGEX
 
     with open(asc_file_path) as asc_file:
         for line in asc_file:
