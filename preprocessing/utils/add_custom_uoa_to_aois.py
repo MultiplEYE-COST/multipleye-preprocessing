@@ -17,7 +17,7 @@ import pandas as pd
 from preprocessing import config
 
 
-def refactor_aoi_file(data_collection_name: str) -> None:
+def rename_aoi_header(data_collection_name: str) -> None:
     """
     Refactor the aoi files for a given data collection to have consistent naming conventions.
     If necessary, add the custom uoa aois for the given language.

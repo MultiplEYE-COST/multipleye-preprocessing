@@ -108,6 +108,9 @@ class Settings:
         #: Subfolder name for scanpath data.
         self.SCANPATHS_FOLDER = Path("scanpaths/")
 
+        #: Subfolder name for reading measures data
+        self.READING_MEASURES_FOLDER = Path("reading_measures/")
+
         #: Column name for the trial identifier.
         self.TRIAL_COL = "trial"
 
@@ -202,10 +205,10 @@ class Settings:
         )
 
         #: Glob pattern for raw data files.
-        self.RAW_DATA_FILE_GLOB = "*_raw_data.csv"
+        self.RAW_DATA_FILE_GLOB = ".*_raw_data.csv"
 
         #: Glob pattern for event data files.
-        self.EVENT_DATA_FILE_GLOB = "*_{event_type}.csv"
+        self.EVENT_DATA_FILE_GLOB = ".*_{event_type}.csv"
 
         #: Regex to extract the stimulus order version from ASC files.
         self.STIMULUS_ORDER_VERSION_REGEX = re.compile(

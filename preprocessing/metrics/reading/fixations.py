@@ -18,7 +18,7 @@ def annotate_fixations(
       If None, defaults to ["trial", "stimulus", "page"].
     """
     if group_columns is None:
-        from ..config import settings
+        from ...config import settings
 
         group_columns = [settings.TRIAL_COL, settings.STIMULUS_COL, settings.PAGE_COL]
 
@@ -125,7 +125,7 @@ def annotate_fixations(
         words_ever_entered: set[int] = set()
 
         for row in df.iter_rows(named=True):
-            from ..config import settings
+            from ...config import settings
 
             w = row[settings.WORD_IDX_COL]
             run = row["run_id"]

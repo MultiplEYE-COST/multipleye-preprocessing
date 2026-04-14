@@ -53,6 +53,11 @@ def save_events_data(
     :param data: The events data as a pymovements Gaze object.
     """
 
+    if event_type not in ["fixation", "saccade"]:
+        raise ValueError(
+            "Only fixations and saccades are currently supported as events."
+        )
+
     directory = (
         Path(directory) / session / settings.FIXATIONS_FOLDER
         if event_type == "fixation"
