@@ -45,7 +45,8 @@ myst_links_external_new_tab = True
 
 html_theme = "sphinx_book_theme"
 html_static_path = ["_static"]
-html_js_files = ["custom-icons.js"]
+html_js_files = ["custom-icons.js", "faq-search.js"]
+html_css_files = ["custom.css"]
 html_sidebars = {
     "**": [
         "navbar-logo.html",
