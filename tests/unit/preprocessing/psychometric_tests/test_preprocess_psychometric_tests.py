@@ -279,7 +279,7 @@ def test__reaction_time_accuracy_grouped_missing_column(group_by_col, expect_err
             [("bad.csv", "x,y\n", "1,2\n")],
             ["a"],
             False,
-            r"No CSV files with the required columns \['a'\] were found in 'session'.\n'bad.csv' is missing \['a'\]",
+            r"No CSV files with the required columns \['a'\] were found in 'session'.\nChecked: 'bad.csv'",
             None,
         ),
         # Multiple CSVs that both match -> ValueError with file names
@@ -436,7 +436,11 @@ def test_preprocess_stroop_errors(
 ):
     folder = tmp_path / "p1" / "SF"
     make_text_file(folder / "data.csv", header=header, body=body)
-    if "No CSV files with columns" in error_msg or "No .csv files with columns" in error_msg or "Stroop results missing" in error_msg:
+    if (
+        "No CSV files with columns" in error_msg
+        or "No .csv files with columns" in error_msg
+        or "Stroop results missing" in error_msg
+    ):
         with pytest.raises(ValueError, match="Stroop results missing"):
             preprocess_stroop(folder)
     else:
@@ -497,7 +501,11 @@ def test_preprocess_flanker_errors(
 ):
     folder = tmp_path / "p2" / "SF"
     make_text_file(folder / "data.csv", header=header, body=body)
-    if "No CSV files with columns" in error_msg or "No .csv files with columns" in error_msg or "Flanker results missing" in error_msg:
+    if (
+        "No CSV files with columns" in error_msg
+        or "No .csv files with columns" in error_msg
+        or "Flanker results missing" in error_msg
+    ):
         with pytest.raises(ValueError, match="Flanker results missing"):
             preprocess_flanker(folder)
     else:
@@ -544,7 +552,10 @@ def test_preprocess_plab_errors(
 ):
     folder = tmp_path / "p3" / "PLAB"
     make_text_file(folder / "plab.csv", header=header, body=body)
-    if "No CSV files with the required columns" in error_msg or "PLAB results missing" in error_msg:
+    if (
+        "No CSV files with the required columns" in error_msg
+        or "PLAB results missing" in error_msg
+    ):
         with pytest.raises(ValueError, match="PLAB results missing"):
             preprocess_plab(folder)
     else:
@@ -569,7 +580,11 @@ def test_preprocess_ran_basic(tmp_path: Path, make_text_file):
         ("Trial,RT\n", "1,2\n", "No CSV files with the required columns"),
         ("Trial,Reading_Time\n", "1,\n", "NaN values found in required columns"),
         # Multiple files with required columns
-        ("Trial,Reading_Time\n", "1,2\n", "Multiple CSV files with the required columns"),
+        (
+            "Trial,Reading_Time\n",
+            "1,2\n",
+            "Multiple CSV files with the required columns",
+        ),
     ],
 )
 def test_preprocess_ran_errors(tmp_path: Path, make_text_file, header, body, error_msg):
@@ -579,7 +594,12 @@ def test_preprocess_ran_errors(tmp_path: Path, make_text_file, header, body, err
     if error_msg.startswith("Multiple"):
         make_text_file(folder / "ran2.csv", header=header, body=body)
     # The wrapper adds more context, so we match the wrapper's prefix
-    if "No CSV files with the required columns" in error_msg or "RAN results missing" in error_msg or "Multiple CSV files with the required columns" in error_msg or "NaN values found" in error_msg:
+    if (
+        "No CSV files with the required columns" in error_msg
+        or "RAN results missing" in error_msg
+        or "Multiple CSV files with the required columns" in error_msg
+        or "NaN values found" in error_msg
+    ):
         with pytest.raises(ValueError, match=r"RAN \(Rapid Naming\) results missing"):
             preprocess_ran(folder)
     else:
