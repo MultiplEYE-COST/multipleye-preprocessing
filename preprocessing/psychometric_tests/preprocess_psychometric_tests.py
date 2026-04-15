@@ -288,7 +288,11 @@ def preprocess_stroop(stroop_flanker_dir: Path):
         # Determine display path for the outer error message
         try:
             psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
-            if stroop_flanker_dir.is_absolute() and psym_dir.is_absolute() and stroop_flanker_dir.is_relative_to(psym_dir):
+            if (
+                stroop_flanker_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and stroop_flanker_dir.is_relative_to(psym_dir)
+            ):
                 display_path = str(stroop_flanker_dir.relative_to(psym_dir))
             else:
                 display_path = stroop_flanker_dir.name
@@ -296,6 +300,7 @@ def preprocess_stroop(stroop_flanker_dir: Path):
             display_path = stroop_flanker_dir.name
 
         import re
+
         see_also = ""
         files_checked = re.findall(r"'([^']+)'", str(err))
         # Filter out common non-file strings
@@ -369,7 +374,11 @@ def preprocess_flanker(stroop_flanker_dir: Path):
         # Determine display path for the outer error message
         try:
             psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
-            if stroop_flanker_dir.is_absolute() and psym_dir.is_absolute() and stroop_flanker_dir.is_relative_to(psym_dir):
+            if (
+                stroop_flanker_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and stroop_flanker_dir.is_relative_to(psym_dir)
+            ):
                 display_path = str(stroop_flanker_dir.relative_to(psym_dir))
             else:
                 display_path = stroop_flanker_dir.name
@@ -377,6 +386,7 @@ def preprocess_flanker(stroop_flanker_dir: Path):
             display_path = stroop_flanker_dir.name
 
         import re
+
         see_also = ""
         files_checked = re.findall(r"'([^']+)'", str(err))
         if files_checked:
@@ -466,7 +476,11 @@ def preprocess_lwmc(lwmc_dir: Path):
         # Determine display path for the outer error message
         try:
             psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
-            if lwmc_dir.is_absolute() and psym_dir.is_absolute() and lwmc_dir.is_relative_to(psym_dir):
+            if (
+                lwmc_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and lwmc_dir.is_relative_to(psym_dir)
+            ):
                 display_path = str(lwmc_dir.relative_to(psym_dir))
             else:
                 display_path = lwmc_dir.name
@@ -474,6 +488,7 @@ def preprocess_lwmc(lwmc_dir: Path):
             display_path = lwmc_dir.name
 
         import re
+
         see_also = ""
         files_checked = re.findall(r"'([^']+)'", str(err))
         if files_checked:
@@ -615,7 +630,11 @@ def preprocess_ran(ran_dir: Path):
         # Determine display path for the outer error message
         try:
             psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
-            if ran_dir.is_absolute() and psym_dir.is_absolute() and ran_dir.is_relative_to(psym_dir):
+            if (
+                ran_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and ran_dir.is_relative_to(psym_dir)
+            ):
                 display_path = str(ran_dir.relative_to(psym_dir))
             else:
                 display_path = ran_dir.name
@@ -623,6 +642,7 @@ def preprocess_ran(ran_dir: Path):
             display_path = ran_dir.name
 
         import re
+
         see_also = ""
         files_checked = re.findall(r"'([^']+)'", str(err))
         if files_checked:
@@ -695,7 +715,11 @@ def preprocess_wikivocab(wv_dir: Path):
         # Determine display path for the outer error message
         try:
             psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
-            if wv_dir.is_absolute() and psym_dir.is_absolute() and wv_dir.is_relative_to(psym_dir):
+            if (
+                wv_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and wv_dir.is_relative_to(psym_dir)
+            ):
                 display_path = str(wv_dir.relative_to(psym_dir))
             else:
                 display_path = wv_dir.name
@@ -703,6 +727,7 @@ def preprocess_wikivocab(wv_dir: Path):
             display_path = wv_dir.name
 
         import re
+
         see_also = ""
         files_checked = re.findall(r"'([^']+)'", str(err))
         if files_checked:
@@ -744,7 +769,11 @@ def preprocess_wikivocab(wv_dir: Path):
         # Determine display path for the outer error message
         try:
             psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
-            if wv_dir.is_absolute() and psym_dir.is_absolute() and wv_dir.is_relative_to(psym_dir):
+            if (
+                wv_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and wv_dir.is_relative_to(psym_dir)
+            ):
                 display_path = str(wv_dir.relative_to(psym_dir))
             else:
                 display_path = wv_dir.name
@@ -752,6 +781,7 @@ def preprocess_wikivocab(wv_dir: Path):
             display_path = wv_dir.name
 
         import re
+
         see_also = ""
         files_checked = re.findall(r"'([^']+)'", str(err))
         if files_checked:
@@ -811,7 +841,11 @@ def preprocess_plab(plab_dir: Path):
         # Determine display path for the outer error message
         try:
             psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
-            if plab_dir.is_absolute() and psym_dir.is_absolute() and plab_dir.is_relative_to(psym_dir):
+            if (
+                plab_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and plab_dir.is_relative_to(psym_dir)
+            ):
                 display_path = str(plab_dir.relative_to(psym_dir))
             else:
                 display_path = plab_dir.name
@@ -819,6 +853,7 @@ def preprocess_plab(plab_dir: Path):
             display_path = plab_dir.name
 
         import re
+
         see_also = ""
         files_checked = re.findall(r"'([^']+)'", str(err))
         if files_checked:
@@ -1002,7 +1037,11 @@ def _find_one_filetype_with_columns(
         else:
             # Fallback: if folder is inside settings.PSYCHOMETRIC_TESTS_DIR, use that
             psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
-            if folder.is_absolute() and psym_dir.is_absolute() and folder.is_relative_to(psym_dir):
+            if (
+                folder.is_absolute()
+                and psym_dir.is_absolute()
+                and folder.is_relative_to(psym_dir)
+            ):
                 display_path = str(folder.relative_to(psym_dir))
             else:
                 display_path = folder.name
