@@ -105,7 +105,25 @@ def setup_logging(
         logging.CRITICAL: "\033[1;41m",  # Bold on red background
     }
 
-    class ColorFormatter(logging.Formatter):
+    class ShortPathFormatter(logging.Formatter):
+        """Formatter that shortens absolute paths in the message to project-relative ones."""
+
+        def format(self, record: logging.LogRecord) -> str:
+            if record.name == "py.warnings":
+                # Shorten full paths to project-relative paths or filename
+                msg = record.getMessage()
+                project_root = str(Path(__file__).parent.parent.parent)
+                if project_root in msg:
+                    msg = msg.replace(project_root, "").lstrip("/")
+
+                # Remove trailing warnings.warn(...) and newline
+                if "\n  warnings.warn(" in msg:
+                    msg = msg.split("\n  warnings.warn(")[0]
+
+                record.msg = msg
+            return super().format(record)
+
+    class ColorFormatter(ShortPathFormatter):
         def format(self, record: logging.LogRecord) -> str:
             color = COLORS.get(record.levelno, "")
             # Emphasise captured warnings specifically
@@ -125,13 +143,13 @@ def setup_logging(
     console_handler.setFormatter(ColorFormatter(base_format))
     handlers.append(console_handler)
 
-    # File handler (plain formatter)
+    # File handler (plain formatter with short paths)
     if log_file:
         log_file = Path(log_file)
         log_file.parent.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(log_file, encoding="utf-8")
         file_handler.setLevel(resolved_file_level)
-        file_handler.setFormatter(logging.Formatter(base_format))
+        file_handler.setFormatter(ShortPathFormatter(base_format))
         handlers.append(file_handler)
 
     logging.basicConfig(
