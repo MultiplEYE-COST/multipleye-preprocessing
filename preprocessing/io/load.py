@@ -1,6 +1,7 @@
 """Functions for loading and processing gaze data from various formats."""
 
 import json
+import logging
 import re
 from pathlib import Path
 
@@ -129,6 +130,11 @@ def load_trial_level_raw_data(
 
         initial_df = initial_df.vstack(trial_df)
 
+    if initial_df.is_empty():
+        raise ValueError(
+            f"No raw data files found in {data_folder} with pattern {file_pattern}"
+        )
+
     gaze = pm.Gaze(
         initial_df,
         trial_columns=trial_columns,
@@ -192,7 +198,7 @@ def load_trial_level_events_data(
         The updated gaze object with the loaded and integrated event data.
     """
     if file_pattern is None:
-        file_pattern = settings.EVENT_DATA_FILE_GLOB.format(event_type=event_type)
+        file_pattern = settings.EVENT_DATA_FILENAME_REGEX.format(event_type=event_type)
 
     if event_type not in settings.EVENT_PROPERTIES.keys():
         raise ValueError(
@@ -200,13 +206,15 @@ def load_trial_level_events_data(
         )
 
     all_events = pl.DataFrame()
-    for file in data_folder.glob("*.csv"):
+    for file in data_folder.glob(
+        settings.EVENT_DATA_FILE_GLOB.format(event_type=event_type)
+    ):
         trial_df = pl.read_csv(file)
 
         match = re.match(file_pattern, file.name)
         # go over groups in the name regex and add them as columns
         if match is None:
-            print(file.name)
+            logging.info(f"Skipping file {file} for event loading")
         else:
             for group_name in match.groupdict().keys():
                 if group_name not in trial_df.columns:

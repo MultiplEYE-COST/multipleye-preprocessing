@@ -41,6 +41,12 @@ class Settings:
         #: Whether to include sessions from the pilot folder.
         self.INCLUDE_PILOTS: bool = False
 
+        # Defines whether written files will be overwritten, if they already exist.
+        # If False, preprocessed sessions will be skipped and not reprocessed.
+        # If only some files for a session exist, the user has to select overwrite once
+        # to avoid having files stemming from different versions.
+        self.OVERWRITE = False
+
         #: List of session identifiers to explicitly exclude from processing.
         self.EXCLUDE_SESSIONS: list[str] = []
 
@@ -205,10 +211,10 @@ class Settings:
         )
 
         #: Glob pattern for raw data files.
-        self.RAW_DATA_FILE_GLOB = ".*_raw_data.csv"
+        self.RAW_DATA_FILE_GLOB = "*_raw_data.csv"
 
         #: Glob pattern for event data files.
-        self.EVENT_DATA_FILE_GLOB = ".*_{event_type}.csv"
+        self.EVENT_DATA_FILE_GLOB = "*_{event_type}.csv"
 
         #: Regex to extract the stimulus order version from ASC files.
         self.STIMULUS_ORDER_VERSION_REGEX = re.compile(
