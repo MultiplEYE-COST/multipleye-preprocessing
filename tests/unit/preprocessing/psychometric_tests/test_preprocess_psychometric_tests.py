@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 from numpy import float64
 
+from preprocessing.config import settings
 from preprocessing.psychometric_tests.preprocess_psychometric_tests import (
     _reaction_time_accuracy,
     _find_one_filetype_with_columns,
@@ -270,32 +271,32 @@ def test__reaction_time_accuracy_grouped_missing_column(group_by_col, expect_err
             [],
             ["a"],
             False,
-            "No .csv files found",
+            "No CSV files were found",
             None,
         ),
-        # CSV present but missing columns -> ValueError starting with "No CSV files with columns"
+        # CSV present but missing columns -> ValueError with details
         (
             [("bad.csv", "x,y\n", "1,2\n")],
             ["a"],
             False,
-            "No .csv files with columns",
+            r"No CSV files with the required columns \['a'\] were found in 'session'.\n'bad.csv' is missing \['a'\]",
             None,
         ),
-        # Multiple CSVs that both match -> ValueError starting with "Multiple CSV files with columns"
+        # Multiple CSVs that both match -> ValueError with file names
         (
             [("a1.csv", "u,v\n", "1,2\n"), ("a2.csv", "u,v,w\n", "3,4,5\n")],
             ["u", "v"],
             False,
-            "Multiple .csv files with columns",
+            r"Multiple CSV files with the required columns \['u', 'v'\] were found in 'session': \['a1.csv', 'a2.csv'\]",
             None,
         ),
-        # Header-only CSV that has the required columns -> returns empty DataFrame with those columns
+        # Header-only CSV that has the required columns -> ValueError (no data rows)
         (
             [("empty.csv", "m,n\n", "")],
             ["m", "n"],
             False,
+            "was found but contains no data rows",
             None,
-            lambda df: list(df.columns) == ["m", "n"] and df.shape == (0, 2),
         ),
         # Multiple CSVs that partially match, only one exactly -> returns DataFrame
         (
@@ -318,7 +319,7 @@ def test__reaction_time_accuracy_grouped_missing_column(group_by_col, expect_err
             [("nan.csv", "a,b\n", "1,NaN\n")],
             ["a", "b"],
             False,
-            "NaN values found in required columns",
+            "Required columns .* contain missing values",
             None,
         ),
     ],
@@ -326,12 +327,16 @@ def test__reaction_time_accuracy_grouped_missing_column(group_by_col, expect_err
 def test__find_one_filetype_with_columns(
     tmp_path: Path,
     make_text_file,
+    monkeypatch,
     files,
     required_cols,
     allow_nan,
     expect_error_msg,
     check,
 ):
+    # Mock settings.PSYCHOMETRIC_TESTS_DIR to tmp_path
+    monkeypatch.setattr(settings, "PSYCHOMETRIC_TESTS_DIR", tmp_path)
+
     # Prepare folder with CSVs
     folder = tmp_path / "session"
     folder.mkdir()
@@ -431,8 +436,8 @@ def test_preprocess_stroop_errors(
 ):
     folder = tmp_path / "p1" / "SF"
     make_text_file(folder / "data.csv", header=header, body=body)
-    if error_msg.startswith("No .csv files with columns"):
-        with pytest.raises(ValueError, match="No .csv files with columns"):
+    if "No CSV files with columns" in error_msg or "No .csv files with columns" in error_msg or "Stroop results missing" in error_msg:
+        with pytest.raises(ValueError, match="Stroop results missing"):
             preprocess_stroop(folder)
     else:
         with pytest.raises(ValueError, match=error_msg):
@@ -492,8 +497,8 @@ def test_preprocess_flanker_errors(
 ):
     folder = tmp_path / "p2" / "SF"
     make_text_file(folder / "data.csv", header=header, body=body)
-    if error_msg.startswith("No .csv files with columns"):
-        with pytest.raises(ValueError, match="No .csv files with columns"):
+    if "No CSV files with columns" in error_msg or "No .csv files with columns" in error_msg or "Flanker results missing" in error_msg:
+        with pytest.raises(ValueError, match="Flanker results missing"):
             preprocess_flanker(folder)
     else:
         with pytest.raises(ValueError, match=error_msg):
@@ -521,7 +526,7 @@ def test_preprocess_plab_basic(tmp_path: Path, make_text_file, rows, expected):
 @pytest.mark.parametrize(
     "header, body, error_msg",
     [
-        ("rt,corr\n", "100,1\n", "No .csv files with columns"),
+        ("rt,corr\n", "100,1\n", "No CSV files with the required columns"),
         (
             "rt,correctness\n",
             ",1\n",
@@ -539,8 +544,8 @@ def test_preprocess_plab_errors(
 ):
     folder = tmp_path / "p3" / "PLAB"
     make_text_file(folder / "plab.csv", header=header, body=body)
-    if error_msg.startswith("No .csv files with columns"):
-        with pytest.raises(ValueError, match="No .csv files with columns"):
+    if "No CSV files with the required columns" in error_msg or "PLAB results missing" in error_msg:
+        with pytest.raises(ValueError, match="PLAB results missing"):
             preprocess_plab(folder)
     else:
         with pytest.raises(ValueError, match=error_msg):
@@ -561,10 +566,10 @@ def test_preprocess_ran_basic(tmp_path: Path, make_text_file):
 @pytest.mark.parametrize(
     "header, body, error_msg",
     [
-        ("Trial,RT\n", "1,2\n", "No .csv files with columns"),
+        ("Trial,RT\n", "1,2\n", "No CSV files with the required columns"),
         ("Trial,Reading_Time\n", "1,\n", "NaN values found in required columns"),
         # Multiple files with required columns
-        ("Trial,Reading_Time\n", "1,2\n", "Multiple .csv files with columns"),
+        ("Trial,Reading_Time\n", "1,2\n", "Multiple CSV files with the required columns"),
     ],
 )
 def test_preprocess_ran_errors(tmp_path: Path, make_text_file, header, body, error_msg):
@@ -573,8 +578,13 @@ def test_preprocess_ran_errors(tmp_path: Path, make_text_file, header, body, err
     make_text_file(folder / "ran1.csv", header=header, body=body)
     if error_msg.startswith("Multiple"):
         make_text_file(folder / "ran2.csv", header=header, body=body)
-    with pytest.raises(ValueError, match=error_msg):
-        preprocess_ran(folder)
+    # The wrapper adds more context, so we match the wrapper's prefix
+    if "No CSV files with the required columns" in error_msg or "RAN results missing" in error_msg or "Multiple CSV files with the required columns" in error_msg or "NaN values found" in error_msg:
+        with pytest.raises(ValueError, match=r"RAN \(Rapid Naming\) results missing"):
+            preprocess_ran(folder)
+    else:
+        with pytest.raises(ValueError, match=error_msg):
+            preprocess_ran(folder)
 
 
 @pytest.mark.parametrize(
@@ -658,11 +668,14 @@ def test_preprocess_wikivocab_errors(
     folder = tmp_path / "p5" / "WV"
     make_text_file(folder / "wv.csv", header=header, body=body)
     if (
-        error_msg.startswith("No .csv files with columns")
-        or error_msg.startswith("NaN values found")
-        or error_msg.startswith("Reaction time column contains")
+        "No CSV files with the required columns" in error_msg
+        or "WikiVocab results missing" in error_msg
+        or "NaN values found" in error_msg
+        or "Required columns" in error_msg
+        or "Reaction time column contains" in error_msg
     ):
-        with pytest.raises(ValueError, match=error_msg):
+        # The wrapper adds more context, so we match the wrapper's prefix
+        with pytest.raises(ValueError, match="WikiVocab results missing"):
             preprocess_wikivocab(folder)
     else:
         # In this case, CSV loads but reaction time accuracy validation triggers

@@ -97,7 +97,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 overview_row["LWMC_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process LWMC test for {session.stem}: {str(err)}",
+                    f"[{session.name}] LWMC test skipped: {str(err)}",
                     category=UserWarning,
                 )
 
@@ -113,7 +113,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 overview_row["RAN_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process RAN test for {session.stem}: {str(err)}",
+                    f"[{session.name}] RAN test skipped: {str(err)}",
                     category=UserWarning,
                 )
 
@@ -136,7 +136,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 overview_row["Stroop_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process Stroop test for {session.stem}: {str(err)}",
+                    f"[{session.name}] Stroop test skipped: {str(err)}",
                     category=UserWarning,
                 )
             try:
@@ -157,13 +157,13 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 overview_row["Flanker_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process Flanker test for {session.stem}: {str(err)}",
+                    f"[{session.name}] Flanker test skipped: {str(err)}",
                     category=UserWarning,
                 )
                 overview_row["Flanker_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process Flanker test for {session.stem}: {str(err)}",
+                    f"[{session.name}] Flanker test skipped: {str(err)}",
                     category=UserWarning,
                 )
 
@@ -185,7 +185,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 overview_row["WikiVocab_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process WikiVocab test for {session.stem}: {str(err)}",
+                    f"[{session.name}] WikiVocab test skipped: {str(err)}",
                     category=UserWarning,
                 )
 
@@ -200,7 +200,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 overview_row["PLAB_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process PLAB test for {session.stem}: {str(err)}",
+                    f"[{session.name}] PLAB test skipped: {str(err)}",
                     category=UserWarning,
                 )
 
@@ -278,11 +278,39 @@ def preprocess_stroop(stroop_flanker_dir: Path):
         'Stroop_congruent_num_items', 'Stroop_neutral_rt_mean_sec', 'Stroop_neutral_accuracy',
         and 'Stroop_neutral_num_items'.
     """
-    df = _find_one_filetype_with_columns(
-        stroop_flanker_dir,
-        ["stim_type", "stroop_key.rt", "stroop_key.corr"],
-        allow_nan=True,
-    )
+    try:
+        df = _find_one_filetype_with_columns(
+            stroop_flanker_dir,
+            ["stim_type", "stroop_key.rt", "stroop_key.corr"],
+            allow_nan=True,
+        )
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if stroop_flanker_dir.is_absolute() and psym_dir.is_absolute() and stroop_flanker_dir.is_relative_to(psym_dir):
+                display_path = str(stroop_flanker_dir.relative_to(psym_dir))
+            else:
+                display_path = stroop_flanker_dir.name
+        except (ValueError, AttributeError):
+            display_path = stroop_flanker_dir.name
+
+        import re
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        # Filter out common non-file strings
+        if files_checked:
+            # Only include names that look like CSVs
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"Stroop results missing or incomplete in '{display_path}'. "
+            f"The script couldn't find a valid results file with stimulus and response data. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
     result_df = _reaction_time_accuracy(
         df,
         reaction_time_col="stroop_key.rt",
@@ -331,11 +359,37 @@ def preprocess_flanker(stroop_flanker_dir: Path):
         'Flanker_incongruent_num_items', 'Flanker_congruent_rt_mean', 'Flanker_congruent_accuracy',
         and 'Flanker_congruent_num_items'.
     """
-    df = _find_one_filetype_with_columns(
-        stroop_flanker_dir,
-        ["stim_type", "Flanker_key.rt", "Flanker_key.corr"],
-        allow_nan=True,
-    )
+    try:
+        df = _find_one_filetype_with_columns(
+            stroop_flanker_dir,
+            ["stim_type", "Flanker_key.rt", "Flanker_key.corr"],
+            allow_nan=True,
+        )
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if stroop_flanker_dir.is_absolute() and psym_dir.is_absolute() and stroop_flanker_dir.is_relative_to(psym_dir):
+                display_path = str(stroop_flanker_dir.relative_to(psym_dir))
+            else:
+                display_path = stroop_flanker_dir.name
+        except (ValueError, AttributeError):
+            display_path = stroop_flanker_dir.name
+
+        import re
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        if files_checked:
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"Flanker results missing or incomplete in '{display_path}'. "
+            f"The script couldn't find a valid results file with stimulus and response data. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
     result_df = _reaction_time_accuracy(
         df,
         reaction_time_col="Flanker_key.rt",
@@ -406,7 +460,33 @@ def preprocess_lwmc(lwmc_dir: Path):
         "ss_key_resp_recall.corr",
         "ss_key_resp_recall.rt",  # SS columns
     ]
-    df = _find_one_filetype_with_columns(lwmc_dir, required_cols, allow_nan=True)
+    try:
+        df = _find_one_filetype_with_columns(lwmc_dir, required_cols, allow_nan=True)
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if lwmc_dir.is_absolute() and psym_dir.is_absolute() and lwmc_dir.is_relative_to(psym_dir):
+                display_path = str(lwmc_dir.relative_to(psym_dir))
+            else:
+                display_path = lwmc_dir.name
+        except (ValueError, AttributeError):
+            display_path = lwmc_dir.name
+
+        import re
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        if files_checked:
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"LWMC (Working Memory Capacity) results missing or incomplete in '{display_path}'. "
+            f"The script couldn't find a valid results file with recall and timing data. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
 
     # Create a trial identifier using the inter-trial text onset markers
     # Each non-NaN in base_text_intertrial.started indicates a new trial boundary.
@@ -527,9 +607,34 @@ def preprocess_ran(ran_dir: Path):
     ValueError
         If not exactly one .csv file is found in the directory.
     """
-    df = _find_one_filetype_with_columns(
-        ran_dir, ["Trial", "Reading_Time"], allow_nan=False
-    )
+    try:
+        df = _find_one_filetype_with_columns(
+            ran_dir, ["Trial", "Reading_Time"], allow_nan=False
+        )
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if ran_dir.is_absolute() and psym_dir.is_absolute() and ran_dir.is_relative_to(psym_dir):
+                display_path = str(ran_dir.relative_to(psym_dir))
+            else:
+                display_path = ran_dir.name
+        except (ValueError, AttributeError):
+            display_path = ran_dir.name
+
+        import re
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        if files_checked:
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"RAN (Rapid Naming) results missing or incomplete in '{display_path}'. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
 
     # Extract practice and experimental trial reaction times
     practice_rt = df[df["Trial"] == 1]["Reading_Time"]
@@ -582,9 +687,34 @@ def preprocess_wikivocab(wv_dir: Path):
         - WikiVocab_pseudo_correct: Fraction of correct pseudo words
         - WikiVocab_real_correct: Fraction of correct real words
     """
-    df = _find_one_filetype_with_columns(
-        wv_dir, ["correct_answer", "real_answer", "RT"], allow_nan=False
-    )
+    try:
+        df = _find_one_filetype_with_columns(
+            wv_dir, ["correct_answer", "real_answer", "RT"], allow_nan=False
+        )
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if wv_dir.is_absolute() and psym_dir.is_absolute() and wv_dir.is_relative_to(psym_dir):
+                display_path = str(wv_dir.relative_to(psym_dir))
+            else:
+                display_path = wv_dir.name
+        except (ValueError, AttributeError):
+            display_path = wv_dir.name
+
+        import re
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        if files_checked:
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"WikiVocab results missing or incomplete in '{display_path}'. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
     df["correctness"] = df["correct_answer"] == df["real_answer"]
 
     # Calculate additional metrics
@@ -606,9 +736,34 @@ def preprocess_wikivocab(wv_dir: Path):
     # Calculate incorrect_correct score
     incorrect_correct = (real_correct + pseudo_correct) / 2
 
-    rt_acc = _reaction_time_accuracy(
-        df, reaction_time_col="RT", correctness_col="correctness"
-    )
+    try:
+        rt_acc = _reaction_time_accuracy(
+            df, reaction_time_col="RT", correctness_col="correctness"
+        )
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if wv_dir.is_absolute() and psym_dir.is_absolute() and wv_dir.is_relative_to(psym_dir):
+                display_path = str(wv_dir.relative_to(psym_dir))
+            else:
+                display_path = wv_dir.name
+        except (ValueError, AttributeError):
+            display_path = wv_dir.name
+
+        import re
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        if files_checked:
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"WikiVocab results missing or incomplete in '{display_path}'. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
 
     return {
         "WikiVocab_rt_mean_sec": rt_acc[0],
@@ -648,9 +803,35 @@ def preprocess_plab(plab_dir: Path):
         Dictionary with keys 'PLAB_rt_mean_sec', 'PLAB_accuracy', and 'PLAB_num_items'.
 
     """
-    df = _find_one_filetype_with_columns(
-        plab_dir, ["rt", "correctness"], allow_nan=True
-    )
+    try:
+        df = _find_one_filetype_with_columns(
+            plab_dir, ["rt", "correctness"], allow_nan=True
+        )
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if plab_dir.is_absolute() and psym_dir.is_absolute() and plab_dir.is_relative_to(psym_dir):
+                display_path = str(plab_dir.relative_to(psym_dir))
+            else:
+                display_path = plab_dir.name
+        except (ValueError, AttributeError):
+            display_path = plab_dir.name
+
+        import re
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        if files_checked:
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"PLAB results missing or incomplete in '{display_path}'. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
+
     rt_mean, accuracy, num_items = _reaction_time_accuracy(
         df, reaction_time_col="rt", correctness_col="correctness"
     )
@@ -781,7 +962,7 @@ def __validate_rt_acc_inputs(
 
 
 def _find_one_filetype_with_columns(
-    folder: Path, columns: list[str], allow_nan=False
+    folder: Path, columns: list[str], allow_nan=False, base_path: Path | None = None
 ) -> DataFrame:
     """Find a single CSV file containing specific columns and return it as DataFrame.
 
@@ -797,6 +978,8 @@ def _find_one_filetype_with_columns(
         List of column names that must be present in the CSV.
     allow_nan : bool, optional
         If True, allows NaN values in the ``columns`` asked for. Default is False.
+    base_path : Path, optional
+        If provided, the folder path in error messages will be relative to this path.
 
     Returns
     -------
@@ -811,28 +994,64 @@ def _find_one_filetype_with_columns(
         If NaN values are found in required columns and ``allow_nan`` is False.
     """
     csvs = list(folder.glob("*.csv"))
+
+    # Determine the folder path to show in error messages
+    try:
+        if base_path and folder.is_absolute() and base_path.is_absolute():
+            display_path = str(folder.relative_to(base_path))
+        else:
+            # Fallback: if folder is inside settings.PSYCHOMETRIC_TESTS_DIR, use that
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if folder.is_absolute() and psym_dir.is_absolute() and folder.is_relative_to(psym_dir):
+                display_path = str(folder.relative_to(psym_dir))
+            else:
+                display_path = folder.name
+    except (ValueError, AttributeError, RuntimeError):
+        display_path = folder.name
+
     if not csvs:
-        raise ValueError(f"No .csv files found in {folder}")
+        raise ValueError(f"No CSV files were found in '{display_path}'.")
 
     valid_csvs = []
+    missing_cols_info = {}
     for csv in csvs:
         # Only read the header to check columns
         try:
-            if all(col in read_csv(csv, nrows=0).columns for col in columns):
+            cols_found = read_csv(csv, nrows=0).columns
+            missing = [col for col in columns if col not in cols_found]
+            if not missing:
                 valid_csvs.append(csv)
-        except UserWarning:
+            else:
+                missing_cols_info[csv.name] = missing
+        except Exception:
             continue
 
     if not valid_csvs:
-        raise ValueError(f"No .csv files with columns {columns} found in {folder}")
-    if len(valid_csvs) > 1:
+        details = ""
+        if missing_cols_info:
+            details = "\nChecked: " + ", ".join(
+                f"'{f}'" for f in missing_cols_info.keys()
+            )
         raise ValueError(
-            f"Multiple .csv files with columns {columns} found in {folder}"
+            f"No CSV files with the required columns {columns} were found in '{display_path}'.{details}"
+        )
+
+    if len(valid_csvs) > 1:
+        valid_csvs_sorted = sorted([f.name for f in valid_csvs])
+        raise ValueError(
+            f"Multiple CSV files with the required columns {columns} were found in '{display_path}': "
+            f"{valid_csvs_sorted}. Please ensure only one valid results file is present."
         )
 
     df = read_csv(valid_csvs[0], usecols=columns)
-    if not allow_nan and df.isna().any().any():
+    if df.empty:
         raise ValueError(
-            f"NaN values found in required columns {columns} in {valid_csvs[0]}"
+            f"The data file '{valid_csvs[0].name}' was found but contains no data rows."
+        )
+
+    if not allow_nan and df.isna().any().any():
+        nan_cols = df.columns[df.isna().any()].tolist()
+        raise ValueError(
+            f"Required columns {nan_cols} in '{valid_csvs[0].name}' contain missing values (NaN)."
         )
     return df
