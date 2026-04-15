@@ -62,7 +62,16 @@ def run_multipleye_preprocessing(config_path: str | None = None):
 
         # create or load raw data
         raw_data_folder = output_folder / settings.RAW_DATA_FOLDER
-        if raw_data_folder.exists():
+        if raw_data_folder.exists() and not settings.OVERWRITE:
+            # check if the folder contains the expected number of files, if not, we will overwrite
+            num_expected_files = len(sess.completed_stimuli_ids)
+            num_files = len(list(raw_data_folder.glob("*.csv")))
+            if num_expected_files != num_files:
+                raise ValueError(
+                    f"Raw data cannot be loaded as the folder for session {idf} does not contain the "
+                    f"expected number of files. Please check and select overwrite."
+                )
+
             pbar.set_description(f"Loading samples {idf}:")
             gaze = preprocessing.load_trial_level_raw_data(
                 raw_data_folder,
@@ -94,7 +103,29 @@ def run_multipleye_preprocessing(config_path: str | None = None):
         # create or load fixation data
         fixation_data_folder = output_folder / settings.FIXATIONS_FOLDER
         saccade_data_folder = output_folder / settings.SACCADES_FOLDER
-        if fixation_data_folder.exists():
+
+        if (
+            fixation_data_folder.exists()
+            and saccade_data_folder.exists
+            and not settings.OVERWRITE
+        ):
+            # check if the folder contains the expected number of files, if not, we will overwrite
+            num_expected_files = len(sess.completed_stimuli_ids)
+            num_files = len(list(fixation_data_folder.glob("*.csv")))
+
+            if num_expected_files != num_files:
+                raise ValueError(
+                    f"Fixation data cannot be loaded as the folder for session {idf} does not contain the "
+                    f"expected number of files. Please check and select overwrite."
+                )
+
+            num_files = len(list(saccade_data_folder.glob("*.csv")))
+            if num_expected_files != num_files:
+                raise ValueError(
+                    f"Saccade data cannot be loaded as the folder for session {idf} does not contain the "
+                    f"expected number of files. Please check and select overwrite."
+                )
+
             pbar.set_description(f"Loading events {idf}:")
             gaze = preprocessing.load_trial_level_events_data(
                 gaze,
@@ -156,7 +187,16 @@ def run_multipleye_preprocessing(config_path: str | None = None):
             settings.OUTPUT_DIR / session_save_name / settings.READING_MEASURES_FOLDER
         )
 
-        if not rm_folder.exists():
+        if not rm_folder.exists() and not settings.OVERWRITE:
+            # check if the folder contains the expected number of files, if not, we will overwrite
+            num_expected_files = len(sess.completed_stimuli_ids)
+            num_files = len(list(rm_folder.glob("*.csv")))
+            if num_expected_files != num_files:
+                raise ValueError(
+                    f"Reading measures cannot be loaded as the folder for session {idf} does not contain the "
+                    f"expected number of files. Please check and select overwrite."
+                )
+
             pbar.set_description(f"Calculating reading measures {idf}:")
             reading_measures = preprocessing.calculate_reading_measures(
                 gaze,
@@ -178,6 +218,8 @@ def run_multipleye_preprocessing(config_path: str | None = None):
             overwrite=True,
             output_dir=settings.OUTPUT_DIR,
         )
+
+        preprocessing.save_session_metadata(settings.OUTPUT_DIR, idf, gaze)
 
     multipleye.create_dataset_overview(path=settings.OUTPUT_DIR)
     multipleye.parse_participant_data(settings.OUTPUT_DIR / "participant_data.csv")

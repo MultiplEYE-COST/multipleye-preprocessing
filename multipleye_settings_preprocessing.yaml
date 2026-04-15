@@ -1,15 +1,19 @@
-data_collection_name: "MultiplEYE_SQ_CH_Zurich_1_2025"
+data_collection_name: "MultiplEYE_IT_CH_Lugano_1_2026"
 
-# pick either include or exclude sessions, if none is specified, all sessions are included
+overwrite: False # defines whether written files will be overwritten, if they already exist. If False, preprocessed sessions will be skipped and not reprocessed.
+                # If only some files for a session exist, the user has to select overwrite once to avoid having files stemming from different versions.
+
+
+# SESSIONS
+## pick either include or exclude sessions, if none is specified, all sessions are included
 include_sessions:
-
 exclude_sessions:
 
 include_pilots: True
 
-# Hardware settings
+# HARDWARE
 expected_sampling_rate_hz: 1000  # Hz
 
-
-# NOT YET IN USE; IGNORE. if any sessions do not use the standard stimulus version, specify so here
-session_to_stimuli:
+# PREPROCESSING
+## stimuli
+custom_uoas: False
