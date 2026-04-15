@@ -4,8 +4,18 @@
 
 # MultiplEYE Preprocessing
 
+> [!IMPORTANT]
+> This repository is **actively maintained and evolving**. Features, configurations, and behaviors may
+> change as we improve the codebase. Please:
+> - Keep the repository up-to-date to receive the latest changes, fixes, and improvements
+> - Report issues if you encounter unexpected behavior
+> - Refer to the documentation for the latest information on how to use the pipeline
+> - Check the [troubleshooting guide](https://multipleye-cost.github.io/multipleye-preprocessing/troubleshooting/) if you encounter any issues
+
 This repository contains the preprocessing pipeline for eye-tracking data and psychometric test
 scoring from the MultiplEYE project.
+
+If you are running the pipeline and encounter any issues, please check the [troubleshooting guide](https://multipleye-cost.github.io/multipleye-preprocessing/troubleshooting/).
 
 > [!NOTE]
 > This repository processes data recorded

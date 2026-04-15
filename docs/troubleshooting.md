@@ -2,7 +2,12 @@
 
 # Troubleshooting
 
-*Introductionary text about common warnings and errors, when to seek help, etc.*
+This page lists all errors that can occur when running the pipeline. Most of them can be easily solved. For some cases,
+we recommend contacting the MultiplEYE team. Whenever you encounter an error, we ask you to check this list first and
+try to follow the instructions.
+
+Please note that this page is under construction. It will be continually updated. If you encounter an error that is not
+on this list, please reach out.
 
 
 ---
@@ -15,52 +20,20 @@
    </div>
 ```
 
-(warnings_data_quality)=
-
-## Data Quality Warnings
-
-:::{dropdown} High ratio of missing data points - what should I do?
-
-*Content to be added.*
-:::
-
-:::{dropdown} Excessive number of blinks detected during recording
-
-*Content to be added.*
-:::
 
 (errors_processing)=
 
 ## Processing Errors
 
-:::{dropdown} ValueError: Invalid timestamp format
+:::{dropdown} ValueError: Raw data cannot be loaded as the folder for session XY does not contain the expected number of files. Please check and select overwrite.
 
-*Content to be added.*
+This error means that there exists saved raw data for a session, but it does not contain the files for
+all stimuli. This means that the last time the files were generated something went wrong or was interrupted.
+In order to be sure, that now all files are correct, it is important to write all files again.
+This can be done by changing the parameter `overwrite` to `True` in the configuration file. This will make
+sure that all files are generated again, and the error should not occur anymore even without choosing overwrite.
 :::
 
-:::{dropdown} RuntimeError: Out of memory during large file processing
-
-*Content to be added.*
-:::
-
-:::{dropdown} FileNotFoundError: Configuration file not found
-
-*Content to be added.*
-:::
-
-(errors_configuration)=
-
-## Configuration Errors
-
-:::{dropdown} KeyError: Missing required setting in config file
-
-*Content to be added.*
-:::
-
-:::{dropdown} TypeError: Invalid value for parameter X
-
-*Content to be added.*
-:::
 
 ---
 

@@ -2,9 +2,9 @@
 
 # Frequently Asked Questions
 
-*Introductionary text, Introductionary text, Introductionary text, Introductionary text,
-Introductionary text, Introductionary text ,Introductionary text, Introductionary text,
-Introductionary text, Introductionary text, Introductionary text, Introductionary text.*
+This page is still under constructions. Questions will be added over time. For now, please refer to the getting started
+guide and the troubleshooting page for answers to common questions.
+If you have a question that is not answered there, please reach out to the maintainers.
 
 ---
 
