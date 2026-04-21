@@ -18,7 +18,7 @@ about the psychometric tests is provided.
     - [WikiVocab](#wikivocab_test)
 - [Calculating the Psychometric Tests](#calculating_psychometric_tests)
     - [Preparing the Data](#preparing_data)
-    - [Running the Calculations](#running_calculations)
+    - [Running the Calculations](#running_calculations_psychometric)
 
 (data_collection)=
 
@@ -379,7 +379,7 @@ console.
 The following calculation has been constructed to handle this case,
 only calculating the results of tests with existing data.
 
-(running_calculations)=
+(running_calculations_psychometric)=
 
 ### Running the Calculations
 
