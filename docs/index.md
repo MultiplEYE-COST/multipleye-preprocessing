@@ -89,9 +89,9 @@ This project has been partially funded by:
    :maxdepth: 2
    :glob:
 
-    getting_started
-    guide/index
-    faq
-    troubleshooting
-    bibliography
+   getting_started
+   guide/index
+   faq
+   troubleshooting
+   bibliography
 ```
