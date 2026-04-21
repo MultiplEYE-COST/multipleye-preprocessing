@@ -1,7 +1,9 @@
 """Utilities for working with paths, session identifiers, and further data locations."""
 
 import os
+import yaml
 from pathlib import Path
+from preprocessing.config import settings
 
 
 def pid_from_session(folder: Path | str) -> str:
@@ -122,6 +124,107 @@ def is_valid_sid(sid: str) -> bool:
         return False
 
     return True
+
+
+def validate_psychometric_data(
+    config_folder: Path,
+    data_folder: Path,
+    is_restructured: bool = False,
+) -> dict[str, list[str]]:
+    """
+    Validates psychometric data against participant configuration YAMLs.
+
+    This function checks if the expected data folders exist based on the configuration flags
+    in the participant YAML files. It logs warnings for missing or unexpected data.
+
+    Parameters
+    ----------
+    config_folder : Path
+        The folder containing configuration files (.yaml) for the psychometric tests.
+    data_folder : Path
+        The folder containing test data. If is_restructured is True, this should be
+        the folder with per-participant subdirectories.
+    is_restructured : bool
+        Whether the data is already restructured into per-participant folders.
+
+    Returns
+    -------
+    dict[str, list[str]]
+        A dictionary mapping participant IDs to a list of identified issues.
+    """
+    from .logging import get_logger
+
+    logger = get_logger(__name__)
+
+    issues = {}
+
+    # Find config files
+    config_files = list(config_folder.glob("*.yaml"))
+    if not config_files:
+        logger.warning(f"No configuration files ('*.yaml') found in {config_folder}.")
+        return issues
+
+    for config_file in config_files:
+        name = config_file.stem
+        participant_issues = []
+
+        if not is_valid_sid(name):
+            msg = f"Configuration file name is not SID-compliant: {config_file.name}."
+            logger.warning(f"{msg} Attempting to process anyway.")
+            participant_issues.append(msg)
+
+        with open(config_file, "r") as f:
+            try:
+                config_data = yaml.safe_load(f)
+            except yaml.YAMLError as exc:
+                msg = f"Error reading configuration file {config_file}: {exc}"
+                logger.error(msg)
+                participant_issues.append(msg)
+                issues[name] = participant_issues
+                continue
+
+        # Normalize name for the output folder if needed (S1/S2 -> PT1/PT2)
+        target_name = name
+        if target_name.endswith("S1"):
+            target_name = target_name.replace("S1", "PT1")
+        elif target_name.endswith("S2"):
+            target_name = target_name.replace("S2", "PT2")
+
+        for yaml_flag, folder_name in settings.PSYCHOMETRIC_TEST_MAPPING.items():
+            expected = config_data.get(yaml_flag, False)
+
+            if is_restructured:
+                test_path = data_folder / target_name / folder_name
+            else:
+                test_path = data_folder / folder_name / name
+
+            if expected is True:
+                if not test_path.exists():
+                    msg = (
+                        f"!!! MISSING DATA !!!: Participant {name} is marked for {folder_name} "
+                        f"in participant configuration ({config_file.name}), "
+                        f"but the data folder does not exist at: {test_path}. "
+                        "Please check the experimenter session documentation for any noteworthy points. "
+                        "Note that if psychometric tests were restarted, the participant YAML configuration "
+                        "might have been overwritten."
+                    )
+                    logger.warning(msg)
+                    participant_issues.append(msg)
+            else:
+                if test_path.exists():
+                    msg = (
+                        f"Participant {name} has data for {folder_name}, "
+                        f"but it is marked as False (or missing) in participant config ({config_file.name})."
+                    )
+                    if not is_restructured:
+                        msg += " Copying anyway."
+                    logger.warning(msg)
+                    participant_issues.append(msg)
+
+        if participant_issues:
+            issues[name] = participant_issues
+
+    return issues
 
 
 def check_data_collection_exists(data_collection_name: str, data_root: Path) -> Path:

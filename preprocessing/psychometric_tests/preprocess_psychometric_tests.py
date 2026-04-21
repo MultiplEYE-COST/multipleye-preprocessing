@@ -24,7 +24,7 @@ from pandas import read_csv, DataFrame
 import pandas as pd
 
 from ..config import settings
-from ..utils import pid_from_session
+from ..utils import pid_from_session, validate_psychometric_data
 
 
 def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
@@ -52,6 +52,12 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
     """
     if test_session_folder is None:
         test_session_folder = settings.PSYCHOMETRIC_TESTS_DIR
+
+    # Run sanity check before processing
+    validate_psychometric_data(
+        settings.PSYM_PARTICIPANT_CONFIGS, test_session_folder, is_restructured=True
+    )
+
     # Collect session folders
     session_folders = test_session_folder.iterdir()
     session_folders = [p for p in session_folders if _is_valid_folder(p)]
