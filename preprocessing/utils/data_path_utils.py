@@ -52,12 +52,76 @@ def pid_from_session(folder: Path | str) -> str:
 
     pid = folder[:3]
 
-    if len(pid) != 3 or not pid.isdigit():
+    if not is_valid_pid(pid):
         raise ValueError(
             f"PID must be exactly three digits (possibly zero-padded), got '{pid}' from '{folder}'."
         )
 
     return pid
+
+
+def is_valid_pid(pid: str) -> bool:
+    """
+    Checks if a participant identifier (PID) is valid.
+
+    A valid PID is exactly three digits (0-9), possibly zero-padded.
+
+    Parameters
+    ----------
+    pid : str
+        The identifier to check.
+
+    Returns
+    -------
+    bool
+        True if the identifier is exactly three digits, False otherwise.
+    """
+    return isinstance(pid, str) and len(pid) == 3 and pid.isdigit()
+
+
+def is_valid_sid(sid: str) -> bool:
+    """
+    Checks if a session identifier (SID) is valid.
+
+    A valid SID follows the format: {PID}_{LANG}_{COUNTRY}_{LAB}_{SESSION}
+    Example: 002_ZH_CH_1_PT2
+
+    Parameters
+    ----------
+    sid : str
+        The identifier to check.
+
+    Returns
+    -------
+    bool
+        True if the identifier follows the SID format, False otherwise.
+    """
+    if not isinstance(sid, str):
+        return False
+
+    parts = sid.split("_")
+    if len(parts) != 5:
+        return False
+
+    pid, lang, country, lab, session = parts
+
+    # Validate PID (3 digits)
+    if not is_valid_pid(pid):
+        return False
+
+    # Validate Language (2 uppercase letters)
+    if len(lang) != 2 or not lang.isalpha() or not lang.isupper():
+        return False
+
+    # Validate Country (2 uppercase letters)
+    if len(country) != 2 or not country.isalpha() or not country.isupper():
+        return False
+
+    # Lab and Session should be non-empty
+    if not lab or not session:
+        return False
+
+    return True
 
 
 def check_data_collection_exists(data_collection_name: str, data_root: Path) -> Path:
