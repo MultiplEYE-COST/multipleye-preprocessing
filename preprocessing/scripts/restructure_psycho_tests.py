@@ -66,7 +66,16 @@ def fix_psycho_tests_structure(
 
     # Check that the folders exist
     if not config_folder.exists():
-        raise FileNotFoundError(f"config_folder does not exist: {config_folder}")
+        msg = f"config_folder does not exist: {config_folder}"
+        # try to look for zip files in the parent directory
+        # (psychometric-tests-sessions/ instead of psychometric-tests-sessions/core_data/...)
+        zip_search_path = config_folder.parent.parent
+        if zip_search_path.exists():
+            zip_files = list(zip_search_path.glob("*.zip"))
+            if zip_files:
+                zip_names = [f.name for f in zip_files]
+                msg += f"\nFound zip files in {zip_search_path}: {zip_names}. Find out if these zips include the desired data and unzip them."
+        raise FileNotFoundError(msg)
     if not data_folder.exists():
         raise FileNotFoundError(f"data_folder does not exist: {data_folder}")
 
