@@ -24,13 +24,25 @@ from pandas import read_csv, DataFrame
 import pandas as pd
 
 from ..config import settings
-from ..utils import pid_from_session, validate_psychometric_data
+from ..utils import pid_from_session, validate_psychometric_data, parse_sid
 
 
 def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
-    """Preprocess all sessions and write two types of outputs:
+    """
+    Preprocess all sessions and write overview and detailed results.
 
-    1) Overview CSV (one row per session) saved directly under the
+    This function performs the following steps:
+    1. Validates the psychometric data structure.
+    2. Iterates through each session folder.
+    3. Extracts session information (PID, session part, postfix).
+    4. Preprocesses each individual test (LWMC, RAN, Stroop, Flanker, WikiVocab, PLAB).
+    5. Aggregates results into an overview row per session.
+    6. Writes a detailed CSV for each session within its folder.
+    7. Writes a comprehensive overview CSV for all sessions.
+
+    Two types of outputs are generated:
+
+    1. **Overview CSV** (one row per session) saved directly under the
        psychometric-tests-sessions folder. The filename is descriptive and
        includes the study/session tag (e.g. "SQ_CH_1_PT2"). The overview
        contains only the requested summary metrics:
@@ -40,15 +52,26 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
        - RAN: Reaction time for two trials
        - PLAB: RT mean and accuracy
 
-    2) Per-session detailed CSV placed in each session folder with all
+    2. **Per-session detailed CSV** placed in each session folder with all
        available detailed metrics in a readable, wide format (namespaced
        columns). For example, grouped RT/accuracy for Stroop/Flanker are stored
        as columns like ``Stroop_congruent_rt_mean``.
 
-    Notes:
+    Parameters
+    ----------
+    test_session_folder : Path | None
+        Path to the folder containing restructured psychometric test sessions.
+        If None, it uses the default directory from settings.
+
+    Returns
+    -------
+    Path
+        The path to the generated overview CSV file.
+
+    Notes
+    -----
     - All computations are performed once per session and then split into
       overview vs. detailed outputs.
-    - Returns the path to the written overview CSV.
     """
     if test_session_folder is None:
         test_session_folder = settings.PSYCHOMETRIC_TESTS_DIR
@@ -66,9 +89,23 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
     overview_rows: list[dict] = []
 
     for session in session_folders:
-        pid = pid_from_session(session)
+        sid_info = parse_sid(session.name)
+        if sid_info:
+            pid = sid_info["pid"]
+            session_part = sid_info["session"]
+            session_id_extended = sid_info["full_session"]
+            postfix = sid_info["postfix"]
+            notes = sid_info["notes"]
+        else:
+            pid = pid_from_session(session)
+            session_part = ""
+            session_id_extended = ""
+            postfix = ""
+            notes = ""
+
         # Initialise an overview row with participant and per-test Done flags (0/1)
         overview_row: dict = {
+            "session_id": session_id_extended,
             "participant_id": pid,
             "LWMC_Done": 0,
             "RAN_Done": 0,
@@ -76,11 +113,16 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
             "Flanker_Done": 0,
             "WikiVocab_Done": 0,
             "PLAB_Done": 0,
+            "notes": notes,
         }
 
         # Detailed row: single CSV per participant with namespaced, readable columns
         detailed_row: dict = {
             "participant_id": pid,
+            "session": session_part,
+            "session_id": session_id_extended,
+            "postfix": postfix,
+            "notes": notes,
         }
 
         # LWMC
@@ -166,12 +208,6 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                     f"[{session.name}] Flanker test skipped: {str(err)}",
                     category=UserWarning,
                 )
-                overview_row["Flanker_Done"] = 1
-            except ValueError as err:
-                warnings.warn(
-                    f"[{session.name}] Flanker test skipped: {str(err)}",
-                    category=UserWarning,
-                )
 
         # WikiVocab (tuple[rt_mean, accuracy])
         wv_dir = session / settings.PSYM_WIKIVOCAB_DIR
@@ -228,7 +264,8 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
         / f"psychometric_overview_{test_session_folder.parent.stem}.csv"
     )
     df = pd.DataFrame(overview_rows)
-    # Ensure columns order: participant_id, then flags, then the rest
+    # Ensure columns order: session_id, participant_id, then flags, then notes, then the rest
+    session_cols = ["session_id"]
     flag_cols = [
         "LWMC_Done",
         "RAN_Done",
@@ -240,8 +277,14 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
     for col in flag_cols:
         if col not in df.columns:
             df[col] = 0
-    remaining = [c for c in df.columns if c not in (["participant_id"] + flag_cols)]
-    df = df[["participant_id"] + flag_cols + remaining]
+
+    # Identify non-fixed columns
+    fixed = session_cols + ["participant_id"] + flag_cols + ["notes"]
+    remaining = [c for c in df.columns if c not in fixed]
+
+    # Filter out columns that might not exist in df
+    final_cols = [c for c in fixed if c in df.columns] + remaining
+    df = df[final_cols]
     df.to_csv(out_path, index=False)
 
     from ..utils.logging import get_logger
@@ -254,11 +297,11 @@ def _is_valid_folder(folder: Path) -> bool:
     return folder.is_dir() and folder.stem[:3].isdigit() and folder.stem[3] == "_"
 
 
-def preprocess_stroop(stroop_flanker_dir: Path):
-    """Preprocess Stroop test CSVs and return RT and accuracy by stimulus type.
+def preprocess_stroop(stroop_flanker_dir: Path) -> dict:
+    """Preprocess Stroop test CSV data.
 
-    Extract 'stim_type', 'stroop_key.rt' and 'stroop_key.corr', then compute
-    reaction time and accuracy grouped by stimulus type.
+    Computes reaction time and accuracy grouped by stimulus type
+    (congruent, incongruent, neutral).
 
     **Stroop**: The Stroop test is a test of cognitive control that measures the ability to inhibit
     automatic responses. The test consists of three parts:
@@ -274,15 +317,18 @@ def preprocess_stroop(stroop_flanker_dir: Path):
     Parameters
     ----------
     stroop_flanker_dir : Path
-        Path to the folder containing the session's stroop and flanker data.
+        Path to the folder containing Stroop and Flanker data.
 
     Returns
     -------
     dict
-        A dictionary with keys 'Stroop_incongruent_rt_mean_sec', 'Stroop_incongruent_accuracy',
-        'Stroop_incongruent_num_items', 'Stroop_congruent_rt_mean_sec', 'Stroop_congruent_accuracy',
-        'Stroop_congruent_num_items', 'Stroop_neutral_rt_mean_sec', 'Stroop_neutral_accuracy',
-        and 'Stroop_neutral_num_items'.
+        A dictionary containing reaction times, accuracies, and item counts
+        for each condition, prefixed with 'Stroop_'.
+
+    Raises
+    ------
+    ValueError
+        If no valid results file with required columns is found.
     """
     try:
         df = _find_one_filetype_with_columns(
@@ -339,11 +385,11 @@ def preprocess_stroop(stroop_flanker_dir: Path):
     return result_dict
 
 
-def preprocess_flanker(stroop_flanker_dir: Path):
-    """Preprocess Flanker test CSVs and return RT and accuracy by stimulus type.
+def preprocess_flanker(stroop_flanker_dir: Path) -> dict:
+    """Preprocess Flanker test CSV data.
 
-    Extract 'stim_type', 'flanker_key.rt' and 'flanker_key.corr', then compute
-    reaction time and accuracy grouped by stimulus type.
+    Computes reaction time and accuracy grouped by stimulus type
+    (congruent, incongruent, neutral).
 
     **Flanker**: The Flanker test is a test of cognitive control that measures the ability to
     inhibit irrelevant information.
@@ -361,14 +407,18 @@ def preprocess_flanker(stroop_flanker_dir: Path):
     Parameters
     ----------
     stroop_flanker_dir : Path
-        Path to the folder containing the session's stroop and flanker data.
+        Path to the folder containing Stroop and Flanker data.
 
     Returns
     -------
     dict
-        A dictionary with keys 'Flanker_incongruent_rt_mean', 'Flanker_incongruent_accuracy',
-        'Flanker_incongruent_num_items', 'Flanker_congruent_rt_mean', 'Flanker_congruent_accuracy',
-        and 'Flanker_congruent_num_items'.
+        A dictionary containing reaction times, accuracies, and item counts
+        for each condition, prefixed with 'Flanker_'.
+
+    Raises
+    ------
+    ValueError
+        If no valid results file with required columns is found.
     """
     try:
         df = _find_one_filetype_with_columns(
@@ -423,17 +473,17 @@ def preprocess_flanker(stroop_flanker_dir: Path):
     return result_dict
 
 
-def preprocess_lwmc(lwmc_dir: Path):
-    """Preprocess Lewandowsky WMC battery and compute task scores.
+def preprocess_lwmc(lwmc_dir: Path) -> dict:
+    """Preprocess Lewandowsky WMC battery.
 
-    Tasks:
+    **Tasks**:
 
     - MU (Memory Update): proportion of items recalled correctly (per-trial mean, then mean over trials).
     - OS (Operation Span): mean of per-trial recall correctness (unweighted by list length).
     - SS (Sentence Span): mean of per-trial recall correctness (unweighted by list length).
     - SSTM (Spatial Short-Term Memory): overall score normalised by 240 from ``SSTM-<id>.dat``.
 
-    Implementation notes:
+    **Implementation notes**:
 
     - MU/OS/SS data are taken from the CSV export (not the .dat files).
       We compute a trial index from ``base_text_intertrial.started`` and then, for each task,
@@ -456,13 +506,22 @@ def preprocess_lwmc(lwmc_dir: Path):
     - Trial_Score_SS = sum(correct_items_in_trial) / num_items_in_trial
     - SS_score = mean(Trial_Score_SS) across all trials
     - SSTM_score = SSTM_raw_score / 240.0
-    - Total_score_mean = (MU_score + OS_score + SS_score + SSTM_score) / 4.0
+
+    Parameters
+    ----------
+    lwmc_dir : Path
+        Path to the folder containing the WMC test data.
 
     Returns
     -------
     dict
-        Dictionary with keys: 'LWMC_MU_score', 'LWMC_MU_time_sec', 'LWMC_OS_score', 'LWMC_OS_time_sec',
-        'LWMC_SS_score', 'LWMC_SS_time_sec', 'LWMC_SSTM_score', and 'LWMC_Total_score_mean'.
+        A dictionary with scores and response times for each task,
+        prefixed with 'LWMC_'.
+
+    Raises
+    ------
+    ValueError
+        If required CSV or DAT files are missing or malformed.
     """
 
     # 1) Load the single WMC CSV that contains the relevant columns
@@ -599,11 +658,10 @@ def preprocess_lwmc(lwmc_dir: Path):
     }
 
 
-def preprocess_ran(ran_dir: Path):
-    """Preprocess RAN task output and return the reaction times for practice and experimental trials.
+def preprocess_ran(ran_dir: Path) -> dict:
+    """Preprocess RAN (Rapid Automatised Naming) test CSV data.
 
-    Finds the only .csv in the folder and extracts the 'Trial' and 'Reading_Time' columns.
-    The audio files and logs are kept untouched.
+    Extracts reaction times for practice and experimental trials.
 
     **RAN task**:
     The Rapid Automatised Naming (RAN) task is a standard test of the speed and efficiency of naming digits.
@@ -615,18 +673,17 @@ def preprocess_ran(ran_dir: Path):
     Parameters
     ----------
     ran_dir : Path
-        Path to the folder containing the participants' RAN data.
+        Path to the folder containing RAN test data.
 
     Returns
     -------
     dict
-        Dictionary with keys 'RAN_practice_rt_sec' and 'RAN_experimental_rt_sec' containing the
-        reaction times.
+        A dictionary with keys 'RAN_practice_rt_sec' and 'RAN_experimental_rt_sec'.
 
     Raises
     ------
     ValueError
-        If not exactly one .csv file is found in the directory.
+        If required results file is missing or malformed.
     """
     try:
         df = _find_one_filetype_with_columns(
@@ -672,11 +729,11 @@ def preprocess_ran(ran_dir: Path):
     }
 
 
-def preprocess_wikivocab(wv_dir: Path):
-    """Preprocess WikiVocab task output and compute mean RT and accuracy.
+def preprocess_wikivocab(wv_dir: Path) -> dict:
+    """Preprocess WikiVocab test CSV data.
 
-    Extract 'correct_answer', 'real_answer' and 'RT' columns, infer a 'correctness' column,
-    and return the mean reaction time and accuracy.
+    Computes mean reaction time, overall accuracy, and balanced accuracy
+    score based on LexTALE scoring.
 
     **WikiVocab**:
     The WikiVocab test is a generative vocabulary test for online research based on the Wikipedia corpus.
@@ -697,21 +754,18 @@ def preprocess_wikivocab(wv_dir: Path):
     Parameters
     ----------
     wv_dir : Path
-        Path to the folder containing the participants' Wikivocab data.
+        Path to the folder containing WikiVocab test data.
 
     Returns
     -------
     dict
-        Dictionary containing:
+        A dictionary with reaction times, accuracies, and balanced scores,
+        prefixed with 'WikiVocab_'.
 
-        - WikiVocab_rt_mean_sec: Mean reaction time
-        - WikiVocab_accuracy: Overall accuracy
-        - WikiVocab_num_pseudo_words: Number of pseudo words
-        - WikiVocab_num_real_words: Number of real words
-        - WikiVocab_incorrect_correct_score: Balanced accuracy score (averaged % correct)
-          https://www.lextale.com/scoring.html
-        - WikiVocab_pseudo_correct: Fraction of correct pseudo words
-        - WikiVocab_real_correct: Fraction of correct real words
+    Raises
+    ------
+    ValueError
+        If required results file is missing or malformed.
     """
     try:
         df = _find_one_filetype_with_columns(
@@ -813,10 +867,10 @@ def preprocess_wikivocab(wv_dir: Path):
     }
 
 
-def preprocess_plab(plab_dir: Path):
-    """Preprocess PLAB task output and compute mean RT and overall accuracy.
+def preprocess_plab(plab_dir: Path) -> dict:
+    """Preprocess PLAB (Pimsleur Language Aptitude Battery) test CSV data.
 
-    Extract the 'correctness' and 'rt' column to calculate the mean and accuracy.
+    Computes mean reaction time and overall accuracy.
 
     **PLAB test**: The PLAB test is Pimsleur Language Aptitude Battery test.
     It is a test of language aptitude that is designed to measure an individual's ability to learn
@@ -831,13 +885,17 @@ def preprocess_plab(plab_dir: Path):
     Parameters
     ----------
     plab_dir : Path
-        Path to the folder containing the participants' PLAB data.
+        Path to the folder containing PLAB test data.
 
     Returns
     -------
     dict
-        Dictionary with keys 'PLAB_rt_mean_sec', 'PLAB_accuracy', and 'PLAB_num_items'.
+        A dictionary with 'PLAB_rt_mean_sec', 'PLAB_accuracy', and 'PLAB_num_items'.
 
+    Raises
+    ------
+    ValueError
+        If required results file is missing or malformed.
     """
     try:
         df = _find_one_filetype_with_columns(
