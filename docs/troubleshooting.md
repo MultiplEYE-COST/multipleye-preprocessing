@@ -96,6 +96,38 @@ configuration.
 
 ---
 
+(errors_calculation)=
+
+## Psychometric Tests Calculation Warnings
+
+:::::{dropdown} [Participant ID] [Test] test skipped: [Error Message]
+
+This warning occurs when the script attempts to calculate summary metrics for a psychometric test,
+but the data is missing, incomplete, or malformed.
+
+**Contextual Information:**
+The warning includes additional context based on the participant's YAML configuration:
+
+- **(Expected per participant config):** The test was explicitly marked as `true` in the
+  configuration file. This is a critical failure that should be investigated (e.g., corrupted files,
+  missing columns).
+- **(Note: Marked as False or missing in participant config):** The test was marked as `false` or
+  was missing from the YAML. In this case, the failure to process the data is less critical because
+  the researcher already indicated that the test might not be valid or was not intended to be used.
+
+**What to do:**
+
+- **Investigate Data Integrity:** Check the mentioned CSV or data files for the specific
+  participant. Ensure they are not empty and contain the expected headers.
+- **Review Experimenter Documentation:** Check the experimenter session documentation for any
+  noteworthy points or mentions of technical failures during that specific test.
+- **Update Configuration:** If the test failed but was not intended to be used anyway, you can set
+  the flag to `false` in the participant's YAML configuration. This will clarify the intent,
+  although the technical skip warning may still appear if the data folder exists.
+  :::::
+
+---
+
 ```{eval-rst}
 .. raw:: html
 
