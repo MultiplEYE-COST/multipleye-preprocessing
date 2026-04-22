@@ -85,45 +85,103 @@ def is_valid_sid(sid: str) -> bool:
     """
     Checks if a session identifier (SID) is valid.
 
-    A valid SID follows the format: {PID}_{LANG}_{COUNTRY}_{LAB}_{SESSION}
-    Example: 002_ZH_CH_1_PT2
+    Supports extended formats with optional postfix information.
 
     Parameters
     ----------
     sid : str
-        The identifier to check.
+        The session identifier string to check.
 
     Returns
     -------
     bool
-        True if the identifier follows the SID format, False otherwise.
+        True if the identifier is valid, False otherwise.
+    """
+    return parse_sid(sid) is not None
+
+
+def parse_sid(sid: str) -> dict[str, str] | None:
+    """
+    Parses a session identifier (SID) into its component parts.
+
+    Supports the standard format and variants with postfix information,
+    such as full or partial restarts.
+
+    The expected format is: `{PID}_{LANG}_{COUNTRY}_{LAB}_{SESSION}_{POSTFIX}`
+    where `{POSTFIX}` is optional and can contain multiple underscores.
+
+    Parameters
+    ----------
+    sid : str
+        The session identifier string to parse (e.g., "002_ZH_CH_1_PT2").
+
+    Returns
+    -------
+    dict[str, str] | None
+        A dictionary containing the following keys if the SID is valid:
+        - 'pid': 3-digit participant ID.
+        - 'lang': 2-letter uppercase language code.
+        - 'country': 2-letter uppercase country code.
+        - 'lab': Laboratory identifier.
+        - 'session': Session part identifier (e.g., "PT1").
+        - 'postfix': Any trailing information after the session part.
+        - 'full_session': Combination of session and postfix.
+        - 'notes': Human-readable notes about restarts (if applicable).
+        Returns None if the SID does not follow the required format.
     """
     if not isinstance(sid, str):
-        return False
+        return None
 
     parts = sid.split("_")
-    if len(parts) != 5:
-        return False
+    if len(parts) < 5:
+        return None
 
-    pid, lang, country, lab, session = parts
+    pid, lang, country, lab, session = parts[:5]
 
-    # Validate PID (3 digits)
+    # Validate based on package conventions
     if not is_valid_pid(pid):
-        return False
+        return None
 
     # Validate Language (2 uppercase letters)
     if len(lang) != 2 or not lang.isalpha() or not lang.isupper():
-        return False
+        return None
 
     # Validate Country (2 uppercase letters)
     if len(country) != 2 or not country.isalpha() or not country.isupper():
-        return False
+        return None
 
     # Lab and Session should be non-empty
     if not lab or not session:
-        return False
+        return None
 
-    return True
+    # session and postfix
+    full_session = "_".join(parts[4:])
+    postfix = "_".join(parts[5:]) if len(parts) > 5 else ""
+
+    notes = ""
+    # Check for specific restart patterns in the parts starting from index 5
+    if (
+        len(parts) >= 9
+        and parts[5:8] == ["start", "after", "trial"]
+        and parts[8].isdigit()
+    ):
+        # Expected format: {PID}_{LANG}_{COUNTRY}_{LAB}_{SESSION}_start_after_trial_{trial}
+        trial = parts[8]
+        notes = f"Session has been restarted after trial {trial}."
+    elif len(parts) >= 7 and parts[5:7] == ["full", "restart"]:
+        # Expected format: {PID}_{LANG}_{COUNTRY}_{LAB}_{SESSION}_full_restart
+        notes = "Session has been fully restarted."
+
+    return {
+        "pid": pid,
+        "lang": lang,
+        "country": country,
+        "lab": lab,
+        "session": session,
+        "postfix": postfix,
+        "full_session": full_session,
+        "notes": notes,
+    }
 
 
 def validate_psychometric_data(
@@ -229,24 +287,25 @@ def validate_psychometric_data(
 
 def check_data_collection_exists(data_collection_name: str, data_root: Path) -> Path:
     """
-    Checks if the data collection folder exists in the data directory.
+    Checks if the data collection folder exists and contains meaningful data.
 
     Parameters
     ----------
     data_collection_name : str
-        The name of the data collection.
+        The name of the data collection subdirectory.
     data_root : Path
-        The root directory for the data.
+        The root directory where the data collection should be located.
 
     Returns
     -------
     Path
-        The path to the data collection folder.
+        The absolute path to the data collection folder.
 
     Raises
     ------
     FileNotFoundError
-        If the data collection folder does not exist.
+        If the folder does not exist or if it contains no meaningful files
+        (excluding logs and hidden files).
     """
     data_folder_path = data_root / data_collection_name
 

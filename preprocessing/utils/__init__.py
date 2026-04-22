@@ -5,6 +5,7 @@ from .data_path_utils import (
     check_data_collection_exists,
     is_valid_pid,
     is_valid_sid,
+    parse_sid,
     validate_psychometric_data,
 )
 from .data_collection_utils import _report_to_file
@@ -15,6 +16,7 @@ __all__ = [
     "check_data_collection_exists",
     "is_valid_pid",
     "is_valid_sid",
+    "parse_sid",
     "validate_psychometric_data",
     "_report_to_file",
     "get_logger",
