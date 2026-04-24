@@ -41,6 +41,9 @@ class Settings:
         #: Whether to include sessions from the pilot folder.
         self.INCLUDE_PILOTS: bool = False
 
+        #:
+        self.EXPERIMENT_TYPE: str = ""
+
         # Defines whether written files will be overwritten, if they already exist.
         # If False, preprocessed sessions will be skipped and not reprocessed.
         # If only some files for a session exist, the user has to select overwrite once

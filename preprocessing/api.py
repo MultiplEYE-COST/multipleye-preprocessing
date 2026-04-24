@@ -16,6 +16,7 @@ from .io.load import (
     load_gaze_data,
     load_trial_level_raw_data,
     load_trial_level_events_data,
+    load_reading_measures,
 )
 
 from .scripts.prepare_language_folder import prepare_language_folder
@@ -38,4 +39,5 @@ __all__ = [
     "load_gaze_data",
     "load_trial_level_raw_data",
     "load_trial_level_events_data",
+    "load_reading_measures",
 ]

@@ -1143,18 +1143,26 @@ class MultipleyeDataCollection:
             reading_times["pages"].append(page)
             reading_times["status"].append("time before pages and breaks")
 
-        df = pd.DataFrame(
-            {
-                "start_ts": reading_times["start_ts"],
-                "stop_ts": reading_times["stop_ts"],
-                "trial": reading_times["trials"],
-                "stimulus": reading_times["stimulus_name"],
-                "page": reading_times["pages"],
-                "type": reading_times["status"],
-                "duration_ms": reading_times["duration_ms"],
-                "duration-hh:mm:ss": reading_times["duration_str"],
-            }
-        )
+        try:
+            df = pd.DataFrame(
+                {
+                    "start_ts": reading_times["start_ts"],
+                    "stop_ts": reading_times["stop_ts"],
+                    "trial": reading_times["trials"],
+                    "stimulus": reading_times["stimulus_name"],
+                    "page": reading_times["pages"],
+                    "type": reading_times["status"],
+                    "duration_ms": reading_times["duration_ms"],
+                    "duration-hh:mm:ss": reading_times["duration_str"],
+                }
+            )
+        except ValueError:
+            raise ValueError(
+                "The reading times could not be computed properly. Please check 1) if the completed "
+                "stimulus file is alright (i.e. completed should be 1 for all, no missing values, etc.), "
+                "2) if anything happened during the session (crash or "
+                "technical errors), 3) contact the support team."
+            )
 
         df.to_csv(
             result_folder / f"times_per_page_{session_identifier}.tsv",

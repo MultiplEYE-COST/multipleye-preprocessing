@@ -6,7 +6,7 @@ from preprocessing.scripts.prepare_language_folder import (
 )
 
 
-class Merid(MultipleyeDataCollection):
+class MeridDataCollection(MultipleyeDataCollection):
     num_sessions = 2
     type = "MeRID"
 
