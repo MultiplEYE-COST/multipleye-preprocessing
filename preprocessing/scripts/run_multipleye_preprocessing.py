@@ -3,6 +3,7 @@ from argparse import ArgumentParser
 
 from tqdm import tqdm
 
+from ..models.sid import Sid
 from ..utils.logging import get_logger
 import preprocessing
 from preprocessing import settings
@@ -63,10 +64,21 @@ def run_multipleye_preprocessing(config_path: str | None = None):
 
     for sess in (pbar := tqdm(sessions)):
         idf = sess.session_identifier
-        # this is a bit of a hack to make the session names consistent for the file names as the multipleye
-        # session names contain infos when it was restarted
-        session_save_name = idf.split("_")[:5]
-        session_save_name = "_".join(session_save_name)
+        # Use Sid to get a consistent session name for file names, excluding restart postfixes
+        try:
+            sid = Sid(idf)
+            # Create a new Sid without the postfix for the save name
+            sid_no_postfix = Sid(
+                pid=sid.pid,
+                lang=sid.lang,
+                country=sid.country,
+                lab=sid.lab,
+                session=sid.session
+            )
+            session_save_name = str(sid_no_postfix)
+        except (ValueError, TypeError):
+            # Fallback for non-compliant identifiers
+            session_save_name = "_".join(idf.split("_")[:5])
 
         pbar.set_description(f"Preprocessing session {idf}:")
 

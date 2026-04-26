@@ -154,10 +154,31 @@ def test_restructure_normalization_s1_to_pt1(psycho_structure):
 
     fix_psycho_tests_structure(config_folder, data_folder, out_folder)
 
-    expected_folder = sid_s1.replace("S1", "PT1")
+    expected_folder = "004_ZH_CH_1_PT1"
     assert (out_folder / expected_folder).exists()
     assert (out_folder / expected_folder / "PLAB").exists()
     assert (out_folder / expected_folder / f"{sid_s1}.yaml").exists()
+
+
+def test_restructure_soft_matching_pt1_data_for_s1_config(psycho_structure):
+    """Test that it finds _PT1 data even if config is _S1."""
+    config_folder, data_folder, out_folder = psycho_structure
+    sid_config = "005_ZH_CH_1_S1"
+    sid_data = "005_ZH_CH_1_PT1"
+
+    config_data = {"plab": True}
+    with open(config_folder / f"{sid_config}.yaml", "w") as f:
+        yaml.dump(config_data, f)
+
+    (data_folder / "PLAB" / sid_data).mkdir(parents=True)
+    (data_folder / "PLAB" / sid_data / "data.csv").touch()
+
+    fix_psycho_tests_structure(config_folder, data_folder, out_folder)
+
+    expected_folder = "005_ZH_CH_1_PT1"
+    assert (out_folder / expected_folder).exists()
+    assert (out_folder / expected_folder / "PLAB" / "data.csv").exists()
+    assert (out_folder / expected_folder / f"{sid_config}.yaml").exists()
 
 
 def test_restructure_no_configs_raises_value_error(tmp_path):

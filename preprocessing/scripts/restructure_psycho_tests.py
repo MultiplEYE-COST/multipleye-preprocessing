@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from preprocessing.models.sid import Sid
 from preprocessing.utils import get_logger, validate_psychometric_data
 
 logger = get_logger(__name__)
@@ -106,21 +107,53 @@ def fix_psycho_tests_structure(
                 logger.error(f"Error reading configuration file {config_file}: {exc}")
                 continue
 
-        # Normalize name for the output folder
-        target_name = name
-        if target_name.endswith("S1"):
-            target_name = target_name.replace("S1", "PT1")
-        elif target_name.endswith("S2"):
-            target_name = target_name.replace("S2", "PT2")
+        # Normalize name for the output folder (always use PT prefix)
+        try:
+            config_sid = Sid(name)
+            target_sid = Sid(
+                pid=config_sid.pid,
+                lang=config_sid.lang,
+                country=config_sid.country,
+                lab=config_sid.lab,
+                session=config_sid.session.replace("S", "PT")
+                if config_sid.session.startswith("S")
+                else config_sid.session,
+                postfix=config_sid.postfix,
+            )
+            target_name = str(target_sid)
+        except (ValueError, TypeError):
+            target_name = name
 
         session_folder = out_folder / target_name
         session_folder.mkdir(parents=True, exist_ok=True)
 
+        # Use Sid for robust matching of source data
+        try:
+            config_sid = Sid(name)
+        except (ValueError, TypeError):
+            config_sid = None
+
         for yaml_flag, folder_name in settings.PSYCHOMETRIC_TEST_MAPPING.items():
             expected = config_data.get(yaml_flag, False)
+
+            # Try exact match first
             old_path = data_folder / folder_name / name
 
-            # We copy if expected is True OR if data actually exists
+            # If not found and it's a valid SID, try soft matching
+            if not old_path.exists() and config_sid:
+                test_type_dir = data_folder / folder_name
+                if test_type_dir.exists():
+                    for potential_dir in test_type_dir.iterdir():
+                        if potential_dir.is_dir():
+                            try:
+                                folder_sid = Sid(potential_dir.name)
+                                if config_sid.equals_soft(folder_sid):
+                                    old_path = potential_dir
+                                    break
+                            except (ValueError, TypeError):
+                                continue
+
+            # We copy if data actually exists
             if old_path.exists():
                 new_test_path = session_folder / folder_name
                 new_test_path.mkdir(parents=True, exist_ok=True)
