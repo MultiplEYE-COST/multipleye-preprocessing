@@ -3,6 +3,7 @@
 import os
 import yaml
 from pathlib import Path
+from ..models.sid import Sid
 from preprocessing.config import settings
 
 
@@ -81,109 +82,6 @@ def is_valid_pid(pid: str) -> bool:
     return isinstance(pid, str) and len(pid) == 3 and pid.isdigit()
 
 
-def is_valid_sid(sid: str) -> bool:
-    """
-    Checks if a session identifier (SID) is valid.
-
-    Supports extended formats with optional postfix information.
-
-    Parameters
-    ----------
-    sid : str
-        The session identifier string to check.
-
-    Returns
-    -------
-    bool
-        True if the identifier is valid, False otherwise.
-    """
-    return parse_sid(sid) is not None
-
-
-def parse_sid(sid: str) -> dict[str, str] | None:
-    """
-    Parses a session identifier (SID) into its component parts.
-
-    Supports the standard format and variants with postfix information,
-    such as full or partial restarts.
-
-    The expected format is: `{PID}_{LANG}_{COUNTRY}_{LAB}_{SESSION}_{POSTFIX}`
-    where `{POSTFIX}` is optional and can contain multiple underscores.
-
-    Parameters
-    ----------
-    sid : str
-        The session identifier string to parse (e.g., "002_ZH_CH_1_PT2").
-
-    Returns
-    -------
-    dict[str, str] | None
-        A dictionary containing the following keys if the SID is valid:
-        - 'pid': 3-digit participant ID.
-        - 'lang': 2-letter uppercase language code.
-        - 'country': 2-letter uppercase country code.
-        - 'lab': Laboratory identifier.
-        - 'session': Session part identifier (e.g., "PT1").
-        - 'postfix': Any trailing information after the session part.
-        - 'full_session': Combination of session and postfix.
-        - 'notes': Human-readable notes about restarts (if applicable).
-        Returns None if the SID does not follow the required format.
-    """
-    if not isinstance(sid, str):
-        return None
-
-    parts = sid.split("_")
-    if len(parts) < 5:
-        return None
-
-    pid, lang, country, lab, session = parts[:5]
-
-    # Validate based on package conventions
-    if not is_valid_pid(pid):
-        return None
-
-    # Validate Language (2 uppercase letters)
-    if len(lang) != 2 or not lang.isalpha() or not lang.isupper():
-        return None
-
-    # Validate Country (2 uppercase letters)
-    if len(country) != 2 or not country.isalpha() or not country.isupper():
-        return None
-
-    # Lab and Session should be non-empty
-    if not lab or not session:
-        return None
-
-    # session and postfix
-    full_session = "_".join(parts[4:])
-    postfix = "_".join(parts[5:]) if len(parts) > 5 else ""
-
-    notes = ""
-    # Check for specific restart patterns in the parts starting from index 5
-    if (
-        len(parts) >= 9
-        and parts[5:8] == ["start", "after", "trial"]
-        and parts[8].isdigit()
-    ):
-        # Expected format: {PID}_{LANG}_{COUNTRY}_{LAB}_{SESSION}_start_after_trial_{trial}
-        trial = parts[8]
-        notes = f"Session has been restarted after trial {trial}."
-    elif len(parts) >= 7 and parts[5:7] == ["full", "restart"]:
-        # Expected format: {PID}_{LANG}_{COUNTRY}_{LAB}_{SESSION}_full_restart
-        notes = "Session has been fully restarted."
-
-    return {
-        "pid": pid,
-        "lang": lang,
-        "country": country,
-        "lab": lab,
-        "session": session,
-        "postfix": postfix,
-        "full_session": full_session,
-        "notes": notes,
-    }
-
-
 def validate_psychometric_data(
     config_folder: Path,
     data_folder: Path,
@@ -223,13 +121,16 @@ def validate_psychometric_data(
         return issues
 
     for config_file in config_files:
-        name = config_file.stem
+        config_sid_str = config_file.stem
         participant_issues = []
 
-        if not is_valid_sid(name):
+        try:
+            config_sid = Sid(config_sid_str)
+        except (ValueError, TypeError):
             msg = f"Configuration file name is not SID-compliant: {config_file.name}."
             logger.warning(f"{msg} Attempting to process anyway.")
             participant_issues.append(msg)
+            config_sid = None
 
         with open(config_file, "r") as f:
             try:
@@ -238,28 +139,35 @@ def validate_psychometric_data(
                 msg = f"Error reading configuration file {config_file}: {exc}"
                 logger.error(msg)
                 participant_issues.append(msg)
-                issues[name] = participant_issues
+                issues[config_sid_str] = participant_issues
                 continue
 
-        # Normalize name for the output folder if needed (S1/S2 -> PT1/PT2)
-        target_name = name
-        if target_name.endswith("S1"):
-            target_name = target_name.replace("S1", "PT1")
-        elif target_name.endswith("S2"):
-            target_name = target_name.replace("S2", "PT2")
+        # Find matching data folder
+        matched_folder_name = config_sid_str
+        if config_sid and is_restructured:
+            # Try to find a folder that soft-matches the config SID
+            actual_folders = [p.name for p in data_folder.iterdir() if p.is_dir()]
+            for folder_name in actual_folders:
+                try:
+                    folder_sid = Sid(folder_name)
+                    if config_sid.equals_soft(folder_sid):
+                        matched_folder_name = folder_name
+                        break
+                except (ValueError, TypeError):
+                    continue
 
         for yaml_flag, folder_name in settings.PSYCHOMETRIC_TEST_MAPPING.items():
             expected = config_data.get(yaml_flag, False)
 
             if is_restructured:
-                test_path = data_folder / target_name / folder_name
+                test_path = data_folder / matched_folder_name / folder_name
             else:
-                test_path = data_folder / folder_name / name
+                test_path = data_folder / folder_name / config_sid_str
 
             if expected is True:
                 if not test_path.exists():
                     msg = (
-                        f"!!! MISSING DATA !!!: Participant {name} is marked for {folder_name} "
+                        f"!!! MISSING DATA !!!: Participant {config_sid_str} is marked for {folder_name} "
                         f"in participant configuration ({config_file.name}), "
                         f"but the data folder does not exist at: {test_path}. "
                         "Please check the experimenter session documentation for any noteworthy points. "
@@ -271,7 +179,7 @@ def validate_psychometric_data(
             else:
                 if test_path.exists():
                     msg = (
-                        f"Participant {name} has data for {folder_name}, "
+                        f"Participant {config_sid_str} has data for {folder_name}, "
                         f"but it is marked as False (or missing) in participant config ({config_file.name})."
                     )
                     if not is_restructured:
@@ -280,7 +188,7 @@ def validate_psychometric_data(
                     participant_issues.append(msg)
 
         if participant_issues:
-            issues[name] = participant_issues
+            issues[config_sid_str] = participant_issues
 
     return issues
 
