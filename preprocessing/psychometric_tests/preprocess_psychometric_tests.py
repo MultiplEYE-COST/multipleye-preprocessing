@@ -24,7 +24,8 @@ from pandas import read_csv, DataFrame
 import pandas as pd
 
 from ..config import settings
-from ..utils import pid_from_session, validate_psychometric_data, parse_sid
+from ..models.sid import Sid
+from ..utils import pid_from_session, validate_psychometric_data
 
 
 def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
@@ -89,14 +90,14 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
     overview_rows: list[dict] = []
 
     for session in session_folders:
-        sid_info = parse_sid(session.name)
-        if sid_info:
-            pid = sid_info["pid"]
-            session_part = sid_info["session"]
-            session_id_extended = sid_info["full_session"]
-            postfix = sid_info["postfix"]
-            notes = sid_info["notes"]
-        else:
+        try:
+            sid = Sid(session.name)
+            pid = sid.pid
+            session_part = sid.session
+            session_id_extended = str(sid)
+            postfix = sid.postfix
+            notes = sid.notes
+        except (ValueError, TypeError):
             pid = pid_from_session(session)
             session_part = ""
             session_id_extended = ""
