@@ -25,7 +25,7 @@ import pandas as pd
 
 from ..config import settings
 from ..models.sid import Sid
-from ..utils import pid_from_session, validate_psychometric_data
+from ..utils import validate_psychometric_data
 
 
 def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
@@ -91,18 +91,36 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
 
     for session in session_folders:
         try:
-            sid = Sid(session.name)
-            pid = sid.pid
-            session_part = sid.session
-            session_id_extended = str(sid)
-            postfix = sid.postfix
-            notes = sid.notes
+            folder_sid = Sid(session.name)
+            pid = folder_sid.pid
+            session_part = folder_sid.session
+            session_id_extended = str(folder_sid)
+            postfix = folder_sid.postfix
+            notes = folder_sid.notes
         except (ValueError, TypeError):
-            pid = pid_from_session(session)
+            # Fallback for non-standard folders if absolutely necessary
+            folder_sid = None
+            pid = session.name[:3] if len(session.name) >= 3 else session.name
             session_part = ""
             session_id_extended = ""
             postfix = ""
             notes = ""
+
+        # Find the original config file inside the session folder to ensure correct metadata.
+        # In restructured folders, there should be exactly one .yaml file.
+        config_files = list(session.glob("*.yaml"))
+        if config_files and folder_sid:
+            try:
+                config_sid = Sid(config_files[0].stem)
+                if folder_sid.equals_soft(config_sid):
+                    # Prefer metadata from the original config if they soft-match
+                    pid = config_sid.pid
+                    session_part = config_sid.session
+                    session_id_extended = str(config_sid)
+                    postfix = config_sid.postfix
+                    notes = config_sid.notes
+            except (ValueError, TypeError):
+                pass
 
         # Initialise an overview row with participant and per-test Done flags (0/1)
         overview_row: dict = {

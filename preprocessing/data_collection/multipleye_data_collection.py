@@ -16,7 +16,6 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
-from ..utils import pid_from_session
 from ..models.sid import Sid
 from ..config import settings
 from ..utils.conversion import convert_to_time_str
@@ -631,7 +630,10 @@ class MultipleyeDataCollection:
 
         for session in (pbar := tqdm(self.sessions.keys(), total=len(self.sessions))):
             pbar.set_description(f"Preparing session {session}")
-            p_id = pid_from_session(session)
+            try:
+                p_id = Sid(session).pid
+            except (ValueError, TypeError):
+                p_id = session.split("_")[0] if "_" in session else session
 
             if "start_after_trial" in session:
                 if p_id not in self.crashed_session_ids:
@@ -805,7 +807,7 @@ class MultipleyeDataCollection:
 
         completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
 
-        p_id = pid_from_session(session_identifier)
+        p_id = Sid(session_identifier).pid
 
         # load trial to stimulus mapping
         trial_ids = completed_stimuli["trial_id"].to_list()
@@ -850,7 +852,7 @@ class MultipleyeDataCollection:
         self, session_identifier, logfile_order_version: int
     ) -> list[int]:
         # if the session crashed, only load the stimuli that were actually completed in that session
-        p_id = pid_from_session(session_identifier)
+        p_id = Sid(session_identifier).pid
         incomplete_order = []
         if p_id in self.crashed_session_ids:
             incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
@@ -1271,7 +1273,7 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier. eg "005_ET_EE_1_ET1"
         """
 
-        p_id = pid_from_session(session_identifier)
+        p_id = Sid(session_identifier).pid
         check_messages(
             messages,
             stimuli,
@@ -1344,7 +1346,9 @@ class MultipleyeDataCollection:
                             continue
 
             if found_path:
-                self.sessions[session_identifier].psychometric_tests_session = found_path.name
+                self.sessions[
+                    session_identifier
+                ].psychometric_tests_session = found_path.name
             else:
                 self.logger.warning(
                     f"No psychometric tests session folder for {session_identifier} could be found. Please check."
@@ -1379,7 +1383,7 @@ class MultipleyeDataCollection:
             pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))
         ):
             pbar.set_description(f"Parsing participant data {session}")
-            
+
             try:
                 sid = Sid(session)
                 participant_id = sid.pid
@@ -1389,7 +1393,9 @@ class MultipleyeDataCollection:
                 session_id = sid.session
                 notes = sid.notes
             except (ValueError, TypeError):
-                logging.warning(f"Session {session} does not match the expected format.")
+                logging.warning(
+                    f"Session {session} does not match the expected format."
+                )
                 continue
 
             folder = Path(self.sessions[session].session_folder_path)
