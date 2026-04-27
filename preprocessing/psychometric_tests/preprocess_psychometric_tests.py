@@ -384,12 +384,20 @@ def create_merged_psychometric_overview(overview_path: Path) -> Path:
             # Merge disjoint rows
             merged_row = group.iloc[0].copy()
             merged_row["session_id"] = base_sid
-            merged_row["original_sessions"] = ", ".join(group["session_id"].astype(str).tolist())
+            merged_row["original_sessions"] = ", ".join(
+                group["session_id"].astype(str).tolist()
+            )
 
             # For all columns that are not IDs or Done flags, take the non-null/non-zero value
             # Actually, most result columns should be disjoint if _Done flags are disjoint.
             for col in df.columns:
-                if col in ["session_id", "participant_id", "base_session_id", "notes", "original_sessions"]:
+                if col in [
+                    "session_id",
+                    "participant_id",
+                    "base_session_id",
+                    "notes",
+                    "original_sessions",
+                ]:
                     continue
 
                 # If it's a _Done col, sum it.
@@ -404,7 +412,9 @@ def create_merged_psychometric_overview(overview_path: Path) -> Path:
                         merged_row[col] = nan
 
             # Merge notes
-            all_notes = [str(n).strip() for n in group["notes"].dropna() if str(n).strip()]
+            all_notes = [
+                str(n).strip() for n in group["notes"].dropna() if str(n).strip()
+            ]
             merged_row["notes"] = "; ".join(dict.fromkeys(all_notes))
 
             merged_rows.append(merged_row.to_dict())
@@ -413,7 +423,9 @@ def create_merged_psychometric_overview(overview_path: Path) -> Path:
             for _, row in group.iterrows():
                 r = row.to_dict()
                 r["original_sessions"] = r["session_id"]
-                r["session_id"] = base_sid  # Or keep original? User said '015_HR_hr_1' in first column
+                r["session_id"] = (
+                    base_sid  # Or keep original? User said '015_HR_hr_1' in first column
+                )
                 merged_rows.append(r)
 
     merged_df = DataFrame(merged_rows)
@@ -422,7 +434,9 @@ def create_merged_psychometric_overview(overview_path: Path) -> Path:
     session_cols = ["session_id", "participant_id", "original_sessions"]
     flag_cols = done_cols
     fixed = session_cols + flag_cols + ["notes"]
-    remaining = [c for c in merged_df.columns if c not in fixed and c != "base_session_id"]
+    remaining = [
+        c for c in merged_df.columns if c not in fixed and c != "base_session_id"
+    ]
 
     # Filter out columns that might not exist in df
     final_cols = [c for c in fixed if c in merged_df.columns] + remaining

@@ -59,7 +59,7 @@ def run_multipleye_preprocessing(config_path: str | None = None):
                 lang=sid.lang,
                 country=sid.country,
                 lab=sid.lab,
-                session=sid.session
+                session=sid.session,
             )
             session_save_name = str(sid_no_postfix)
         except (ValueError, TypeError):
