@@ -309,6 +309,127 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
     from ..utils.logging import get_logger
 
     get_logger(__name__).info(f"Wrote overview: {out_path}")
+
+    merged_path = create_merged_psychometric_overview(out_path)
+    get_logger(__name__).info(f"Wrote merged overview: {merged_path}")
+
+    return out_path
+
+
+def create_merged_psychometric_overview(overview_path: Path) -> Path:
+    """
+    Creates a merged version of the psychometric overview CSV.
+
+    Rows for the same participant are merged if their tests are disjoint
+    (e.g., PT1 has RAN and PT2 has LWMC). If tests overlap, they are not
+    merged and a warning is issued.
+
+    Parameters
+    ----------
+    overview_path : Path
+        Path to the original psychometric overview CSV.
+
+    Returns
+    -------
+    Path
+        Path to the generated merged overview CSV.
+    """
+    df = read_csv(overview_path)
+    if df.empty:
+        return overview_path
+
+    # Extract base session ID (without the S/PT/ET suffix)
+    def get_base_sid(sid_str):
+        try:
+            # Reconstruct SID without the session part
+            sid = Sid(sid_str)
+            base = f"{sid.pid}_{sid.lang}_{sid.country}_{sid.lab}"
+            if sid.postfix:
+                base += f"_{sid.postfix}"
+            return base
+        except Exception:
+            # Fallback: remove trailing _PTn or _Sn
+            return re.sub(r"_(S|PT|ET)\d+$", "", str(sid_str))
+
+    import re
+
+    df["base_session_id"] = df["session_id"].apply(get_base_sid)
+
+    done_cols = [c for c in df.columns if c.endswith("_Done")]
+
+    merged_rows = []
+    # Group by base_session_id and participant_id
+    for (base_sid, pid), group in df.groupby(["base_session_id", "participant_id"]):
+        if len(group) == 1:
+            row = group.iloc[0].to_dict()
+            row["original_sessions"] = row["session_id"]
+            row["session_id"] = base_sid
+            merged_rows.append(row)
+            continue
+
+        # Check for overlapping tests
+        can_merge = True
+        for col in done_cols:
+            if group[col].sum() > 1:
+                can_merge = False
+                from ..utils.logging import get_logger
+
+                get_logger(__name__).warning(
+                    f"Cannot merge sessions for participant {pid} ({base_sid}): "
+                    f"overlapping results for {col}."
+                )
+                break
+
+        if can_merge:
+            # Merge disjoint rows
+            merged_row = group.iloc[0].copy()
+            merged_row["session_id"] = base_sid
+            merged_row["original_sessions"] = ", ".join(group["session_id"].astype(str).tolist())
+
+            # For all columns that are not IDs or Done flags, take the non-null/non-zero value
+            # Actually, most result columns should be disjoint if _Done flags are disjoint.
+            for col in df.columns:
+                if col in ["session_id", "participant_id", "base_session_id", "notes", "original_sessions"]:
+                    continue
+
+                # If it's a _Done col, sum it.
+                if col in done_cols:
+                    merged_row[col] = group[col].sum()
+                else:
+                    # Find non-NA values in the group for this column
+                    valid_values = group[col].dropna()
+                    if not valid_values.empty:
+                        merged_row[col] = valid_values.iloc[0]
+                    else:
+                        merged_row[col] = nan
+
+            # Merge notes
+            all_notes = [str(n).strip() for n in group["notes"].dropna() if str(n).strip()]
+            merged_row["notes"] = "; ".join(dict.fromkeys(all_notes))
+
+            merged_rows.append(merged_row.to_dict())
+        else:
+            # Keep separate
+            for _, row in group.iterrows():
+                r = row.to_dict()
+                r["original_sessions"] = r["session_id"]
+                r["session_id"] = base_sid  # Or keep original? User said '015_HR_hr_1' in first column
+                merged_rows.append(r)
+
+    merged_df = DataFrame(merged_rows)
+
+    # Reorder columns
+    session_cols = ["session_id", "participant_id", "original_sessions"]
+    flag_cols = done_cols
+    fixed = session_cols + flag_cols + ["notes"]
+    remaining = [c for c in merged_df.columns if c not in fixed and c != "base_session_id"]
+
+    # Filter out columns that might not exist in df
+    final_cols = [c for c in fixed if c in merged_df.columns] + remaining
+    merged_df = merged_df[final_cols]
+
+    out_path = overview_path.parent / overview_path.name.replace(".csv", "_merged.csv")
+    merged_df.to_csv(out_path, index=False)
     return out_path
 
 
