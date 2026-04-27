@@ -1,6 +1,7 @@
 import warnings
 
 from ..data_collection.multipleye_data_collection import MultipleyeDataCollection
+from ..models.sid import Sid
 from preprocessing.scripts.prepare_language_folder import (
     extract_stimulus_version_number_from_asc,
 )
@@ -13,9 +14,9 @@ class MeridDataCollection(MultipleyeDataCollection):
     def _load_session_stimulus_order(
         self, session_identifier, logfile_order_version: int
     ):
-        # if the session crashed, only load the stimuli that were actually completed in that session
-        p_id = session_identifier.split("_")[0]
-        session_id = int(session_identifier.strip()[-1])
+        sid = Sid(session_identifier)
+        p_id = sid.pid
+        session_id = int(sid.session)
         incomplete_order = []
         if p_id in self.crashed_session_ids:
             incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
