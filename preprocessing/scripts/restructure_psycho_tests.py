@@ -102,7 +102,7 @@ def fix_psycho_tests_structure(
 
         with open(config_file, "r") as f:
             try:
-                config_data = yaml.safe_load(f)
+                yaml.safe_load(f)
             except yaml.YAMLError as exc:
                 logger.error(f"Error reading configuration file {config_file}: {exc}")
                 continue
@@ -134,8 +134,6 @@ def fix_psycho_tests_structure(
             config_sid = None
 
         for yaml_flag, folder_name in settings.PSYCHOMETRIC_TEST_MAPPING.items():
-            expected = config_data.get(yaml_flag, False)
-
             # Try exact match first
             old_path = data_folder / folder_name / name
 
@@ -216,9 +214,7 @@ def main():
 
     if args.check_only:
         print(f"Running sanity check on data: {data_p} with configs: {config_p}")
-        validate_psychometric_data(
-            config_p, data_p, is_restructured=args.restructured
-        )
+        validate_psychometric_data(config_p, data_p, is_restructured=args.restructured)
         return
 
     print(
