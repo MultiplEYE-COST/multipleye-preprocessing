@@ -1332,7 +1332,7 @@ class MultipleyeDataCollection:
         session_name_pt2 = session_identifier.replace("ET1", "PT2")
 
         if self.psychometric_tests:
-            for test in self.psychometric_tests:
+            for _ in self.psychometric_tests:
                 test_path = (
                     self.data_root.parent
                     / "psychometric-tests-sessions"

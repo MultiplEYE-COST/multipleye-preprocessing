@@ -215,9 +215,8 @@ def run_multipleye_preprocessing(config_path: str | None = None):
             reading_measures = preprocessing.load_reading_measures(
                 rm_folder,
             )
-            preprocessing.save_reading_measures(
-                settings.OUTPUT_DIR, session_save_name, reading_measures
-            )
+
+            data_collection[sess].reading_measures = True
 
         else:
             pbar.set_description(f"Calculating reading measures {idf}:")
@@ -225,14 +224,12 @@ def run_multipleye_preprocessing(config_path: str | None = None):
                 gaze,
                 sess.stimuli,
             )
+
             preprocessing.save_reading_measures(
                 settings.OUTPUT_DIR, session_save_name, reading_measures
             )
+            data_collection[sess].reading_measures = True
 
-        # perform the multipleye specific stuff
-        data_collection.create_session_overview(
-            sess.session_identifier, path=settings.OUTPUT_DIR
-        )
         pbar.set_description(f"Creating sanity check report {idf}")
         data_collection.create_sanity_check_report(
             gaze,
@@ -243,6 +240,11 @@ def run_multipleye_preprocessing(config_path: str | None = None):
         )
 
         preprocessing.save_session_metadata(settings.OUTPUT_DIR, idf, gaze)
+
+        # perform the multipleye specific stuff
+        data_collection.create_session_overview(
+            sess.session_identifier, path=settings.OUTPUT_DIR
+        )
 
     data_collection.create_dataset_overview(path=settings.OUTPUT_DIR)
     data_collection.parse_participant_data(settings.OUTPUT_DIR / "participant_data.csv")
