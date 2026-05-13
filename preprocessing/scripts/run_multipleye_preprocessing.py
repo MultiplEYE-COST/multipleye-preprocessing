@@ -30,23 +30,37 @@ def run_multipleye_preprocessing(config_path: str | None = None):
             f"And check if you have filled in the correct data collection name in the settings."
         )
 
-    multipleye = (
-        preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
+    if settings.EXPERIMENT_TYPE == "MultiplEYE":
+        data_collection = preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
             data_folder_path,
             include_pilots=settings.INCLUDE_PILOTS,
             excluded_sessions=settings.EXCLUDE_SESSIONS,
             included_sessions=settings.INCLUDE_SESSIONS,
         )
-    )
 
-    multipleye.convert_edf_to_asc()
-    multipleye.prepare_session_level_information()
+    elif settings.EXPERIMENT_TYPE == "MeRID":
+        data_collection = (
+            preprocessing.data_collection.MeridDataCollection.create_from_data_folder(
+                data_folder_path,
+                include_pilots=settings.INCLUDE_PILOTS,
+                excluded_sessions=settings.EXCLUDE_SESSIONS,
+                included_sessions=settings.INCLUDE_SESSIONS,
+            )
+        )
+
+    else:
+        raise ValueError(
+            f"Invalid experiment type: {settings.EXPERIMENT_TYPE}. Supported types: [MultiplEYE, MeRID]"
+        )
+
+    data_collection.convert_edf_to_asc()
+    data_collection.prepare_session_level_information()
 
     # for sess in multipleye:
     #     if sess.stimuli == 'unknown':
     #         print(sess.session_identifier)
 
-    sessions = [s for s in multipleye]
+    sessions = [s for s in data_collection]
 
     for sess in (pbar := tqdm(sessions)):
         idf = sess.session_identifier
@@ -199,7 +213,7 @@ def run_multipleye_preprocessing(config_path: str | None = None):
             settings.OUTPUT_DIR / session_save_name / settings.READING_MEASURES_FOLDER
         )
 
-        if not rm_folder.exists() and not settings.OVERWRITE:
+        if rm_folder.exists() and not settings.OVERWRITE:
             # check if the folder contains the expected number of files, if not, we will overwrite
             num_expected_files = len(sess.completed_stimuli_ids)
             num_files = len(list(rm_folder.glob("*.csv")))
@@ -209,6 +223,15 @@ def run_multipleye_preprocessing(config_path: str | None = None):
                     f"expected number of files. Please check and select overwrite."
                 )
 
+            pbar.set_description(f"Loading reading measures {idf}:")
+            reading_measures = preprocessing.load_reading_measures(
+                rm_folder,
+            )
+            preprocessing.save_reading_measures(
+                settings.OUTPUT_DIR, session_save_name, reading_measures
+            )
+
+        else:
             pbar.set_description(f"Calculating reading measures {idf}:")
             reading_measures = preprocessing.calculate_reading_measures(
                 gaze,
@@ -219,11 +242,11 @@ def run_multipleye_preprocessing(config_path: str | None = None):
             )
 
         # perform the multipleye specific stuff
-        multipleye.create_session_overview(
+        data_collection.create_session_overview(
             sess.session_identifier, path=settings.OUTPUT_DIR
         )
         pbar.set_description(f"Creating sanity check report {idf}")
-        multipleye.create_sanity_check_report(
+        data_collection.create_sanity_check_report(
             gaze,
             sess.session_identifier,
             plotting=True,
@@ -233,8 +256,8 @@ def run_multipleye_preprocessing(config_path: str | None = None):
 
         preprocessing.save_session_metadata(settings.OUTPUT_DIR, idf, gaze)
 
-    multipleye.create_dataset_overview(path=settings.OUTPUT_DIR)
-    multipleye.parse_participant_data(settings.OUTPUT_DIR / "participant_data.csv")
+    data_collection.create_dataset_overview(path=settings.OUTPUT_DIR)
+    data_collection.parse_participant_data(settings.OUTPUT_DIR / "participant_data.csv")
 
 
 def main():

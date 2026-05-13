@@ -1,4 +1,5 @@
-data_collection_name: "MultiplEYE_IT_CH_Lugano_1_2026"
+data_collection_name: "MultiplEYE_DA_DK_Aalborg_1_2026"
+experiment_type: "MeRID" # can be either MultiplEYE or MeRID
 
 overwrite: False # defines whether written files will be overwritten, if they already exist. If False, preprocessed sessions will be skipped and not reprocessed.
                 # If only some files for a session exist, the user has to select overwrite once to avoid having files stemming from different versions.
@@ -8,6 +9,7 @@ overwrite: False # defines whether written files will be overwritten, if they al
 ## pick either include or exclude sessions, if none is specified, all sessions are included
 include_sessions:
 exclude_sessions:
+  - 021_DA_DK_1_ET1
 
 include_pilots: True
 
