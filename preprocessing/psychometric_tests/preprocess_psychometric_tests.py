@@ -102,7 +102,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
             folder_sid = None
             pid = session.name[:3] if len(session.name) >= 3 else session.name
             session_part = ""
-            session_id_extended = ""
+            session_id_extended = session.name
             postfix = ""
             notes = ""
 
@@ -348,7 +348,7 @@ def create_merged_psychometric_overview(overview_path: Path) -> Path:
                 base += f"_{sid.postfix}"
             return base
         except Exception:
-            # Fallback: remove trailing _PTn or _Sn
+            # Fallback: remove trailing _PTn or _Sn or _ETn
             return re.sub(r"_(S|PT|ET)\d+$", "", str(sid_str))
 
     import re
