@@ -943,7 +943,6 @@ class MultipleyeDataCollection:
             "transition_screen",
             "final_validation",
             "show_final_screen",
-            "optional_break_screen",
             "fixation_trigger:skipped_by_experimenter",
             "fixation_trigger:experimenter_calibration_triggered",
             "recalibration",
