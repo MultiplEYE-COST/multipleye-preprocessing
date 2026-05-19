@@ -30,7 +30,6 @@ OME_TIME_SCREENS = [
 ]
 
 OPTIONAL_SCREENS = [
-    "optional_break_screen",
     "fixation_trigger:skipped_by_experimenter",
     "fixation_trigger:experimenter_calibration_triggered",
     "optional_break",
