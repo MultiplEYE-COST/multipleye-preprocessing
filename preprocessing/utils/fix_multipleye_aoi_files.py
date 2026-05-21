@@ -5,7 +5,7 @@ import pandas as pd
 
 from ..utils.logging import get_logger
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 
 def remap_space_to_following_word(aoi_file_path: str | Path) -> None:
@@ -32,7 +32,7 @@ def remap_space_to_following_word(aoi_file_path: str | Path) -> None:
             aoi_df.loc[i, "word_idx_in_line"] = aoi_df.loc[i + 1, "word_idx_in_line"]
             found_space = True
 
-    logger.info(f"Remapped space to following word for AOI file: {aoi_file_path}")
+    logger.debug(f"Remapped space to following word for AOI file: {aoi_file_path}")
 
     aoi_df.to_csv(aoi_file_path, index=False)
 
@@ -98,4 +98,4 @@ def repair_word_labels(aoi_file_path: str | Path) -> None:
 
     df.write_csv(aoi_file_path)
 
-    logger.info(f"Filled missing word labels in AOI file: {aoi_file_path}")
+    logger.debug(f"Filled missing word labels in AOI file: {aoi_file_path}")
