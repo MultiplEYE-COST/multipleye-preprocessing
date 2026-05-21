@@ -42,7 +42,7 @@ def report_to_file_metadata(
             result = "✅"
 
     if percentage:
-        values = [f"{value:.6%}" for value in values]
+        values = [f"{value:.3%}" for value in values]
     report_file.write(f"{result} {name}: {', '.join(map(str, values))}\n")
 
 
@@ -321,13 +321,13 @@ def check_metadata(
     )
     report(
         "AVG validation scores",
-        validation_scores_avg,
+        [round(score, 4) for score in validation_scores_avg],
         settings.ACCEPTABLE_AVG_VALIDATION_SCORES,
     )
     validation_scores_max = validations["accuracy_max"].cast(pl.Float32).to_list()
     report(
         "MAX validation scores",
-        validation_scores_max,
+        [round(score, 4) for score in validation_scores_max],
         settings.TRACKED_EYE,
     )
 
@@ -348,21 +348,21 @@ def check_metadata(
     data_loss_ratio = metadata["data_loss_ratio"]
     report(
         "Data loss ratio",
-        data_loss_ratio,
+        round(data_loss_ratio, 3),
         settings.ACCEPTABLE_DATA_LOSS_RATIOS,
         percentage=True,
     )
     data_loss_ratio_blinks = metadata["data_loss_ratio_blinks"]
     report(
         "Data loss ratio due to blinks",
-        data_loss_ratio_blinks,
+        round(data_loss_ratio_blinks, 3),
         settings.ACCEPTABLE_DATA_LOSS_RATIOS,
         percentage=True,
     )
     total_recording_duration = metadata["total_recording_duration_ms"] / 60000
     report(
         "Total recording duration",
-        total_recording_duration,
+        round(total_recording_duration, 2),
         settings.ACCEPTABLE_RECORDING_DURATIONS,
     )
     sampling_rate = metadata["sampling_rate"]
