@@ -482,6 +482,7 @@ class Settings:
                 "EyeLink II",
                 "EyeLink 1000",
                 "EyeLink Portable Duo",
+                "EyeLink Portable Duo 2000Hz Remote",
             ],
         }
 
