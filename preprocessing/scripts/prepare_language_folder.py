@@ -149,7 +149,7 @@ def prepare_language_folder(data_collection_name: str | None = None):
     )
 
     # get all aoi files, if there are only 12 files, they are not yet split
-    aoi_files = list(aoi_path.glob("*.csv"))
+    aoi_files = list(aoi_path.glob("[!.]*.csv"))
     if len(aoi_files) == 12:
         logger.info("Splitting AOI files into text and question AOIs...")
         for aoi_file in aoi_files:
@@ -175,7 +175,8 @@ def prepare_language_folder(data_collection_name: str | None = None):
             "Expected 12 (not split) or 24 (already split into texts and questions)."
         )
 
-    aoi_files_restructured = list(aoi_path.glob("*.csv"))
+    aoi_files_restructured = list(aoi_path.glob("[!.]*.csv"))
+    logger.info(f"Remapping and repairing AOI files in {aoi_path}. This may take a minute or two.")
     for aoi_file in aoi_files_restructured:
         remap_space_to_following_word(aoi_file)
         repair_word_labels(aoi_file)
