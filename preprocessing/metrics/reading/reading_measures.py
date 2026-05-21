@@ -232,6 +232,7 @@ def compute_rpd_measures(fix: pl.DataFrame) -> pl.DataFrame:
         return pl.DataFrame(
             rows,
             schema=[settings.WORD_IDX_COL, "RPD_inc", "RPD_exc", "RBRT"],
+            orient="row",
         ).with_columns(
             [
                 pl.lit(df[settings.TRIAL_COL][0]).alias(settings.TRIAL_COL),
