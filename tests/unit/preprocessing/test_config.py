@@ -141,10 +141,15 @@ def test_settings_load_from_yaml(settings_obj, tmp_path):
     assert settings_obj.EXPECTED_SAMPLING_RATE_HZ == 500
 
 
-def test_settings_validation_error(settings_obj):
-    """Test that missing required fields raise an error."""
-    with pytest.raises(ValueError, match="DATA_COLLECTION_NAME is required"):
-        settings_obj._validate()
+def test_settings_validation_no_error_initially(settings_obj):
+    """Test that missing required fields do not raise an error during initial load."""
+    settings_obj._validate()  # Should not raise
+
+
+def test_settings_validation_placeholder_no_error_initially(settings_obj):
+    """Test that placeholder DATA_COLLECTION_NAME does not raise an error during initial load."""
+    settings_obj.DATA_COLLECTION_NAME = "REPLACE_WITH_YOUR_COLLECTION_NAME"
+    settings_obj._validate()  # Should not raise
 
 
 def test_prepare_language_folder_none_error():
@@ -199,6 +204,46 @@ def test_settings_precedence_env_var(tmp_path, monkeypatch):
     s = Settings()
     s.load()
     assert s.DATA_COLLECTION_NAME == "ENV_COLLECTION"
+
+
+def test_settings_copies_template_silently(tmp_path, monkeypatch, caplog):
+    """Test that missing config copies template silently during load."""
+    from preprocessing.config import Settings, TEMPLATE_RELATIVE_PATH
+
+    template_path = Settings()._repo_root / TEMPLATE_RELATIVE_PATH
+    template_contents = template_path.read_text(encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MULTIPLEYE_CONFIG", raising=False)
+
+    s = Settings()
+    with caplog.at_level(logging.ERROR):
+        s.load()
+
+    # load() should now be silent
+    assert "CONFIGURATION REQUIRED" not in caplog.text
+    assert s._is_template_loaded
+
+    copied_path = tmp_path / "multipleye_settings_preprocessing.yaml"
+    assert copied_path.exists()
+    assert copied_path.read_text(encoding="utf-8") == template_contents
+
+    # Now verify get_config_status_message returns the error
+    msg = s.get_config_status_message()
+    assert "CONFIGURATION REQUIRED" in msg
+    assert str(copied_path) in msg
+
+
+def test_settings_placeholder_status_message(settings_obj):
+    """Test that placeholder DATA_COLLECTION_NAME is reported in status message."""
+    settings_obj.DATA_COLLECTION_NAME = "REPLACE_WITH_YOUR_COLLECTION_NAME"
+    msg = settings_obj.get_config_status_message()
+    assert "INVALID CONFIGURATION" in msg
+    assert "Invalid DATA_COLLECTION_NAME" in msg
+    assert "REPLACE_WITH_YOUR_COLLECTION_NAME" in msg
+    assert "naming and configuration" in msg
+    assert "https://" in msg
+    assert "=" * 80 in msg
 
 
 @pytest.mark.parametrize(
