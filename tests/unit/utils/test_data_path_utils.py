@@ -1,71 +1,9 @@
 from __future__ import annotations
 
-import os
-from pathlib import Path
 
 import pytest
 
 from preprocessing.utils.data_path_utils import check_data_collection_exists
-from preprocessing.utils.data_path_utils import pid_from_session
-
-
-@pytest.mark.parametrize(
-    "folder, expected_pid",
-    [
-        ("001_session", "001"),
-        (Path("042_session"), "042"),
-        ("123", "123"),
-        (Path("999"), "999"),
-    ],
-)
-def test_pid_from_session_valid(folder, expected_pid):
-    """Test pid_from_session with valid inputs."""
-    assert pid_from_session(folder) == expected_pid
-
-
-@pytest.mark.parametrize(
-    "folder, expected_error, error_msg",
-    [
-        (123, TypeError, "folder must be of type Path or str."),
-        (
-            "abc_session",
-            ValueError,
-            "PID must be exactly three digits (possibly zero-padded), got 'abc' from 'abc_session'.",
-        ),
-        (
-            "12_session",
-            ValueError,
-            "PID must be exactly three digits (possibly zero-padded), got '12_' from '12_session'.",
-        ),
-        (
-            Path("ab_session"),
-            ValueError,
-            "PID must be exactly three digits (possibly zero-padded), got 'ab_' from 'ab_session'.",
-        ),
-    ],
-)
-def test_pid_from_session_invalid_format(folder, expected_error, error_msg):
-    """Test pid_from_session with invalid formats."""
-    with pytest.raises(expected_error) as excinfo:
-        pid_from_session(folder)
-    assert str(excinfo.value) == error_msg
-
-
-@pytest.mark.parametrize(
-    "folder",
-    [
-        "session" + os.sep + "001",
-    ],
-)
-def test_pid_from_session_path_separator(folder):
-    """Test pid_from_session with string containing path separators."""
-    # Only run if os.sep is actually in the folder string (which it should be from param)
-    with pytest.raises(ValueError) as excinfo:
-        pid_from_session(folder)
-    assert (
-        "String input must be a simple session identifier without path separators"
-        in str(excinfo.value)
-    )
 
 
 def test_check_data_collection_exists_success(tmp_path):

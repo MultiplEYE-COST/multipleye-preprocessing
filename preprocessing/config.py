@@ -149,6 +149,15 @@ class Settings:
         #: Acceptable range (min, max) for maximum validation accuracy scores.
         self.ACCEPTABLE_MAX_VALIDATION_SCORES = (0.0, 1.5)
 
+        #: Mapping from YAML config flags to folder names for psychometric tests.
+        self.PSYCHOMETRIC_TEST_MAPPING = {
+            "plab": "PLAB",
+            "ran": "RAN",
+            "stroop_flanker": "Stroop_Flanker",
+            "wmc": "WMC",
+            "wiki_vocab": "WikiVocab",
+        }
+
         #: List of acceptable validation error strings.
         self.ACCEPTABLE_VALIDATION_ERRORS = ["GOOD"]
 

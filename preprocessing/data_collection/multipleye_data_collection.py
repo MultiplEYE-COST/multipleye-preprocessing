@@ -16,7 +16,7 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
-from ..utils import pid_from_session
+from ..models.sid import Sid
 from ..config import settings
 from ..utils.conversion import convert_to_time_str
 from ..utils.logging import get_logger
@@ -630,7 +630,10 @@ class MultipleyeDataCollection:
 
         for session in (pbar := tqdm(self.sessions.keys(), total=len(self.sessions))):
             pbar.set_description(f"Preparing session {session}")
-            p_id = pid_from_session(session)
+            try:
+                p_id = Sid(session).pid
+            except (ValueError, TypeError):
+                p_id = session.split("_")[0] if "_" in session else session
 
             if "start_after_trial" in session:
                 if p_id not in self.crashed_session_ids:
@@ -804,7 +807,7 @@ class MultipleyeDataCollection:
 
         completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
 
-        p_id = pid_from_session(session_identifier)
+        p_id = Sid(session_identifier).pid
 
         # load trial to stimulus mapping
         trial_ids = completed_stimuli["trial_id"].to_list()
@@ -849,7 +852,7 @@ class MultipleyeDataCollection:
         self, session_identifier, logfile_order_version: int
     ) -> list[int]:
         # if the session crashed, only load the stimuli that were actually completed in that session
-        p_id = pid_from_session(session_identifier)
+        p_id = Sid(session_identifier).pid
         incomplete_order = []
         if p_id in self.crashed_session_ids:
             incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
@@ -1278,7 +1281,7 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier. eg "005_ET_EE_1_ET1"
         """
 
-        p_id = pid_from_session(session_identifier)
+        p_id = Sid(session_identifier).pid
         check_messages(
             messages,
             stimuli,
@@ -1327,31 +1330,37 @@ class MultipleyeDataCollection:
         return fixation_durations_page_avg
 
     def _load_psychometric_tests(self, session_identifier: str):
-        # sometimes people use session number 2 for the psychotests session. both is ok, but we need to check which.
-        session_name_pt1 = session_identifier.replace("ET1", "PT1")
-        session_name_pt2 = session_identifier.replace("ET1", "PT2")
+        # Match the eye-tracking session to a psychometric test folder
+        # We use Sid.equals_soft to handle prefix variations (e.g., ET1 matching PT1 or PT2)
+        try:
+            et_sid = Sid(session_identifier)
+        except (ValueError, TypeError):
+            et_sid = None
 
         if self.psychometric_tests:
-            for _ in self.psychometric_tests:
-                test_path = (
-                    self.data_root.parent
-                    / "psychometric-tests-sessions"
-                    / session_name_pt1
-                )
-                if not test_path.exists():
-                    test_path = (
-                        self.data_root.parent
-                        / "psychometric-tests-sessions"
-                        / session_name_pt2
-                    )
-                    if not test_path.exists():
-                        self.logger.warning(
-                            f"No psychometric tests session folder for {session_identifier} could be found. Please check."
-                        )
+            pt_dir = self.data_root.parent / "psychometric-tests-sessions"
+            found_path = None
 
-            self.sessions[
-                session_identifier
-            ].psychometric_tests_session = test_path.name
+            if pt_dir.exists() and et_sid:
+                # Iterate through folders in psychometric-tests-sessions
+                for potential_dir in pt_dir.iterdir():
+                    if potential_dir.is_dir():
+                        try:
+                            folder_sid = Sid(potential_dir.name)
+                            if et_sid.equals_soft(folder_sid):
+                                found_path = potential_dir
+                                break
+                        except (ValueError, TypeError):
+                            continue
+
+            if found_path:
+                self.sessions[
+                    session_identifier
+                ].psychometric_tests_session = found_path.name
+            else:
+                self.logger.warning(
+                    f"No psychometric tests session folder for {session_identifier} could be found. Please check."
+                )
 
     def _extract_question_answers(
         self, stimuli: list[Stimulus], session_identifier: str
@@ -1382,41 +1391,22 @@ class MultipleyeDataCollection:
             pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))
         ):
             pbar.set_description(f"Parsing participant data {session}")
-            notes = ""
-            folder = Path(self.sessions[session].session_folder_path)
+
             try:
-                participant_id, country, lang, lab, session_id = session.split("_")
-            except ValueError:
-                if "start_after_trial_" in session:
-                    logging.warning(f"Session {session} has been restarted.")
-                    (
-                        participant_id,
-                        country,
-                        lang,
-                        lab,
-                        session_id,
-                        _,
-                        _,
-                        _,
-                        trial,
-                    ) = session.split("_")
-                    notes = f"Session has been restarted after trial {trial}."
-                elif "full_restart" in session:
-                    logging.warning(f"Session {session} has been fully restarted.")
-                    (
-                        participant_id,
-                        country,
-                        lang,
-                        lab,
-                        session_id,
-                        _,
-                        _,
-                    ) = session.split("_")
-                    notes = "Session has been fully restarted."
-                else:
-                    raise ValueError(
-                        f"Session {session} does not match the expected format."
-                    )
+                sid = Sid(session)
+                participant_id = sid.pid
+                country = sid.country
+                lang = sid.lang
+                lab = sid.lab
+                session_id = sid.session
+                notes = sid.notes
+            except (ValueError, TypeError):
+                logging.warning(
+                    f"Session {session} does not match the expected format."
+                )
+                continue
+
+            folder = Path(self.sessions[session].session_folder_path)
 
             pq_file = folder / f"{participant_id}_{country}_{lang}_{lab}_pq_data.json"
             if pq_file.exists():
@@ -1459,8 +1449,6 @@ class MultipleyeDataCollection:
 
 
 if __name__ == "__main__":
-    from preprocessing import settings
-
     settings.setup_logging()
     data_collection_folder = "MultiplEYE_ET_EE_Tartu_1_2025"
 
