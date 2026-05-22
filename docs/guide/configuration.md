@@ -38,7 +38,8 @@ The main settings include:
 
 ### Psychometric Test Settings
 
-- `PSYCHOMETRIC_TESTS_DIR`: Directory containing psychometric test sessions (configured per data collection)
+- `PSYCHOMETRIC_TESTS_DIR`: Directory containing psychometric test sessions (configured per data
+  collection)
 
 ### Processing Parameters
 
@@ -63,7 +64,7 @@ settings.load_from_yaml("path/to/your_config.yaml")
 When running the preprocessing script:
 
 ```bash
-python -m preprocessing.scripts.run_multipleye_preprocessing --config_path your_config.yaml
+python -m preprocessing.scripts.run_preprocessing --config_path your_config.yaml
 ```
 
 ## Internal Constants

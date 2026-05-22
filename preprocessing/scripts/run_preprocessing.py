@@ -11,7 +11,7 @@ from preprocessing import settings
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
 
-def run_multipleye_preprocessing(config_path: str | None = None):
+def run_preprocessing(config_path: str | None = None):
     settings.load(config_path)
     logger = get_logger(__name__)
 
@@ -271,7 +271,7 @@ def main():
         help="Path to the preprocessing configuration YAML file.",
     )
     args = parser.parse_args()
-    run_multipleye_preprocessing(args.config_path)
+    run_preprocessing(args.config_path)
 
 
 if __name__ == "__main__":
