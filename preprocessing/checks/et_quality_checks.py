@@ -286,7 +286,7 @@ def check_validation_requirements(
     if val:
         _report_to_file("✅ Final validation", report_file)
     else:
-        _report_to_file("❌ No final calibration!", report_file)
+        _report_to_file("❌ No final validation!", report_file)
 
 
 def check_metadata(
