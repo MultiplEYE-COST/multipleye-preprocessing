@@ -176,7 +176,7 @@ class Stimulus:
         questions_df_path = (
             stimulus_dir / f"multipleye_comprehension_questions_{lang}.xlsx"
         )
-        questions_df = pl.read_excel(questions_df_path, engine="openpyxl")
+        questions_df = pl.read_excel(questions_df_path, engine="calamine")
         question_rows = questions_df.filter(
             pl.col("stimulus_name") == stimulus_name
         ).rows(named=True)
