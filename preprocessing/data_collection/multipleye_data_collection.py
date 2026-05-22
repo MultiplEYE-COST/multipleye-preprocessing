@@ -16,8 +16,8 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
-from ..utils import pid_from_session
 from ..config import settings
+from ..utils import pid_from_session
 from ..utils.conversion import convert_to_time_str
 from ..utils.logging import get_logger
 from ..checks.et_quality_checks import (
@@ -58,7 +58,6 @@ class MultipleyeDataCollection:
     crashed_session_ids: list[str] = []
     num_sessions = 1
     overview = {}
-
     data_collection_name: str
     year: int
     country: str
@@ -95,10 +94,6 @@ class MultipleyeDataCollection:
         self.year = year
         self.data_collection_name = data_collection_name
 
-        self.include_pilots = kwargs.get("include_pilots", False)
-        self.reports_dir = kwargs.get("output_dir", "")
-        self.pilot_folder = kwargs.get("pilot_folder", "")
-
         for short_name, long_name in settings.EYETRACKER_NAMES.items():
             if eye_tracker in long_name:
                 self.eye_tracker = short_name
@@ -118,19 +113,21 @@ class MultipleyeDataCollection:
         self.lab_configuration = lab_configuration
         self.data_root = data_root
         self.session_folder_regex = session_folder_regex
-        self.psychometric_tests = kwargs.get("psychometric_tests", [])
         self.excluded_sessions = excluded_sessions
         self.included_sessions = included_sessions
         self.logger = get_logger(__name__)
+
+        self.reports_folder = "reports"
+
+        self.include_pilots = kwargs.get("include_pilots", False)
+        self.output_dir = kwargs.get("output_dir", "")
+        self.pilot_folder = kwargs.get("pilot_folder", "")
+        self.psychometric_tests = kwargs.get("psychometric_tests", [])
 
         self.logger.info(
             f"MultipleyeDataCollection initialized. data_root: {self.data_root}"
         )
         self.logger.info(f"Main config loaded from {self.config_file}")
-
-        if not self.reports_dir:
-            self.reports_dir = self.data_root.parent / "quality_reports"
-            self.reports_dir.mkdir(exist_ok=True)
 
         self.add_recorded_sessions(self.data_root, self.session_folder_regex)
 
@@ -362,6 +359,7 @@ class MultipleyeDataCollection:
         include_pilots: bool = False,
         excluded_sessions: list[str] | None = None,
         included_sessions: list[str] | None = None,
+        output_dir: Path | None = None,
     ) -> "MultipleyeDataCollection":
         """
         :param data_dir: str  path to the data folder
@@ -475,6 +473,7 @@ class MultipleyeDataCollection:
             ps_tests_path=ps_tests_path,
             included_sessions=included_sessions,
             excluded_sessions=excluded_sessions,
+            output_dir=output_dir,
         )
 
     def create_sanity_check_report(
@@ -501,13 +500,17 @@ class MultipleyeDataCollection:
             return
 
         if not output_dir:
-            output_dir = self.reports_dir
+            output_dir = self.output_dir
 
-        session_results = output_dir / session_name / "sanity_checks"
+        session_results = output_dir / session_name / self.reports_folder
         os.makedirs(session_results, exist_ok=True)
 
         report_file_path = session_results / f"{session_name}_{self.city}_report.txt"
         self.sessions[session_name].sanity_report_path = report_file_path
+
+        self.sessions[session_name].uncategorized_messages = self.parse_messages(
+            session_name
+        )
 
         if not report_file_path.exists() or overwrite:
             open(report_file_path, "w", encoding="utf-8").close()
@@ -643,7 +646,6 @@ class MultipleyeDataCollection:
                 self.sessions[session].completed_stimuli_ids,
                 self.sessions[session].stimuli_trial_mapping,
             ) = self._load_session_completed_stimuli(session)
-            self.sessions[session].messages = self._parse_asc(session)
             self.sessions[session].logfile = self._load_session_logfile(session)
             self.sessions[
                 session
@@ -951,7 +953,8 @@ class MultipleyeDataCollection:
         with the information from the messages extracted by pm. The dataframe is created based on the stimulus trial mapping,
          so that all  completed stimuli are included in the dataframe. It also serves as a reference frame for the number of expected messages
          This is important for the sanity checks
-         Also the data frame schema is here defined and can be adjusted"""  # ToDo unsure if it works with interupted sessions yet
+         Also the data frame schema is here defined and can be adjusted"""
+        # ToDo unsure if it works with interupted sessions yet
 
         rt_schema = pl.Schema(
             {
@@ -962,8 +965,8 @@ class MultipleyeDataCollection:
                 "stop_msg": pl.String,
                 "duration_ms": pl.String,
                 "duration_str": pl.String,
-                "trials": pl.String,
-                "pages": pl.String,
+                "trial": pl.String,
+                "page": pl.String,
                 "status": pl.String,
             }
         )
@@ -992,8 +995,8 @@ class MultipleyeDataCollection:
                 "stop_msg": [None] * num_of_pages,
                 "duration_ms": [None] * num_of_pages,
                 "duration_str": [None] * num_of_pages,
-                "trials": [None] * num_of_pages,
-                "pages": d["pages"],
+                "trial": [None] * num_of_pages,
+                "page": d["pages"],
                 "status": [None] * num_of_pages,
             },
             schema=rt_schema,
@@ -1038,196 +1041,166 @@ class MultipleyeDataCollection:
 
         return breaks_df
 
-    def _parse_messages(self, session_identifier: str):
+    def _categorize_asc_messages(self, session_identifier: str):
         """function to parse the messages create by pm, intended to replace _parse_asc"""
 
-        rt_frame = self._create_empty_rt_frame(session_identifier)
-
+        reading_times_df = self._create_empty_rt_frame(session_identifier)
         break_msg = []
+        other_screens = []
+        uncategorized_msgs = []
+
+        initial_ts = 0
+
         messages = self.sessions[session_identifier].messages.copy()
         for _ in range(len(self.sessions[session_identifier].messages)):
-            msg = messages.pop(
-                0
-            )  # zero has to be added because otherwise the last item in the list gets popped instead of the first one, which is what we want
-            if match := BREAK_REGEX.match(msg["message"]):
+            msg = messages.pop(0)
+
+            if not initial_ts:
+                initial_ts = msg["timestamp"]
+
+            if settings.BREAK_REGEX.match(msg["message"]):
                 break_msg.append(msg)
 
-            elif match := START_RECORDING_REGEX_NEW.match(msg["message"]):
+            elif settings.OTHER_SCREENS_REGEX.match(msg["message"]):
+                other_screens.append(msg)
+
+            elif match := settings.START_RECORDING_REGEX.match(msg["message"]):
                 event = match.groupdict()
                 timestamp = msg["timestamp"]
                 event["start_ts"] = timestamp
                 df = pl.DataFrame(event)
-                rt_frame = rt_frame.update(
-                    df, on=["stimulus_name", "pages"], how="left"
+                reading_times_df = reading_times_df.update(
+                    df, on=["stimulus_name", "page"], how="left"
                 )
 
-            elif match := STOP_RECORDING_REGEX_NEW.match(msg["message"]):
+            elif match := settings.STOP_RECORDING_REGEX.match(msg["message"]):
                 event = match.groupdict()
                 timestamp = msg["timestamp"]
                 event["stop_ts"] = timestamp
                 df = pl.DataFrame(event)
-                rt_frame = rt_frame.update(
-                    df, on=["stimulus_name", "pages"], how="left"
+                reading_times_df = reading_times_df.update(
+                    df, on=["stimulus_name", "page"], how="left"
                 )
 
-        return rt_frame
+            else:
+                uncategorized_msgs.append(msg)
 
-    def _parse_asc(self, session_identifier: str):
+        return (
+            reading_times_df,
+            break_msg,
+            other_screens,
+            uncategorized_msgs,
+            initial_ts,
+        )
+
+    def parse_messages(self, session_identifier: str):
         """
         qick fix for now, should be replaced by the summary experiment frame later on, however the extraction of the
         stimulus order version is essential for other code parts, it cannot be removed without further alterations
         """
 
-        other_screens = [
-            "welcome_screen",
-            "informed_consent_screen",
-            "start_experiment",
-            "stimulus_order_version",
-            "showing_instruction_screen",
-            "camera_setup_screen",
-            "practice_text_starting_screen",
-            "transition_screen",
-            "final_validation",
-            "show_final_screen",
-            "optional_break_screen",
-            "fixation_trigger:skipped_by_experimenter",
-            "fixation_trigger:experimenter_calibration_triggered",
-            "recalibration",
-            "empty_screen",
-            "obligatory_break",
-            "optional_break",
-        ]
+        stimulus_times_df, break_msg, other_screens, uncategorized_msgs, initial_ts = (
+            self._categorize_asc_messages(session_identifier)
+        )
 
-        asc_file = self.sessions[session_identifier].asc_path
-        stimuli_trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
+        self._document_other_screens(session_identifier, other_screens)
+        self._document_breaks(session_identifier, break_msg)
 
+        result_folder = self.output_dir / session_identifier / self.reports_folder
+        os.makedirs(result_folder, exist_ok=True)
+
+        # TODO: adapt this function!!!
+        self._document_reading_times(
+            initial_ts, stimulus_times_df, result_folder, session_identifier
+        )
+
+        return uncategorized_msgs
+
+    def _document_other_screens(self, session_idf: str, other_screens: list) -> None:
         other_screen_appearance = {
             "timestamp": [],
             "screen": [],
         }
 
-        reading_times = {
+        result_folder = self.output_dir / session_idf / self.reports_folder
+
+        for message in other_screens:
+            msg = message["message"]
+            ts = message["timestamp"]
+
+            other_screen_appearance["timestamp"].append(ts)
+            other_screen_appearance["screen"].append(msg)
+
+        other_screens_df = pd.DataFrame(other_screen_appearance)
+        other_screens_df.to_csv(
+            result_folder / f"other_screens_{session_idf}.tsv",
+            sep="\t",
+            index=False,
+        )
+
+    def _document_breaks(self, session_idf: str, breaks: list) -> None:
+        breaks_df = {
             "start_ts": [],
             "stop_ts": [],
             "start_msg": [],
             "stop_msg": [],
-            "duration_ms": [],
-            "duration_str": [],
-            "trials": [],
-            "pages": [],
-            "status": [],
-            "stimulus_name": [],
         }
+        result_folder = self.output_dir / session_idf / self.reports_folder
 
-        breaks = {
-            "start_ts": [],
-            "stop_ts": [],
-            "duration_ms": [],
-            "type": [],
-        }
-
-        messages = []
-
-        initial_ts = 0
-
-        result_folder = self.reports_dir / session_identifier
-        os.makedirs(result_folder, exist_ok=True)
         in_break = False
 
-        with open(asc_file, "r", encoding="utf-8") as f:
-            for line in f.readlines():
-                if match := settings.MESSAGE_REGEX.match(line):
-                    messages.append(match.groupdict())
-                    msg = match.groupdict()["message"]
-                    ts = match.groupdict()["timestamp"]
+        for msg in breaks:
+            ts = msg["timestamp"]
+            msg = msg["message"]
 
-                    if not initial_ts:
-                        initial_ts = ts
+            if msg == "optional_break" and not in_break:
+                in_break = True
+                breaks_df["start_ts"].append(ts)
+                breaks_df["type"].append("optional")
+            elif msg == "optional_break_end" and in_break:
+                in_break = False
+                breaks_df["stop_ts"].append(ts)
+            elif msg.split()[0] == "optional_break_duration:":
+                breaks_df["duration_ms"].append(msg.split()[1])
 
-                    for screen in other_screens:
-                        if screen in line:
-                            other_screen_appearance["screen"].append(msg)
-                            other_screen_appearance["timestamp"].append(ts)
+            elif msg == "obligatory_break" and not in_break:
+                in_break = True
+                breaks_df["start_ts"].append(ts)
+                breaks_df["type"].append("obligatory")
+            elif msg == "obligatory_break_end" and in_break:
+                in_break = False
+                breaks_df["stop_ts"].append(ts)
+            elif msg.split()[0] == "obligatory_break_duration:":
+                breaks_df["duration_ms"].append(msg.split()[1])
 
-                    if msg == "optional_break" and not in_break:
-                        in_break = True
-                        breaks["start_ts"].append(ts)
-                        breaks["type"].append("optional")
-                    elif msg == "optional_break_end" and in_break:
-                        in_break = False
-                        breaks["stop_ts"].append(ts)
-                    elif msg.split()[0] == "optional_break_duration:":
-                        breaks["duration_ms"].append(msg.split()[1])
+        if in_break:
+            breaks_df["stop_ts"].append(pd.NA)
 
-                    elif msg == "obligatory_break" and not in_break:
-                        in_break = True
-                        breaks["start_ts"].append(ts)
-                        breaks["type"].append("obligatory")
-                    elif msg == "obligatory_break_end" and in_break:
-                        in_break = False
-                        breaks["stop_ts"].append(ts)
-                    elif msg.split()[0] == "obligatory_break_duration:":
-                        breaks["duration_ms"].append(msg.split()[1])
-
-                if match := settings.START_RECORDING_REGEX.match(line):
-                    reading_times["start_ts"].append(match.groupdict()["timestamp"])
-                    reading_times["start_msg"].append(match.groupdict()["type"])
-
-                    trial = match.groupdict()["trial"]
-                    # trial = trial.replace('trial_', '')
-                    reading_times["trials"].append(trial)
-
-                    if trial in stimuli_trial_mapping:
-                        reading_times["stimulus_name"].append(
-                            stimuli_trial_mapping[trial]
-                        )
-                    else:
-                        reading_times["stimulus_name"].append("unknown")
-
-                    reading_times["pages"].append(match.groupdict()["page"])
-                    reading_times["status"].append("reading time")
-                elif match := settings.STOP_RECORDING_REGEX.match(line):
-                    reading_times["stop_ts"].append(match.groupdict()["timestamp"])
-                    reading_times["stop_msg"].append(match.groupdict()["type"])
-
-            self._document_reading_times(
-                initial_ts, reading_times, result_folder, session_identifier
+            self.logger.warning(
+                f"Session {session_idf} did not finish a break properly, "
+                f"missing end message."
             )
 
-            other_screens_df = pd.DataFrame(other_screen_appearance)
-            other_screens_df.to_csv(
-                result_folder / f"other_screens_{session_identifier}.tsv",
-                sep="\t",
-                index=False,
-            )
-
-            if not in_break:
-                pass
-                # breaks_df = pd.DataFrame(breaks)
-                # breaks_df.to_csv(
-                #    result_folder / f"breaks_{session_identifier}.tsv",
-                #    sep="\t",
-                #    index=False,
-                # )
-            else:
-                self.logger.warning(
-                    f"Session {session_identifier} did not finish a break properly, "
-                    f"missing end message."
-                )
-
-        return messages
+        breaks_df = pd.DataFrame(breaks_df)
+        breaks_df.to_csv(
+            result_folder / f"breaks_{session_idf}.tsv",
+            sep="\t",
+            index=False,
+        )
 
     def _document_reading_times(
         self, initial_ts, reading_times, result_folder, session_identifier
     ):
         """
         TODO: improve this function!! this is terrible and buggy
-        :param initial_ts:
+        :param initial_ts: The timestamp of the first message.
         :param reading_times:
         :param result_folder:
         :param session_identifier:
         :return:
         """
+
+        print(reading_times)
 
         stimuli_trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
         total_reading_duration_ms = 0

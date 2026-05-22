@@ -41,7 +41,7 @@ class Settings:
         #: Whether to include sessions from the pilot folder.
         self.INCLUDE_PILOTS: bool = False
 
-        #:
+        #: Which type of experiment. E.g., supported are MultiplEYE and MeRID
         self.EXPERIMENT_TYPE: str = ""
 
         # Defines whether written files will be overwritten, if they already exist.
@@ -205,12 +205,12 @@ class Settings:
 
         #: Regex to identify the start of a recording for a trial/page.
         self.START_RECORDING_REGEX = re.compile(
-            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.*)"
+            r"(?P<type>start_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_stimulus__(?P<stimulus_id>\d+)_(?P<page>\S*)"
         )
 
         #: Regex to identify the stop of a recording for a trial/page.
         self.STOP_RECORDING_REGEX = re.compile(
-            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.*)"
+            r"(?P<type>stop_recording)_(?P<trial>(PRACTICE_)?trial_\d\d?)_stimulus_(?P<stimulus_name>\S*?_\S*?)_(?P<stimulus_id>\d+)_(?P<page>\S*)"
         )
 
         #: Glob pattern for raw data files.
@@ -218,6 +218,9 @@ class Settings:
 
         #: Glob pattern for event data files.
         self.EVENT_DATA_FILE_GLOB = "*_{event_type}.csv"
+
+        #: Glob patter for reading measures files
+        self.READING_MEASURES_GLOB = "*_reading_measures.csv"
 
         #: Regex to extract the stimulus order version from ASC files.
         self.STIMULUS_ORDER_VERSION_REGEX = re.compile(
@@ -230,12 +233,52 @@ class Settings:
         )
 
         #: Regex to extract trial and stimulus info from raw data file names.
-        self.RAW_DATA_FILENAME_REGEX = rf".+_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d+)_(?P<{self.STIMULUS_COL}>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
+        self.RAW_DATA_FILENAME_REGEX = rf"[^_]+_[^_]+_[^_]+_[^_]+_[^_]+_(?P<{self.TRIAL_COL}>(PRACTICE_)?trial_\d+)_(?P<{self.STIMULUS_COL}>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
 
         #: Regex to extract trial and stimulus info from event data file names.
-        self.EVENT_DATA_FILENAME_REGEX = rf".+_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d+)_(?P<{self.STIMULUS_COL}>[^_]+_[^_]+_\d+(\.0)?)_{{event_type}}.csv"
+        self.EVENT_DATA_FILENAME_REGEX = rf"[^_]+_[^_]+_[^_]+_[^_]+_[^_]+_(?P<{self.TRIAL_COL}>(PRACTICE_)?trial_\d+)_(?P<{self.STIMULUS_COL}>[^_]+_[^_]+_\d+(\.0)?)_{{event_type}}.csv"
 
-        # --- HARDWARE AND STIMULI MAPPINGS ---
+        #: Regex for the reading measures file name
+        self.READING_MEASURES_FILENAME_REGEX = r"[^_]+_[^_]+_[^_]+_[^_]+_[^_]+_(?P<trial>(PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_reading_measures.csv"
+
+        multipleye_messages = {
+            "other_screens": [
+                "welcome_screen",
+                "informed_consent_screen",
+                "start_experiment",
+                "stimulus_order_version",
+                "showing_instruction_screen",
+                "camera_setup_screen",
+                "practice_text_starting_screen",
+                "transition_screen",
+                "final_validation",
+                "show_final_screen",
+                "optional_break_screen",
+                "fixation_trigger:skipped_by_experimenter",
+                "fixation_trigger:experimenter_calibration_triggered",
+                "recalibration",
+                "empty_screen",
+                "obligatory_break",
+                "optional_break",
+            ],
+            "break_msgs": [
+                "optional_break_duration",
+                "optional_break_end",
+                "optional_break",
+                "obligatory_break_duration",
+                "obligatory_break_end",
+                "obligatory_break",
+            ],
+        }
+
+        self.BREAK_REGEX = re.compile(
+            "|".join(map(re.escape, multipleye_messages["break_msgs"]))
+        )
+        self.OTHER_SCREENS_REGEX = re.compile(
+            "|".join(map(re.escape, multipleye_messages["other_screens"]))
+        )
+
+        # --- HARDWARE ---
 
         #: Mapping of eye tracker brands to known model names.
         self.EYETRACKER_NAMES = {
@@ -246,6 +289,8 @@ class Settings:
                 "EyeLink Portable Duo",
             ],
         }
+
+        # --- STIMULI ---
 
         #: Mapping of stimulus names to internal numeric IDs.
         self.STIMULUS_NAME_MAPPING = {

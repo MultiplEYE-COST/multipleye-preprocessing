@@ -122,6 +122,7 @@ def load_trial_level_raw_data(
                 "page": pl.Utf8,
             },
         )
+
         match = re.match(regex_name, file.stem)
         trial_df = trial_df.with_columns(
             pl.lit(match.group("trial")).alias("trial"),
@@ -265,24 +266,31 @@ def load_trial_level_events_data(
 
 def load_reading_measures(
     data_folder: Path,
-    file_pattern: str = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_reading_measures.csv",
+    file_pattern: str = "",
 ) -> pl.DataFrame:
-    files = list(data_folder.glob(file_pattern))
-
-    if len(files) == 0:
-        raise ValueError(f"No files found in {data_folder} with pattern {file_pattern}")
+    if file_pattern is None:
+        file_pattern = settings.READING_MEASURES_FILENAME_REGEX
 
     all_trials = []
 
-    for file in files:
+    for file in data_folder.glob(settings.READING_MEASURES_GLOB):
         df = pl.read_csv(file)
-        # get trial and stimulus from file name
-        match = re.match(file_pattern, file.stem)
-        trial_df = df.with_columns(
-            pl.lit(match.group("trial")).alias("trial"),
-            pl.lit(match.group("stimulus")).alias("stimulus"),
-        )
 
-        all_trials.append(trial_df)
+        match = re.match(file_pattern, file.name)
+        # go over groups in the name regex and add them as columns
+        if match is None:
+            logging.info(f"Skipping file {file} for reading measures loading")
+        else:
+            trial_df = df.with_columns(
+                pl.lit(match.group("trial")).alias("trial"),
+                pl.lit(match.group("stimulus")).alias("stimulus"),
+            )
+
+            all_trials.append(trial_df)
+
+    if not all_trials:
+        raise ValueError(
+            f"No reading measures files found at {data_folder} which match {file_pattern}."
+        )
 
     return pl.concat(all_trials)

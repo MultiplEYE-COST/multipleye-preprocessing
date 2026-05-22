@@ -19,7 +19,9 @@ def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.Dat
     for stim in stimuli:
         aois = stim.text_stimulus.aois
         words_only = all_tokens_from_aois(aois, trial=stim.trial_id)
-        words_only = words_only.with_columns(pl.lit(stim.name).alias("stimulus"))
+        words_only = words_only.with_columns(
+            pl.lit(stim.full_identifier).alias("stimulus")
+        )
         words_only_all_trials.append(words_only)
 
     words_df = pl.concat(words_only_all_trials)

@@ -1,4 +1,4 @@
-data_collection_name: "MultiplEYE_DA_DK_Aalborg_1_2026"
+data_collection_name: "MultiplEYE_ZH_CH_Zurich_1_2025"
 experiment_type: "MeRID" # can be either MultiplEYE or MeRID
 
 overwrite: False # defines whether written files will be overwritten, if they already exist. If False, preprocessed sessions will be skipped and not reprocessed.
@@ -8,10 +8,11 @@ overwrite: False # defines whether written files will be overwritten, if they al
 # SESSIONS
 ## pick either include or exclude sessions, if none is specified, all sessions are included
 include_sessions:
+  - 089_ZH_CH_1_ET1
 exclude_sessions:
-  - 021_DA_DK_1_ET1
+  #- 021_DA_DK_1_ET1
 
-include_pilots: True
+include_pilots: False
 
 # HARDWARE
 expected_sampling_rate_hz: 1000  # Hz

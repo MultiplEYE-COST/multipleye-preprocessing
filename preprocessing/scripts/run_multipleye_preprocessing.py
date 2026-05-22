@@ -32,9 +32,10 @@ def run_multipleye_preprocessing(config_path: str | None = None):
     if settings.EXPERIMENT_TYPE == "MultiplEYE":
         data_collection = preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
             data_folder_path,
-            include_pilots=settings.INCLUDE_PILOTS,
             excluded_sessions=settings.EXCLUDE_SESSIONS,
             included_sessions=settings.INCLUDE_SESSIONS,
+            include_pilots=settings.INCLUDE_PILOTS,
+            output_dir=settings.OUTPUT_DIR,
         )
 
     elif settings.EXPERIMENT_TYPE == "MeRID":
@@ -44,6 +45,7 @@ def run_multipleye_preprocessing(config_path: str | None = None):
                 include_pilots=settings.INCLUDE_PILOTS,
                 excluded_sessions=settings.EXCLUDE_SESSIONS,
                 included_sessions=settings.INCLUDE_SESSIONS,
+                output_dir=settings.OUTPUT_DIR,
             )
         )
 
@@ -107,6 +109,7 @@ def run_multipleye_preprocessing(config_path: str | None = None):
         sess.pm_gaze_metadata = gaze._metadata
         sess.calibrations = gaze.calibrations
         sess.validations = gaze.validations
+        sess.messages = gaze.messages
 
         # preprocess gaze data
         pbar.set_description(f"Preprocessing samples {idf}:")
@@ -228,7 +231,7 @@ def run_multipleye_preprocessing(config_path: str | None = None):
             preprocessing.save_reading_measures(
                 settings.OUTPUT_DIR, session_save_name, reading_measures
             )
-            data_collection[sess].reading_measures = True
+            data_collection[sess.session_identifier].reading_measures = True
 
         pbar.set_description(f"Creating sanity check report {idf}")
         data_collection.create_sanity_check_report(
