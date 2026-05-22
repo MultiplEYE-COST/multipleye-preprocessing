@@ -3,7 +3,6 @@ name: Automated CalVer Release
 on:
   schedule:
     - cron: '0 23 * * *'  # Run nightly at 23:00 UTC
-  workflow_dispatch:  # TODO: Remove before merging to main
 
 permissions:
   contents: read
