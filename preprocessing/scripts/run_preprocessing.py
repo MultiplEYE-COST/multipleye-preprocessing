@@ -15,7 +15,16 @@ def run_preprocessing(config_path: str | None = None):
     settings.load(config_path)
     logger = get_logger(__name__)
 
+    # Check for configuration issues after loading
+    status_msg = settings.get_config_status_message()
+    if status_msg:
+        from ..config import package_logger
+
+        package_logger.error(status_msg)
+        return
+
     data_collection_name = settings.DATA_COLLECTION_NAME
+
     logger.info(
         f"Running MultiplEYE preprocessing for data collection: {data_collection_name}"
     )

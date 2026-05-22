@@ -4,13 +4,23 @@ from .config import settings
 from .utils.logging import clear_log_file, setup_logging
 
 # Initialise logging for the entire package upon import
-log_file = settings.DATASET_DIR / "preprocessing_logs.txt"
+try:
+    # We use a default log file path if possible, but we don't trigger settings.load()
+    # via property access if it would cause issues.
+    # DATASET_DIR access might trigger _ensure_loaded()
+    # Since load() is now silent, it's safer, but we still want to be careful.
 
-# Only log to file if the data directory exists. Otherwise, log only to console.
-if not settings.DATASET_DIR.exists():
+    # Check if config was already found or if we should skip triggering load
+    if not hasattr(settings, "_config_found") or not settings._config_found:
+        log_file = None
+    else:
+        log_file = settings.DATASET_DIR / "preprocessing_logs.txt"
+        if not settings.DATASET_DIR.exists():
+            log_file = None
+        elif not settings.APPEND_LOGS:
+            clear_log_file(log_file)
+except (ValueError, AttributeError):
     log_file = None
-elif not settings.APPEND_LOGS:
-    clear_log_file(log_file)
 
 setup_logging(
     log_file=log_file,
