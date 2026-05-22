@@ -1,4 +1,4 @@
-"""Unit tests for run_multipleye_preprocessing script."""
+"""Unit tests for run_preprocessing script."""
 
 from pathlib import Path
 
@@ -13,7 +13,7 @@ def test_reading_measures_check_uses_session_save_name():
     When session_idf = "001_ET_EE_1_ET1_restart_1" and session_save_name = "001_ET_EE_1_ET1",
     the check should use session_save_name to match what save uses.
     """
-    source_file = Path("preprocessing/scripts/run_multipleye_preprocessing.py")
+    source_file = Path("preprocessing/scripts/run_preprocessing.py")
     source_code = source_file.read_text()
 
     lines = source_code.split("\n")

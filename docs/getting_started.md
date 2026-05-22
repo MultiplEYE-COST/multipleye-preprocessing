@@ -149,13 +149,13 @@ To run the MultiplEye preprocessing pipeline (if you used `uv` for installation 
 environment):
 
 ```bash
-run_multipleye_preprocessing
+run_preprocessing
 ```
 
 You can always check the available options for each script by using the `--help` flag:
 
 ```bash
-run_multipleye_preprocessing --help
+run_preprocessing --help
 ```
 
 Processing the {ref}`psychometric_tests` is not part of the preprocessing pipeline.
