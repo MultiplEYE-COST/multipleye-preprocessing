@@ -246,6 +246,78 @@ def test_settings_placeholder_status_message(settings_obj):
     assert "=" * 80 in msg
 
 
+def test_settings_reactivity(settings_obj):
+    """Test that dependent properties react to DATA_COLLECTION_NAME changes."""
+    settings_obj.DATA_COLLECTION_NAME = "MultiplEYE_EN_UK_London_1_2026"
+    assert settings_obj.LANGUAGE == "EN"
+    assert settings_obj.COUNTRY == "UK"
+    assert settings_obj.CITY == "London"
+    assert settings_obj.LAB == "1"
+    assert settings_obj.YEAR == "2026"
+    assert "MultiplEYE_EN_UK_London_1_2026" in str(settings_obj.DATASET_DIR)
+    assert "EN_UK_1" in str(settings_obj.PSYM_PARTICIPANT_CONFIGS)
+
+    settings_obj.DATA_COLLECTION_NAME = "MultiplEYE_DE_DE_Berlin_2_2025"
+    assert settings_obj.LANGUAGE == "DE"
+    assert settings_obj.COUNTRY == "DE"
+    assert settings_obj.CITY == "Berlin"
+    assert settings_obj.LAB == "2"
+    assert settings_obj.YEAR == "2025"
+    assert "MultiplEYE_DE_DE_Berlin_2_2025" in str(settings_obj.DATASET_DIR)
+    assert "DE_DE_2" in str(settings_obj.PSYM_PARTICIPANT_CONFIGS)
+
+
+def test_settings_regex_reactivity(settings_obj):
+    """Test that regexes react to column name changes."""
+    settings_obj.TRIAL_COL = "my_trial"
+    settings_obj.PAGE_COL = "my_page"
+
+    pattern = settings_obj.START_RECORDING_REGEX.pattern
+    assert "?P<my_trial>" in pattern
+    assert "?P<my_page>" in pattern
+
+    # Verify it works
+    match = settings_obj.START_RECORDING_REGEX.match(
+        "MSG 123 start_recording_trial_1_page_1"
+    )
+    assert match is not None
+    assert match.group("my_trial") == "trial_1"
+    assert match.group("my_page") == "page_1"
+
+
+def test_settings_gaze_patterns_reactivity(settings_obj):
+    """Test that GAZE_PATTERNS react to column name changes."""
+    settings_obj.TRIAL_COL = "T"
+    settings_obj.STIMULUS_COL = "S"
+    settings_obj.PAGE_COL = "P"
+
+    patterns = settings_obj.GAZE_PATTERNS
+    # First pattern is the reading one
+    assert "?P<T>" in patterns[0]
+    assert "?P<S>" in patterns[0]
+    assert "?P<P>" in patterns[0]
+
+    # Dictionary patterns
+    assert patterns[2]["column"] == "T"
+    assert patterns[3]["column"] == "P"
+
+
+def test_settings_manual_override(settings_obj):
+    """Test that manual overrides take precedence over dynamic properties."""
+    settings_obj.DATA_COLLECTION_NAME = "MultiplEYE_EN_UK_London_1_2026"
+    assert settings_obj.LANGUAGE == "EN"
+
+    settings_obj.LANGUAGE = "FR"
+    assert settings_obj.LANGUAGE == "FR"
+
+    # Changing collection name should not affect overridden LANGUAGE
+    settings_obj.DATA_COLLECTION_NAME = "MultiplEYE_DE_DE_Berlin_2_2025"
+    assert settings_obj.LANGUAGE == "FR"
+
+    # But should affect other non-overridden ones
+    assert settings_obj.COUNTRY == "DE"
+
+
 @pytest.mark.parametrize(
     "key, value, attr",
     [
