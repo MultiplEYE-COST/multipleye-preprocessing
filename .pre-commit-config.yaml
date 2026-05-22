@@ -24,27 +24,8 @@ repos:
   - repo: local
     hooks:
       - id: update-version
-        name: Update package version in CITATION.cff and docs/conf.py
-        entry: >
-          sh -c 'if command -v pwsh >/dev/null 2>&1 || [ "$0" = "pwsh" ]; then
-              echo "Skipping in PowerShell";
-          else
-              os_type=$(uname) &&
-              if [ "$os_type" = "Darwin" ]; then
-                  version=$(awk -F "\"" "/version =/ {print \$2}" pyproject.toml) &&
-                  sed -i "" "s/^version: .*/version: $version/" CITATION.cff &&
-                  sed -i "" "s/^version = .*/version = \"$version\"/" docs/conf.py &&
-                  sed -i "" "s/^release = .*/release = \"$version\"/" docs/conf.py;
-              elif [ "$os_type" = "Linux" ]; then
-                  version=$(grep -oP "(?<=version = \")[^\"]+" pyproject.toml) &&
-                  sed -i "s/^version: .*/version: $version/" CITATION.cff &&
-                  sed -i "s/^version = .*/version = \"$version\"/" docs/conf.py &&
-                  sed -i "s/^release = .*/release = \"$version\"/" docs/conf.py;
-              else
-                  echo "Unsupported OS type: $os_type";
-                  exit 1;
-              fi
-          fi'
-        language: system
+        name: Sync and Validate Version
+        entry: python preprocessing/scripts/sync_version.py
+        language: python
         files: 'CITATION\.cff|pyproject\.toml|docs/conf\.py'
         pass_filenames: false
