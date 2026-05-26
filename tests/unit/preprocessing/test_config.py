@@ -141,10 +141,15 @@ def test_settings_load_from_yaml(settings_obj, tmp_path):
     assert settings_obj.EXPECTED_SAMPLING_RATE_HZ == 500
 
 
-def test_settings_validation_error(settings_obj):
-    """Test that missing required fields raise an error."""
-    with pytest.raises(ValueError, match="DATA_COLLECTION_NAME is required"):
-        settings_obj._validate()
+def test_settings_validation_no_error_initially(settings_obj):
+    """Test that missing required fields do not raise an error during initial load."""
+    settings_obj._validate()  # Should not raise
+
+
+def test_settings_validation_placeholder_no_error_initially(settings_obj):
+    """Test that placeholder DATA_COLLECTION_NAME does not raise an error during initial load."""
+    settings_obj.DATA_COLLECTION_NAME = "REPLACE_WITH_YOUR_COLLECTION_NAME"
+    settings_obj._validate()  # Should not raise
 
 
 def test_prepare_language_folder_none_error():
@@ -199,6 +204,118 @@ def test_settings_precedence_env_var(tmp_path, monkeypatch):
     s = Settings()
     s.load()
     assert s.DATA_COLLECTION_NAME == "ENV_COLLECTION"
+
+
+def test_settings_copies_template_silently(tmp_path, monkeypatch, caplog):
+    """Test that missing config copies template silently during load."""
+    from preprocessing.config import Settings, TEMPLATE_RELATIVE_PATH
+
+    template_path = Settings()._repo_root / TEMPLATE_RELATIVE_PATH
+    template_contents = template_path.read_text(encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("MULTIPLEYE_CONFIG", raising=False)
+
+    s = Settings()
+    with caplog.at_level(logging.ERROR):
+        s.load()
+
+    # load() should now be silent
+    assert "CONFIGURATION REQUIRED" not in caplog.text
+    assert s._is_template_loaded
+
+    copied_path = tmp_path / "multipleye_settings_preprocessing.yaml"
+    assert copied_path.exists()
+    assert copied_path.read_text(encoding="utf-8") == template_contents
+
+    # Now verify get_config_status_message returns the error
+    msg = s.get_config_status_message()
+    assert "CONFIGURATION REQUIRED" in msg
+    assert str(copied_path) in msg
+
+
+def test_settings_placeholder_status_message(settings_obj):
+    """Test that placeholder DATA_COLLECTION_NAME is reported in status message."""
+    settings_obj.DATA_COLLECTION_NAME = "REPLACE_WITH_YOUR_COLLECTION_NAME"
+    msg = settings_obj.get_config_status_message()
+    assert "INVALID CONFIGURATION" in msg
+    assert "Invalid DATA_COLLECTION_NAME" in msg
+    assert "REPLACE_WITH_YOUR_COLLECTION_NAME" in msg
+    assert "naming and configuration" in msg
+    assert "https://" in msg
+    assert "=" * 80 in msg
+
+
+def test_settings_reactivity(settings_obj):
+    """Test that dependent properties react to DATA_COLLECTION_NAME changes."""
+    settings_obj.DATA_COLLECTION_NAME = "MultiplEYE_EN_UK_London_1_2026"
+    assert settings_obj.LANGUAGE == "EN"
+    assert settings_obj.COUNTRY == "UK"
+    assert settings_obj.CITY == "London"
+    assert settings_obj.LAB == "1"
+    assert settings_obj.YEAR == "2026"
+    assert "MultiplEYE_EN_UK_London_1_2026" in str(settings_obj.DATASET_DIR)
+    assert "EN_UK_1" in str(settings_obj.PSYM_PARTICIPANT_CONFIGS)
+
+    settings_obj.DATA_COLLECTION_NAME = "MultiplEYE_DE_DE_Berlin_2_2025"
+    assert settings_obj.LANGUAGE == "DE"
+    assert settings_obj.COUNTRY == "DE"
+    assert settings_obj.CITY == "Berlin"
+    assert settings_obj.LAB == "2"
+    assert settings_obj.YEAR == "2025"
+    assert "MultiplEYE_DE_DE_Berlin_2_2025" in str(settings_obj.DATASET_DIR)
+    assert "DE_DE_2" in str(settings_obj.PSYM_PARTICIPANT_CONFIGS)
+
+
+def test_settings_regex_reactivity(settings_obj):
+    """Test that regexes react to column name changes."""
+    settings_obj.TRIAL_COL = "my_trial"
+    settings_obj.PAGE_COL = "my_page"
+
+    pattern = settings_obj.START_RECORDING_REGEX.pattern
+    assert "?P<my_trial>" in pattern
+    assert "?P<my_page>" in pattern
+
+    # Verify it works
+    match = settings_obj.START_RECORDING_REGEX.match(
+        "MSG 123 start_recording_trial_1_page_1"
+    )
+    assert match is not None
+    assert match.group("my_trial") == "trial_1"
+    assert match.group("my_page") == "page_1"
+
+
+def test_settings_gaze_patterns_reactivity(settings_obj):
+    """Test that GAZE_PATTERNS react to column name changes."""
+    settings_obj.TRIAL_COL = "T"
+    settings_obj.STIMULUS_COL = "S"
+    settings_obj.PAGE_COL = "P"
+
+    patterns = settings_obj.GAZE_PATTERNS
+    # First pattern is the reading one
+    assert "?P<T>" in patterns[0]
+    assert "?P<S>" in patterns[0]
+    assert "?P<P>" in patterns[0]
+
+    # Dictionary patterns
+    assert patterns[2]["column"] == "T"
+    assert patterns[3]["column"] == "P"
+
+
+def test_settings_manual_override(settings_obj):
+    """Test that manual overrides take precedence over dynamic properties."""
+    settings_obj.DATA_COLLECTION_NAME = "MultiplEYE_EN_UK_London_1_2026"
+    assert settings_obj.LANGUAGE == "EN"
+
+    settings_obj.LANGUAGE = "FR"
+    assert settings_obj.LANGUAGE == "FR"
+
+    # Changing collection name should not affect overridden LANGUAGE
+    settings_obj.DATA_COLLECTION_NAME = "MultiplEYE_DE_DE_Berlin_2_2025"
+    assert settings_obj.LANGUAGE == "FR"
+
+    # But should affect other non-overridden ones
+    assert settings_obj.COUNTRY == "DE"
 
 
 @pytest.mark.parametrize(

@@ -1,0 +1,68 @@
+# Configuration loading precedence for run_multipleye_preprocessing:
+# 1) Explicit path via `--config_path` in CLI or `settings.load(path)` in code.
+# 2) Environment variable `MULTIPLEYE_CONFIG` pointing to a YAML file.
+# 3) `multipleye_settings_preprocessing.yaml` in the current working directory.
+#
+# If none are found, the pipeline copies this template into the current
+# working directory as `multipleye_settings_preprocessing.yaml` and stops.
+# You must edit the copied file (especially data_collection_name) and rerun.
+# Docs: https://multipleye-cost.github.io/multipleye-preprocessing/guide/configuration/
+
+# ----------------------- User Parameters -----------------------
+
+# --- REQUIRED ---
+# Unique identifier for the data collection.
+# Format: MultiplEYE_[LANGUAGE]_[COUNTRY]_[LAB]_[COLLECTION_NUMBER]_[YEAR]
+# Example: MultiplEYE_DA_DK_Aalborg_1_2026
+data_collection_name: "REPLACE_WITH_YOUR_COLLECTION_NAME"
+
+# --- COMMON SETTINGS (frequently changed) ---
+experiment_type: "MultiplEYE" # MultiplEYE or MeRID
+overwrite: false
+include_sessions: [] # e.g., ["021_DA_DK_1_ET1"]
+exclude_sessions: []
+include_pilots: false
+expected_sampling_rate_hz: 1000
+
+# ----------------------- Internal Usage -----------------------
+
+# --- LOGGING ---
+log_level: "INFO"
+console_log_level: "INFO"
+file_log_level: "DEBUG"
+append_logs: false
+ignored_log_regexes:
+  - "Could not determine dtype for column \\d+, falling back to string"
+
+# --- SESSION DISCOVERY (do not change) ---
+ignored_session_folders:
+  - "test_sessions"
+  - "core_sessions"
+  - "pilot_sessions"
+
+# --- QUALITY CHECK THRESHOLDS (do not change) ---
+acceptable_num_calibrations: [3, 30]
+acceptable_num_validation: [13, 30]
+acceptable_avg_validation_scores: [0.0, 0.8]
+acceptable_max_validation_scores: [0.0, 1.5]
+acceptable_validation_errors: ["GOOD"]
+acceptable_data_loss_ratios: [0.0, 0.1]
+acceptable_recording_durations: [600, 7200]
+acceptable_num_practice_trials: 2
+acceptable_num_trials: 10
+
+# --- EYE TRACKER LABELS (do not change) ---
+tracked_eye: ["L", "R", "RIGHT", "LEFT"]
+
+# --- INTERNAL (do not change) ---
+raw_data_folder: "raw_data/"
+fixations_folder: "fixations/"
+saccades_folder: "saccades/"
+scanpaths_folder: "scanpaths/"
+reading_measures_folder: "reading_measures/"
+trial_cols: ["trial", "stimulus", "page"]
+trial_col: "trial"
+page_col: "page"
+stimulus_col: "stimulus"
+word_idx_col: "word_idx"
+char_idx_col: "char_idx"

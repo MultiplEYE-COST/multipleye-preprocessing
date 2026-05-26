@@ -3,13 +3,20 @@ from __future__ import annotations
 import logging
 import os
 import re
-import warnings
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+TEMPLATE_DOCS_URL = (
+    "https://multipleye-cost.github.io/multipleye-preprocessing/guide/configuration/"
+)
+TEMPLATE_RELATIVE_PATH = Path(
+    "templates_and_notes/multipleye_settings_preprocessing.template.yaml"
+)
+
 logger = logging.getLogger(__name__)
+package_logger = logging.getLogger("preprocessing")
 
 
 class Settings:
@@ -18,12 +25,11 @@ class Settings:
     def __init__(self) -> None:
         # These settings can be overridden by a YAML file.
 
-        #: Name of the data collection (e.g., 'ME_EN_UK_LON_LAB1_2025').
-        self.DATA_COLLECTION_NAME: str | None = None
-
         self._init_defaults()
         self._repo_root = Path(__file__).parent.parent
         self._initialized = True
+        self._is_template_loaded = False
+        self._config_found = False
 
     @property
     def DATA_COLLECTION_NAME(self) -> str | None:
@@ -34,7 +40,245 @@ class Settings:
     def DATA_COLLECTION_NAME(self, value: str | None) -> None:
         self.__dict__["DATA_COLLECTION_NAME"] = value
 
+    @property
+    def DATASET_DIR(self) -> Path:
+        """The directory where raw data is stored."""
+        if "DATASET_DIR" in self.__dict__:
+            return self.__dict__["DATASET_DIR"]
+        self._ensure_loaded()
+        return self._repo_root / "data" / (self.DATA_COLLECTION_NAME or "")
+
+    @DATASET_DIR.setter
+    def DATASET_DIR(self, value: Path | str) -> None:
+        self.__dict__["DATASET_DIR"] = Path(value)
+
+    @property
+    def OUTPUT_DIR(self) -> Path:
+        """The directory where preprocessed data is stored."""
+        if "OUTPUT_DIR" in self.__dict__:
+            return self.__dict__["OUTPUT_DIR"]
+        self._ensure_loaded()
+        return self._repo_root / "preprocessed_data" / (self.DATA_COLLECTION_NAME or "")
+
+    @OUTPUT_DIR.setter
+    def OUTPUT_DIR(self, value: Path | str) -> None:
+        self.__dict__["OUTPUT_DIR"] = Path(value)
+
+    @property
+    def _data_collection_parts(self) -> list[str]:
+        """Split the data collection name into parts."""
+        name = self.DATA_COLLECTION_NAME or ""
+        return name.split("_")
+
+    @property
+    def LANGUAGE(self) -> str:
+        """The language code from the data collection name."""
+        if "LANGUAGE" in self.__dict__:
+            return self.__dict__["LANGUAGE"]
+        parts = self._data_collection_parts
+        return parts[1] if len(parts) > 1 else ""
+
+    @LANGUAGE.setter
+    def LANGUAGE(self, value: str) -> None:
+        self.__dict__["LANGUAGE"] = value
+
+    @property
+    def COUNTRY(self) -> str:
+        """The country code from the data collection name."""
+        if "COUNTRY" in self.__dict__:
+            return self.__dict__["COUNTRY"]
+        parts = self._data_collection_parts
+        return parts[2] if len(parts) > 2 else ""
+
+    @COUNTRY.setter
+    def COUNTRY(self, value: str) -> None:
+        self.__dict__["COUNTRY"] = value
+
+    @property
+    def CITY(self) -> str:
+        """The city name from the data collection name."""
+        if "CITY" in self.__dict__:
+            return self.__dict__["CITY"]
+        parts = self._data_collection_parts
+        return parts[3] if len(parts) > 3 else ""
+
+    @CITY.setter
+    def CITY(self, value: str) -> None:
+        self.__dict__["CITY"] = value
+
+    @property
+    def LAB(self) -> str:
+        """The lab identifier from the data collection name."""
+        if "LAB" in self.__dict__:
+            return self.__dict__["LAB"]
+        parts = self._data_collection_parts
+        return parts[4] if len(parts) > 4 else ""
+
+    @LAB.setter
+    def LAB(self, value: str) -> None:
+        self.__dict__["LAB"] = value
+
+    @property
+    def YEAR(self) -> str:
+        """The year from the data collection name."""
+        if "YEAR" in self.__dict__:
+            return self.__dict__["YEAR"]
+        parts = self._data_collection_parts
+        return parts[5] if len(parts) > 5 else ""
+
+    @YEAR.setter
+    def YEAR(self, value: str) -> None:
+        self.__dict__["YEAR"] = value
+
+    @property
+    def PSYCHOMETRIC_TESTS_DIR(self) -> Path:
+        """The directory for psychometric tests."""
+        if "PSYCHOMETRIC_TESTS_DIR" in self.__dict__:
+            return self.__dict__["PSYCHOMETRIC_TESTS_DIR"]
+        return self.DATASET_DIR / "psychometric-tests-sessions"
+
+    @PSYCHOMETRIC_TESTS_DIR.setter
+    def PSYCHOMETRIC_TESTS_DIR(self, value: Path | str) -> None:
+        self.__dict__["PSYCHOMETRIC_TESTS_DIR"] = Path(value)
+
+    @property
+    def PSYM_CORE_DATA(self) -> Path:
+        """The directory for core psychometric data."""
+        if "PSYM_CORE_DATA" in self.__dict__:
+            return self.__dict__["PSYM_CORE_DATA"]
+        return self.PSYCHOMETRIC_TESTS_DIR / "core_data"
+
+    @PSYM_CORE_DATA.setter
+    def PSYM_CORE_DATA(self, value: Path | str) -> None:
+        self.__dict__["PSYM_CORE_DATA"] = Path(value)
+
+    @property
+    def PSYM_PARTICIPANT_CONFIGS(self) -> Path:
+        """The directory for participant configurations."""
+        if "PSYM_PARTICIPANT_CONFIGS" in self.__dict__:
+            return self.__dict__["PSYM_PARTICIPANT_CONFIGS"]
+        return (
+            self.PSYM_CORE_DATA
+            / f"participant_configs_{self.LANGUAGE}_{self.COUNTRY}_{self.LAB}"
+        )
+
+    @PSYM_PARTICIPANT_CONFIGS.setter
+    def PSYM_PARTICIPANT_CONFIGS(self, value: Path | str) -> None:
+        self.__dict__["PSYM_PARTICIPANT_CONFIGS"] = Path(value)
+
+    @property
+    def START_RECORDING_REGEX(self) -> re.Pattern:
+        """Regex to identify the start of a recording."""
+        if "START_RECORDING_REGEX" in self.__dict__:
+            return self.__dict__["START_RECORDING_REGEX"]
+        # Use placeholders for trial and page column names to satisfy static analysis
+        pattern = (
+            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_"
+            rf"(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.+)"
+        )
+        return re.compile(pattern)
+
+    @START_RECORDING_REGEX.setter
+    def START_RECORDING_REGEX(self, value: re.Pattern | str) -> None:
+        if isinstance(value, str):
+            self.__dict__["START_RECORDING_REGEX"] = re.compile(value)
+        else:
+            self.__dict__["START_RECORDING_REGEX"] = value
+
+    @property
+    def STOP_RECORDING_REGEX(self) -> re.Pattern:
+        """Regex to identify the stop of a recording."""
+        if "STOP_RECORDING_REGEX" in self.__dict__:
+            return self.__dict__["STOP_RECORDING_REGEX"]
+        pattern = (
+            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_"
+            rf"(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.+)"
+        )
+        return re.compile(pattern)
+
+    @STOP_RECORDING_REGEX.setter
+    def STOP_RECORDING_REGEX(self, value: re.Pattern | str) -> None:
+        if isinstance(value, str):
+            self.__dict__["STOP_RECORDING_REGEX"] = re.compile(value)
+        else:
+            self.__dict__["STOP_RECORDING_REGEX"] = value
+
+    @property
+    def RAW_DATA_FILENAME_REGEX(self) -> str:
+        """Regex to extract info from raw data filenames."""
+        if "RAW_DATA_FILENAME_REGEX" in self.__dict__:
+            return self.__dict__["RAW_DATA_FILENAME_REGEX"]
+        trial_col = self.TRIAL_COL
+        stimulus_col = self.STIMULUS_COL
+        return rf".+_(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
+
+    @RAW_DATA_FILENAME_REGEX.setter
+    def RAW_DATA_FILENAME_REGEX(self, value: str) -> None:
+        self.__dict__["RAW_DATA_FILENAME_REGEX"] = value
+
+    @property
+    def EVENT_DATA_FILENAME_REGEX(self) -> str:
+        """Regex to extract info from event data filenames."""
+        if "EVENT_DATA_FILENAME_REGEX" in self.__dict__:
+            return self.__dict__["EVENT_DATA_FILENAME_REGEX"]
+        trial_col = self.TRIAL_COL
+        stimulus_col = self.STIMULUS_COL
+        return rf".+_(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_{{event_type}}.csv"
+
+    @EVENT_DATA_FILENAME_REGEX.setter
+    def EVENT_DATA_FILENAME_REGEX(self, value: str) -> None:
+        self.__dict__["EVENT_DATA_FILENAME_REGEX"] = value
+
+    @property
+    def GAZE_PATTERNS(self) -> list[Any]:
+        """Patterns used by pymovements to parse ASC files."""
+        if "GAZE_PATTERNS" in self.__dict__:
+            return self.__dict__["GAZE_PATTERNS"]
+        trial_col = self.TRIAL_COL
+        stimulus_col = self.STIMULUS_COL
+        page_col = self.PAGE_COL
+        return [
+            rf"start_recording_(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_(?P<{page_col}>.+)",
+            rf"start_recording_(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{page_col}>familiarity_rating_screen_\d+|subject_difficulty_screen)",
+            {"pattern": r"stop_recording_", "column": trial_col, "value": None},
+            {"pattern": r"stop_recording_", "column": page_col, "value": None},
+            {
+                "pattern": self.READING_ACTIVITY_PATTERN,
+                "column": self.ACTIVITY_COL,
+                "value": "reading",
+            },
+            {
+                "pattern": self.QUESTION_ACTIVITY_PATTERN,
+                "column": self.ACTIVITY_COL,
+                "value": "question",
+            },
+            {
+                "pattern": self.RATING_ACTIVITY_PATTERN,
+                "column": self.ACTIVITY_COL,
+                "value": "rating",
+            },
+            {"pattern": r"stop_recording_", "column": self.ACTIVITY_COL, "value": None},
+            {
+                "pattern": r"start_recording_PRACTICE_trial_",
+                "column": self.PRACTICE_COL,
+                "value": True,
+            },
+            {
+                "pattern": r"start_recording_trial_",
+                "column": self.PRACTICE_COL,
+                "value": False,
+            },
+            {"pattern": r"stop_recording_", "column": self.PRACTICE_COL, "value": None},
+        ]
+
+    @GAZE_PATTERNS.setter
+    def GAZE_PATTERNS(self, value: list[Any]) -> None:
+        self.__dict__["GAZE_PATTERNS"] = value
+
     def _init_defaults(self) -> None:
+        #: Name of the data collection (e.g., 'ME_EN_UK_LON_LAB1_2025').
+        self.DATA_COLLECTION_NAME: str | None = None
+
         #: Whether to enable development mode.
         self.DEVELOPMENT: bool = False
 
@@ -212,16 +456,6 @@ class Settings:
             r"MSG\s+(?P<timestamp>\d+[.]?\d*)\s+(?P<message>.*)"
         )
 
-        #: Regex to identify the start of a recording for a trial/page.
-        self.START_RECORDING_REGEX = re.compile(
-            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.*)"
-        )
-
-        #: Regex to identify the stop of a recording for a trial/page.
-        self.STOP_RECORDING_REGEX = re.compile(
-            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.*)"
-        )
-
         #: Glob pattern for raw data files.
         self.RAW_DATA_FILE_GLOB = "*_raw_data.csv"
 
@@ -237,12 +471,6 @@ class Settings:
         self.LOGFILE_ORDER_VERSION_REGEX = re.compile(
             r"(STIMULUS_ORDER_VERSION_)(?P<order_version>\d+)"
         )
-
-        #: Regex to extract trial and stimulus info from raw data file names.
-        self.RAW_DATA_FILENAME_REGEX = rf".+_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d+)_(?P<{self.STIMULUS_COL}>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
-
-        #: Regex to extract trial and stimulus info from event data file names.
-        self.EVENT_DATA_FILENAME_REGEX = rf".+_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d+)_(?P<{self.STIMULUS_COL}>[^_]+_[^_]+_\d+(\.0)?)_{{event_type}}.csv"
 
         # --- HARDWARE AND STIMULI MAPPINGS ---
 
@@ -291,41 +519,6 @@ class Settings:
 
         # --- GAZE PATTERNS AND EVENT PROPERTIES ---
 
-        #: Patterns used by pymovements to parse ASC files and assign columns.
-        self.GAZE_PATTERNS = [
-            rf"start_recording_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<{self.STIMULUS_COL}>[^_]+_[^_]+_\d+(\.0)?)_(?P<{self.PAGE_COL}>.+)",
-            rf"start_recording_(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d+)_(?P<{self.PAGE_COL}>familiarity_rating_screen_\d+|subject_difficulty_screen)",
-            {"pattern": r"stop_recording_", "column": self.TRIAL_COL, "value": None},
-            {"pattern": r"stop_recording_", "column": self.PAGE_COL, "value": None},
-            {
-                "pattern": self.READING_ACTIVITY_PATTERN,
-                "column": self.ACTIVITY_COL,
-                "value": "reading",
-            },
-            {
-                "pattern": self.QUESTION_ACTIVITY_PATTERN,
-                "column": self.ACTIVITY_COL,
-                "value": "question",
-            },
-            {
-                "pattern": self.RATING_ACTIVITY_PATTERN,
-                "column": self.ACTIVITY_COL,
-                "value": "rating",
-            },
-            {"pattern": r"stop_recording_", "column": self.ACTIVITY_COL, "value": None},
-            {
-                "pattern": r"start_recording_PRACTICE_trial_",
-                "column": self.PRACTICE_COL,
-                "value": True,
-            },
-            {
-                "pattern": r"start_recording_trial_",
-                "column": self.PRACTICE_COL,
-                "value": False,
-            },
-            {"pattern": r"stop_recording_", "column": self.PRACTICE_COL, "value": None},
-        ]
-
         #: Properties to compute for each event type.
         self.EVENT_PROPERTIES = {
             self.FIXATION: [
@@ -356,34 +549,93 @@ class Settings:
         try:
             if path:
                 self.load_from_yaml(path)
+                self._config_found = True
                 return
 
             env_path = os.getenv("MULTIPLEYE_CONFIG")
             if env_path:
                 self.load_from_yaml(env_path)
+                self._config_found = True
                 return
 
             cwd_default = Path.cwd() / "multipleye_settings_preprocessing.yaml"
             if cwd_default.exists():
                 self.load_from_yaml(cwd_default)
+                self._config_found = True
                 return
 
-            legacy_path = self._repo_root / "multipleye_settings_preprocessing.yaml"
-            if legacy_path.exists():
-                warnings.warn(
-                    f"Loading config from legacy path: {legacy_path}. "
-                    "This behavior is deprecated and will be removed in a future release. "
-                    "Please move your config to the current working directory or specify it via "
-                    "--config_path or MULTIPLEYE_CONFIG env var.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-                self.load_from_yaml(legacy_path)
-                return
+            # No config found, try to create from template
+            self.create_config_template(cwd_default)
+            self._is_template_loaded = True
+            if cwd_default.exists():
+                self.load_from_yaml(cwd_default)
 
-            self._loaded = True
+            return
+
         finally:
             self._loading = False
+
+    def create_config_template(self, target_path: Path) -> None:
+        """Create a configuration template at the target path."""
+        template_path = self._repo_root / TEMPLATE_RELATIVE_PATH
+        if not template_path.exists():
+            return
+
+        try:
+            target_path.write_text(template_path.read_text(encoding="utf-8"))
+        except OSError:
+            # We don't log here to keep load() silent,
+            # but we can check if it exists in get_config_status_message
+            pass
+
+    def get_config_status_message(self) -> str | None:
+        """Return a status message if configuration is missing or invalid."""
+        cwd_default = Path.cwd() / "multipleye_settings_preprocessing.yaml"
+
+        if self._is_template_loaded:
+            if cwd_default.exists():
+                return (
+                    "\n" + "=" * 80 + "\n"
+                    " CONFIGURATION REQUIRED\n" + "=" * 80 + "\n"
+                    "No configuration file was found.\n\n"
+                    "I've created a template for you at:\n"
+                    f"  {cwd_default}\n\n"
+                    "Please open this file, set your 'data_collection_name',\n"
+                    "and then run the pipeline again.\n\n"
+                    f"For more help, see: {TEMPLATE_DOCS_URL}\n" + "=" * 80 + "\n"
+                )
+            else:
+                return (
+                    f"No configuration file found and failed to create template at {cwd_default}. "
+                    f"See: {TEMPLATE_DOCS_URL}"
+                )
+
+        if not self._config_found and not self._loaded:
+            return (
+                "No configuration file found. Expected one of: explicit path, "
+                f"MULTIPLEYE_CONFIG env var, or {cwd_default}. See: {TEMPLATE_DOCS_URL}"
+            )
+
+        # Check for placeholders
+        val = self.__dict__.get("DATA_COLLECTION_NAME")
+        if (
+            val == "REPLACE_WITH_YOUR_COLLECTION_NAME"
+            or val == "MultiplEYE_DA_DK_Aalborg_1_2026"
+        ):
+            return (
+                "\n" + "=" * 80 + "\n"
+                " INVALID CONFIGURATION\n" + "=" * 80 + "\n"
+                f"Invalid DATA_COLLECTION_NAME: '{val}'.\n"
+                "It looks like you are still using a placeholder value.\n\n"
+                "Please edit your configuration file and set 'data_collection_name' to your "
+                "actual collection identifier (e.g., 'MultiplEYE_EN_UK_London_1_2026').\n\n"
+                "The collection name must follow the format: MultiplEYE_LANG_COUNTRY_CITY_LAB_YEAR\n"
+                f"For more details on naming and configuration, see: {TEMPLATE_DOCS_URL}\n"
+                + "=" * 80
+                + "\n"
+            )
+
+        return None
 
     def load_from_yaml(self, path: str | Path) -> None:
         """Load settings from a YAML file."""
@@ -416,9 +668,12 @@ class Settings:
         """Validate required settings."""
         if self._loading:  # Skip validation during initial loading of parts
             return
-        # avoid infinite recursion with property
-        if not self.__dict__.get("DATA_COLLECTION_NAME"):
-            raise ValueError("DATA_COLLECTION_NAME is required in settings.")
+
+        # Use __dict__ to avoid _ensure_loaded() recursion via property
+        val = self.__dict__.get("DATA_COLLECTION_NAME")
+        if not val:
+            # We don't raise here if we are just loading, as we might be loading the template
+            return
 
     def setup_logging(self, log_file: str | Path | None = None) -> None:
         """Configure logging with separate levels for console and file.
@@ -477,69 +732,6 @@ class Settings:
         # Avoid recursion for private attributes or property-backed attributes
         if name.startswith("_") or name == "DATA_COLLECTION_NAME":
             raise AttributeError(name)
-
-        # For legacy compatibility and to ensure loading
-        if name in [
-            "DATASET_DIR",
-            "OUTPUT_DIR",
-            "LANGUAGE",
-            "COUNTRY",
-            "CITY",
-            "LAB",
-            "YEAR",
-            "PSYCHOMETRIC_TESTS_DIR",
-            "PSYM_CORE_DATA",
-            "PSYM_PARTICIPANT_CONFIGS",
-        ]:
-            self._ensure_loaded()
-            if self.DATA_COLLECTION_NAME is None:
-                # If we are here and it's None, it means no config was found
-                raise ValueError(
-                    f"Settings attribute '{name}' cannot be computed because "
-                    "DATA_COLLECTION_NAME is None. Please load a configuration file "
-                    "(e.g., settings.load_from_yaml('your_config.yaml')) or set "
-                    "the DATA_COLLECTION_NAME attribute directly."
-                )
-
-            parts = self.DATA_COLLECTION_NAME.split("_")
-            if len(parts) < 6:
-                language = parts[1] if len(parts) > 1 else ""
-                country = parts[2] if len(parts) > 2 else ""
-                lab = parts[4] if len(parts) > 4 else ""
-            else:
-                _, language, country, _, lab, _ = parts
-
-            if name == "DATASET_DIR":
-                return self._repo_root / "data" / self.DATA_COLLECTION_NAME
-            if name == "OUTPUT_DIR":
-                return self._repo_root / "preprocessed_data" / self.DATA_COLLECTION_NAME
-            if name == "LANGUAGE":
-                return language
-            if name == "COUNTRY":
-                return country
-            if name == "CITY":
-                return parts[3] if len(parts) > 3 else ""
-            if name == "LAB":
-                return lab
-            if name == "YEAR":
-                return parts[5] if len(parts) > 5 else ""
-            if name == "PSYCHOMETRIC_TESTS_DIR":
-                return (
-                    self._repo_root / "data" / self.DATA_COLLECTION_NAME
-                ) / "psychometric-tests-sessions"
-            if name == "PSYM_CORE_DATA":
-                return (
-                    (self._repo_root / "data" / self.DATA_COLLECTION_NAME)
-                    / "psychometric-tests-sessions"
-                    / "core_data"
-                )
-            if name == "PSYM_PARTICIPANT_CONFIGS":
-                return (
-                    (self._repo_root / "data" / self.DATA_COLLECTION_NAME)
-                    / "psychometric-tests-sessions"
-                    / "core_data"
-                    / f"participant_configs_{language}_{country}_{lab}"
-                )
 
         self._ensure_loaded()
 
