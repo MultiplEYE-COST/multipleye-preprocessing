@@ -1,0 +1,68 @@
+name: Automated CalVer Release
+
+on:
+  schedule:
+    - cron: '0 23 * * *'  # Run nightly at 23:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'MultiplEYE-COST'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Get Today's Date
+        id: date
+        run: echo "today=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+
+      - name: Check if Tag Exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ steps.date.outputs.today }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip if Release Already Exists
+        if: steps.check_tag.outputs.exists == 'true'
+        run: |
+          echo "Release v${{ steps.date.outputs.today }} already exists. Skipping."
+
+      - name: Update Version Files
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          python preprocessing/scripts/sync_version.py --set-version ${{ steps.date.outputs.today }}
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add .
+          if ! git diff --cached --exit-code; then
+            git commit -m "chore: bump version to ${{ steps.date.outputs.today }}"
+            git push origin ${{ github.ref_name }}
+          fi
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ steps.date.outputs.today }}
+          name: Release ${{ steps.date.outputs.today }}
+          generate_release_notes: true
+          body: |
+            Automated CalVer release for ${{ steps.date.outputs.today }}.

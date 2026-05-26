@@ -39,13 +39,13 @@ structure specification, see the {ref}`multiplEYE_data_structure` section.
 
 ```bash
 # A. Run full preprocessing pipeline (uses default config file)
-run_multipleye_preprocessing
+run_preprocessing
 
 # B. Or specify a custom config file
-run_multipleye_preprocessing --config_path path/to/your_config.yaml
+run_preprocessing --config_path path/to/your_config.yaml
 
 # C. Or directly run with uv
-uv run run_multipleye_preprocessing
+uv run run_preprocessing
 ```
 
 ### Output Files

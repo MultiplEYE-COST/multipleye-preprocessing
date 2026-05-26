@@ -5,21 +5,24 @@
 # MultiplEYE Preprocessing
 
 > [!IMPORTANT]
-> This repository is **actively maintained and evolving**. Features, configurations, and behaviors may
-> change as we improve the codebase. Please:
+> This repository is **actively maintained and evolving**.
+> Features, configurations, and behaviors may change as we improve the codebase. Please:
 > - Keep the repository up-to-date to receive the latest changes, fixes, and improvements
 > - Report issues if you encounter unexpected behavior
 > - Refer to the documentation for the latest information on how to use the pipeline
-> - Check the [troubleshooting guide](https://multipleye-cost.github.io/multipleye-preprocessing/troubleshooting/) if you encounter any issues
+> - Check the
+> - [troubleshooting guide](https://multipleye-cost.github.io/multipleye-preprocessing/troubleshooting/)
+    if you encounter any issues
 
 This repository contains the preprocessing pipeline for eye-tracking data and psychometric test
 scoring from the MultiplEYE project.
 
-If you are running the pipeline and encounter any issues, please check the [troubleshooting guide](https://multipleye-cost.github.io/multipleye-preprocessing/troubleshooting/).
+If you are running the pipeline and encounter any issues, please check
+the [troubleshooting guide](https://multipleye-cost.github.io/multipleye-preprocessing/troubleshooting/).
 
 > [!NOTE]
-> This repository processes data recorded
-> with [MultiplEYE-psychometric-tests](https://github.com/MultiplEYE-COST/MultiplEYE-psychometric-tests).
+> This repository processes data recorded with
+> [MultiplEYE-psychometric-tests](https://github.com/MultiplEYE-COST/MultiplEYE-psychometric-tests).
 
 ## What You Can Do With This Repository
 
@@ -29,7 +32,7 @@ Process raw eye-tracking data (EyeLink `.edf` files) through a complete preproce
 
 ```bash
 # Configure your settings in multipleye_settings_preprocessing.yaml
-run_multipleye_preprocessing
+run_preprocessing
 ```
 
 This pipeline handles:
@@ -61,8 +64,8 @@ This calculates scores for:
 - **WikiVocab**
 
 > [!IMPORTANT]
-> The psychometric tests require data to be structured correctly. See
-> the [Psychometric Tests documentation](https://multipleye-cost.github.io/multipleye-preprocessing/guide/psychometric_tests/)
+> The psychometric tests require data to be structured correctly. See the
+> [Psychometric Tests documentation](https://multipleye-cost.github.io/multipleye-preprocessing/guide/psychometric_tests/)
 > for details on the expected data format.
 
 ---
@@ -97,7 +100,7 @@ source .venv/bin/activate  # Unix/Mac
 |--------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|
 | [Getting Started](https://multipleye-cost.github.io/multipleye-preprocessing/getting_started/)                     | Installation, requirements, and running the pipeline |
 | [Preprocessing](https://multipleye-cost.github.io/multipleye-preprocessing/guide/preprocessing/)                   | Detailed preprocessing pipeline documentation        |
-| [Reading Measures](https://multipleye-cost.github.io/multipleye-preprocessing/guide/reading_measures/)            | Reading measures from preprocessed eye-tracking data |
+| [Reading Measures](https://multipleye-cost.github.io/multipleye-preprocessing/guide/reading_measures/)             | Reading measures from preprocessed eye-tracking data |
 | [Psychometric Tests](https://multipleye-cost.github.io/multipleye-preprocessing/guide/psychometric_tests/)         | Test descriptions and scoring details                |
 | [Configuration](https://multipleye-cost.github.io/multipleye-preprocessing/guide/configuration/)                   | Configuration file options                           |
 | [Technical Architecture](https://multipleye-cost.github.io/multipleye-preprocessing/guide/technical_architecture/) | Code structure and design                            |
@@ -107,10 +110,10 @@ source .venv/bin/activate  # Unix/Mac
 ## Quick Start
 
 1. Update settings in `multipleye_settings_preprocessing.yaml`
-2. Run preprocessing: `run_multipleye_preprocessing`
+2. Run preprocessing: `run_preprocessing`
 3. Score psychometric tests: `preprocess_psychometric_tests`
 
 > [!CAUTION]
-> EyeLink-specific: You must install the EyeLink Developers Kit to convert `.edf` files. See
-> the [installation guide](https://multipleye-cost.github.io/multipleye-preprocessing/getting_started/)
+> EyeLink-specific: You must install the EyeLink Developers Kit to convert `.edf` files. See the
+> [installation guide](https://multipleye-cost.github.io/multipleye-preprocessing/getting_started/)
 > for details.

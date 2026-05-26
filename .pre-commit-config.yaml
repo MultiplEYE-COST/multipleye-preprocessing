@@ -21,3 +21,11 @@ repos:
       # Run the linter.
       - id: ruff-check
         args: [ --fix ]
+  - repo: local
+    hooks:
+      - id: update-version
+        name: Sync and Validate Version
+        entry: python preprocessing/scripts/sync_version.py
+        language: python
+        files: 'CITATION\.cff|pyproject\.toml|docs/conf\.py'
+        pass_filenames: false
