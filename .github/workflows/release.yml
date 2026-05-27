@@ -54,7 +54,7 @@ jobs:
           git add .
           if ! git diff --cached --exit-code; then
             git commit -m "chore: bump version to ${{ steps.date.outputs.today }}"
-            git push origin ${{ github.ref_name }}
+            git push --force origin main
           fi
 
       - name: Create GitHub Release
