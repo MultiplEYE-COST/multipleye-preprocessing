@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..models.dcn import Dcn
 from preprocessing import config
 
 
@@ -24,7 +25,11 @@ def rename_aoi_header(data_collection_name: str) -> None:
     :param data_collection_name:
     """
 
-    _, language, country, city, lab, year = data_collection_name.split("_")
+    dcn = Dcn(data_collection_name)
+    language = dcn.lang
+    country = dcn.country
+    lab = dcn.lab
+    # city and year are not used
 
     aoi_dir_path = (
         config.DEFAULT_STIMULI_DIR
