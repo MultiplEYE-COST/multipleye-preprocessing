@@ -37,6 +37,9 @@ include_pilots: false
 # The expected sampling rate of the eye tracker in Hertz.
 expected_sampling_rate_hz: 1000
 
+# Whether to copy AOI images overlay to the output directory.
+copy_aoi_images_overlay: false
+
 # ----------------------- Internal Usage -----------------------
 
 # --- LOGGING ---

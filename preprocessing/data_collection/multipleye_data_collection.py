@@ -403,7 +403,10 @@ class MultipleyeDataCollection:
             r"\d\d\d" + f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
         )
 
-        stimulus_folder_path = data_dir / f"stimuli_{data_folder_name}"
+        stimulus_folder_path = settings.OUTPUT_DIR / f"stimuli_{data_folder_name}"
+        if not stimulus_folder_path.exists():
+            stimulus_folder_path = data_dir / f"stimuli_{data_folder_name}"
+
         config_file = (
             stimulus_folder_path
             / "config"
