@@ -618,10 +618,7 @@ class Settings:
 
         # Check for placeholders
         val = self.__dict__.get("DATA_COLLECTION_NAME")
-        if (
-            val == "REPLACE_WITH_YOUR_COLLECTION_NAME"
-            or val == "MultiplEYE_DA_DK_Aalborg_1_2026"
-        ):
+        if val == "REPLACE_WITH_YOUR_COLLECTION_NAME":
             return (
                 "\n" + "=" * 80 + "\n"
                 " INVALID CONFIGURATION\n" + "=" * 80 + "\n"
