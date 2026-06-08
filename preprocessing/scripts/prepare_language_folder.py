@@ -15,6 +15,8 @@ from ..utils.fix_multipleye_aoi_files import (
     repair_word_labels,
 )
 
+logger = get_logger()
+
 
 def prepare_language_folder(data_collection_name: str | None = None):
     from preprocessing import settings
@@ -214,7 +216,6 @@ def parse_args():
 
 def main():
     args = parse_args()
-    logger = get_logger(__name__)
 
     logger.info(f"Preparing language folder for {args.data_collection_name}...")
 

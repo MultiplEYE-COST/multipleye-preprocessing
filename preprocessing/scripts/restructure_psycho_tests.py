@@ -9,7 +9,7 @@ import yaml
 from preprocessing.models.sid import Sid
 from preprocessing.utils import get_logger, validate_psychometric_data
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 
 def fix_psycho_tests_structure(
