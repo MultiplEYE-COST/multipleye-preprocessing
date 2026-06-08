@@ -17,6 +17,7 @@ from polars.exceptions import ComputeError
 from tqdm import tqdm
 
 from ..models.sid import Sid
+from ..models.dcn import Dcn
 from ..config import settings
 from ..utils.conversion import convert_to_time_str
 from ..utils.logging import get_logger
@@ -387,40 +388,19 @@ class MultipleyeDataCollection:
         data_dir = Path(data_dir)
 
         data_folder_name = data_dir.name
-        _, stimulus_language, country, city, lab_number, year = data_folder_name.split(
-            "_"
-        )
-        if not data_folder_name.startswith("MultiplEYE"):
+
+        try:
+            dcn = Dcn(data_folder_name)
+        except (ValueError, TypeError) as e:
             raise ValueError(
-                f"Data collection name {data_folder_name} does not start with "
-                f"'MultiplEYE'. "
-                f"Please check the folder name."
-            )
-        if not year.isdigit() or len(year) != 4:
-            raise ValueError(
-                f"Year {year} of the data collection name is not a valid year. "
-                f"It should be a 4 digit number."
-            )
-        if not lab_number.isdigit() or len(lab_number) != 1:
-            raise ValueError(
-                f"Lab number {lab_number} of the data collection name is not a "
-                f"valid lab number. It should be a 1 digit number."
-            )
-        if len(country) != 2 or not country.isalpha():
-            raise ValueError(
-                f"Country {country} of the data collection name is not a "
-                f"valid country code. It should be a 2 letter code."
-            )
-        if len(city) < 2 or not city.isalpha():
-            raise ValueError(
-                f"City {city} of the data collection name is not a valid city name. "
-                f"It should be a string with at least 2 letters."
-            )
-        if not stimulus_language.isalpha() or len(stimulus_language) != 2:
-            raise ValueError(
-                f"Stimulus language {stimulus_language} of the data collection name is "
-                f"not a valid language code. It should be a 2 letter code."
-            )
+                f"Invalid data collection name: {data_folder_name}. {e}"
+            ) from e
+
+        stimulus_language = dcn.lang
+        country = dcn.country
+        city = dcn.city
+        lab_number = dcn.lab
+        year = dcn.year
 
         session_folder_regex = (
             r"\d\d\d" + f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"

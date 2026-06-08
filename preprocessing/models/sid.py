@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 import re
 
+__all__ = ["Sid"]
+
 
 @dataclass
 class Sid:
