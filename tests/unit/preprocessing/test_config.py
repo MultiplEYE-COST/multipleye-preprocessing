@@ -141,15 +141,11 @@ def test_settings_load_from_yaml(settings_obj, tmp_path):
     assert settings_obj.EXPECTED_SAMPLING_RATE_HZ == 500
 
 
-def test_settings_validation_no_error_initially(settings_obj):
-    """Test that missing required fields do not raise an error during initial load."""
-    settings_obj._validate()  # Should not raise
-
-
-def test_settings_validation_placeholder_no_error_initially(settings_obj):
-    """Test that placeholder DATA_COLLECTION_NAME does not raise an error during initial load."""
+def test_settings_validation_cases(settings_obj):
+    """Test that missing required fields or placeholders do not raise errors during initial load."""
+    settings_obj._validate()  # Should not raise initially
     settings_obj.DATA_COLLECTION_NAME = "REPLACE_WITH_YOUR_COLLECTION_NAME"
-    settings_obj._validate()  # Should not raise
+    settings_obj._validate()  # Should also not raise initially
 
 
 def test_prepare_language_folder_none_error():
@@ -177,18 +173,18 @@ def test_prepare_language_folder_none_error():
     [
         ("LANGUAGE", "EN"),
         ("COUNTRY", "UK"),
-        ("CITY", "LON"),
-        ("LAB", "LAB1"),
-        ("YEAR", "2025"),
+        ("CITY", "London"),
+        ("LAB", "1"),
+        ("YEAR", "2026"),
     ],
 )
 def test_settings_dynamic_properties(settings_obj, name, expected):
     """Test that dynamic properties are correctly computed."""
-    settings_obj.DATA_COLLECTION_NAME = "ME_EN_UK_LON_LAB1_2025"
+    settings_obj.DATA_COLLECTION_NAME = "MultiplEYE_EN_UK_London_1_2026"
     settings_obj._loaded = True  # Prevent auto-loading legacy config
 
     assert getattr(settings_obj, name) == expected
-    assert "ME_EN_UK_LON_LAB1_2025" in str(settings_obj.DATASET_DIR)
+    assert "MultiplEYE_EN_UK_London_1_2026" in str(settings_obj.DATASET_DIR)
 
 
 def test_settings_precedence_env_var(tmp_path, monkeypatch):
@@ -232,6 +228,53 @@ def test_settings_copies_template_silently(tmp_path, monkeypatch, caplog):
     msg = s.get_config_status_message()
     assert "CONFIGURATION REQUIRED" in msg
     assert str(copied_path) in msg
+
+
+@pytest.mark.parametrize(
+    "folder_name, expected_auto_filled, expected_msg_part",
+    [
+        (
+            "MultiplEYE_DA_DK_Aalborg_1_2026",
+            True,
+            "The data collection name has been detected as 'MultiplEYE_DA_DK_Aalborg_1_2026'",
+        ),
+        (
+            "Invalid_Folder_Name",
+            False,
+            "A template has been created for you at:",
+        ),
+    ],
+)
+def test_settings_template_auto_fill_behavior(
+    tmp_path, monkeypatch, folder_name, expected_auto_filled, expected_msg_part
+):
+    """Test template generation behavior based on folder name compliance."""
+    from preprocessing.config import Settings
+
+    case_dir = tmp_path / folder_name
+    case_dir.mkdir()
+
+    monkeypatch.chdir(case_dir)
+    monkeypatch.delenv("MULTIPLEYE_CONFIG", raising=False)
+
+    s = Settings()
+    s.load()
+
+    assert s._is_template_loaded
+    assert s._is_auto_filled == expected_auto_filled
+
+    copied_path = case_dir / "multipleye_settings_preprocessing.yaml"
+    assert copied_path.exists()
+    content = copied_path.read_text(encoding="utf-8")
+
+    if expected_auto_filled:
+        assert f'data_collection_name: "{folder_name}"' in content
+    else:
+        assert 'data_collection_name: "REPLACE_WITH_YOUR_COLLECTION_NAME"' in content
+
+    msg = s.get_config_status_message()
+    assert "CONFIGURATION REQUIRED" in msg
+    assert expected_msg_part in msg
 
 
 def test_settings_placeholder_status_message(settings_obj):

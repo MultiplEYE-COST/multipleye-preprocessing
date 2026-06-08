@@ -29,6 +29,7 @@ class Settings:
         self._repo_root = Path(__file__).parent.parent
         self._initialized = True
         self._is_template_loaded = False
+        self._is_auto_filled = False
         self._config_found = False
 
     @property
@@ -543,6 +544,13 @@ class Settings:
         if not self._loaded and not self._loading:
             self.load()
 
+    def _is_valid_data_collection_name(self, name: str) -> bool:
+        """Check if the name follows the MultiplEYE data collection format."""
+        # Format: MultiplEYE_[LANGUAGE]_[COUNTRY]_[CITY]_[LAB]_[YEAR]
+        # Example: MultiplEYE_DA_DK_Aalborg_1_2026
+        pattern = r"^MultiplEYE_[A-Z]{2}_[A-Z]{2}_[A-Za-z0-9]+_[A-Za-z0-9]+_\d{4}$"
+        return bool(re.match(pattern, name))
+
     def load(self, path: str | Path | None = None) -> None:
         """Load settings from various sources with defined precedence."""
         self._loading = True
@@ -565,7 +573,13 @@ class Settings:
                 return
 
             # No config found, try to create from template
-            self.create_config_template(cwd_default)
+            cwd_name = Path.cwd().name
+            if self._is_valid_data_collection_name(cwd_name):
+                self.create_config_template(cwd_default, collection_name=cwd_name)
+                self._is_auto_filled = True
+            else:
+                self.create_config_template(cwd_default)
+
             self._is_template_loaded = True
             if cwd_default.exists():
                 self.load_from_yaml(cwd_default)
@@ -575,14 +589,22 @@ class Settings:
         finally:
             self._loading = False
 
-    def create_config_template(self, target_path: Path) -> None:
+    def create_config_template(
+        self, target_path: Path, collection_name: str | None = None
+    ) -> None:
         """Create a configuration template at the target path."""
         template_path = self._repo_root / TEMPLATE_RELATIVE_PATH
         if not template_path.exists():
             return
 
         try:
-            target_path.write_text(template_path.read_text(encoding="utf-8"))
+            content = template_path.read_text(encoding="utf-8")
+            if collection_name:
+                content = content.replace(
+                    'data_collection_name: "REPLACE_WITH_YOUR_COLLECTION_NAME"',
+                    f'data_collection_name: "{collection_name}"',
+                )
+            target_path.write_text(content)
         except OSError:
             # We don't log here to keep load() silent,
             # but we can check if it exists in get_config_status_message
@@ -594,11 +616,24 @@ class Settings:
 
         if self._is_template_loaded:
             if cwd_default.exists():
+                if self._is_auto_filled:
+                    return (
+                        "\n" + "=" * 80 + "\n"
+                        " CONFIGURATION REQUIRED\n" + "=" * 80 + "\n"
+                        "No configuration file was found.\n\n"
+                        f"The data collection name has been detected as '{Path.cwd().name}'\n"
+                        "and the configuration template has been updated for you at:\n"
+                        f"  {cwd_default}\n\n"
+                        "Please open this file, review the settings,\n"
+                        "and then run the pipeline again.\n\n"
+                        f"For more help, see: {TEMPLATE_DOCS_URL}\n" + "=" * 80 + "\n"
+                    )
+
                 return (
                     "\n" + "=" * 80 + "\n"
                     " CONFIGURATION REQUIRED\n" + "=" * 80 + "\n"
                     "No configuration file was found.\n\n"
-                    "I've created a template for you at:\n"
+                    "A template has been created for you at:\n"
                     f"  {cwd_default}\n\n"
                     "Please open this file, set your 'data_collection_name',\n"
                     "and then run the pipeline again.\n\n"
