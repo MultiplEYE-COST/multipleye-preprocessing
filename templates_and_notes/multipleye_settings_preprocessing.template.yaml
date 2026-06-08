@@ -19,7 +19,7 @@ data_collection_name: "REPLACE_WITH_YOUR_COLLECTION_NAME"
 # --- COMMON SETTINGS (frequently changed) ---
 experiment_type: "MultiplEYE" # MultiplEYE or MeRID
 overwrite: false
-include_sessions: [] # e.g., ["021_DA_DK_1_ET1"]
+include_sessions: [] # e.g., ["000_DA_DK_1_ET1"]
 exclude_sessions: []
 include_pilots: false
 expected_sampling_rate_hz: 1000
