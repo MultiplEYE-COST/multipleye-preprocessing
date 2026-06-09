@@ -175,6 +175,13 @@ def test_sid_pid_property_backward_compatibility():
     assert Sid("999_US_US_X_ET2").pid == "999"
 
 
+def test_sid_base_id():
+    """Tests sid.base_id property."""
+    assert Sid("001_EN_UK_1_S1").base_id == "001_EN_UK_1"
+    assert Sid("001_EN_UK_1_S1_extra").base_id == "001_EN_UK_1_extra"
+    assert Sid("017_DA_DK_1_ET1").base_id == "017_DA_DK_1"
+
+
 @pytest.mark.parametrize(
     "sid1_str, sid2_str, expected_match",
     [

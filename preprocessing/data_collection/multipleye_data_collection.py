@@ -1387,7 +1387,7 @@ class MultipleyeDataCollection:
 
             folder = Path(self.sessions[session].session_folder_path)
 
-            pq_file = folder / f"{participant_id}_{lang}_{country}_{lab}_pq_data.json"
+            pq_file = folder / f"{sid.base_id}_pq_data.json"
             if pq_file.exists():
                 with open(pq_file, "r", encoding="utf-8") as f:
                     data = json.load(f)

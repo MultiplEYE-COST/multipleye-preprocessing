@@ -99,6 +99,14 @@ class Sid:
             return "Session has been fully restarted."
         return ""
 
+    @property
+    def base_id(self) -> str:
+        """Returns the SID without the session part."""
+        base = f"{self.pid}_{self.lang}_{self.country}_{self.lab}"
+        if self.postfix:
+            return f"{base}_{self.postfix}"
+        return base
+
     def __str__(self) -> str:
         base = f"{self.pid}_{self.lang}_{self.country}_{self.lab}_{self.session}"
         if self.postfix:
