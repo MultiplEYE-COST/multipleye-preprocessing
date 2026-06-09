@@ -41,8 +41,20 @@ def plot_gaze(
         )
 
         fig, ax = plt.subplots()
-        if aoi_image:
-            stimulus_image = PIL.Image.open(page.aoi_image_path)
+        use_aoi = aoi_image or settings.PLOT_AOI_OVERLAY
+        aoi_path = None
+        if use_aoi:
+            if page.aoi_image_path.exists():
+                aoi_path = page.aoi_image_path
+            else:
+                # Fallback: try original data folder if it is not the same as output dir
+                relative_aoi_path = page.aoi_image_path.relative_to(settings.OUTPUT_DIR)
+                original_aoi_path = settings.DATASET_DIR / relative_aoi_path
+                if original_aoi_path.exists():
+                    aoi_path = original_aoi_path
+
+        if aoi_path:
+            stimulus_image = PIL.Image.open(aoi_path)
         else:
             stimulus_image = PIL.Image.open(page.image_path)
         ax.imshow(stimulus_image)
@@ -94,8 +106,22 @@ def plot_gaze(
         )
 
         fig, ax = plt.subplots()
-        if aoi_image:
-            question_image = PIL.Image.open(question.aoi_image_path)
+        use_aoi = aoi_image or settings.PLOT_AOI_OVERLAY
+        aoi_path = None
+        if use_aoi:
+            if question.aoi_image_path.exists():
+                aoi_path = question.aoi_image_path
+            else:
+                # Fallback: try original data folder if it is not the same as output dir
+                relative_aoi_path = question.aoi_image_path.relative_to(
+                    settings.OUTPUT_DIR
+                )
+                original_aoi_path = settings.DATASET_DIR / relative_aoi_path
+                if original_aoi_path.exists():
+                    aoi_path = original_aoi_path
+
+        if aoi_path:
+            question_image = PIL.Image.open(aoi_path)
         else:
             question_image = PIL.Image.open(question.image_path)
         ax.imshow(question_image)
