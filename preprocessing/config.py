@@ -478,6 +478,7 @@ class Settings:
         self.EYETRACKER_NAMES = {
             "eyelink": [
                 "EyeLink 1000 Plus",
+                "EyeLink 1000+",
                 "EyeLink II",
                 "EyeLink 1000",
                 "EyeLink Portable Duo",
