@@ -181,6 +181,5 @@ def plot_gaze(
 def plot_main_sequence(events: pm.EventDataFrame, plots_dir: Path) -> None:
     pm.plotting.main_sequence_plot(
         events,
-        show=False,
         savepath=plots_dir / "main_sequence.png",
     )
