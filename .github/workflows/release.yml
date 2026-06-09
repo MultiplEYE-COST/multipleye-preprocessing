@@ -38,27 +38,41 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Skip if Release Already Exists
-        if: steps.check_tag.outputs.exists == 'true'
+      - name: Check for Changes Since Last Release
+        id: check_changes
         run: |
-          echo "Release v${{ steps.date.outputs.today }} already exists. Skipping."
+          last_commit_msg=$(git log -1 --pretty=%s)
+          echo "Last commit message: $last_commit_msg"
+          if [[ "$last_commit_msg" == "chore: bump version to"* ]]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes since last version bump. Skipping release."
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected since last version bump."
+          fi
+
+      - name: Skip if Release Already Exists or No Changes
+        if: steps.check_tag.outputs.exists == 'true' || steps.check_changes.outputs.has_changes == 'false'
+        run: |
+          echo "Skipping release: Tag exists (${{ steps.check_tag.outputs.exists }}) or No changes (${{ steps.check_changes.outputs.has_changes }})."
 
       - name: Update Version Files
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_tag.outputs.exists == 'false' && steps.check_changes.outputs.has_changes == 'true'
         run: |
           python preprocessing/scripts/sync_version.py --set-version ${{ steps.date.outputs.today }}
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}
           git add .
           if ! git diff --cached --exit-code; then
             git commit -m "chore: bump version to ${{ steps.date.outputs.today }}"
-            git push --force origin main
+            git push origin main
           fi
 
       - name: Create GitHub Release
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.check_tag.outputs.exists == 'false' && steps.check_changes.outputs.has_changes == 'true'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.date.outputs.today }}

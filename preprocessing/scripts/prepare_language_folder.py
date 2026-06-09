@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..models.dcn import Dcn
 from ..utils.data_path_utils import check_data_collection_exists
 from ..utils.logging import get_logger
 from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
@@ -27,7 +28,12 @@ def prepare_language_folder(data_collection_name: str | None = None):
             "as an argument or load a configuration via settings.load()."
         )
 
-    _, lang, country, city, lab_no, year = data_collection_name.split("_")
+    dcn = Dcn(data_collection_name)
+    lang = dcn.lang
+    country = dcn.country
+    lab_no = dcn.lab
+    # city and year are not used
+
     logger = get_logger(__name__)
 
     # Check if the data collection folder exists

@@ -8,6 +8,8 @@ from typing import Any
 
 import yaml
 
+from .models.dcn import Dcn
+
 TEMPLATE_DOCS_URL = (
     "https://multipleye-cost.github.io/multipleye-preprocessing/guide/configuration/"
 )
@@ -29,6 +31,7 @@ class Settings:
         self._repo_root = Path(__file__).parent.parent
         self._initialized = True
         self._is_template_loaded = False
+        self._is_auto_filled = False
         self._config_found = False
 
     @property
@@ -65,18 +68,19 @@ class Settings:
         self.__dict__["OUTPUT_DIR"] = Path(value)
 
     @property
-    def _data_collection_parts(self) -> list[str]:
-        """Split the data collection name into parts."""
-        name = self.DATA_COLLECTION_NAME or ""
-        return name.split("_")
+    def _dcn(self) -> Dcn | None:
+        """Get the Dcn model instance."""
+        name = self.DATA_COLLECTION_NAME
+        if name and Dcn.is_valid(name):
+            return Dcn(name)
+        return None
 
     @property
     def LANGUAGE(self) -> str:
         """The language code from the data collection name."""
         if "LANGUAGE" in self.__dict__:
             return self.__dict__["LANGUAGE"]
-        parts = self._data_collection_parts
-        return parts[1] if len(parts) > 1 else ""
+        return self._dcn.lang if self._dcn else ""
 
     @LANGUAGE.setter
     def LANGUAGE(self, value: str) -> None:
@@ -87,8 +91,7 @@ class Settings:
         """The country code from the data collection name."""
         if "COUNTRY" in self.__dict__:
             return self.__dict__["COUNTRY"]
-        parts = self._data_collection_parts
-        return parts[2] if len(parts) > 2 else ""
+        return self._dcn.country if self._dcn else ""
 
     @COUNTRY.setter
     def COUNTRY(self, value: str) -> None:
@@ -99,8 +102,7 @@ class Settings:
         """The city name from the data collection name."""
         if "CITY" in self.__dict__:
             return self.__dict__["CITY"]
-        parts = self._data_collection_parts
-        return parts[3] if len(parts) > 3 else ""
+        return self._dcn.city if self._dcn else ""
 
     @CITY.setter
     def CITY(self, value: str) -> None:
@@ -111,8 +113,7 @@ class Settings:
         """The lab identifier from the data collection name."""
         if "LAB" in self.__dict__:
             return self.__dict__["LAB"]
-        parts = self._data_collection_parts
-        return parts[4] if len(parts) > 4 else ""
+        return self._dcn.lab if self._dcn else ""
 
     @LAB.setter
     def LAB(self, value: str) -> None:
@@ -123,8 +124,7 @@ class Settings:
         """The year from the data collection name."""
         if "YEAR" in self.__dict__:
             return self.__dict__["YEAR"]
-        parts = self._data_collection_parts
-        return parts[5] if len(parts) > 5 else ""
+        return self._dcn.year if self._dcn else ""
 
     @YEAR.setter
     def YEAR(self, value: str) -> None:
@@ -543,6 +543,10 @@ class Settings:
         if not self._loaded and not self._loading:
             self.load()
 
+    def _is_valid_data_collection_name(self, name: str) -> bool:
+        """Check if the name follows the MultiplEYE data collection format."""
+        return Dcn.is_valid(name)
+
     def load(self, path: str | Path | None = None) -> None:
         """Load settings from various sources with defined precedence."""
         self._loading = True
@@ -565,7 +569,13 @@ class Settings:
                 return
 
             # No config found, try to create from template
-            self.create_config_template(cwd_default)
+            cwd_name = Path.cwd().name
+            if self._is_valid_data_collection_name(cwd_name):
+                self.create_config_template(cwd_default, collection_name=cwd_name)
+                self._is_auto_filled = True
+            else:
+                self.create_config_template(cwd_default)
+
             self._is_template_loaded = True
             if cwd_default.exists():
                 self.load_from_yaml(cwd_default)
@@ -575,14 +585,22 @@ class Settings:
         finally:
             self._loading = False
 
-    def create_config_template(self, target_path: Path) -> None:
+    def create_config_template(
+        self, target_path: Path, collection_name: str | None = None
+    ) -> None:
         """Create a configuration template at the target path."""
         template_path = self._repo_root / TEMPLATE_RELATIVE_PATH
         if not template_path.exists():
             return
 
         try:
-            target_path.write_text(template_path.read_text(encoding="utf-8"))
+            content = template_path.read_text(encoding="utf-8")
+            if collection_name:
+                content = content.replace(
+                    'data_collection_name: "REPLACE_WITH_YOUR_COLLECTION_NAME"',
+                    f'data_collection_name: "{collection_name}"',
+                )
+            target_path.write_text(content)
         except OSError:
             # We don't log here to keep load() silent,
             # but we can check if it exists in get_config_status_message
@@ -594,11 +612,24 @@ class Settings:
 
         if self._is_template_loaded:
             if cwd_default.exists():
+                if self._is_auto_filled:
+                    return (
+                        "\n" + "=" * 80 + "\n"
+                        " CONFIGURATION REQUIRED\n" + "=" * 80 + "\n"
+                        "No configuration file was found.\n\n"
+                        f"The data collection name has been detected as '{Path.cwd().name}'\n"
+                        "and the configuration template has been updated for you at:\n"
+                        f"  {cwd_default}\n\n"
+                        "Please open this file, review the settings,\n"
+                        "and then run the pipeline again.\n\n"
+                        f"For more help, see: {TEMPLATE_DOCS_URL}\n" + "=" * 80 + "\n"
+                    )
+
                 return (
                     "\n" + "=" * 80 + "\n"
                     " CONFIGURATION REQUIRED\n" + "=" * 80 + "\n"
                     "No configuration file was found.\n\n"
-                    "I've created a template for you at:\n"
+                    "A template has been created for you at:\n"
                     f"  {cwd_default}\n\n"
                     "Please open this file, set your 'data_collection_name',\n"
                     "and then run the pipeline again.\n\n"
@@ -618,10 +649,7 @@ class Settings:
 
         # Check for placeholders
         val = self.__dict__.get("DATA_COLLECTION_NAME")
-        if (
-            val == "REPLACE_WITH_YOUR_COLLECTION_NAME"
-            or val == "MultiplEYE_DA_DK_Aalborg_1_2026"
-        ):
+        if val == "REPLACE_WITH_YOUR_COLLECTION_NAME":
             return (
                 "\n" + "=" * 80 + "\n"
                 " INVALID CONFIGURATION\n" + "=" * 80 + "\n"

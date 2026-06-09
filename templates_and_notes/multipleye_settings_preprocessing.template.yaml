@@ -17,11 +17,24 @@
 data_collection_name: "REPLACE_WITH_YOUR_COLLECTION_NAME"
 
 # --- COMMON SETTINGS (frequently changed) ---
+# The type of experiment being processed.
 experiment_type: "MultiplEYE" # MultiplEYE or MeRID
+
+# Whether to overwrite existing preprocessed files.
+# If false, already preprocessed sessions are skipped.
+# Note: If some files exist, overwrite once to ensure version consistency.
 overwrite: false
-include_sessions: [] # e.g., ["021_DA_DK_1_ET1"]
+
+# List of session identifiers to explicitly include. If not empty, only these are processed.
+include_sessions: [] # e.g., ["000_DA_DK_1_ET1"]
+
+# List of session identifiers to explicitly exclude from processing.
 exclude_sessions: []
+
+# Whether to include sessions from the pilot folder.
 include_pilots: false
+
+# The expected sampling rate of the eye tracker in Hertz.
 expected_sampling_rate_hz: 1000
 
 # ----------------------- Internal Usage -----------------------
