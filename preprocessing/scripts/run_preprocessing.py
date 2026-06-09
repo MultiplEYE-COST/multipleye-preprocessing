@@ -249,7 +249,7 @@ def run_preprocessing(config_path: str | None = None):
             preprocessing.save_reading_measures(
                 settings.OUTPUT_DIR, session_save_name, reading_measures
             )
-            data_collection[sess].reading_measures = True
+            data_collection[sess.session_identifier].reading_measures = True
 
         pbar.set_description(f"Creating sanity check report {idf}")
         data_collection.create_sanity_check_report(
