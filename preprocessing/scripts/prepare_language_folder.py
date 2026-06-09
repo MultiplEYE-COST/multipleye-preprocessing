@@ -162,14 +162,14 @@ def prepare_language_folder(data_collection_name: str | None = None):
             len(list(destination_aoi_path.glob("*.csv"))) == 24
             and (destination_aoi_path / ".fixed").exists()
         ):
-            logger.info(
+            logger.debug(
                 f"AOI files already exist, are split and fixed in {destination_aoi_path}. Skipping."
             )
             return
 
     if not destination_aoi_path.exists():
         if source_aoi_path.exists():
-            logger.info(f"Copying AOI files to {destination_aoi_path}...")
+            logger.debug(f"Copying AOI files to {destination_aoi_path}...")
             shutil.copytree(source_aoi_path, destination_aoi_path)
         else:
             logger.warning(f"Source AOI path {source_aoi_path} does not exist.")
@@ -243,7 +243,7 @@ def _copy_stimulus_assets(
     source_img = source_stimulus_dir / stimuli_images_folder
     dest_img = dest_stimulus_dir / stimuli_images_folder
     if source_img.exists() and not dest_img.exists():
-        logger.info(f"Copying {stimuli_images_folder}...")
+        logger.debug(f"Copying {stimuli_images_folder}...")
         shutil.copytree(source_img, dest_img)
 
     # 2. Copy Participant Instruction Images (all)
@@ -251,8 +251,10 @@ def _copy_stimulus_assets(
     source_instr = source_stimulus_dir / instr_images_folder
     dest_instr = dest_stimulus_dir / instr_images_folder
     if source_instr.exists() and not dest_instr.exists():
-        logger.info(f"Copying {instr_images_folder}...")
+        logger.debug(f"Copying {instr_images_folder}...")
         shutil.copytree(source_instr, dest_instr)
+
+    logger.debug("Copying remaining stimulus assets...")
 
     # 3. Copy AOI Stimuli Images Overlay (optional)
     if settings.COPY_AOI_IMAGES_OVERLAY:
@@ -260,14 +262,14 @@ def _copy_stimulus_assets(
         source_aoi_img = source_stimulus_dir / aoi_img_folder
         dest_aoi_img = dest_stimulus_dir / aoi_img_folder
         if source_aoi_img.exists() and not dest_aoi_img.exists():
-            logger.info(f"Copying {aoi_img_folder}...")
+            logger.debug(f"Copying {aoi_img_folder}...")
             shutil.copytree(source_aoi_img, dest_aoi_img)
 
     # 4. Copy Config folder (includes stimulus order versions)
     source_config = source_stimulus_dir / "config"
     dest_config = dest_stimulus_dir / "config"
     if source_config.exists() and not dest_config.exists():
-        logger.info("Copying config folder...")
+        logger.debug("Copying config folder...")
         shutil.copytree(source_config, dest_config)
 
     # 5. Copy Excel files needed for loading
@@ -291,7 +293,7 @@ def _copy_stimulus_assets(
             source_v = source_q_base / v_folder
             dest_v = dest_q_base / v_folder
             if source_v.exists() and not dest_v.exists():
-                logger.info(f"Copying {v_folder}...")
+                logger.debug(f"Copying {v_folder}...")
                 shutil.copytree(source_v, dest_v)
 
 

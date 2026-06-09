@@ -167,6 +167,10 @@ def setup_logging(
     # Capture warnings
     logging.captureWarnings(True)
 
+    # Silence noisy loggers
+    logging.getLogger("matplotlib").setLevel(logging.INFO)
+    logging.getLogger("PIL").setLevel(logging.INFO)
+
     # Note: We use the package-level logger defined at module level
     logger.debug("MultiplEYE preprocessing package logging setup/updated.")
 
