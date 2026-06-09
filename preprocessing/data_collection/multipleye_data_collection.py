@@ -235,20 +235,14 @@ class MultipleyeDataCollection:
                 if item.is_dir():
                     if re.match(session_folder_regex, item.name, re.IGNORECASE):
                         found_sessions.append(item.name)
-                        if (
-                            (
-                                self.excluded_sessions
-                                and item.name not in self.excluded_sessions
-                            )
-                            or (
-                                self.included_sessions
-                                and item.name in self.included_sessions
-                            )
-                            or (
-                                not self.excluded_sessions
-                                and not self.included_sessions
-                            )
-                        ):
+                        # Determine if the session should be included based on filters
+                        keep = True
+                        if self.included_sessions:
+                            keep = item.name in self.included_sessions
+                        elif self.excluded_sessions:
+                            keep = item.name not in self.excluded_sessions
+
+                        if keep:
                             session_file = list(
                                 Path(item.path).glob("*" + session_file_suffix)
                             )
@@ -377,13 +371,16 @@ class MultipleyeDataCollection:
         MultipleyeDataCollection object
         """
 
-        if excluded_sessions is None:
-            excluded_sessions = []
-        elif included_sessions is None:
-            included_sessions = []
-        else:
+        excluded_sessions = excluded_sessions or []
+        included_sessions = included_sessions or []
+
+        if excluded_sessions and included_sessions:
             raise ValueError(
-                "Either excluded_sessions or included_sessions can be provided, not both."
+                "Both 'included_sessions' and 'excluded_sessions' are provided and not empty. "
+                "The pipeline only supports using one type of filter at a time to avoid ambiguity. "
+                "Please check your configuration and ensure that either 'include_sessions' is used "
+                "to process only specific sessions, or 'exclude_sessions' is used to skip specific sessions, "
+                "but not both."
             )
         data_dir = Path(data_dir)
 

@@ -9,7 +9,11 @@ from pathlib import Path
 
 import pymovements as pm
 
+# Package-level logger
 logger = logging.getLogger("preprocessing")
+
+# Track if setup_logging has been called before
+_logging_initialized = False
 
 
 def get_logger(name: str | None = None) -> logging.Logger:
@@ -164,7 +168,7 @@ def setup_logging(
     logging.captureWarnings(True)
 
     # Note: We use the package-level logger defined at module level
-    logger.info("MultiplEYE preprocessing package loaded.")
+    logger.debug("MultiplEYE preprocessing package logging setup/updated.")
 
     # Add regex filter to root logger and py.warnings logger
     class RegexFilter(logging.Filter):
@@ -193,9 +197,15 @@ def setup_logging(
 
     # Log versions
     pipeline_version, last_update = get_pipeline_info()
-    logger.info(f"Pipeline version: {pipeline_version}")
-    logger.info(f"Last updated (git): {last_update}")
-    logger.info(f"pymovements version: {pm.__version__}")
+
+    global _logging_initialized
+    version_log_level = logging.INFO if not _logging_initialized else logging.DEBUG
+
+    logger.log(version_log_level, f"Pipeline version: {pipeline_version}")
+    logger.log(version_log_level, f"Last updated (git): {last_update}")
+    logger.log(version_log_level, f"pymovements version: {pm.__version__}")
+
+    _logging_initialized = True
 
     # Initialise a list to store warnings for the summary report
     if not hasattr(logging, "_captured_warnings"):
