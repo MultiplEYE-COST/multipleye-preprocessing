@@ -555,18 +555,21 @@ class Settings:
             if path:
                 self.load_from_yaml(path)
                 self._config_found = True
+                self._apply_logging_settings()
                 return
 
             env_path = os.getenv("MULTIPLEYE_CONFIG")
             if env_path:
                 self.load_from_yaml(env_path)
                 self._config_found = True
+                self._apply_logging_settings()
                 return
 
             cwd_default = Path.cwd() / "multipleye_settings_preprocessing.yaml"
             if cwd_default.exists():
                 self.load_from_yaml(cwd_default)
                 self._config_found = True
+                self._apply_logging_settings()
                 return
 
             # No config found, try to create from template
@@ -580,11 +583,29 @@ class Settings:
             self._is_template_loaded = True
             if cwd_default.exists():
                 self.load_from_yaml(cwd_default)
+                self._apply_logging_settings()
 
             return
 
         finally:
             self._loading = False
+
+    def _apply_logging_settings(self) -> None:
+        """Apply logging settings from configuration to the active logger."""
+        # Use the package-level setup_logging to ensure consistent behaviour
+        from .utils.logging import setup_logging, clear_log_file
+
+        log_file = self.DATASET_DIR / "preprocessing_logs.txt"
+        if not self.DATASET_DIR.exists():
+            log_file = None
+        elif not self.APPEND_LOGS:
+            clear_log_file(log_file)
+
+        setup_logging(
+            log_file=log_file,
+            console_level=self.CONSOLE_LOG_LEVEL,
+            file_level=self.FILE_LOG_LEVEL,
+        )
 
     def create_config_template(
         self, target_path: Path, collection_name: str | None = None
@@ -672,7 +693,7 @@ class Settings:
         if not path.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
 
-        logger.info(f"Loading config from: {path}")
+        logger.debug(f"Loading config from: {path}")
 
         with open(path, "r") as f:
             user_configs = yaml.safe_load(f)
