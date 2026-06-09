@@ -41,15 +41,32 @@ sure that all files are generated again, and the error should not occur anymore 
 choosing overwrite.
 :::
 
+:::{dropdown} ValueError: Both 'included_sessions' and 'excluded_sessions' are provided and not
+empty.
 
----
+This error occurs when you have both `include_sessions` and `exclude_sessions` defined in your
+configuration file (i.e. `multipleye_settings_preprocessing.yaml`). The pipeline only supports
+using one type of filter at a time to avoid ambiguity.
 
+**What to do:**
+
+- **Decide on a Filter Type:** Determine if you want to use a whitelist (only process specific
+  sessions)
+  or a blacklist (skip specific sessions).
+- **Update Configuration:**
+    - If you want to process **only specific sessions**, fill `include_sessions` and leave
+      `exclude_sessions` empty (i.e. `exclude_sessions: []`).
+    - If you want to **skip specific sessions**, fill `exclude_sessions` and leave
+      `include_sessions` empty (i.e. `include_sessions: []`).
+    - If you want to process **all sessions**, leave both lists empty.
+
+:::
 
 (errors_restructuring)=
 
 ## Psychometric Tests Restructuring Errors
 
-::::{dropdown} !!! MISSING DATA !!!: Participant [ID] is marked for [Test] in participant
+:::{dropdown} !!! MISSING DATA !!!: Participant [ID] is marked for [Test] in participant
 configuration ([Config]), but the data folder does not exist at: [Path].
 
 This warning occurs during the restructuring of psychometric tests when a test is marked as `True`
@@ -69,9 +86,10 @@ source directory.
 - **Update Configuration:** If the test was not supposed to be run for this participant (e.g., it
   was skipped intentionally), you can update the participant's YAML configuration file by setting
   the corresponding test flag to `false` to silence this warning.
-  ::::
 
-::::{dropdown} Participant [ID] has data for [Test], but it is marked as False (or missing) in
+:::
+
+:::{dropdown} Participant [ID] has data for [Test], but it is marked as False (or missing) in
 participant config ([Config]). Copying anyway.
 
 This warning indicates that the script found a data folder for a specific test, but that test is
@@ -92,15 +110,14 @@ configuration.
   the participant's YAML configuration file by setting the corresponding test flag to `true`.
 - **Verify Consistency:** If the test should not have been run, you might want to investigate why
   data exists for it. However, the data will still be processed if it exists.
-  ::::
 
----
+:::
 
 (errors_calculation)=
 
 ## Psychometric Tests Calculation Warnings
 
-:::::{dropdown} [Participant ID] [Test] test skipped: [Error Message]
+:::{dropdown} [Participant ID] [Test] test skipped: [Error Message]
 
 This warning occurs when the script attempts to calculate summary metrics for a psychometric test,
 but the data is missing, incomplete, or malformed.
@@ -124,7 +141,8 @@ The warning includes additional context based on the participant's YAML configur
 - **Update Configuration:** If the test failed but was not intended to be used anyway, you can set
   the flag to `false` in the participant's YAML configuration. This will clarify the intent,
   although the technical skip warning may still appear if the data folder exists.
-  :::::
+
+:::
 
 ---
 
