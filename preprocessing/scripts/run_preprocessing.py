@@ -13,7 +13,7 @@ from preprocessing.scripts.prepare_language_folder import prepare_language_folde
 
 def run_preprocessing(config_path: str | None = None):
     settings.load(config_path)
-    logger = get_logger(__name__)
+    logger = get_logger()
 
     # Check for configuration issues after loading
     status_msg = settings.get_config_status_message()
@@ -249,7 +249,7 @@ def run_preprocessing(config_path: str | None = None):
             preprocessing.save_reading_measures(
                 settings.OUTPUT_DIR, session_save_name, reading_measures
             )
-            data_collection[sess].reading_measures = True
+            data_collection[sess.session_identifier].reading_measures = True
 
         pbar.set_description(f"Creating sanity check report {idf}")
         data_collection.create_sanity_check_report(

@@ -21,7 +21,7 @@ def process_all_psychometric_test_sessions():
     )
 
     args = parser.parse_args()
-    logger = get_logger(__name__)
+    logger = get_logger()
 
     logger.info(
         f"Processing psychometric test sessions from {args.test_session_folder}"

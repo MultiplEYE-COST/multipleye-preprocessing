@@ -122,7 +122,7 @@ class MultipleyeDataCollection:
         self.psychometric_tests = kwargs.get("psychometric_tests", [])
         self.excluded_sessions = excluded_sessions
         self.included_sessions = included_sessions
-        self.logger = get_logger(__name__)
+        self.logger = get_logger()
 
         self.logger.info(
             f"MultipleyeDataCollection initialized. data_root: {self.data_root}"
@@ -403,7 +403,10 @@ class MultipleyeDataCollection:
             r"\d\d\d" + f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
         )
 
-        stimulus_folder_path = data_dir / f"stimuli_{data_folder_name}"
+        stimulus_folder_path = settings.OUTPUT_DIR / f"stimuli_{data_folder_name}"
+        if not stimulus_folder_path.exists():
+            stimulus_folder_path = data_dir / f"stimuli_{data_folder_name}"
+
         config_file = (
             stimulus_folder_path
             / "config"
@@ -1371,9 +1374,6 @@ class MultipleyeDataCollection:
             try:
                 sid = Sid(session)
                 participant_id = sid.pid
-                country = sid.country
-                lang = sid.lang
-                lab = sid.lab
                 session_id = sid.session
                 notes = sid.notes
             except (ValueError, TypeError):
@@ -1384,7 +1384,7 @@ class MultipleyeDataCollection:
 
             folder = Path(self.sessions[session].session_folder_path)
 
-            pq_file = folder / f"{participant_id}_{country}_{lang}_{lab}_pq_data.json"
+            pq_file = folder / f"{sid.base_id}_pq_data.json"
             if pq_file.exists():
                 with open(pq_file, "r", encoding="utf-8") as f:
                     data = json.load(f)

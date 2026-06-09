@@ -34,7 +34,7 @@ def validate_psychometric_data(
     """
     from .logging import get_logger
 
-    logger = get_logger(__name__)
+    logger = get_logger()
 
     issues = {}
 

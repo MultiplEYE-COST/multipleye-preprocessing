@@ -131,6 +131,26 @@ class Settings:
         self.__dict__["YEAR"] = value
 
     @property
+    def COPY_AOI_IMAGES_OVERLAY(self) -> bool:
+        """Whether to copy AOI images overlay to the output directory."""
+        self._ensure_loaded()
+        return self.__dict__.get("COPY_AOI_IMAGES_OVERLAY", False)
+
+    @COPY_AOI_IMAGES_OVERLAY.setter
+    def COPY_AOI_IMAGES_OVERLAY(self, value: bool) -> None:
+        self.__dict__["COPY_AOI_IMAGES_OVERLAY"] = value
+
+    @property
+    def PLOT_AOI_OVERLAY(self) -> bool:
+        """Whether to use AOI overlay or only stimulus images for plotting."""
+        self._ensure_loaded()
+        return self.__dict__.get("PLOT_AOI_OVERLAY", False)
+
+    @PLOT_AOI_OVERLAY.setter
+    def PLOT_AOI_OVERLAY(self, value: bool) -> None:
+        self.__dict__["PLOT_AOI_OVERLAY"] = value
+
+    @property
     def PSYCHOMETRIC_TESTS_DIR(self) -> Path:
         """The directory for psychometric tests."""
         if "PSYCHOMETRIC_TESTS_DIR" in self.__dict__:
@@ -284,6 +304,12 @@ class Settings:
 
         #: Whether to include sessions from the pilot folder.
         self.INCLUDE_PILOTS: bool = False
+
+        #: Whether to copy AOI images overlay to the output directory.
+        self.COPY_AOI_IMAGES_OVERLAY: bool = False
+
+        #: Whether to use AOI overlay or only stimulus images for plotting.
+        self.PLOT_AOI_OVERLAY: bool = False
 
         #:
         self.EXPERIMENT_TYPE: str = ""

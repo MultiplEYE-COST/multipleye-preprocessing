@@ -14,7 +14,7 @@ from ..config import settings
 from ..mapping.aoi import enlarge_aois
 from ..utils.logging import get_logger
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 warnings.filterwarnings(
     "ignore",

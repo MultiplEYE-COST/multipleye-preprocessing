@@ -342,11 +342,7 @@ def create_merged_psychometric_overview(overview_path: Path) -> Path:
     def get_base_sid(sid_str):
         try:
             # Reconstruct SID without the session part
-            sid = Sid(sid_str)
-            base = f"{sid.pid}_{sid.lang}_{sid.country}_{sid.lab}"
-            if sid.postfix:
-                base += f"_{sid.postfix}"
-            return base
+            return Sid(sid_str).base_id
         except Exception:
             # Fallback: remove trailing _PTn or _Sn or _ETn
             return re.sub(r"_(S|PT|ET)\d+$", "", str(sid_str))
