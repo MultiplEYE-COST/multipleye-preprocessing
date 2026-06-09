@@ -16,7 +16,7 @@ class MeridDataCollection(MultipleyeDataCollection):
     ):
         sid = Sid(session_identifier)
         p_id = sid.pid
-        session_id = int(sid.session)
+        session_id = int(sid.session_id)
         incomplete_order = []
         if p_id in self.crashed_session_ids:
             incomplete_order = self.sessions[session_identifier].completed_stimuli_ids

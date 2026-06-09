@@ -12,6 +12,7 @@ class Sid:
     country: str = field(init=False)
     lab: str = field(init=False)
     session: str = field(init=False)
+    session_id: int = field(default=None, init=False)
     postfix: str = field(init=False)
 
     def __init__(
@@ -23,6 +24,7 @@ class Sid:
         country: Optional[str] = None,
         lab: Optional[str] = None,
         session: Optional[str] = None,
+        session_id: Optional[int] = None,
         postfix: str = "",
     ):
         if sid is not None and any(
@@ -46,6 +48,7 @@ class Sid:
             self.country = parts[2]
             self.lab = parts[3]
             self.session = parts[4]
+            self.session_id = int(self.session[-1])
             self.postfix = "_".join(parts[5:]) if len(parts) > 5 else ""
         else:
             if any(v is None for v in [pid, lang, country, lab, session]):
