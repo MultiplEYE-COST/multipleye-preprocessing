@@ -265,9 +265,10 @@ def load_trial_level_events_data(
 
 def load_reading_measures(
     data_folder: Path,
-    file_pattern: str = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_reading_measures.csv",
+    file_pattern: str = r".*?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv",
 ) -> pl.DataFrame:
-    files = list(data_folder.glob(file_pattern))
+    # Use glob to find all csv files first, as Path.glob() does not support regex
+    files = [f for f in data_folder.glob("*.csv") if re.match(file_pattern, f.name)]
 
     if len(files) == 0:
         raise ValueError(f"No files found in {data_folder} with pattern {file_pattern}")
@@ -277,7 +278,7 @@ def load_reading_measures(
     for file in files:
         df = pl.read_csv(file)
         # get trial and stimulus from file name
-        match = re.match(file_pattern, file.stem)
+        match = re.match(file_pattern, file.name)
         trial_df = df.with_columns(
             pl.lit(match.group("trial")).alias("trial"),
             pl.lit(match.group("stimulus")).alias("stimulus"),
