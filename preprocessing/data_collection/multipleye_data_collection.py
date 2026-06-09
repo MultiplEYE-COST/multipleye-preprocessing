@@ -1374,9 +1374,6 @@ class MultipleyeDataCollection:
             try:
                 sid = Sid(session)
                 participant_id = sid.pid
-                country = sid.country
-                lang = sid.lang
-                lab = sid.lab
                 session_id = sid.session
                 notes = sid.notes
             except (ValueError, TypeError):
