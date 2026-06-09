@@ -176,7 +176,9 @@ def prepare_language_folder(data_collection_name: str | None = None):
         )
 
     aoi_files_restructured = list(aoi_path.glob("[!.]*.csv"))
-    logger.info(f"Remapping and repairing AOI files in {aoi_path}. This may take a minute or two.")
+    logger.info(
+        f"Remapping and repairing AOI files in {aoi_path}. This may take a minute or two."
+    )
     for aoi_file in aoi_files_restructured:
         remap_space_to_following_word(aoi_file)
         repair_word_labels(aoi_file)
