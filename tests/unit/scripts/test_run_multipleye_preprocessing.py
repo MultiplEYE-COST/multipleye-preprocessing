@@ -22,7 +22,7 @@ def test_reading_measures_check_uses_session_save_name():
     save_reading_measures_line = None
 
     for i, line in enumerate(lines):
-        if "session_save_name / settings.READING_MEASURES_FOLDER" in line:
+        if "settings.READING_MEASURES_FOLDER / session_save_name" in line:
             output_folder_line = i
         if "preprocessing.save_reading_measures(" in line:
             save_reading_measures_line = i

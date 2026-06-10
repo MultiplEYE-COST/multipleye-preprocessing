@@ -393,6 +393,12 @@ class Settings:
         #: Subfolder name for reading measures data
         self.READING_MEASURES_FOLDER = Path("reading_measures/")
 
+        #: Subfolder name for sanity checks data.
+        self.SANITY_CHECKS_FOLDER = Path("sanity_checks/")
+
+        #: Subfolder name for metadata files.
+        self.METADATA_FOLDER = Path("metadata/")
+
         #: Column name for the trial identifier.
         self.TRIAL_COL = "trial"
 

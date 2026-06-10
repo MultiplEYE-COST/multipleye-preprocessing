@@ -107,8 +107,13 @@ class Sid:
             return f"{base}_{self.postfix}"
         return base
 
+    @property
+    def id_no_postfix(self) -> str:
+        """Returns the SID string without the restart postfix."""
+        return f"{self.pid}_{self.lang}_{self.country}_{self.lab}_{self.session}"
+
     def __str__(self) -> str:
-        base = f"{self.pid}_{self.lang}_{self.country}_{self.lab}_{self.session}"
+        base = self.id_no_postfix
         if self.postfix:
             return f"{base}_{self.postfix}"
         return base

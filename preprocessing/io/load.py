@@ -77,10 +77,11 @@ def load_gaze_data(
 
 
 def load_trial_level_raw_data(
-    data_folder: Path,
+    directory: Path,
+    session: str,
     trial_columns: list[str],
     file_pattern: str | None = None,
-    metadata_path: Path = None,
+    load_metadata: bool = False,
 ) -> pm.Gaze:
     """Load trial-level raw data from multiple CSV files and construct a gaze object.
 
@@ -88,15 +89,17 @@ def load_trial_level_raw_data(
 
     Parameters
     ----------
-    data_folder : Path
-        The directory where the raw data CSV files are stored.
+    directory : Path
+        The base directory for preprocessed data.
+    session : str
+        The session identifier.
     trial_columns : list of str
         Column names that uniquely identify a trial within the data.
     file_pattern : str, optional
         The file search pattern for raw data CSV files. Defaults to None, which uses settings.RAW_DATA_FILE_GLOB.
-    metadata_path : Path, optional
-        The folder containing metadata files (`gaze_metadata.json`, `experiment.yaml`,
-        `validations.tsv`, `calibrations.tsv`) used to enrich the gaze object.
+    load_metadata : bool, optional
+        Whether to load metadata files (`gaze_metadata.json`, `experiment.yaml`,
+        `validations.tsv`, `calibrations.tsv`) to enrich the gaze object.
 
     Returns
     -------
@@ -104,6 +107,7 @@ def load_trial_level_raw_data(
         A gaze object containing the trial-level aggregated gaze data along with
         any associated metadata, validations, calibrations, and experiment settings, if provided.
     """
+    data_folder = Path(directory) / settings.RAW_DATA_FOLDER / session
     if file_pattern is None:
         file_pattern = settings.RAW_DATA_FILE_GLOB
 
@@ -141,7 +145,9 @@ def load_trial_level_raw_data(
         pixel_columns=["pixel_x", "pixel_y"],
     )
 
-    if metadata_path:
+    if load_metadata:
+        metadata_path = Path(directory) / settings.METADATA_FOLDER / session
+
         with open(metadata_path / "gaze_metadata.json", "r", encoding="utf8") as f:
             metadata = json.load(f)
 
@@ -169,7 +175,8 @@ def load_trial_level_raw_data(
 
 def load_trial_level_events_data(
     gaze: pm.Gaze,
-    data_folder: Path,
+    directory: Path,
+    session: str,
     event_type: str,
     file_pattern: str | None = None,
 ) -> pm.Gaze:
@@ -184,8 +191,10 @@ def load_trial_level_events_data(
     ----------
     gaze : pm.Gaze
         An object containing gaze data and associated event information.
-    data_folder : Path
-        The path to the folder containing trial-level event data files in CSV format.
+    directory : Path
+        The base directory for preprocessed data.
+    session : str
+        The session identifier.
     event_type : str
         The type of event to load, must be one of the keys in `DEFAULT_EVENT_PROPERTIES`.
     file_pattern : str, optional
@@ -197,13 +206,17 @@ def load_trial_level_events_data(
     pm.Gaze
         The updated gaze object with the loaded and integrated event data.
     """
-    if file_pattern is None:
-        file_pattern = settings.EVENT_DATA_FILENAME_REGEX.format(event_type=event_type)
-
-    if event_type not in settings.EVENT_PROPERTIES.keys():
+    if event_type == "fixation":
+        data_folder = Path(directory) / settings.FIXATIONS_FOLDER / session
+    elif event_type == "saccade":
+        data_folder = Path(directory) / settings.SACCADES_FOLDER / session
+    else:
         raise ValueError(
             f"event_type must be {list(settings.EVENT_PROPERTIES.keys())}, got {event_type}"
         )
+
+    if file_pattern is None:
+        file_pattern = settings.EVENT_DATA_FILENAME_REGEX.format(event_type=event_type)
 
     all_events = pl.DataFrame()
     for file in data_folder.glob(
@@ -264,9 +277,11 @@ def load_trial_level_events_data(
 
 
 def load_reading_measures(
-    data_folder: Path,
+    directory: Path,
+    session: str,
     file_pattern: str = r".*?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv",
 ) -> pl.DataFrame:
+    data_folder = Path(directory) / settings.READING_MEASURES_FOLDER / session
     # Use glob to find all csv files first, as Path.glob() does not support regex
     files = [f for f in data_folder.glob("*.csv") if re.match(file_pattern, f.name)]
 
