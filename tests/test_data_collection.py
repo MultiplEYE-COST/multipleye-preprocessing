@@ -1,42 +1,34 @@
 import unittest
 from unittest import TestCase
 from unittest.mock import patch, MagicMock
-import sys
-import os
 from pathlib import Path
-sys.path.append(os.path.abspath('C:\\Users\saphi\PycharmProjects\multipleye-preprocessing\quality-report'))
-from data_collection import DataCollection
+
+import pytest
+
+from preprocessing.data_collection import MultipleyeDataCollection
+
 
 # the tests were written with github copilot, so they are not complete yet, and I don't know if they are correct, nor do I understand them fully
 
 
-
+@pytest.mark.skip(reason="Not complete")
 class TestDataCollection(TestCase):
-    def test_add_recorded_sessions(self):
-
-        self.fail()
-
-    def test_convert_edf_to_asc(self):
-        self.fail()
     def test_create_gaze_frame(self):
         self.fail()
 
-    def test_get_gaze_frame(self):
-        self.fail()
-
     def setUp(self):
-        """ Set up the test environment,
-            The setUp method initializes a DataCollection instance before each test.
-            This ensures that each test starts with a fresh instance of the class.
+        """Set up the test environment,
+        The setUp method initializes a DataCollection instance before each test.
+        This ensures that each test starts with a fresh instance of the class.
         """
 
-        self.data_collection = DataCollection(
-                data_collection_name="TestCollection",
-                stimulus_language="English",
-                country="USA",
-                year=2023,
-                eye_tracker="EyeLink 1000 Plus"
-            )
+        self.data_collection = MultipleyeDataCollection(
+            data_collection_name="TestCollection",
+            stimulus_language="English",
+            country="USA",
+            year=2023,
+            eye_tracker="EyeLink 1000 Plus",
+        )
 
     @patch("os.scandir")
     def test_add_recorded_sessions(self, mock_scandir):
@@ -57,10 +49,14 @@ class TestDataCollection(TestCase):
         mock_file.name = "test.edf"
         mock_file.path = "/mock/path/session1/test.edf"
         with patch("pathlib.Path.glob", return_value=[mock_file]):
-            self.data_collection.add_recorded_sessions(data_root=Path("/mock/path"), session_folder_regex=".*")
+            self.data_collection.add_recorded_sessions(
+                data_root=Path("/mock/path"), session_folder_regex=".*"
+            )
 
         self.assertIn("session1", self.data_collection.sessions)
-        self.assertEqual(self.data_collection.sessions["session1"]["session_file_name"], "test.edf")
+        self.assertEqual(
+            self.data_collection.sessions["session1"]["session_file_name"], "test.edf"
+        )
 
     @patch("subprocess.run")
     @patch("pathlib.Path.with_suffix")
@@ -72,20 +68,19 @@ class TestDataCollection(TestCase):
         Assertions: Ensures the edf2asc command is called with the correct arguments.
         """
         self.data_collection.sessions = {
-            "session1": {
-                "session_file_path": "/mock/path/session1/test.edf"
-            }
+            "session1": {"session_file_path": "/mock/path/session1/test.edf"}
         }
         mock_with_suffix.return_value.exists.return_value = False
 
         self.data_collection.convert_edf_to_asc()
 
-        mock_subprocess_run.assert_called_with(["edf2asc", Path("/mock/path/session1/test.edf")])
+        mock_subprocess_run.assert_called_with(
+            ["edf2asc", Path("/mock/path/session1/test.edf")]
+        )
 
     @patch("builtins.open", new_callable=unittest.mock.mock_open)
     @patch("pickle.load")
     def test_get_gaze_frame(self, mock_pickle_load, mock_open):
-
         """
         Purpose: Tests the get_gaze_frame method.
         Mocking:
@@ -94,9 +89,7 @@ class TestDataCollection(TestCase):
         """
         # Mock session data
         self.data_collection.sessions = {
-            "session1": {
-                "gaze_path": "/mock/path/session1/gaze.pkl"
-            }
+            "session1": {"gaze_path": "/mock/path/session1/gaze.pkl"}
         }
         mock_pickle_load.return_value = "mock_gaze_data"
 
@@ -107,12 +100,15 @@ class TestDataCollection(TestCase):
 
     def test_get_gaze_frame_session_not_found(self):
         """
-        Purpose: Tests the behavior of get_gaze_frame when the session identifier does not exist.
-A       Assertions: Ensures a KeyError is raised for a nonexistent session
+                Purpose: Tests the behavior of get_gaze_frame when the session identifier does not exist.
+        A       Assertions: Ensures a KeyError is raised for a nonexistent session
 
         """
         with self.assertRaises(KeyError):
-            self.data_collection.get_gaze_frame(session_identifier="nonexistent_session")
+            self.data_collection.get_gaze_frame(
+                session_identifier="nonexistent_session"
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

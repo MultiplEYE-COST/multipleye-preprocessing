@@ -1,0 +1,31 @@
+exclude: '((data|preprocessed_data|public)/.*)|(.*\.(csv|tsv))$|(.*logfile.*)'
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files  # max 500kb files
+      - id: check-merge-conflict
+      - id: check-toml
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.2
+    hooks:
+      - id: nbstripout
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.10
+    hooks:
+      # Run the formatter.
+      - id: ruff-format
+      # Run the linter.
+      - id: ruff-check
+        args: [ --fix ]
+  - repo: local
+    hooks:
+      - id: update-version
+        name: Sync and Validate Version
+        entry: python preprocessing/scripts/sync_version.py
+        language: python
+        files: 'CITATION\.cff|pyproject\.toml|docs/conf\.py'
+        pass_filenames: false

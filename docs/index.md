@@ -2,7 +2,7 @@
 
 # MultiplEYE Preprocessing pEYEpline
 
-::::{grid} 1 2 2 3
+::::{grid} 1 2 2 2
 :gutter: 1 1 1 2
 
 :::{grid-item-card} {material-regular}`rocket;2em` Getting Started
@@ -20,96 +20,78 @@ Start your endeavour here!
 :link: reference_guide
 :link-type: ref
 
-Theoretic background...
-See all...
+If you are interested in the details of the preprocessing pipeline,
+this section is for you.
 
 +++
 {ref}`Learn more »<reference_guide>`
 :::
 
-:::{grid-item-card} {material-regular}`lightbulb;2em` Demos
-:link: demos
+:::{grid-item-card} {material-regular}`help_outline;2em` FAQ
+:link: faq
 :link-type: ref
 
-Short demos showcasing package xyz.
+Answers to frequently asked questions.
+
 +++
-{ref}`Learn more »<Demos>`
+{ref}`Learn more »<faq>`
+:::
+
+:::{grid-item-card} {material-regular}`warning;2em` Troubleshooting
+:link: troubleshooting
+:link-type: ref
+
+Solutions to common warnings and errors.
+
++++
+{ref}`Learn more »<troubleshooting>`
 :::
 
 ::::
 
-Preprocessing pipeline for the MultiplEYE corpus by {cite:t}`JakobiDingEtAl2025MultipleyeCorpus`.
-This website documents...
+The preprocessing pipeline for the MultiplEYE corpus by
+{cite:t}`JakobiDingEtAl2025MultipleyeCorpus`.
+This pipeline is designed to process the raw eye-tracking data and psychometric test data
+collected in the MultiplEYE project, transforming it into a standardized format suitable for
+analysis and sharing with the research community.
 
-[//]: # (TODO: finish short description and change grid items)
+The pipeline is built in Python and its core functionalities rely on the `pymovements` library,
+which provides tools for processing eye-tracking data.
+See [pymovements website](https://pymovements.readthedocs.io/en/stable/).
 
 ## Setup and use
 
-{ref}`getting_started`, {ref}`reference_guide`.
-
-[//]: # (TODO: write section)
+To use the preprocessing pipeline, please follow the instructions in the
+{ref}`getting_started` section.
+This section will guide you through the setup of the pipeline, including how to install
+dependencies and run the preprocessing on your data collection.
 
 ## How to cite
 
 If you use this preprocessing pipeline, or parts of it in your research,
-please cite our paper in **?**.
+please cite the pipeline as specified in {cite:t}`Jakobi2026MultiplEYEPreprocessing`.
 You can also find citation information for this project in the `CITATION.cff`
 file in the repository and cite it accordingly.
 
-[//]: # (TODO: add citation)
-
 ## Acknowledgments
 
-This project has received functing from...
+This project has been partially funded by:
 
-[//]: # (TODO: add acknowledgements and funding)
+- MultiplEYE COST Action, CA21131
+- Swiss National Science Foundation (SNSF), 212276 (MeRID)
+- swissuniversities, OpenEye
 
 ```{eval-rst}
 .. toctree::
    :hidden:
    :name: table_of_contents
    :caption: Table of Contents
-   :maxdepth: 1
+   :maxdepth: 2
    :glob:
 
    getting_started
    guide/index
+   faq
+   troubleshooting
    bibliography
 ```
-
-```{error}
-Text below is only for internal explanation. Delete content below before going public.
-```
-
-## Writing In a nutshell:
-
-Pages can be written with Markdown (`.md`) or rST (`.rst`). Notebooks also work.
-Due to syntactical reasons any directive from rST like ```:...:`ref-or-text` ``` turns to ```{...}`ref-or-text` ``` in MyST.
-The ecosystem of MyST can be a bit confusing, take a short look at the summary [Ecosystem of tools](https://executablebooks.org/en/latest/tools/).
-This page uses the [`sphinx-book-theme`](https://sphinx-book-theme.readthedocs.io/en/stable/index.html).
-
-### Citing
-
-See this paper of {cite:t}`JakobiDingEtAl2025MultipleyeCorpus`.
-
-Just the bracket without a name: {cite:p}`Krakowczyk_pymovementsETRA2023` and multiple papers {cite:p}`KrakowczykReich2025MoreTheMerrier,MultiplEYE_DSP_2024`,
-see [usage](https://sphinxcontrib-bibtex.readthedocs.io/en/stable/usage.html#roles-and-directives).
-
-### Building the documentation
-
-When writing, building the documentation is important to see your changes.
-For this, ensure the documentation dependencies are installed.
-To build the pages once, from the root of the repository, run:
-
-```bash
-sphinx-build docs/ public -b dirhtml
-```
-
-Alternatively, using `sphinx-autobuild` is helpful, as it automatically starts a server to show the
-documentation pages and for every saved change, the documentation is rebuilt and reloaded automatically.
-
-```bash
-sphinx-autobuild docs/ public -b dirhtml
-```
-
-It runs until you close it with `ctrl+c`.

@@ -1,4 +1,4 @@
-stimuli are generated as images, AOI are defined before experiment starts 
+stimuli are generated as images, AOI are defined before experiment starts
 storing as csv files
 
 Raw samples

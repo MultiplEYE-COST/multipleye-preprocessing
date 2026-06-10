@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Jakobi"
+  given-names: "Deborah N."
+- family-names: "Büth"
+  given-names: "Carlson"
+- family-names: "Hofmann"
+  given-names: "Jana M."
+- family-names: "S{\"a}uberli"
+  given-names: "Andreas"
+- family-names: "Shaitarova"
+  given-names: "Anastassia"
+- family-names: "Krakowczyk"
+  given-names: "Daniel"
+- family-names: "J{\"a}ger"
+  given-names: "Lena A."
+title: "The MultiplEYE preprocessing pipeline"
+version: 2026.06.10
+url: "https://github.com/MultiplEYE-COST/multipleye-preprocessing/"

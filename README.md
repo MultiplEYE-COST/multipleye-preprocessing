@@ -1,147 +1,119 @@
-# multipleye-preprocessing
+[![Documentation](https://img.shields.io/badge/Documentation-Visit-blue)](https://multipleye-cost.github.io/multipleye-preprocessing/)
+[![GitHub Repository](https://img.shields.io/badge/Source-Code-green)](https://github.com/MultiplEYE-COST/multipleye-preprocessing)
+[![Python Version](https://img.shields.io/badge/Python-3.13+-yellow)](https://www.python.org/)
 
-This is an inoffical, work-in-progress repo. Feel free to experiment and commit/push whatever you like. We will later put it to a proper clean repo.
+# MultiplEYE Preprocessing
 
-## Goals
+> [!IMPORTANT]
+> This repository is **actively maintained and evolving**.
+> Features, configurations, and behaviors may change as we improve the codebase. Please:
+> - Keep the repository up-to-date to receive the latest changes, fixes, and improvements
+> - Report issues if you encounter unexpected behavior
+> - Refer to the documentation for the latest information on how to use the pipeline
+> - Check the
+> - [troubleshooting guide](https://multipleye-cost.github.io/multipleye-preprocessing/troubleshooting/)
+    if you encounter any issues
 
-- Preprocess data on session level
-- Keep intermediate results between steps
-- Keep preprocessing steps modular, allow manual intervention between steps
-- Make pipeline self-contained and reproducible
-- Support only EyeLink (for now)
+This repository contains the preprocessing pipeline for eye-tracking data and psychometric test
+scoring from the MultiplEYE project.
 
-## Preprocessing steps
+If you are running the pipeline and encounter any issues, please check
+the [troubleshooting guide](https://multipleye-cost.github.io/multipleye-preprocessing/troubleshooting/).
 
-![](preprocessing.drawio.png)
+> [!NOTE]
+> This repository processes data recorded with
+> [MultiplEYE-psychometric-tests](https://github.com/MultiplEYE-COST/MultiplEYE-psychometric-tests).
 
-All input and output files (except for the original EDF/ASC files) are to be included in the published dataset.
+## What You Can Do With This Repository
 
-### 1. Conversion to sample-level CSV files
+### 1. Run the Preprocessing Pipeline
 
-**Input:**
-
-- EDF/ASC files (for EyeLink)  
-  Use the following command to generate the ASC file:
-  ```bash
-  $ ./edf2asc in.edf -input -ftime
-  ```
-
-**Output:**
-
-- Sample-level CSV file for each trial
-    - File name: `{participant-id}_{stimulus-id}-samples.csv`
-    - Columns: `screen`, `time`, `pixel_x`, `pixel_y`, `pupil`
-- Session-level metadata
-    - File name: `session-metadata.json` (?)
-    - Content: calibrations, which eye for which trial, ...
-
-### 2. Fixation and saccade detection, AOI mapping
-
-**Input:**
-
-- `{participant-id}_{stimulus-id}-samples.csv`
-- Character-level AOI definitions
-    - File name: `aoi-char.csv` (?)
-    - Columns: `id`, `stimulus_id`, `screen`, `top_left_x`, `top_left_y`, `width`, `height`, `text`
-- Token-level AOI definitions
-    - File name: `aoi-token.csv` (?)
-    - Columns: `id`, `stimulus_id`, `screen`, `top_left_x`, `top_left_y`, `width`, `height`, `text`
-
-**Output:**
-
-- Fixation-level CSV file for each trial
-    - File name: `{participant-id}_{stimulus-id}_fixations.csv`
-    - Columns: `screen`, `onset`, `offset`, `pixel_x`, `pixel_y`, `char_aoi_id`, `token_aoi_id`
-- Saccade-level CSV file for each trial
-    - File name: `{participant-id}_{stimulus-id}_saccades.csv`
-    - Columns: `screen`, `onset`, `offset`, `start_pixel_x`, `start_pixel_y`, `char_aoi_id`, `token_aoi_id`
-
-### 3. Reading measures
-
-**Input:**
-
-- `{participant-id}_{stimulus-id}_fixations.csv`
-
-**Output:**
-
-- AOI-level CSV file containing reading measures
-    - File name: `{participant-id}_{stimulus-id}_measures.csv`
-    - Columns: `screen`, `token_aoi_id`, `tft`, `fpr`, ...
-
-### 4. Quality checks
-
-- All trials and screens present?
-- Plausible reading times?
-- Ratio of fixations on stimulus
-- Blinks
-- Optical artefact detection
-- Data loss ratio
-- Calibration quality
-- Main sequence plots
-- ...
-
-## Missing features and blocking issues in `pymovements`
-
-- [x] Float timestamps for 2000 Hz data (https://github.com/aeye-lab/pymovements/issues/688)
-- [ ] Excessive memory usage when computing event properties (https://github.com/aeye-lab/pymovements/issues/753)
-- [ ] Binocular ASC parsing (https://github.com/aeye-lab/pymovements/issues/686)
-- [ ] Reading EDF directly (https://github.com/aeye-lab/pymovements/issues/509)
-- [ ] Reading measures (https://github.com/aeye-lab/pymovements/issues/701, https://github.com/aeye-lab/pymovements/issues/33)
-
-### Folder structure
-
-as described in [MultiplEYE Experimenter Script - Eye-Tracking Session](https://docs.google.com/document/d/1fMb3Z75wRkeidi3hn0jgWMaKC0HgYfhXXQRg45ioiRI/edit?tab=t.0)
-Transfer (i.e., copy + paste) the complete data folder from experiment_implementation > data > eye_tracking_data_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER] > core_dataset > folder name with
-participant ID to your password-protected SWITCHdrive folder and in that folder to the folder named eye-tracking-sessions.
-
-- MultiplEYE_[languageISOcode]_[countryISOcode]_[city]_[identifier]_
-  [yearDataCollectionEnd]
-    - stimuli_MultiplEYE_[LANGUAGE_CODE]_[COUNTRY_CODE]_[City]_[Experiment_number]_[Year]
-    - eye-tracking-sessions
-        - pilot_sessions
-        - test_session
-        - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]
-            - logfiles
-                - completed_stimuli.csv
-                - DATA_LOGFILE_1_[Participant_ID]_[Date]_[some number].txt
-                - EXPERIMENT_LOGFILE_1_[Participant_ID]_[Date]_[some number].txt
-                - GENERAL_LOGFILE_1_[Participant_ID]_[Date]_[some number].txt
-                - question_order_versions.csv
-            - [participant_id]_[language_code]_[country_code]_[Lab_number]_pq_data.json
-            - [participant_id][language_code][country_code][lab_number].edf
-            - [participant_id][language_code][country_code][lab_number].asc (generated by us)
-        - 001_…_…_…_ET1
-        - 002_…_…_…_ET1
-        - 005_…_…_…_ET1
-        - quality_reports (generated by us)
-            - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]
-                - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]_gaze.pkl
-                - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]_report.txt
-                - [participant_id]_[LANGUAGE_CODE]_[COUNTRY_CODE]_[LAB_NUMBER]_plots
-                    - plot1
-                    - plot2
-            - 001_…_…_…_ET1
-            - 002_…_…_…_ET1
-            - 005_…_…_…_ET1
-    - psychometric-tests-sessions
-    - participant_questionnaire_[languageISOcode]_[countryISOcode]_[identifier]
-    - documentation
-
-## Building the documentation
-
-When writing, building the documentation is important to see your changes.
-For this, ensure the documentation dependencies are installed.
-To build the pages once, from the root of the repository, run:
+Process raw eye-tracking data (EyeLink `.edf` files) through a complete preprocessing workflow:
 
 ```bash
-sphinx-build docs/ public -b dirhtml
+# Configure your settings in multipleye_settings_preprocessing.yaml
+run_preprocessing
 ```
 
-Alternatively, using `sphinx-autobuild` is helpful, as it automatically starts a server to show the
-documentation pages and for every saved change, the documentation is rebuilt and reloaded automatically.
+This pipeline handles:
+
+- Converting `.edf` to `.asc` format
+- Parsing and validating eye-tracking data
+- Applying filters and detecting events
+- Generating preprocessed output files
+
+> [!TIP]
+> A step-by-step notebook is available in `preprocessing.ipynb` to walk through the pipeline in
+> detail.
+
+### 2. Score Psychometric Tests
+
+Calculate scores from the psychometric test battery:
 
 ```bash
-sphinx-autobuild docs/ public -b dirhtml
+preprocess_psychometric_tests
 ```
 
-It runs until you close it with `ctrl+c`.
+This calculates scores for:
+
+- **Lewandowsky WMC Battery** (Memory Update, Operation Span, Sentence Span, Spatial STM)
+- **Rapid Automatized Naming (RAN)**
+- **Stroop Test**
+- **Flanker Task**
+- **PLAB** (Pimsleur Language Aptitude Battery)
+- **WikiVocab**
+
+> [!IMPORTANT]
+> The psychometric tests require data to be structured correctly. See the
+> [Psychometric Tests documentation](https://multipleye-cost.github.io/multipleye-preprocessing/guide/psychometric_tests/)
+> for details on the expected data format.
+
+---
+
+## Installation
+
+For full installation instructions, see
+the [Getting Started guide](https://multipleye-cost.github.io/multipleye-preprocessing/getting_started/).
+
+Quick setup:
+
+```bash
+git clone https://github.com/MultiplEYE-COST/multipleye-preprocessing.git
+cd multipleye-preprocessing/
+uv sync
+source .venv/bin/activate  # Unix/Mac
+# or
+.venv\Scripts\activate  # Windows
+```
+
+> [!WARNING]
+> This project is **actively maintained and evolving**. Features, configurations, and behaviors may
+> change as we improve the codebase. Please:
+> - Keep the repository up-to-date to receive the latest changes, fixes, and improvements
+> - Report issues if you encounter unexpected behavior
+
+---
+
+## Documentation Overview
+
+| Topic                                                                                                              | Description                                          |
+|--------------------------------------------------------------------------------------------------------------------|------------------------------------------------------|
+| [Getting Started](https://multipleye-cost.github.io/multipleye-preprocessing/getting_started/)                     | Installation, requirements, and running the pipeline |
+| [Preprocessing](https://multipleye-cost.github.io/multipleye-preprocessing/guide/preprocessing/)                   | Detailed preprocessing pipeline documentation        |
+| [Reading Measures](https://multipleye-cost.github.io/multipleye-preprocessing/guide/reading_measures/)             | Reading measures from preprocessed eye-tracking data |
+| [Psychometric Tests](https://multipleye-cost.github.io/multipleye-preprocessing/guide/psychometric_tests/)         | Test descriptions and scoring details                |
+| [Configuration](https://multipleye-cost.github.io/multipleye-preprocessing/guide/configuration/)                   | Configuration file options                           |
+| [Technical Architecture](https://multipleye-cost.github.io/multipleye-preprocessing/guide/technical_architecture/) | Code structure and design                            |
+
+---
+
+## Quick Start
+
+1. Update settings in `multipleye_settings_preprocessing.yaml`
+2. Run preprocessing: `run_preprocessing`
+3. Score psychometric tests: `preprocess_psychometric_tests`
+
+> [!CAUTION]
+> EyeLink-specific: You must install the EyeLink Developers Kit to convert `.edf` files. See the
+> [installation guide](https://multipleye-cost.github.io/multipleye-preprocessing/getting_started/)
+> for details.

@@ -1,4 +1,3 @@
-
 # QUESTION_OPTION_BOXES: TOP_X, TOP_Y, BOTTOM_X, BOTTOM_Y ##########
 left = (72.9, 487.52, 609.0799999999999, 797.76)
 up = (185.1, 277.0, 1094.8, 465.36)
@@ -31,10 +30,18 @@ question_images_question_images_version_10_aoi_csv = "data/stimuli_MultiplEYE_TO
 stimuli_images_csv = "data/stimuli_MultiplEYE_TOY_X_x_1_1/multipleye_stimuli_experiment_toy_x_1_with_img_paths.csv"
 stimuli_images_aoi_csv = "data/stimuli_MultiplEYE_TOY_X_x_1_1/multipleye_stimuli_experiment_toy_x_1_aoi_with_img_paths.csv"
 participant_instruction_csv = "data/stimuli_MultiplEYE_TOY_X_x_1_1/multipleye_participant_instructions_toy_with_img_paths.csv"
-stimulus_order_versions_csv = "data/stimuli_MultiplEYE_TOY_X_x_1_1/config/stimulus_order_versions_toy_x_1.csv"
-question_file_excel = "data/stimuli_MultiplEYE_TOY_X_x_1_1/multipleye_comprehension_questions_toy.xlsx"
-participant_instruction_excel = "data/stimuli_MultiplEYE_TOY_X_x_1_1/multipleye_participant_instructions_toy.xlsx"
-stimuli_file_excel = "data/stimuli_MultiplEYE_TOY_X_x_1_1/multipleye_stimuli_experiment_toy.xlsx"
+stimulus_order_versions_csv = (
+    "data/stimuli_MultiplEYE_TOY_X_x_1_1/config/stimulus_order_versions_toy_x_1.csv"
+)
+question_file_excel = (
+    "data/stimuli_MultiplEYE_TOY_X_x_1_1/multipleye_comprehension_questions_toy.xlsx"
+)
+participant_instruction_excel = (
+    "data/stimuli_MultiplEYE_TOY_X_x_1_1/multipleye_participant_instructions_toy.xlsx"
+)
+stimuli_file_excel = (
+    "data/stimuli_MultiplEYE_TOY_X_x_1_1/multipleye_stimuli_experiment_toy.xlsx"
+)
 
 # IMAGE ##########
 FIX_DOT_X = 60.75
@@ -53,11 +60,36 @@ IMAGE_SIZE_CM = (36.5, 28)
 MAX_CHARS_PER_LINE = 82
 
 # RATING_QUESTION_BOXES ##########
-option_1 = (89.10000000000001, 306.90000000000003, 604.3000000000001, 336.90000000000003)
-option_2 = (89.10000000000001, 405.90000000000003, 604.3000000000001, 435.90000000000003)
-option_3 = (89.10000000000001, 504.90000000000003, 604.3000000000001, 534.9000000000001)
-option_4 = (89.10000000000001, 603.9000000000001, 604.3000000000001, 633.9000000000001)
-option_5 = (89.10000000000001, 702.9000000000001, 604.3000000000001, 732.9000000000001)
+option_1 = (
+    89.10000000000001,
+    306.90000000000003,
+    604.3000000000001,
+    336.90000000000003,
+)
+option_2 = (
+    89.10000000000001,
+    405.90000000000003,
+    604.3000000000001,
+    435.90000000000003,
+)
+option_3 = (
+    89.10000000000001,
+    504.90000000000003,
+    604.3000000000001,
+    534.9000000000001,
+)
+option_4 = (
+    89.10000000000001,
+    603.9000000000001,
+    604.3000000000001,
+    633.9000000000001,
+)
+option_5 = (
+    89.10000000000001,
+    702.9000000000001,
+    604.3000000000001,
+    732.9000000000001,
+)
 
 # EXPERIMENT ##########
 LANGUAGE = "toy"
@@ -76,5 +108,7 @@ image_dir = "data/stimuli_MultiplEYE_TOY_X_x_1_1/stimuli_images_toy_x_1/"
 aoi_dir = "data/stimuli_MultiplEYE_TOY_X_x_1_1/aoi_stimuli_toy_x_1/"
 aoi_question_dir = "data/stimuli_MultiplEYE_TOY_X_x_1_1/aoi_question_images_toy_x_1/"
 aoi_image_dir = "data/stimuli_MultiplEYE_TOY_X_x_1_1/aoi_stimuli_images_toy_x_1/"
-other_screens_dir = "data/stimuli_MultiplEYE_TOY_X_x_1_1/participant_instructions_images_toy_x_1/"
+other_screens_dir = (
+    "data/stimuli_MultiplEYE_TOY_X_x_1_1/participant_instructions_images_toy_x_1/"
+)
 output_top_dir = "data/stimuli_MultiplEYE_TOY_X_x_1_1/"
