@@ -2,6 +2,7 @@ import polars as pl
 import pytest
 from preprocessing.io.load import load_gaze_data
 from preprocessing.data_collection.stimulus import LabConfig
+from preprocessing.answers.msg_parser import ANSWER_MSG_PATTERNS
 
 
 @pytest.fixture
@@ -114,3 +115,32 @@ def test_load_gaze_data_messages_none(synthetic_asc, lab_config):
 
     # Assertions
     assert gaze.messages is None
+
+
+@pytest.mark.filterwarnings("ignore:No metadata found")
+@pytest.mark.filterwarnings("ignore:No samples configuration found")
+@pytest.mark.filterwarnings("ignore:No recording configuration found")
+@pytest.mark.filterwarnings("ignore:No screen resolution found")
+@pytest.mark.filterwarnings("ignore:No sampling rate found")
+@pytest.mark.filterwarnings("ignore:No tracked eye information found")
+@pytest.mark.filterwarnings("ignore:No mount configuration found")
+@pytest.mark.filterwarnings("ignore:No eye tracker vendor found")
+@pytest.mark.filterwarnings("ignore:No eye tracker model found")
+@pytest.mark.filterwarnings("ignore:No eye tracker software version found")
+def test_load_gaze_data_with_patterns(synthetic_asc, lab_config):
+    # Load with specific patterns
+    gaze = load_gaze_data(
+        asc_file=synthetic_asc,
+        lab_config=lab_config,
+        session_idf="synthetic_session",
+        messages=ANSWER_MSG_PATTERNS,
+    )
+
+    # Assertions
+    assert gaze.messages is not None
+    # 'start_recording_trial_1_stimulus_Lit_MagicMountain_6_page_1' should NOT be here
+    # because it doesn't match any pattern in ANSWER_MSG_PATTERNS
+    # (page_1 is not _question_)
+    assert not gaze.messages["content"].str.contains("page_1").any()
+    # But question start should be here
+    assert gaze.messages["content"].str.contains("question_6111").any()
