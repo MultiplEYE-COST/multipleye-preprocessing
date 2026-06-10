@@ -23,7 +23,8 @@ def synthetic_logfile():
 
 def test_parse_logfile_single_question(synthetic_logfile):
     stimuli_trial_mapping = {"trial_1": "Toy_Stimulus"}
-    result = parse_answers_from_logfile(synthetic_logfile, stimuli_trial_mapping)
+    with pytest.warns(UserWarning, match="ASC messages are missing or empty"):
+        result = parse_answers_from_logfile(synthetic_logfile, stimuli_trial_mapping)
 
     assert len(result) == 1
     row = result.row(0, named=True)
