@@ -119,6 +119,16 @@ class Sid:
         return base
 
     @staticmethod
+    def get_session_save_name(session_idf: str) -> str:
+        """Get a consistent session name for file names, excluding restart postfixes."""
+        try:
+            sid = Sid(session_idf)
+            return sid.id_no_postfix
+        except (ValueError, TypeError):
+            # Fallback for non-compliant identifiers
+            return "_".join(session_idf.split("_")[:5])
+
+    @staticmethod
     def is_valid_pid(pid: str) -> bool:
         """Checks if a participant identifier (PID) is valid (exactly 3 digits)."""
         return isinstance(pid, str) and bool(re.match(r"^\d{3}$", pid))
