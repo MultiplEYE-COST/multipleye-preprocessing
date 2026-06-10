@@ -25,7 +25,7 @@ def plot_gaze(
     px_per_cm = data.experiment.screen.width_px / data.experiment.screen.width_cm
 
     for page in stimulus.pages:
-        page_samples = data.frame.filter(
+        page_samples = data.samples.filter(
             (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
             & (pl.col(settings.PAGE_COL) == f"{settings.PAGE_PREFIX}{page.number}")
         ).select(pl.col("pixel_x"), pl.col("pixel_y"))
@@ -88,7 +88,7 @@ def plot_gaze(
 
     for question in stimulus.questions:
         screen_name = f"{settings.QUESTION_PREFIX}{int(question.id)}"  # Screen names don't have leading zeros
-        page_samples = data.frame.filter(
+        page_samples = data.samples.filter(
             (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
             & (pl.col(settings.PAGE_COL) == screen_name)
         ).select(
@@ -155,7 +155,7 @@ def plot_gaze(
 
     for rating in stimulus.ratings:
         screen_name = f"{rating.name}"  # Screen names don't have leading zeros
-        page_samples = data.frame.filter(
+        page_samples = data.samples.filter(
             (pl.col(settings.TRIAL_COL) == f"trial_{stimulus.id}")
             & (pl.col(settings.PAGE_COL) == screen_name)
         ).select(

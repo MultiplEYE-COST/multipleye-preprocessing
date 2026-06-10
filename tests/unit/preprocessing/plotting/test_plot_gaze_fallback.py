@@ -40,7 +40,7 @@ def mock_gaze():
     # Mock polars dataframes
     import polars as pl
 
-    gaze.frame = pl.DataFrame(
+    gaze.samples = pl.DataFrame(
         {
             "stimulus": ["test_stim_1"],
             "page": ["page_1"],

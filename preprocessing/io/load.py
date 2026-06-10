@@ -69,7 +69,7 @@ def load_gaze_data(
 
     # Filter out data outside of trials
     # TODO: Also report time spent outside of trials
-    gaze.frame = gaze.frame.filter(
+    gaze.samples = gaze.samples.filter(
         pl.col("trial").is_not_null() & pl.col("page").is_not_null()
     )
 
