@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, Sequence
 
 import polars as pl
 
 from .parser import parse_question_order, construct_question_id
 from .io import write_answers
+from ..data_collection.stimulus import Stimulus
 
 
 def _normalize_trial_key(k) -> int:
-    """Accept 'trial_7' or 7 or '7' and return int(7).
-
-    TODO: Check if one is standard - if so, remove
-    """
+    """Accept 'trial_7' or 7 or '7' and return int(7)."""
     if isinstance(k, int):
         return k
     s = str(k)
@@ -25,6 +23,8 @@ def _normalize_trial_key(k) -> int:
 def collect_session_answers(
     question_order_csv: Path,
     stimuli_trial_map: Mapping[str | int, str],
+    stimuli: Sequence[Stimulus] | None = None,
+    parsed_answers: pl.DataFrame | None = None,
     out_path: Path | None = None,
 ) -> pl.DataFrame:
     """Assemble per-session question rows from order CSV and a trial->stimulus map.
@@ -35,12 +35,12 @@ def collect_session_answers(
         Path to the session's question_order_versions.csv.
     stimuli_trial_map: Mapping
         Maps trial identifiers to stimulus names, e.g., {'trial_1': 'Arg_PISACowsMilk_10', ...}.
-        Keys may be 'trial_#', '#', or integers, to be normalized.  TODO: verify
+    stimuli: Sequence[Stimulus] | None
+        List of Stimulus objects to look up correct answer texts.
+    parsed_answers: pl.DataFrame | None
+        DataFrame with parsed answers from ASC messages or logfile.
     out_path: Path | None
         If provided, the resulting table is written to this CSV path.
-        If None, defaults to `<session_dir>/results/answers.csv`, where
-        `<session_dir>` is the parent folder of the `logfiles` directory
-        containing the provided CSV. TODO: Change default folder - might use config.py
 
     Returns
     -------
@@ -50,7 +50,13 @@ def collect_session_answers(
       - slot (string, e.g., 'local_question_1')
       - order_code (int: 11,12,21,22,31,32)
       - question_id (string)
-      - preliminary_dir, preliminary_ts, final_dir, final_ts (TODO: currently unused, needed?)
+      - final_answer_key (string)
+      - is_correct (bool)
+      - correct_answer_key (string)
+      - correct_answer_text (string)
+      - final_rt_ms (float)
+      - decision_rt_ms (float)
+      - answer_changed (bool)
     """
     order_df = parse_question_order(question_order_csv)  # Adds 'trial' column to CSV
 
@@ -99,12 +105,11 @@ def collect_session_answers(
 
     # Build question_id, ensure trial as 'trial_X'
     long_df = long_df.with_columns(
-        pl.col("stimulus")
-        .map_elements(lambda s: construct_question_id(s, 0), return_dtype=pl.Utf8)
-        .alias("_qid_prefix")
+        pl.col("trial")
+        .map_elements(lambda t: f"trial_{int(t)}", return_dtype=pl.Utf8)
+        .alias("trial_id")
     )
 
-    # Replace the trailing '0' with real order_code by reconstructing per-row
     long_df = long_df.with_columns(
         pl.struct(["stimulus", "order_code"])
         .map_elements(
@@ -115,15 +120,105 @@ def collect_session_answers(
         pl.col("trial")
         .map_elements(lambda t: f"trial_{int(t)}", return_dtype=pl.Utf8)
         .alias("trial"),
-    ).drop("_qid_prefix")
-
-    # TODO: Placeholder columns for preliminary/final answers
-    long_df = long_df.with_columns(
-        pl.lit(None).alias("preliminary_dir"),
-        pl.lit(None).alias("preliminary_ts"),
-        pl.lit(None).alias("final_dir"),
-        pl.lit(None).alias("final_ts"),
     )
+
+    if parsed_answers is not None:
+        # Merge parsed answers by (trial_id, question_id)
+        long_df = long_df.join(
+            parsed_answers, on=["trial_id", "question_id"], how="left"
+        )
+
+        # Compute derived columns
+        long_df = long_df.with_columns(
+            # final_rt_ms: onset -> final confirmation
+            (pl.col("final_confirmation_ts") - pl.col("question_onset_ts")).alias(
+                "final_rt_ms"
+            ),
+            # decision_rt_ms: first preliminary -> final confirmation
+            (
+                pl.col("final_confirmation_ts") - pl.col("preliminary_tss").list.get(0)
+            ).alias("decision_rt_ms"),
+            # answer_changed: preliminary_keys non-empty and last one != final_answer_key
+            pl.coalesce(
+                [
+                    pl.when(pl.col("preliminary_keys").list.len() > 0)
+                    .then(
+                        pl.col("preliminary_keys").list.get(-1)
+                        != pl.col("final_answer_key")
+                    )
+                    .otherwise(pl.lit(False)),
+                    pl.lit(False),
+                ]
+            ).alias("answer_changed"),
+        )
+    else:
+        # Add null columns if no parsed answers
+        long_df = long_df.with_columns(
+            pl.lit(None).alias("final_answer_key").cast(pl.Utf8),
+            pl.lit(None).alias("is_correct").cast(pl.Boolean),
+            pl.lit(None).alias("final_rt_ms").cast(pl.Float64),
+            pl.lit(None).alias("decision_rt_ms").cast(pl.Float64),
+            pl.lit(None).alias("answer_changed").cast(pl.Boolean),
+        )
+
+    # Add correct answers from stimuli objects
+    if stimuli:
+        q_map = {}
+        for stim in stimuli:
+            for q in stim.questions:
+                # In Stimulus.load(), q.id is extracted from item_id.split("_")[-1]
+                # item_id is something like Lit_MagicMountain_6_11
+                # so q.id is "11", "12", "21", etc. (the order_code)
+                try:
+                    q_order_code = int(q.id)
+                except (ValueError, TypeError):
+                    continue
+
+                q_id = construct_question_id(stim.name, q_order_code)
+                q_map[q_id] = {
+                    "correct_answer_key": "target_key",  # Always target_key for correct
+                    "correct_answer_text": q.target,
+                }
+
+        def _get_correct_info(q_id: str, field: str) -> str | None:
+            return q_map.get(q_id, {}).get(field)
+
+        long_df = long_df.with_columns(
+            pl.col("question_id")
+            .map_elements(
+                lambda q_id: _get_correct_info(q_id, "correct_answer_key"),
+                return_dtype=pl.Utf8,
+            )
+            .alias("correct_answer_key"),
+            pl.col("question_id")
+            .map_elements(
+                lambda q_id: _get_correct_info(q_id, "correct_answer_text"),
+                return_dtype=pl.Utf8,
+            )
+            .alias("correct_answer_text"),
+        )
+    else:
+        long_df = long_df.with_columns(
+            pl.lit(None).alias("correct_answer_key").cast(pl.Utf8),
+            pl.lit(None).alias("correct_answer_text").cast(pl.Utf8),
+        )
+
+    # Select final columns in desired order
+    final_cols = [
+        "trial",
+        "stimulus",
+        "slot",
+        "order_code",
+        "question_id",
+        "final_answer_key",
+        "is_correct",
+        "correct_answer_key",
+        "correct_answer_text",
+        "final_rt_ms",
+        "decision_rt_ms",
+        "answer_changed",
+    ]
+    long_df = long_df.select([c for c in final_cols if c in long_df.columns])
 
     # Determine destination if not provided: .../SESSION/results/answers.csv
     if out_path is None:
