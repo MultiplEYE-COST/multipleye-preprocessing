@@ -74,12 +74,7 @@ def run_preprocessing(config_path: str | None = None):
     for sess in (pbar := tqdm(sessions)):
         idf = sess.session_identifier
         # Use Sid to get a consistent session name for file names, excluding restart postfixes
-        try:
-            sid = Sid(idf)
-            session_save_name = sid.id_no_postfix
-        except (ValueError, TypeError):
-            # Fallback for non-compliant identifiers
-            session_save_name = "_".join(idf.split("_")[:5])
+        session_save_name = Sid.get_session_save_name(idf)
 
         pbar.set_description(f"Preprocessing session {idf}:")
 

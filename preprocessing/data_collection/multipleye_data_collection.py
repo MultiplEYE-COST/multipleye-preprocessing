@@ -196,12 +196,7 @@ class MultipleyeDataCollection:
 
     def _get_session_save_name(self, session_idf: str) -> str:
         """Get a consistent session name for file names, excluding restart postfixes."""
-        try:
-            sid = Sid(session_idf)
-            return sid.id_no_postfix
-        except (ValueError, TypeError):
-            # Fallback for non-compliant identifiers
-            return "_".join(session_idf.split("_")[:5])
+        return Sid.get_session_save_name(session_idf)
 
     def add_recorded_sessions(
         self,
