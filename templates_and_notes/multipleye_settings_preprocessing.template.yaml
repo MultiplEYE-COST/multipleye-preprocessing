@@ -74,6 +74,8 @@ acceptable_num_trials: 10
 tracked_eye: ["L", "R", "RIGHT", "LEFT"]
 
 # --- INTERNAL (do not change) ---
+# Whether to force reconversion of EDF files to ASC even if output exists.
+force_reconvert_asc: false
 raw_data_folder: "raw_data/"
 fixations_folder: "fixations/"
 saccades_folder: "saccades/"
