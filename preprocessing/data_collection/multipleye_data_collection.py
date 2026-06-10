@@ -194,6 +194,15 @@ class MultipleyeDataCollection:
     def __getitem__(self, item):
         return self.sessions[item]
 
+    def _get_session_save_name(self, session_idf: str) -> str:
+        """Get a consistent session name for file names, excluding restart postfixes."""
+        try:
+            sid = Sid(session_idf)
+            return sid.id_no_postfix
+        except (ValueError, TypeError):
+            # Fallback for non-compliant identifiers
+            return "_".join(session_idf.split("_")[:5])
+
     def add_recorded_sessions(
         self,
         data_root: Path,
@@ -483,7 +492,10 @@ class MultipleyeDataCollection:
         if not output_dir:
             output_dir = self.reports_dir
 
-        session_results = output_dir / session_name / "sanity_checks"
+        session_save_name = self._get_session_save_name(session_name)
+        session_results = (
+            Path(output_dir) / settings.SANITY_CHECKS_FOLDER / session_save_name
+        )
         os.makedirs(session_results, exist_ok=True)
 
         report_file_path = session_results / f"{session_name}_{self.city}_report.txt"
@@ -592,11 +604,18 @@ class MultipleyeDataCollection:
 
     def create_session_overview(self, session_idf: str, path: str | Path = "") -> dict:
         sess = self.sessions[session_idf]
+        session_save_name = self._get_session_save_name(session_idf)
 
         if not path:
             overview_path = self.data_root.parent / f"{session_idf}_overview.yaml"
         else:
-            overview_path = path / session_idf / f"{session_idf}_overview.yaml"
+            overview_path = (
+                Path(path)
+                / settings.METADATA_FOLDER
+                / session_save_name
+                / f"{session_idf}_overview.yaml"
+            )
+            overview_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(overview_path, "w", encoding="utf8") as f:
             yaml.dump(sess.create_overview(), f)

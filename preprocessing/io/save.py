@@ -10,7 +10,7 @@ from ..config import settings
 
 
 def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
-    directory = Path(directory) / session / settings.RAW_DATA_FOLDER
+    directory = Path(directory) / settings.RAW_DATA_FOLDER / session
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()
@@ -59,9 +59,9 @@ def save_events_data(
         )
 
     directory = (
-        Path(directory) / session / settings.FIXATIONS_FOLDER
+        Path(directory) / settings.FIXATIONS_FOLDER / session
         if event_type == "fixation"
-        else Path(directory) / session / settings.SACCADES_FOLDER
+        else Path(directory) / settings.SACCADES_FOLDER / session
     )
     directory.mkdir(parents=True, exist_ok=True)
 
@@ -84,7 +84,7 @@ def save_events_data(
 
 
 def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
-    directory = Path(directory) / session / settings.SCANPATHS_FOLDER
+    directory = Path(directory) / settings.SCANPATHS_FOLDER / session
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()
@@ -132,7 +132,7 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
 
 
 def save_reading_measures(directory: Path, session: str, data: pl.DataFrame) -> None:
-    directory = Path(directory) / session / settings.READING_MEASURES_FOLDER
+    directory = Path(directory) / settings.READING_MEASURES_FOLDER / session
     directory.mkdir(parents=True, exist_ok=True)
 
     trials = data.partition_by(by="trial", as_dict=False)
@@ -146,8 +146,8 @@ def save_reading_measures(directory: Path, session: str, data: pl.DataFrame) -> 
 
 
 def save_session_metadata(directory: Path, session: str, gaze: pm.Gaze) -> None:
-    directory = Path(directory) / session
-    directory.mkdir(parents=True, exist_ok=True)
+    metadata_directory = Path(directory) / settings.METADATA_FOLDER / session
+    metadata_directory.mkdir(parents=True, exist_ok=True)
 
     metadata = gaze._metadata
     metadata["datetime"] = str(metadata["datetime"])
@@ -156,14 +156,23 @@ def save_session_metadata(directory: Path, session: str, gaze: pm.Gaze) -> None:
     metadata.pop("calibrations", None)
     metadata.pop("validations", None)
 
-    with open(directory / "gaze_metadata.json", "w", encoding="utf8") as f:
+    with open(metadata_directory / "gaze_metadata.json", "w", encoding="utf8") as f:
         json.dump(metadata, f)
 
-    gaze.save(directory, save_events=False, save_samples=False)
+    gaze.save(
+        metadata_directory,
+        save_events=False,
+        save_samples=False,
+        save_calibrations=False,
+        save_validations=False,
+    )
 
     # both are dfs
     validations = gaze.validations
     calibrations = gaze.calibrations
 
-    validations.write_csv(directory / "validations.tsv", separator="\t")
-    calibrations.write_csv(directory / "calibrations.tsv", separator="\t")
+    validations.write_csv(metadata_directory / "validations.tsv", separator="\t")
+    gaze.save_validations(metadata_directory / "validations.feather")
+
+    calibrations.write_csv(metadata_directory / "calibrations.tsv", separator="\t")
+    gaze.save_calibrations(metadata_directory / "calibrations.feather")

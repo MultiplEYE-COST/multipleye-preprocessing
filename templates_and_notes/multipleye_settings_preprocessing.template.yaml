@@ -79,6 +79,8 @@ fixations_folder: "fixations/"
 saccades_folder: "saccades/"
 scanpaths_folder: "scanpaths/"
 reading_measures_folder: "reading_measures/"
+sanity_checks_folder: "sanity_checks/"
+metadata_folder: "metadata/"
 trial_cols: ["trial", "stimulus", "page"]
 trial_col: "trial"
 page_col: "page"
