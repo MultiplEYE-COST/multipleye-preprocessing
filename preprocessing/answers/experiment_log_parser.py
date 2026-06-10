@@ -1,3 +1,4 @@
+import warnings
 import polars as pl
 
 
@@ -18,6 +19,11 @@ def parse_answers_from_logfile(
     pl.DataFrame
         A DataFrame with one row per question attempt.
     """
+    warnings.warn(
+        "ASC messages are missing or empty. Falling back to parsing answers from the experiment logfile. "
+        "Response time (onset-based) and image offset information will not be available.",
+        UserWarning,
+    )
     if logfile is None or logfile.is_empty():
         return _empty_result_df()
 
@@ -34,7 +40,6 @@ def parse_answers_from_logfile(
     # But it can also be PRACTICE_trial_1 if handled specially?
     # Actually the toy logfile showed trial_number as 1, 2, 3.
 
-    parsed_rows = []
     result_rows = []
 
     # We group by trial_number, stimulus_number, and page_number (which is question_id)
