@@ -1140,10 +1140,10 @@ class MultipleyeDataCollection:
             )
         except ValueError:
             raise ValueError(
-                "The reading times could not be computed properly. Please check 1) if the completed "
+                f"The reading times could not be computed properly for {session_identifier}. Please check 1) if the completed "
                 "stimulus file is alright (i.e. completed should be 1 for all, no missing values, etc.), "
                 "2) if anything happened during the session (crash or "
-                "technical errors), 3) contact the support team."
+                "technical errors, e.g. check the end of the asc file if it looks normal), 3) contact the support team."
             )
 
         df.to_csv(

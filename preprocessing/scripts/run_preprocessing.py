@@ -237,7 +237,7 @@ def run_preprocessing(config_path: str | None = None):
                 rm_folder,
             )
 
-            data_collection[sess].reading_measures = True
+            data_collection[sess.session_identifier].reading_measures = True
 
         else:
             pbar.set_description(f"Calculating reading measures {idf}:")
