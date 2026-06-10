@@ -23,9 +23,9 @@ def _normalize_trial_key(k) -> int:
 
 
 def collect_session_answers(
-        question_order_csv: Path,
-        stimuli_trial_map: Mapping[str | int, str],
-        out_path: Path | None = None,
+    question_order_csv: Path,
+    stimuli_trial_map: Mapping[str | int, str],
+    out_path: Path | None = None,
 ) -> pl.DataFrame:
     """Assemble per-session question rows from order CSV and a trial->stimulus map.
 
@@ -58,9 +58,12 @@ def collect_session_answers(
     norm_map = {_normalize_trial_key(k): v for k, v in stimuli_trial_map.items()}
     # Long format per trial with 6 question slots
     slots = [
-        "local_question_1", "local_question_2",
-        "bridging_question_1", "bridging_question_2",
-        "global_question_1", "global_question_2",
+        "local_question_1",
+        "local_question_2",
+        "bridging_question_1",
+        "bridging_question_2",
+        "global_question_1",
+        "global_question_2",
     ]
 
     missing = [c for c in slots if c not in order_df.columns]
@@ -89,25 +92,29 @@ def collect_session_answers(
         return norm_map[trial_idx]
 
     long_df = long_df.with_columns(
-        pl.col("trial").map_elements(_stim_for_trial, return_dtype=pl.Utf8).alias(
-            "stimulus")
+        pl.col("trial")
+        .map_elements(_stim_for_trial, return_dtype=pl.Utf8)
+        .alias("stimulus")
     )
 
     # Build question_id, ensure trial as 'trial_X'
     long_df = long_df.with_columns(
-        pl.col("stimulus").map_elements(
-            lambda s: construct_question_id(s, 0), return_dtype=pl.Utf8
-        ).alias("_qid_prefix")
+        pl.col("stimulus")
+        .map_elements(lambda s: construct_question_id(s, 0), return_dtype=pl.Utf8)
+        .alias("_qid_prefix")
     )
 
     # Replace the trailing '0' with real order_code by reconstructing per-row
     long_df = long_df.with_columns(
-        pl.struct(["stimulus", "order_code"]).map_elements(
+        pl.struct(["stimulus", "order_code"])
+        .map_elements(
             lambda st: construct_question_id(st["stimulus"], int(st["order_code"])),
             return_dtype=pl.Utf8,
-        ).alias("question_id"),
-        pl.col("trial").map_elements(lambda t: f"trial_{int(t)}",
-                                     return_dtype=pl.Utf8).alias("trial"),
+        )
+        .alias("question_id"),
+        pl.col("trial")
+        .map_elements(lambda t: f"trial_{int(t)}", return_dtype=pl.Utf8)
+        .alias("trial"),
     ).drop("_qid_prefix")
 
     # TODO: Placeholder columns for preliminary/final answers

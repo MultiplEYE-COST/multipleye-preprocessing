@@ -13,7 +13,9 @@ from preprocessing.answers.collect import collect_session_answers
         ("Lit_Solaris_7", "1"),
     ],
 )
-def test_collect_session_answers_builds_rows_and_ids(tmp_path: Path, stimulus_name, pisa_middle):
+def test_collect_session_answers_builds_rows_and_ids(
+    tmp_path: Path, stimulus_name, pisa_middle
+):
     # Prepare a minimal question_order_versions.csv with one trial
     csv = (
         "question_order_version,local_question_1,local_question_2,bridging_question_1,bridging_question_2,global_question_1,global_question_2\n"
