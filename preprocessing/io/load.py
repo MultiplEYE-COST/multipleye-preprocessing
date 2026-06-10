@@ -19,6 +19,7 @@ def load_gaze_data(
     lab_config: LabConfig,
     session_idf: str,
     trial_cols: list[str] = None,
+    messages: bool | list[str] = False,
 ) -> pm.Gaze:
     """Load sample gaze data from an ASC file.
 
@@ -38,6 +39,10 @@ def load_gaze_data(
         Identifier for the session the gaze data corresponds to.
     trial_cols : list of str, optional
         List of columns to be associated with trial-level metadata. Default is None.
+    messages : bool or list of str, optional
+        Whether to extract messages from the ASC file. If True, all messages are extracted.
+        If a list of strings is provided, only messages matching the patterns are extracted.
+        Default is False.
 
     Returns
     -------
@@ -59,12 +64,16 @@ def load_gaze_data(
         sampling_rate=lab_config.sampling_frequency_hz,
     )
 
+    if messages is None:
+        messages = False
+
     gaze = pm.gaze.from_asc(
         asc_file,
         patterns=settings.GAZE_PATTERNS,
         trial_columns=trial_cols,
         add_columns={"session": session_idf},
         experiment=experiment,
+        messages=messages,
     )
 
     # Filter out data outside of trials
