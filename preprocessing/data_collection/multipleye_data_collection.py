@@ -326,9 +326,10 @@ class MultipleyeDataCollection:
 
         # Check if edf2asc is installed
         if shutil.which("edf2asc") is None:
-            raise FileNotFoundError(
-                "The 'edf2asc' command was not found on your system. "
-                "Please make sure it is installed and added to your PATH."
+            raise RuntimeError(
+                "The 'edf2asc' binary was not found on your system. "
+                "Please make sure it is installed and added to your PATH. "
+                "You can download the EyeLink Developers Kit from the SR Research support forum."
             )
 
         for session_identifier, session in tqdm(
