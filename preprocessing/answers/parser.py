@@ -33,7 +33,8 @@ def _extract_stimulus_numeric_id(stimulus_name: str) -> str:
     m = re.search(r"(\d+)$", stimulus_name)
     if not m:
         raise ValueError(
-            f"Could not extract numeric stimulus id from {stimulus_name!r}")
+            f"Could not extract numeric stimulus id from {stimulus_name!r}"
+        )
     return m.group(1)
 
 
