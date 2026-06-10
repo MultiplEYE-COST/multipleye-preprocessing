@@ -117,7 +117,7 @@ def sanity_check_gaze_frame(gaze, stimuli, report_file):
     """
     for stimulus in stimuli:
         # print(f"Checking {stimulus.name}")
-        stimulus_frame = gaze.frame.filter(
+        stimulus_frame = gaze.samples.filter(
             (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
         ).unique(settings.PAGE_COL)
         # check if all pages are present

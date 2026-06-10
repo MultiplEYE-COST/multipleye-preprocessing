@@ -22,7 +22,7 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
             trial.unnest()
         except Warning:
             pass
-        df = trial.frame
+        df = trial.samples
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
         name = f"{session}_{trial}_{stimulus}_raw_data.csv"
