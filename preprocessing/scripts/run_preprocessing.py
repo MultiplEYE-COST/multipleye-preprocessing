@@ -128,170 +128,235 @@ def run_preprocessing(config_path: str | None = None):
         fixation_data_folder = settings.OUTPUT_DIR / settings.FIXATIONS_FOLDER / idf
         saccade_data_folder = settings.OUTPUT_DIR / settings.SACCADES_FOLDER / idf
 
-        if (
-            fixation_data_folder.exists()
-            and saccade_data_folder.exists()
-            and not settings.OVERWRITE
-        ):
-            # check if the folder contains the expected number of files, if not, we will overwrite
-            num_expected_files = len(sess.completed_stimuli_ids)
-            num_files = len(list(fixation_data_folder.glob("*.csv")))
+        if settings.RUN_FIXATION_DETECTION or settings.RUN_SACCADE_DETECTION:
+            if gaze is None:
+                logger.warning(f"Gaze data missing for {idf}. Skipping event detection.")
+            elif (
+                fixation_data_folder.exists()
+                and saccade_data_folder.exists()
+                and not settings.OVERWRITE
+            ):
+                # check if the folder contains the expected number of files, if not, we will overwrite
+                num_expected_files = len(sess.completed_stimuli_ids)
+                num_files = len(list(fixation_data_folder.glob("*.csv")))
 
-            if num_expected_files != num_files:
-                raise ValueError(
-                    f"Fixation data cannot be loaded as the folder for session {idf} does not contain the "
-                    f"expected number of files. Please check and select overwrite."
+                if num_expected_files != num_files:
+                    raise ValueError(
+                        f"Fixation data cannot be loaded as the folder for session {idf} does not contain the "
+                        f"expected number of files. Please check and select overwrite."
+                    )
+
+                num_files = len(list(saccade_data_folder.glob("*.csv")))
+                if num_expected_files != num_files:
+                    raise ValueError(
+                        f"Saccade data cannot be loaded as the folder for session {idf} does not contain the "
+                        f"expected number of files. Please check and select overwrite."
+                    )
+
+                pbar.set_description(f"Loading events {idf}:")
+                gaze = preprocessing.load_trial_level_events_data(
+                    gaze,
+                    settings.OUTPUT_DIR,
+                    idf,
+                    event_type=settings.FIXATION,
+                    file_pattern=None,
                 )
 
-            num_files = len(list(saccade_data_folder.glob("*.csv")))
-            if num_expected_files != num_files:
-                raise ValueError(
-                    f"Saccade data cannot be loaded as the folder for session {idf} does not contain the "
-                    f"expected number of files. Please check and select overwrite."
+                gaze = preprocessing.load_trial_level_events_data(
+                    gaze,
+                    settings.OUTPUT_DIR,
+                    idf,
+                    event_type=settings.SACCADE,
+                    file_pattern=None,
                 )
 
-            pbar.set_description(f"Loading events {idf}:")
-            gaze = preprocessing.load_trial_level_events_data(
-                gaze,
-                settings.OUTPUT_DIR,
-                idf,
-                event_type=settings.FIXATION,
-                file_pattern=None,
-            )
+            else:
+                pbar.set_description(f"Detecting events {idf}:")
 
-            gaze = preprocessing.load_trial_level_events_data(
-                gaze,
-                settings.OUTPUT_DIR,
-                idf,
-                event_type=settings.SACCADE,
-                file_pattern=None,
-            )
+                if settings.RUN_FIXATION_DETECTION:
+                    preprocessing.detect_fixations(gaze)
+                if settings.RUN_SACCADE_DETECTION:
+                    preprocessing.detect_saccades(gaze)
 
+                if settings.RUN_FIXATION_DETECTION:
+                    preprocessing.save_events_data(
+                        settings.FIXATION,
+                        settings.OUTPUT_DIR,
+                        session_save_name,
+                        idf,
+                        "trial",
+                        ["trial", "stimulus"],
+                        ["onset", "duration", "location_x", "location_y", "page"],
+                        gaze,
+                    )
+
+                if settings.RUN_SACCADE_DETECTION:
+                    preprocessing.save_events_data(
+                        settings.SACCADE,
+                        settings.OUTPUT_DIR,
+                        session_save_name,
+                        idf,
+                        "trial",
+                        ["trial", "stimulus"],
+                        [
+                            "onset",
+                            "duration",
+                            "amplitude",
+                            "peak_velocity",
+                            "dispersion",
+                            "page",
+                        ],
+                        gaze,
+                    )
         else:
-            pbar.set_description(f"Detecting events {idf}:")
-
-            preprocessing.detect_fixations(gaze)
-            preprocessing.detect_saccades(gaze)
-
-            preprocessing.save_events_data(
-                settings.FIXATION,
-                settings.OUTPUT_DIR,
-                session_save_name,
-                idf,
-                "trial",
-                ["trial", "stimulus"],
-                ["onset", "duration", "location_x", "location_y", "page"],
-                gaze,
-            )
-
-            preprocessing.save_events_data(
-                settings.SACCADE,
-                settings.OUTPUT_DIR,
-                session_save_name,
-                idf,
-                "trial",
-                ["trial", "stimulus"],
-                [
-                    "onset",
-                    "duration",
-                    "amplitude",
-                    "peak_velocity",
-                    "dispersion",
-                    "page",
-                ],
-                gaze,
-            )
+            pbar.set_description(f"Skipping event detection {idf}:")
+            # Load existing if available
+            if (
+                gaze is not None
+                and fixation_data_folder.exists()
+                and saccade_data_folder.exists()
+            ):
+                logger.info(f"Using existing event data for {idf}")
+                gaze = preprocessing.load_trial_level_events_data(
+                    gaze,
+                    settings.OUTPUT_DIR,
+                    idf,
+                    event_type=settings.FIXATION,
+                    file_pattern=None,
+                )
+                gaze = preprocessing.load_trial_level_events_data(
+                    gaze,
+                    settings.OUTPUT_DIR,
+                    idf,
+                    event_type=settings.SACCADE,
+                    file_pattern=None,
+                )
 
         # map to AOIs and create scanpaths
-        preprocessing.map_fixations_to_aois(
-            gaze,
-            sess.stimuli,
-        )
-        preprocessing.save_scanpaths(settings.OUTPUT_DIR, session_save_name, idf, gaze)
+        if settings.RUN_FIXATION_DETECTION:  # Mapping depends on fixations
+            if gaze is None or "fixation" not in gaze.events:
+                logger.warning(
+                    f"Fixations missing for {idf}. Skipping AOI mapping/scanpaths."
+                )
+            else:
+                preprocessing.map_fixations_to_aois(
+                    gaze,
+                    sess.stimuli,
+                )
+                preprocessing.save_scanpaths(
+                    settings.OUTPUT_DIR, session_save_name, idf, gaze
+                )
 
-        preprocessing.save_session_metadata(settings.OUTPUT_DIR, gaze, idf)
+                preprocessing.save_session_metadata(
+                    settings.OUTPUT_DIR, gaze, idf
+                )
 
         rm_folder = settings.OUTPUT_DIR / settings.READING_MEASURES_FOLDER / idf
 
-        if rm_folder.exists() and not settings.OVERWRITE:
-            # check if the folder contains the expected number of files, if not, we will overwrite
-            num_expected_files = len(sess.completed_stimuli_ids)
-            num_files = len(list(rm_folder.glob("*.csv")))
-            if num_expected_files != num_files:
-                raise ValueError(
-                    f"Reading measures cannot be loaded as the folder for session {idf} does not contain the "
-                    f"expected number of files. Please check and select overwrite."
+        if settings.RUN_READING_MEASURES:
+            if gaze is None:
+                logger.warning(
+                    f"Gaze/Event data missing for {idf}. Skipping reading measures."
                 )
-
-            pbar.set_description(f"Loading reading measures {idf}:")
-            reading_measures = preprocessing.load_reading_measures(
-                settings.OUTPUT_DIR,
-                idf,
-            )
-
-            data_collection[sess.session_identifier].reading_measures = True
-
-        else:
-            pbar.set_description(f"Calculating reading measures {idf}:")
-            reading_measures = preprocessing.calculate_reading_measures(
-                gaze,
-                sess.stimuli,
-            )
-
-            preprocessing.save_reading_measures(
-                settings.OUTPUT_DIR, session_save_name, idf, reading_measures
-            )
-            data_collection[sess.session_identifier].reading_measures = True
-
-        # === COMPREHENSION QUESTION ANSWERS ===
-        answers_csv = (
-            settings.OUTPUT_DIR
-            / settings.ANSWERS_FOLDER
-            / session_save_name
-            / f"{session_save_name}_answers.csv"
-        )
-
-        if answers_csv.exists() and not settings.OVERWRITE:
-            pbar.set_description(f"Loading answers {idf}")
-            sess.answers = True
-        else:
-            pbar.set_description(f"Collecting answers {idf}")
-            question_order_csv = (
-                sess.session_folder_path / "logfiles" / "question_order_versions.csv"
-            )
-            if question_order_csv.exists():
-                parsed_answers = (
-                    preprocessing.parse_answers_from_messages(gaze.messages)
-                    if gaze.messages is not None
-                    else None
-                )
-                if parsed_answers is None or parsed_answers.is_empty():
-                    # Fallback to experiment logfile
-                    parsed_answers = preprocessing.parse_answers_from_logfile(
-                        sess.logfile, sess.stimuli_trial_mapping
+            elif rm_folder.exists() and not settings.OVERWRITE:
+                # check if the folder contains the expected number of files, if not, we will overwrite
+                num_expected_files = len(sess.completed_stimuli_ids)
+                num_files = len(list(rm_folder.glob("*.csv")))
+                if num_expected_files != num_files:
+                    raise ValueError(
+                        f"Reading measures cannot be loaded as the folder for session {idf} does not contain the "
+                        f"expected number of files. Please check and select overwrite."
                     )
 
-                preprocessing.collect_session_answers(
-                    question_order_csv=question_order_csv,
-                    stimuli_trial_map=sess.stimuli_trial_mapping,
-                    stimuli=sess.stimuli,
-                    parsed_answers=parsed_answers,
-                    out_path=answers_csv,
+                pbar.set_description(f"Loading reading measures {idf}:")
+                reading_measures = preprocessing.load_reading_measures(
+                    settings.OUTPUT_DIR,
+                    idf,
                 )
+
+                data_collection[sess.session_identifier].reading_measures = True
+
+            else:
+                pbar.set_description(f"Calculating reading measures {idf}:")
+                reading_measures = preprocessing.calculate_reading_measures(
+                    gaze,
+                    sess.stimuli,
+                )
+
+                preprocessing.save_reading_measures(
+                    settings.OUTPUT_DIR, session_save_name, idf, reading_measures
+                )
+                data_collection[sess.session_identifier].reading_measures = True
+        else:
+            pbar.set_description(f"Skipping reading measures {idf}:")
+
+        # === COMPREHENSION QUESTION ANSWERS ===
+        if settings.RUN_COMPREHENSION_ANSWERS:
+            answers_csv = (
+                settings.OUTPUT_DIR
+                / settings.ANSWERS_FOLDER
+                / session_save_name
+                / f"{session_save_name}_answers.csv"
+            )
+
+            if answers_csv.exists() and not settings.OVERWRITE:
+                pbar.set_description(f"Loading comprehension answers {idf}")
                 sess.answers = True
+            else:
+                pbar.set_description(f"Collecting comprehension answers {idf}")
+                question_order_csv = (
+                    sess.session_folder_path / "logfiles" / "question_order_versions.csv"
+                )
+                if question_order_csv.exists():
+                    parsed_answers = None
+                    source = "unknown"
 
-        pbar.set_description(f"Creating sanity check report {idf}")
-        data_collection.create_sanity_check_report(
-            gaze,
-            sess.session_identifier,
-            plotting=True,
-            overwrite=True,
-            output_dir=settings.OUTPUT_DIR,
-        )
+                    # 1. Primary source: ASC messages (prefer if gaze exists)
+                    if gaze is not None and gaze.messages is not None and not gaze.messages.is_empty():
+                        parsed_answers = preprocessing.parse_answers_from_messages(gaze.messages)
+                        if not parsed_answers.is_empty():
+                            source = "asc"
 
-        data_collection.create_session_overview(
-            sess.session_identifier, path=settings.OUTPUT_DIR
-        )
+                    # 2. Fallback source: experiment logfile
+                    if parsed_answers is None or parsed_answers.is_empty():
+                        # We only fallback if we really didn't find anything in ASC
+                        # OR if extraction was disabled and raw data was missing (gaze is None)
+                        parsed_answers = preprocessing.parse_answers_from_logfile(
+                            sess.logfile, sess.stimuli_trial_mapping
+                        )
+                        if not parsed_answers.is_empty():
+                            source = "logfile"
+
+                    preprocessing.collect_session_answers(
+                        question_order_csv=question_order_csv,
+                        stimuli_trial_map=sess.stimuli_trial_mapping,
+                        stimuli=sess.stimuli,
+                        parsed_answers=parsed_answers,
+                        out_path=answers_csv,
+                        source=source,
+                    )
+                    sess.answers = True
+        else:
+            pbar.set_description(f"Skipping comprehension answers {idf}:")
+
+        if settings.RUN_SANITY_CHECKS:
+            if gaze is None:
+                logger.warning(f"Gaze data missing for {idf}. Skipping sanity report.")
+            else:
+                pbar.set_description(f"Creating sanity check report {idf}")
+                data_collection.create_sanity_check_report(
+                    gaze,
+                    sess.session_identifier,
+                    plotting=True,
+                    overwrite=True,
+                    output_dir=settings.OUTPUT_DIR,
+                )
+
+            data_collection.create_session_overview(
+                sess.session_identifier, path=settings.OUTPUT_DIR
+            )
+        else:
+            pbar.set_description(f"Skipping sanity checks {idf}:")
 
     data_collection.create_dataset_overview(path=settings.OUTPUT_DIR)
     data_collection.parse_participant_data(settings.OUTPUT_DIR / "participant_data.csv")

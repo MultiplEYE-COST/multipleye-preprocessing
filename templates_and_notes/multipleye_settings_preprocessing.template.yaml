@@ -73,6 +73,18 @@ acceptable_num_trials: 10
 # --- EYE TRACKER LABELS (do not change) ---
 tracked_eye: ["L", "R", "RIGHT", "LEFT"]
 
+# --- PIPELINE STAGES ---
+# Whether to perform fixation detection.
+RUN_FIXATION_DETECTION: true
+# Whether to perform saccade detection.
+RUN_SACCADE_DETECTION: true
+# Whether to perform reading measures calculation.
+RUN_READING_MEASURES: true
+# Whether to collect comprehension question answers.
+RUN_COMPREHENSION_ANSWERS: true
+# Whether to create sanity check reports.
+RUN_SANITY_CHECKS: true
+
 # --- INTERNAL (do not change) ---
 raw_data_folder: "raw_data/"
 fixations_folder: "fixations/"

@@ -412,6 +412,18 @@ class Settings:
             r"stop_recording_.*_question_\d+",
         ]
 
+        # --- PIPELINE STAGES ---
+        #: Whether to perform fixation detection.
+        self.RUN_FIXATION_DETECTION = True
+        #: Whether to perform saccade detection.
+        self.RUN_SACCADE_DETECTION = True
+        #: Whether to perform reading measures calculation.
+        self.RUN_READING_MEASURES = True
+        #: Whether to collect comprehension question answers.
+        self.RUN_COMPREHENSION_ANSWERS = True
+        #: Whether to create sanity check reports.
+        self.RUN_SANITY_CHECKS = True
+
         #: Column name for the trial identifier.
         self.TRIAL_COL = "trial"
 
