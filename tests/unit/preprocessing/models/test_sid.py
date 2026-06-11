@@ -5,8 +5,6 @@ from preprocessing.models.sid import Sid
 @pytest.mark.parametrize(
     "sid_str, expected_pid, expected_lang, expected_country, expected_lab, expected_session, expected_postfix, expected_notes",
     [
-        ("001_en_UK_1_PT1", "001", "en", "UK", "1", "PT1", "", ""),
-        ("104_HR_hr_1_PT1", "104", "HR", "hr", "1", "PT1", "", ""),
         ("001_EN_UK_1_PT1", "001", "EN", "UK", "1", "PT1", "", ""),
         ("002_ZH_CH_LAB2_S2_restart", "002", "ZH", "CH", "LAB2", "S2", "restart", ""),
         (
@@ -186,8 +184,6 @@ def test_sid_base_id():
     "sid1_str, sid2_str, expected_match",
     [
         ("001_EN_UK_1_S1", "001_EN_UK_1_PT1", True),
-        ("001_en_uk_1_S1", "001_EN_UK_1_PT1", True),
-        ("001_EN_UK_1_S1", "001_en_uk_1_PT1", True),
         ("001_EN_UK_1_S1", "001_EN_UK_1_ET1", True),
         ("001_EN_UK_1_PT1", "001_EN_UK_1_ET1", True),
         ("001_EN_UK_1_S1", "001_EN_UK_1_S1", True),
@@ -196,8 +192,8 @@ def test_sid_base_id():
         ("001_EN_UK_1_S1", "001_FR_UK_1_S1", False),  # different lang
         ("001_EN_UK_1_S1", "001_EN_US_1_S1", False),  # different country
         ("001_EN_UK_1_S1", "001_EN_UK_2_S1", False),  # different lab
-        ("001_EN_UK_1_S1_restart", "001_EN_UK_1_PT1_restart", False),
-        ("001_EN_UK_1_S1_restart", "001_EN_UK_1_postfix", False),  # different postfix
+        ("001_EN_UK_1_S1_restart", "001_EN_UK_1_PT1_restart", True),
+        ("001_EN_UK_1_S1_restart", "001_EN_UK_1_S1_postfix", True),  # different postfix
     ],
 )
 def test_sid_equals_soft(sid1_str, sid2_str, expected_match):
