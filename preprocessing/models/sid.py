@@ -153,13 +153,12 @@ class Sid:
         if not isinstance(other, Sid):
             return False
 
-        # Check all parts except session
+        # Check all parts except session and postfix
         if (
             self.pid != other.pid
             or self.lang.upper() != other.lang.upper()
             or self.country.upper() != other.country.upper()
             or self.lab != other.lab
-            or self.postfix != other.postfix
         ):
             return False
 

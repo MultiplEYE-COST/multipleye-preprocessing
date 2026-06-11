@@ -70,10 +70,10 @@ def dummy_gaze():
 
 def test_save_load_raw_data_structure(tmp_path, dummy_gaze):
     session = "test_session"
-    save_raw_data(tmp_path, session, dummy_gaze)
-    expected_path = tmp_path / settings.RAW_DATA_FOLDER / session
-    assert expected_path.exists()
-    assert (expected_path / f"{session}_trial_1_Enc_WikiMoon_1_raw_data.csv").exists()
+    raw_data_folder = tmp_path / settings.RAW_DATA_FOLDER / session
+    save_raw_data(raw_data_folder, session, dummy_gaze, completed_stimuli=[1])
+    assert raw_data_folder.exists()
+    assert (raw_data_folder / f"{session}_trial_1_Enc_WikiMoon_1_raw_data.csv").exists()
 
     loaded_gaze = load_trial_level_raw_data(
         tmp_path, session, trial_columns=["trial", "stimulus", "page"]
@@ -83,74 +83,84 @@ def test_save_load_raw_data_structure(tmp_path, dummy_gaze):
 
 def test_save_load_fixations_structure(tmp_path, dummy_gaze):
     session = "test_session"
+    session_idf = "001_EN_UK_1_S1"
     save_events_data(
         "fixation",
         tmp_path,
         session,
+        session_idf,
         "trial",
         ["stimulus"],
         ["name", "start", "end", "trial", "stimulus", "page"],
         dummy_gaze,
     )
-    expected_path = tmp_path / settings.FIXATIONS_FOLDER / session
+    expected_path = tmp_path / settings.FIXATIONS_FOLDER / session_idf
     assert expected_path.exists()
     assert (expected_path / f"{session}_Enc_WikiMoon_1_fixation.csv").exists()
 
     loaded_gaze = load_trial_level_events_data(
-        dummy_gaze, tmp_path, session, "fixation"
+        dummy_gaze, tmp_path, session_idf, "fixation"
     )
     assert len(loaded_gaze.events.frame.filter(pl.col("name") == "fixation")) >= 1
 
 
 def test_save_load_saccades_structure(tmp_path, dummy_gaze):
     session = "test_session"
+    session_idf = "001_EN_UK_1_S1"
     save_events_data(
         "saccade",
         tmp_path,
         session,
+        session_idf,
         "trial",
         ["stimulus"],
         ["name", "start", "end", "trial", "stimulus", "page"],
         dummy_gaze,
     )
-    expected_path = tmp_path / settings.SACCADES_FOLDER / session
+    expected_path = tmp_path / settings.SACCADES_FOLDER / session_idf
     assert expected_path.exists()
     assert (expected_path / f"{session}_Enc_WikiMoon_1_saccade.csv").exists()
 
-    loaded_gaze = load_trial_level_events_data(dummy_gaze, tmp_path, session, "saccade")
+    loaded_gaze = load_trial_level_events_data(
+        dummy_gaze, tmp_path, session_idf, "saccade"
+    )
     assert len(loaded_gaze.events.frame.filter(pl.col("name") == "saccade")) >= 1
 
 
 def test_save_scanpaths_structure(tmp_path, dummy_gaze):
     session = "test_session"
-    save_scanpaths(tmp_path, session, dummy_gaze)
-    expected_path = tmp_path / settings.SCANPATHS_FOLDER / session
+    session_idf = "001_EN_UK_1_S1"
+    save_scanpaths(tmp_path, session, session_idf, dummy_gaze)
+    expected_path = tmp_path / settings.SCANPATHS_FOLDER / session_idf
     assert expected_path.exists()
     assert (expected_path / f"{session}_trial_1_Enc_WikiMoon_1_scanpath.csv").exists()
 
 
 def test_save_load_reading_measures_structure(tmp_path):
     session = "test_session"
+    session_idf = "001_EN_UK_1_S1"
     df_rm = pl.DataFrame(
         {"trial": ["trial_1"], "stimulus": ["Enc_WikiMoon_1"], "val": [1.0]}
     )
-    save_reading_measures(tmp_path, session, df_rm)
-    expected_path = tmp_path / settings.READING_MEASURES_FOLDER / session
+    save_reading_measures(tmp_path, session, session_idf, df_rm)
+    expected_path = tmp_path / settings.READING_MEASURES_FOLDER / session_idf
     assert expected_path.exists()
     assert (
         expected_path / f"{session}_trial_1_Enc_WikiMoon_1_reading_measures.csv"
     ).exists()
 
-    loaded_rm = load_reading_measures(tmp_path, session)
+    loaded_rm = load_reading_measures(tmp_path, session_idf)
     assert len(loaded_rm) == 1
 
 
 def test_save_load_metadata_structure(tmp_path, dummy_gaze):
     session = "test_session"
+    session_idf = "001_EN_UK_1_S1"
+    raw_data_folder = tmp_path / settings.RAW_DATA_FOLDER / session_idf
     # First save raw data because load_trial_level_raw_data expects it
-    save_raw_data(tmp_path, session, dummy_gaze)
-    save_session_metadata(tmp_path, session, dummy_gaze)
-    expected_path = tmp_path / settings.METADATA_FOLDER / session
+    save_raw_data(raw_data_folder, session, dummy_gaze, completed_stimuli=[1])
+    save_session_metadata(tmp_path, dummy_gaze, session_idf)
+    expected_path = tmp_path / settings.METADATA_FOLDER / session_idf
     assert expected_path.exists()
     assert (expected_path / "gaze_metadata.json").exists()
     assert (expected_path / "calibrations.feather").exists()
@@ -165,7 +175,7 @@ def test_save_load_metadata_structure(tmp_path, dummy_gaze):
 
     loaded_gaze = load_trial_level_raw_data(
         tmp_path,
-        session,
+        session_idf,
         trial_columns=["trial", "stimulus", "page"],
         load_metadata=True,
     )

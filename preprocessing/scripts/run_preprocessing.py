@@ -264,9 +264,7 @@ def run_preprocessing(config_path: str | None = None):
                     settings.OUTPUT_DIR, session_save_name, idf, gaze
                 )
 
-                preprocessing.save_session_metadata(
-                    settings.OUTPUT_DIR, gaze, idf
-                )
+                preprocessing.save_session_metadata(settings.OUTPUT_DIR, gaze, idf)
 
         rm_folder = settings.OUTPUT_DIR / settings.READING_MEASURES_FOLDER / idf
 
