@@ -64,12 +64,14 @@ def collect_session_answers(
       - order_code (int: 11,12,21,22,31,32)
       - question_id (string)
       - final_answer_key (string)
+      - answer_text (string)
       - is_correct (bool)
       - correct_answer_key (string)
       - correct_answer_text (string)
-      - final_rt_ms (float)
-      - decision_rt_ms (float)
-      - answer_changed (bool)
+      - preliminary_rt_ms (float)  time from question onset to last preliminary key press
+      - confirmation_rt_ms (float)  time from question onset to confirmation button press
+      - preliminary_answer_keys (list[str])  all preliminary key presses in order
+      - preliminary_answer_onsets_ms (list[float])  onset-relative timestamps for each preliminary press
       - answer_source (string)
     """
     logger = get_logger()
@@ -202,33 +204,58 @@ def collect_session_answers(
             parsed_answers, on=["trial_id", "question_id"], how="left"
         )
 
+        # Handle space-only answers: participant pressed space without selecting
+        long_df = long_df.with_columns(
+            pl.when(
+                pl.col("final_confirmation_ts").is_not_null()
+                & pl.col("final_answer_key").is_null()
+            )
+            .then(pl.lit("space"))
+            .otherwise(pl.col("final_answer_key"))
+            .alias("final_answer_key"),
+        )
+
         # Compute derived columns
         long_df = long_df.with_columns(
-            (pl.col("final_confirmation_ts") - pl.col("question_onset_ts")).alias(
-                "final_rt_ms"
+            (pl.col("preliminary_tss").list.last() - pl.col("question_onset_ts")).alias(
+                "preliminary_rt_ms"
             ),
-            (
-                pl.col("final_confirmation_ts") - pl.col("preliminary_tss").list.get(0)
-            ).alias("decision_rt_ms"),
-            pl.coalesce(
-                [
-                    pl.when(pl.col("preliminary_keys").list.len() > 0)
-                    .then(
-                        pl.col("preliminary_keys").list.get(-1)
-                        != pl.col("final_answer_key")
-                    )
-                    .otherwise(pl.lit(False)),
-                    pl.lit(False),
-                ]
-            ).alias("answer_changed"),
+            (pl.col("final_confirmation_ts") - pl.col("question_onset_ts")).alias(
+                "confirmation_rt_ms"
+            ),
+            pl.col("preliminary_keys").alias("preliminary_answer_keys"),
+            pl.struct(["preliminary_tss", "question_onset_ts"])
+            .map_elements(
+                lambda row: (
+                    [
+                        round(t - row["question_onset_ts"], 1)
+                        for t in row["preliminary_tss"]
+                    ]
+                    if row["preliminary_tss"] and row["question_onset_ts"] is not None
+                    else None
+                ),
+                return_dtype=pl.List(pl.Float64),
+            )
+            .alias("preliminary_answer_onsets_ms"),
         )
+
+        # Warn if any final_answer_key differs from the last preliminary key (data anomaly)
+        anomaly = long_df.filter(
+            pl.col("preliminary_keys").is_not_null()
+            & (pl.col("preliminary_keys").list.len() > 0)
+            & (pl.col("preliminary_keys").list.last() != pl.col("final_answer_key"))
+        )
+        if anomaly.height > 0:
+            logger.warning(
+                f"Found {anomaly.height} question(s) where final_answer_key differs from "
+                f"the last preliminary key press (data anomaly)."
+            )
     else:
         long_df = long_df.with_columns(
             pl.lit(None).alias("final_answer_key").cast(pl.Utf8),
             pl.lit(None).alias("is_correct").cast(pl.Boolean),
-            pl.lit(None).alias("final_rt_ms").cast(pl.Float64),
-            pl.lit(None).alias("decision_rt_ms").cast(pl.Float64),
-            pl.lit(None).alias("answer_changed").cast(pl.Boolean),
+            pl.lit(None).alias("preliminary_rt_ms").cast(pl.Float64),
+            pl.lit(None).alias("confirmation_rt_ms").cast(pl.Float64),
         )
 
     # Add correct answers from stimuli objects
@@ -341,9 +368,10 @@ def collect_session_answers(
         "is_correct",
         "correct_answer_key",
         "correct_answer_text",
-        "final_rt_ms",
-        "decision_rt_ms",
-        "answer_changed",
+        "preliminary_rt_ms",
+        "confirmation_rt_ms",
+        "preliminary_answer_keys",
+        "preliminary_answer_onsets_ms",
         "answer_source",
     ]
     long_df = long_df.select([c for c in final_cols if c in long_df.columns])
