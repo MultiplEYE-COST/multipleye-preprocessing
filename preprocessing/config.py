@@ -536,9 +536,10 @@ class Settings:
 
         #: Mapping of eye tracker brands to known model names.
         self.EYETRACKER_NAMES = {
-            "eyelink": [
+            "eyelink": [  # TODO: Update list to mapping between same eyetrackers - use dict
                 "EyeLink 1000 Plus",
                 "EyeLink 1000+",
+                "EyeLink 1000-Plus",
                 "EyeLink II",
                 "EyeLink 1000",
                 "EyeLink Portable Duo",
