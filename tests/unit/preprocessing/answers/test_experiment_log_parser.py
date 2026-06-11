@@ -39,6 +39,9 @@ def test_parse_logfile_single_question(synthetic_logfile):
     assert row["question_stop_ts"] == 40784.0
 
 
+@pytest.mark.filterwarnings(
+    r"ignore:ASC messages are missing or.*from the experiment logfile:UserWarning:"
+)
 def test_parse_logfile_correct_answer():
     logfile = pl.DataFrame(
         {
@@ -58,11 +61,17 @@ def test_parse_logfile_correct_answer():
     assert result[0, "final_answer_key"] == "target_key"
 
 
+@pytest.mark.filterwarnings(
+    r"ignore:ASC messages are missing or.*from the experiment logfile:UserWarning:"
+)
 def test_parse_logfile_empty():
     result = parse_answers_from_logfile(pl.DataFrame())
     assert len(result) == 0
 
 
+@pytest.mark.filterwarnings(
+    r"ignore:ASC messages are missing or.*from the experiment logfile:UserWarning:"
+)
 def test_parse_logfile_no_relevant_messages():
     logfile = pl.DataFrame({"timestamp": [1000.0], "message": ["some random message"]})
     # Since columns like trial_number are missing, it might fail or return empty

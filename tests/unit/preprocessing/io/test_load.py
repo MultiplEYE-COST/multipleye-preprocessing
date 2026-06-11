@@ -2,7 +2,7 @@ import polars as pl
 import pytest
 from preprocessing.io.load import load_gaze_data
 from preprocessing.data_collection.stimulus import LabConfig
-from preprocessing.answers.msg_parser import ANSWER_MSG_PATTERNS
+from preprocessing.config import settings
 
 
 @pytest.fixture
@@ -133,7 +133,7 @@ def test_load_gaze_data_with_patterns(synthetic_asc, lab_config):
         asc_file=synthetic_asc,
         lab_config=lab_config,
         session_idf="synthetic_session",
-        messages=ANSWER_MSG_PATTERNS,
+        messages=settings.ANSWER_MSG_PATTERNS,
     )
 
     # Assertions

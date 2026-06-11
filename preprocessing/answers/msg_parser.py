@@ -1,15 +1,6 @@
 import polars as pl
 import re
 
-ANSWER_MSG_PATTERNS = [
-    r"start_recording_.*_question_\d+",
-    r".*_preliminary_answer_.*",
-    r"question_screen_image_offset",
-    r".*_final_answer_given_is_.*",
-    r".*_answer_given_is_correct:.*",
-    r"stop_recording_.*_question_\d+",
-]
-
 
 def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
     """Parse comprehension question answers from ASC messages.

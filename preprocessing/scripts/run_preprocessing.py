@@ -107,6 +107,7 @@ def run_preprocessing(config_path: str | None = None):
                 lab_config=sess.lab_config,
                 session_idf=idf,
                 trial_cols=settings.TRIAL_COLS,
+                messages=settings.ANSWER_MSG_PATTERNS,
             )
             preprocessing.save_raw_data(
                 raw_data_folder, session_save_name, gaze, sess.completed_stimuli_ids
@@ -241,6 +242,43 @@ def run_preprocessing(config_path: str | None = None):
                 settings.OUTPUT_DIR, session_save_name, idf, reading_measures
             )
             data_collection[sess.session_identifier].reading_measures = True
+
+        # === COMPREHENSION QUESTION ANSWERS ===
+        answers_csv = (
+            settings.OUTPUT_DIR
+            / settings.ANSWERS_FOLDER
+            / session_save_name
+            / f"{session_save_name}_answers.csv"
+        )
+
+        if answers_csv.exists() and not settings.OVERWRITE:
+            pbar.set_description(f"Loading answers {idf}")
+            sess.answers = True
+        else:
+            pbar.set_description(f"Collecting answers {idf}")
+            question_order_csv = (
+                sess.session_folder_path / "logfiles" / "question_order_versions.csv"
+            )
+            if question_order_csv.exists():
+                parsed_answers = (
+                    preprocessing.parse_answers_from_messages(gaze.messages)
+                    if gaze.messages is not None
+                    else None
+                )
+                if parsed_answers is None or parsed_answers.is_empty():
+                    # Fallback to experiment logfile
+                    parsed_answers = preprocessing.parse_answers_from_logfile(
+                        sess.logfile, sess.stimuli_trial_mapping
+                    )
+
+                preprocessing.collect_session_answers(
+                    question_order_csv=question_order_csv,
+                    stimuli_trial_map=sess.stimuli_trial_mapping,
+                    stimuli=sess.stimuli,
+                    parsed_answers=parsed_answers,
+                    out_path=answers_csv,
+                )
+                sess.answers = True
 
         pbar.set_description(f"Creating sanity check report {idf}")
         data_collection.create_sanity_check_report(

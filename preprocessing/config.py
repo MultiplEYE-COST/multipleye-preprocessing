@@ -399,6 +399,19 @@ class Settings:
         #: Subfolder name for metadata files.
         self.METADATA_FOLDER = Path("metadata/")
 
+        #: Subfolder name for comprehension question answers.
+        self.ANSWERS_FOLDER = Path("comp_answers/")
+
+        #: Regex patterns for relevant ASC messages for comprehension questions.
+        self.ANSWER_MSG_PATTERNS = [
+            r"start_recording_.*_question_\d+",
+            r".*_preliminary_answer_.*",
+            r"question_screen_image_offset",
+            r".*_final_answer_given_is_.*",
+            r".*_answer_given_is_correct:.*",
+            r"stop_recording_.*_question_\d+",
+        ]
+
         #: Column name for the trial identifier.
         self.TRIAL_COL = "trial"
 
