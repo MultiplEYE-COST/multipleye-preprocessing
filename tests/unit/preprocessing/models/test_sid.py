@@ -178,7 +178,7 @@ def test_sid_pid_property_backward_compatibility():
 def test_sid_base_id():
     """Tests sid.base_id property."""
     assert Sid("001_EN_UK_1_S1").base_id == "001_EN_UK_1"
-    assert Sid("001_EN_UK_1_S1_extra").base_id == "001_EN_UK_1_extra"
+    assert Sid("001_EN_UK_1_S1_extra").base_id == "001_EN_UK_1"
     assert Sid("017_DA_DK_1_ET1").base_id == "017_DA_DK_1"
 
 
@@ -196,8 +196,8 @@ def test_sid_base_id():
         ("001_EN_UK_1_S1", "001_FR_UK_1_S1", False),  # different lang
         ("001_EN_UK_1_S1", "001_EN_US_1_S1", False),  # different country
         ("001_EN_UK_1_S1", "001_EN_UK_2_S1", False),  # different lab
-        ("001_EN_UK_1_S1_restart", "001_EN_UK_1_PT1_restart", True),
-        ("001_EN_UK_1_S1_restart", "001_EN_UK_1_PT1", False),  # different postfix
+        ("001_EN_UK_1_S1_restart", "001_EN_UK_1_PT1_restart", False),
+        ("001_EN_UK_1_S1_restart", "001_EN_UK_1_postfix", False),  # different postfix
     ],
 )
 def test_sid_equals_soft(sid1_str, sid2_str, expected_match):

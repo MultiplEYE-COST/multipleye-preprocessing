@@ -9,8 +9,9 @@ import pymovements as pm
 from ..config import settings
 
 
-def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
-    directory = Path(directory) / settings.RAW_DATA_FOLDER / session
+def save_raw_data(
+    directory: Path, session: str, data: pm.Gaze, completed_stimuli: list
+) -> None:
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()
@@ -25,6 +26,9 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
         df = trial.samples
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
+        stimulus_no = stimulus.split("_")[-1]
+        if int(stimulus_no) not in completed_stimuli:
+            continue
         name = f"{session}_{trial}_{stimulus}_raw_data.csv"
         df = df["time", "pixel_x", "pixel_y", "pupil", "page"]
         df.write_csv(directory / name)
@@ -34,6 +38,7 @@ def save_events_data(
     event_type: str,
     directory: Path,
     session: str,
+    session_idf: str,
     split_column: str,
     name_columns: list[str],
     file_columns: list[str],
@@ -59,9 +64,9 @@ def save_events_data(
         )
 
     directory = (
-        Path(directory) / settings.FIXATIONS_FOLDER / session
+        Path(directory) / settings.FIXATIONS_FOLDER / session_idf
         if event_type == "fixation"
-        else Path(directory) / settings.SACCADES_FOLDER / session
+        else Path(directory) / settings.SACCADES_FOLDER / session_idf
     )
     directory.mkdir(parents=True, exist_ok=True)
 
@@ -83,8 +88,10 @@ def save_events_data(
         df.write_csv(directory / name)
 
 
-def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
-    directory = Path(directory) / settings.SCANPATHS_FOLDER / session
+def save_scanpaths(
+    directory: Path, session: str, session_idf: str, data: pm.Gaze
+) -> None:
+    directory = Path(directory) / settings.SCANPATHS_FOLDER / session_idf
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()
@@ -131,8 +138,10 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
         df.write_csv(directory / name)
 
 
-def save_reading_measures(directory: Path, session: str, data: pl.DataFrame) -> None:
-    directory = Path(directory) / settings.READING_MEASURES_FOLDER / session
+def save_reading_measures(
+    directory: Path, session: str, session_idf: str, data: pl.DataFrame
+) -> None:
+    directory = Path(directory) / settings.READING_MEASURES_FOLDER / session_idf
     directory.mkdir(parents=True, exist_ok=True)
 
     trials = data.partition_by(by="trial", as_dict=False)
@@ -145,8 +154,8 @@ def save_reading_measures(directory: Path, session: str, data: pl.DataFrame) -> 
         trial.write_csv(directory / name)
 
 
-def save_session_metadata(directory: Path, session: str, gaze: pm.Gaze) -> None:
-    metadata_directory = Path(directory) / settings.METADATA_FOLDER / session
+def save_session_metadata(directory: Path, gaze: pm.Gaze, session_idf: str) -> None:
+    metadata_directory = Path(directory) / settings.METADATA_FOLDER / session_idf
     metadata_directory.mkdir(parents=True, exist_ok=True)
 
     metadata = gaze._metadata

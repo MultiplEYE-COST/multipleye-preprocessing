@@ -487,9 +487,8 @@ class MultipleyeDataCollection:
         if not output_dir:
             output_dir = self.reports_dir
 
-        session_save_name = self._get_session_save_name(session_name)
         session_results = (
-            Path(output_dir) / settings.SANITY_CHECKS_FOLDER / session_save_name
+            Path(output_dir) / settings.SANITY_CHECKS_FOLDER / session_name
         )
         os.makedirs(session_results, exist_ok=True)
 
@@ -599,7 +598,6 @@ class MultipleyeDataCollection:
 
     def create_session_overview(self, session_idf: str, path: str | Path = "") -> dict:
         sess = self.sessions[session_idf]
-        session_save_name = self._get_session_save_name(session_idf)
 
         if not path:
             overview_path = self.data_root.parent / f"{session_idf}_overview.yaml"
@@ -607,7 +605,7 @@ class MultipleyeDataCollection:
             overview_path = (
                 Path(path)
                 / settings.METADATA_FOLDER
-                / session_save_name
+                / session_idf
                 / f"{session_idf}_overview.yaml"
             )
             overview_path.parent.mkdir(parents=True, exist_ok=True)

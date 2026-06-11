@@ -306,7 +306,7 @@ class LabConfig:
             root_dir=stimulus_dir / "config",
         )
         assert len(config_path) == 1, (
-            f"Found {len(config_path)} config files: {config_path}"
+            f"Found {len(config_path)} stimulus config files: {config_path}. Please check that the stimulus folder exists."
         )
         config_path = stimulus_dir / "config" / config_path[0]
 
