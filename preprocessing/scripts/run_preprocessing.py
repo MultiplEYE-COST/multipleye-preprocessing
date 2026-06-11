@@ -1,6 +1,7 @@
 import os
 from argparse import ArgumentParser
 
+import polars as pl
 from tqdm import tqdm
 
 from ..models.sid import Sid
@@ -130,7 +131,9 @@ def run_preprocessing(config_path: str | None = None):
 
         if settings.RUN_FIXATION_DETECTION or settings.RUN_SACCADE_DETECTION:
             if gaze is None:
-                logger.warning(f"Gaze data missing for {idf}. Skipping event detection.")
+                logger.warning(
+                    f"Gaze data missing for {idf}. Skipping event detection."
+                )
             elif (
                 fixation_data_folder.exists()
                 and saccade_data_folder.exists()
@@ -208,6 +211,14 @@ def run_preprocessing(config_path: str | None = None):
                         ],
                         gaze,
                     )
+
+                # Unnest event columns (e.g. location struct -> location_x/location_y)
+                # so downstream code doesn't need to handle struct columns.
+                if gaze is not None and gaze.events is not None:
+                    try:
+                        gaze.events.unnest()
+                    except Warning:
+                        pass
         else:
             pbar.set_description(f"Skipping event detection {idf}:")
             # Load existing if available
@@ -234,7 +245,13 @@ def run_preprocessing(config_path: str | None = None):
 
         # map to AOIs and create scanpaths
         if settings.RUN_FIXATION_DETECTION:  # Mapping depends on fixations
-            if gaze is None or "fixation" not in gaze.events:
+            if (
+                gaze is None
+                or gaze.events is None
+                or gaze.events.frame.filter(
+                    pl.col("name") == settings.FIXATION
+                ).is_empty()
+            ):
                 logger.warning(
                     f"Fixations missing for {idf}. Skipping AOI mapping/scanpaths."
                 )
@@ -254,9 +271,16 @@ def run_preprocessing(config_path: str | None = None):
         rm_folder = settings.OUTPUT_DIR / settings.READING_MEASURES_FOLDER / idf
 
         if settings.RUN_READING_MEASURES:
-            if gaze is None:
+            if (
+                gaze is None
+                or gaze.events is None
+                or gaze.events.frame.filter(
+                    pl.col("name") == settings.FIXATION
+                ).is_empty()
+                or settings.WORD_IDX_COL not in gaze.events.columns
+            ):
                 logger.warning(
-                    f"Gaze/Event data missing for {idf}. Skipping reading measures."
+                    f"Gaze/Event data missing or not mapped for {idf}. Skipping reading measures."
                 )
             elif rm_folder.exists() and not settings.OVERWRITE:
                 # check if the folder contains the expected number of files, if not, we will overwrite
@@ -305,16 +329,24 @@ def run_preprocessing(config_path: str | None = None):
             else:
                 pbar.set_description(f"Collecting comprehension answers {idf}")
                 question_order_csv = (
-                    sess.session_folder_path / "logfiles" / "question_order_versions.csv"
+                    sess.session_folder_path
+                    / "logfiles"
+                    / "question_order_versions.csv"
                 )
                 if question_order_csv.exists():
                     parsed_answers = None
                     source = "unknown"
 
                     # 1. Primary source: ASC messages (prefer if gaze exists)
-                    if gaze is not None and gaze.messages is not None and not gaze.messages.is_empty():
-                        parsed_answers = preprocessing.parse_answers_from_messages(gaze.messages)
-                        if not parsed_answers.is_empty():
+                    if (
+                        gaze is not None
+                        and gaze.messages is not None
+                        and not gaze.messages.is_empty()
+                    ):
+                        parsed_answers = preprocessing.parse_answers_from_messages(
+                            gaze.messages
+                        )
+                        if parsed_answers is not None and not parsed_answers.is_empty():
                             source = "asc"
 
                     # 2. Fallback source: experiment logfile
@@ -334,6 +366,7 @@ def run_preprocessing(config_path: str | None = None):
                         parsed_answers=parsed_answers,
                         out_path=answers_csv,
                         source=source,
+                        completed_stimuli_ids=sess.completed_stimuli_ids,
                     )
                     sess.answers = True
         else:

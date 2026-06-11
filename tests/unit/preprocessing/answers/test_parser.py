@@ -66,3 +66,42 @@ def test_parse_question_order(
 )
 def test_construct_question_id(stimulus_name, order_code, expected):
     assert construct_question_id(stimulus_name, order_code) == expected
+
+
+@pytest.mark.parametrize(
+    "stimulus_name,order_code,stimulus_id,expected",
+    [
+        ("Lit_MagicMountain", 11, 6, "6111"),
+        ("Lit_Alchemist", 12, 4, "4112"),
+        ("Arg_PISACowsMilk", 21, 10, "10221"),
+        ("Arg_PISARapaNui", 22, 11, "11222"),
+        ("PopSci_Caveman", 31, 12, "12131"),
+        ("PopSci_MultiplEYE", 32, 1, "1132"),
+    ],
+)
+def test_construct_question_id_with_stimulus_id(
+    stimulus_name, order_code, stimulus_id, expected
+):
+    assert (
+        construct_question_id(stimulus_name, order_code, stimulus_id=stimulus_id)
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    "stimulus_name,order_code,stimulus_id,expected",
+    [
+        ("Enc_WikiMoon", 11, 13, "13111"),
+        ("Enc_WikiMoon", 12, 13, "13112"),
+        ("Lit_NorthWind", 21, 7, "7121"),
+        ("Lit_NorthWind", 22, 7, "7122"),
+    ],
+)
+def test_construct_question_id_practice(
+    stimulus_name, order_code, stimulus_id, expected
+):
+    """Practice stimuli use the same question_id format as experiment stimuli."""
+    assert (
+        construct_question_id(stimulus_name, order_code, stimulus_id=stimulus_id)
+        == expected
+    )

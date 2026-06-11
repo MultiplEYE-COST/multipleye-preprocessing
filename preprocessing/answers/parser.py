@@ -38,13 +38,19 @@ def _extract_stimulus_numeric_id(stimulus_name: str) -> str:
     return m.group(1)
 
 
-def construct_question_id(stimulus_name: str, order_code: int) -> str:
+def construct_question_id(
+    stimulus_name: str, order_code: int, stimulus_id: int | str | None = None
+) -> str:
     """Construct the canonical question id.
 
     Format: <stimulus_numeric_id><middle><order_code>
     - middle digit is '2' for PISA texts (name contains 'PISA'), otherwise '1'.
     - order_code is a two-digit number among {11, 12, 21, 22, 31, 32}.
     """
-    stim_num = _extract_stimulus_numeric_id(stimulus_name)
+    if stimulus_id is not None:
+        stim_num = str(stimulus_id)
+    else:
+        stim_num = _extract_stimulus_numeric_id(stimulus_name)
+
     middle = "2" if "PISA" in stimulus_name else "1"
     return f"{stim_num}{middle}{order_code}"

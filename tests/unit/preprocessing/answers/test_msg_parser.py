@@ -107,3 +107,50 @@ def test_preliminary_no_keys():
     result = parse_answers_from_messages(messages)
     assert result[0, "preliminary_keys"].to_list() == []
     assert result[0, "final_confirmation_ts"] == 2000.0
+
+
+def test_answer_changed_true():
+    """answer_changed is True when final key differs from last preliminary key."""
+    messages = pl.DataFrame(
+        {
+            "time": [1000, 2000, 2500, 3000, 3500, 3501],
+            "content": [
+                "start_recording_trial_1_stimulus_Lit_6_question_6111",
+                "trial_1_stimulus_Lit_6_question_6111_preliminary_answer_target_key",
+                "trial_1_stimulus_Lit_6_question_6111_preliminary_answer_distractor_a_key",
+                "trial_1_stimulus_Lit_6_question_6111_preliminary_answer_final_confirmation",
+                "trial_1_stimulus_Lit_6_question_6111_final_answer_given_is_distractor_b_key",
+                "trial_1_stimulus_Lit_6_question_6111_answer_given_is_correct:False",
+            ],
+        }
+    )
+    result = parse_answers_from_messages(messages)
+    assert len(result) == 1
+    row = result.row(0, named=True)
+    assert row["preliminary_keys"] == ["target_key", "distractor_a_key"]
+    assert row["final_answer_key"] == "distractor_b_key"
+    # Last preliminary key is distractor_a_key, but final is distractor_b_key -> changed
+    assert row["preliminary_keys"][-1] != row["final_answer_key"]
+
+
+def test_answer_changed_false():
+    """answer_changed is False when final key matches last preliminary key."""
+    messages = pl.DataFrame(
+        {
+            "time": [1000, 2000, 2500, 3000, 3500, 3501],
+            "content": [
+                "start_recording_trial_1_stimulus_Lit_6_question_6111",
+                "trial_1_stimulus_Lit_6_question_6111_preliminary_answer_target_key",
+                "trial_1_stimulus_Lit_6_question_6111_preliminary_answer_distractor_a_key",
+                "trial_1_stimulus_Lit_6_question_6111_preliminary_answer_final_confirmation",
+                "trial_1_stimulus_Lit_6_question_6111_final_answer_given_is_distractor_a_key",
+                "trial_1_stimulus_Lit_6_question_6111_answer_given_is_correct:False",
+            ],
+        }
+    )
+    result = parse_answers_from_messages(messages)
+    row = result.row(0, named=True)
+    assert row["preliminary_keys"] == ["target_key", "distractor_a_key"]
+    assert row["final_answer_key"] == "distractor_a_key"
+    # Last preliminary key is distractor_a_key, matches final -> not changed
+    assert row["preliminary_keys"][-1] == row["final_answer_key"]
