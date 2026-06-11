@@ -287,7 +287,9 @@ class MultipleyeDataCollection:
                             )
 
         if not found_sessions:
-            raise ValueError(f"No sessions found in data folder {self.data_root}")
+            raise ValueError(
+                f"No sessions found (or none matching the ex-/inclusion criteria) in data folder {self.data_root}"
+            )
 
         unique_sessions = set(found_sessions)
 
