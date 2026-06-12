@@ -86,6 +86,8 @@ RUN_COMPREHENSION_ANSWERS: true
 RUN_SANITY_CHECKS: true
 
 # --- INTERNAL (do not change) ---
+# Whether to force reconversion of EDF files to ASC even if output exists.
+force_reconvert_asc: false
 raw_data_folder: "raw_data/"
 fixations_folder: "fixations/"
 saccades_folder: "saccades/"

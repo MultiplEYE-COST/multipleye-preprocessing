@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import shutil
 
 import subprocess
 import warnings
@@ -321,18 +322,55 @@ class MultipleyeDataCollection:
         if not self.sessions:
             raise ValueError("No sessions added. Please add sessions first.")
 
-        # TODO: make sure that edf2asc is installed on the computer
-        for session in tqdm(self.sessions, desc="Converting EDF to ASC"):
-            path = Path(self.sessions[session].session_file_path)
+        self.logger.info(
+            f"Starting EDF to ASC conversion for {len(self.sessions)} sessions."
+        )
 
-            if not path.with_suffix(".asc").exists():
-                subprocess.run(["edf2asc", path])
+        # Check if edf2asc is installed
+        if shutil.which("edf2asc") is None:
+            raise RuntimeError(
+                "The 'edf2asc' binary was not found on your system. "
+                "Please make sure it is installed and added to your PATH. "
+                "You can download the EyeLink Developers Kit from the SR Research support forum."
+            )
 
-                asc_path = path.with_suffix(".asc")
-                self.sessions[session].asc_path = asc_path
+        for session_identifier, session in tqdm(
+            self.sessions.items(), desc="Converting EDF to ASC"
+        ):
+            edf_path = Path(session.session_file_path)
+
+            output_asc_folder = (
+                settings.OUTPUT_DIR / settings.ASC_FOLDER / session_identifier
+            )
+            output_asc_path = output_asc_folder / f"{session_identifier}.asc"
+
+            if output_asc_path.exists() and not settings.FORCE_RECONVERT_ASC:
+                self.logger.debug(
+                    f"ASC already exists in output folder for {session_identifier}. Skipping conversion."
+                )
+                session.asc_path = output_asc_path
+                continue
+
+            # Run conversion if ASC doesn't exist in output folder or force is enabled
+            self.logger.debug(f"Converting EDF to ASC for {session_identifier}")
+            subprocess.run(
+                ["edf2asc", "-y", edf_path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+            local_asc_path = edf_path.with_suffix(".asc")
+            if local_asc_path.exists():
+                self.logger.debug(f"Copying {local_asc_path} to {output_asc_path}")
+                output_asc_folder.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(local_asc_path, output_asc_path)
+                session.asc_path = output_asc_path
             else:
-                asc_path = path.with_suffix(".asc")
-                self.sessions[session].asc_path = asc_path
+                self.logger.error(
+                    f"Failed to convert EDF to ASC for {session_identifier}"
+                )
+
+        self.logger.info("EDF to ASC conversion completed.")
 
     @staticmethod
     def load_lab_config(
@@ -638,6 +676,7 @@ class MultipleyeDataCollection:
 
             (
                 self.sessions[session].completed_stimuli_ids,
+                self.sessions[session].completed_stimuli_names,
                 self.sessions[session].stimuli_trial_mapping,
             ) = self._load_session_completed_stimuli(session)
             self.sessions[session].messages = self._parse_asc(session)
@@ -794,7 +833,9 @@ class MultipleyeDataCollection:
             )
         return logfile
 
-    def _load_session_completed_stimuli(self, session_identifier):
+    def _load_session_completed_stimuli(
+        self, session_identifier
+    ) -> tuple[list, list, dict]:
         session_path = self.sessions[session_identifier].session_folder_path
         logfile_folder = Path(f"{session_path}/logfiles")
         completed_stim_path = logfile_folder / "completed_stimuli.csv"
@@ -836,11 +877,17 @@ class MultipleyeDataCollection:
             completed_stimuli = completed_stimuli[:-1]
 
         completed_stimuli = completed_stimuli.cast({"completed": pl.Int8})
-        completed_stimuli = completed_stimuli.filter(
+        completed_stimuli_ids = completed_stimuli.filter(
             completed_stimuli["completed"] == 1
         )["stimulus_id"].to_list()
+        # get completed stimuli completes names, i.e. name + id
+        completed_stimulus_names = completed_stimuli["stimulus_name"].to_list()
+        completed_stimulus_names = [
+            str(name) + "_" + str(stim_id)
+            for name, stim_id in zip(completed_stimulus_names, completed_stimuli_ids)
+        ]
 
-        return completed_stimuli, stimuli_trial_mapping
+        return completed_stimuli_ids, completed_stimulus_names, stimuli_trial_mapping
 
     def _load_session_stimulus_order(
         self, session_identifier, logfile_order_version: int

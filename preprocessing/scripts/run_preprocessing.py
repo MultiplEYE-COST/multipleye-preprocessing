@@ -1,8 +1,8 @@
 import os
 from argparse import ArgumentParser
 
-import polars as pl
 from tqdm import tqdm
+import polars as pl
 
 from ..models.sid import Sid
 from ..utils.logging import get_logger
@@ -110,8 +110,16 @@ def run_preprocessing(config_path: str | None = None):
                 trial_cols=settings.TRIAL_COLS,
                 messages=settings.ANSWER_MSG_PATTERNS,
             )
+
+            # filter gaze to only contain data of completed stimuli
+            gaze.samples = gaze.samples.filter(
+                pl.col("stimulus").is_in(sess.completed_stimuli_names)
+            )
+
             preprocessing.save_raw_data(
-                raw_data_folder, session_save_name, gaze, sess.completed_stimuli_ids
+                raw_data_folder,
+                session_save_name,
+                gaze,
             )
             preprocessing.save_session_metadata(settings.OUTPUT_DIR, gaze, idf)
 
@@ -146,14 +154,14 @@ def run_preprocessing(config_path: str | None = None):
                 if num_expected_files != num_files:
                     raise ValueError(
                         f"Fixation data cannot be loaded as the folder for session {idf} does not contain the "
-                        f"expected number of files. Please check and select overwrite."
+                        f"expected number of files. Please check or select overwrite."
                     )
 
                 num_files = len(list(saccade_data_folder.glob("*.csv")))
                 if num_expected_files != num_files:
                     raise ValueError(
                         f"Saccade data cannot be loaded as the folder for session {idf} does not contain the "
-                        f"expected number of files. Please check and select overwrite."
+                        f"expected number of files. Please check or select overwrite."
                     )
 
                 pbar.set_description(f"Loading events {idf}:")

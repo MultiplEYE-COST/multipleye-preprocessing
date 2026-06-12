@@ -27,6 +27,7 @@ class Session:
     randomization_version: int = field(default="unknown", init=False)
     stimulus_folder_name: str = field(default="unknown", init=False)
     completed_stimuli_ids: list[int] = field(default="unknown", init=False)
+    completed_stimuli_names: list[str] = field(default="unknown", init=False)
     question_order: dict[str, list[str]] = field(default="unknown", init=False)
     stimulus_order_ids: list[int] = field(default="unknown", init=False)
     messages: list[dict[str, str]] = field(default="unknown", init=False)
