@@ -74,15 +74,14 @@ def run_preprocessing(config_path: str | None = None):
 
     for sess in (pbar := tqdm(sessions)):
         idf = sess.session_identifier
-        # Use Sid to get a consistent session name for file names, excluding restart postfixes
-        session_save_name = Sid.get_session_save_name(idf)
+        sid = Sid(idf)
 
         pbar.set_description(f"Preprocessing session {idf}:")
 
         asc = sess.asc_path
 
         # create or load raw data
-        raw_data_folder = settings.OUTPUT_DIR / settings.RAW_DATA_FOLDER / idf
+        raw_data_folder = settings.OUTPUT_DIR / settings.RAW_DATA_FOLDER / str(sid)
         if raw_data_folder.exists() and not settings.OVERWRITE:
             # check if the folder contains the expected number of files, if not, we will overwrite
             num_expected_files = len(sess.completed_stimuli_ids)
@@ -96,7 +95,7 @@ def run_preprocessing(config_path: str | None = None):
             pbar.set_description(f"Loading samples {idf}:")
             gaze = preprocessing.load_trial_level_raw_data(
                 settings.OUTPUT_DIR,
-                idf,
+                sid,
                 trial_columns=settings.TRIAL_COLS,
                 load_metadata=True,
             )
@@ -106,7 +105,7 @@ def run_preprocessing(config_path: str | None = None):
             gaze = preprocessing.load_gaze_data(
                 asc_file=asc,
                 lab_config=sess.lab_config,
-                session_idf=idf,
+                sid=sid,
                 trial_cols=settings.TRIAL_COLS,
             )
 
@@ -116,11 +115,11 @@ def run_preprocessing(config_path: str | None = None):
             )
 
             preprocessing.save_raw_data(
-                raw_data_folder,
-                session_save_name,
+                settings.OUTPUT_DIR,
+                sid,
                 gaze,
             )
-            preprocessing.save_session_metadata(settings.OUTPUT_DIR, gaze, idf)
+            preprocessing.save_session_metadata(settings.OUTPUT_DIR, gaze, sid)
 
         sess.pm_gaze_metadata = gaze._metadata
         sess.calibrations = gaze.calibrations
@@ -133,8 +132,10 @@ def run_preprocessing(config_path: str | None = None):
         )
 
         # create or load fixation data
-        fixation_data_folder = settings.OUTPUT_DIR / settings.FIXATIONS_FOLDER / idf
-        saccade_data_folder = settings.OUTPUT_DIR / settings.SACCADES_FOLDER / idf
+        fixation_data_folder = (
+            settings.OUTPUT_DIR / settings.FIXATIONS_FOLDER / str(sid)
+        )
+        saccade_data_folder = settings.OUTPUT_DIR / settings.SACCADES_FOLDER / str(sid)
 
         if (
             fixation_data_folder.exists()
@@ -162,7 +163,7 @@ def run_preprocessing(config_path: str | None = None):
             gaze = preprocessing.load_trial_level_events_data(
                 gaze,
                 settings.OUTPUT_DIR,
-                idf,
+                sid,
                 event_type=settings.FIXATION,
                 file_pattern=None,
             )
@@ -170,7 +171,7 @@ def run_preprocessing(config_path: str | None = None):
             gaze = preprocessing.load_trial_level_events_data(
                 gaze,
                 settings.OUTPUT_DIR,
-                idf,
+                sid,
                 event_type=settings.SACCADE,
                 file_pattern=None,
             )
@@ -184,8 +185,7 @@ def run_preprocessing(config_path: str | None = None):
             preprocessing.save_events_data(
                 settings.FIXATION,
                 settings.OUTPUT_DIR,
-                session_save_name,
-                idf,
+                sid,
                 "trial",
                 ["trial", "stimulus"],
                 ["onset", "duration", "location_x", "location_y", "page"],
@@ -195,8 +195,7 @@ def run_preprocessing(config_path: str | None = None):
             preprocessing.save_events_data(
                 settings.SACCADE,
                 settings.OUTPUT_DIR,
-                session_save_name,
-                idf,
+                sid,
                 "trial",
                 ["trial", "stimulus"],
                 [
@@ -215,11 +214,11 @@ def run_preprocessing(config_path: str | None = None):
             gaze,
             sess.stimuli,
         )
-        preprocessing.save_scanpaths(settings.OUTPUT_DIR, session_save_name, idf, gaze)
+        preprocessing.save_scanpaths(settings.OUTPUT_DIR, sid, gaze)
 
-        preprocessing.save_session_metadata(settings.OUTPUT_DIR, gaze, idf)
+        preprocessing.save_session_metadata(settings.OUTPUT_DIR, gaze, sid)
 
-        rm_folder = settings.OUTPUT_DIR / settings.READING_MEASURES_FOLDER / idf
+        rm_folder = settings.OUTPUT_DIR / settings.READING_MEASURES_FOLDER / str(sid)
 
         if rm_folder.exists() and not settings.OVERWRITE:
             # check if the folder contains the expected number of files, if not, we will overwrite
@@ -234,7 +233,7 @@ def run_preprocessing(config_path: str | None = None):
             pbar.set_description(f"Loading reading measures {idf}:")
             reading_measures = preprocessing.load_reading_measures(
                 settings.OUTPUT_DIR,
-                idf,
+                sid,
             )
 
             data_collection[sess.session_identifier].reading_measures = True
@@ -247,7 +246,7 @@ def run_preprocessing(config_path: str | None = None):
             )
 
             preprocessing.save_reading_measures(
-                settings.OUTPUT_DIR, session_save_name, idf, reading_measures
+                settings.OUTPUT_DIR, sid, reading_measures
             )
             data_collection[sess.session_identifier].reading_measures = True
 
