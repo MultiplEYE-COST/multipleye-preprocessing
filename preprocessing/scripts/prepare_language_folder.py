@@ -159,7 +159,7 @@ def prepare_language_folder(data_collection_name: str | None = None):
     if destination_aoi_path.exists():
         # check if it already contains 24 files and the fixed marker
         if (
-            len(list(destination_aoi_path.glob("*.csv"))) == 24
+            len(list(destination_aoi_path.glob("[!.]*.csv"))) == 24
             and (destination_aoi_path / ".fixed").exists()
         ):
             logger.debug(
