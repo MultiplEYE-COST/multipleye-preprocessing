@@ -12,12 +12,13 @@ import pymovements as pm
 
 from ..config import settings
 from ..data_collection.stimulus import LabConfig
+from ..models.sid import Sid
 
 
 def load_gaze_data(
     asc_file: Path,
     lab_config: LabConfig,
-    session_idf: str,
+    sid: Sid,
     trial_cols: list[str] = None,
     messages: bool | list[str] = False,
 ) -> pm.Gaze:
@@ -35,8 +36,8 @@ def load_gaze_data(
         Configuration object containing details about the lab environment,
         including screen resolution, screen size (in cm),
         and the eye-tracking device's sampling rate.
-    session_idf : str
-        Identifier for the session the gaze data corresponds to.
+    sid : Sid
+        The session identifier.
     trial_cols : list of str, optional
         List of columns to be associated with trial-level metadata. Default is None.
     messages : bool or list of str, optional
@@ -71,7 +72,7 @@ def load_gaze_data(
         asc_file,
         patterns=settings.GAZE_PATTERNS,
         trial_columns=trial_cols,
-        add_columns={"session": session_idf},
+        add_columns={"session": str(sid)},
         experiment=experiment,
         messages=messages,
     )
@@ -87,7 +88,7 @@ def load_gaze_data(
 
 def load_trial_level_raw_data(
     directory: Path,
-    session: str,
+    sid: Sid,
     trial_columns: list[str],
     file_pattern: str | None = None,
     load_metadata: bool = False,
@@ -100,7 +101,7 @@ def load_trial_level_raw_data(
     ----------
     directory : Path
         The base directory for preprocessed data.
-    session : str
+    sid : Sid
         The session identifier.
     trial_columns : list of str
         Column names that uniquely identify a trial within the data.
@@ -116,7 +117,7 @@ def load_trial_level_raw_data(
         A gaze object containing the trial-level aggregated gaze data along with
         any associated metadata, validations, calibrations, and experiment settings, if provided.
     """
-    data_folder = Path(directory) / settings.RAW_DATA_FOLDER / session
+    data_folder = Path(directory) / settings.RAW_DATA_FOLDER / str(sid)
     if file_pattern is None:
         file_pattern = settings.RAW_DATA_FILE_GLOB
 
@@ -155,7 +156,7 @@ def load_trial_level_raw_data(
     )
 
     if load_metadata:
-        metadata_path = Path(directory) / settings.METADATA_FOLDER / session
+        metadata_path = Path(directory) / settings.METADATA_FOLDER / str(sid)
 
         with open(metadata_path / "gaze_metadata.json", "r", encoding="utf8") as f:
             metadata = json.load(f)
@@ -185,7 +186,7 @@ def load_trial_level_raw_data(
 def load_trial_level_events_data(
     gaze: pm.Gaze,
     directory: Path,
-    idf: str,
+    sid: Sid,
     event_type: str,
     file_pattern: str | None = None,
 ) -> pm.Gaze:
@@ -202,8 +203,8 @@ def load_trial_level_events_data(
         An object containing gaze data and associated event information.
     directory : Path
         The base directory for preprocessed data.
-    idf : str
-        The full session identifier (used for folder names).
+    sid : Sid
+        The session identifier.
     event_type : str
         The type of event to load, must be one of the keys in `DEFAULT_EVENT_PROPERTIES`.
     file_pattern : str, optional
@@ -216,9 +217,9 @@ def load_trial_level_events_data(
         The updated gaze object with the loaded and integrated event data.
     """
     if event_type == "fixation":
-        data_folder = Path(directory) / settings.FIXATIONS_FOLDER / idf
+        data_folder = Path(directory) / settings.FIXATIONS_FOLDER / str(sid)
     elif event_type == "saccade":
-        data_folder = Path(directory) / settings.SACCADES_FOLDER / idf
+        data_folder = Path(directory) / settings.SACCADES_FOLDER / str(sid)
     else:
         raise ValueError(
             f"event_type must be {list(settings.EVENT_PROPERTIES.keys())}, got {event_type}"
@@ -287,7 +288,7 @@ def load_trial_level_events_data(
 
 def load_reading_measures(
     directory: Path,
-    session: str,
+    sid: Sid,
     file_pattern: str = r".*?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv",
 ) -> pl.DataFrame:
     """Load reading measures from CSV files.
@@ -296,7 +297,7 @@ def load_reading_measures(
     ----------
     directory : Path
         The base directory for preprocessed data.
-    session : str
+    sid : Sid
         The session identifier.
     file_pattern : str, optional
         Regex pattern to extract trial and stimulus from filenames.
@@ -306,7 +307,7 @@ def load_reading_measures(
     pl.DataFrame
         A DataFrame containing the concatenated reading measures data.
     """
-    data_folder = Path(directory) / settings.READING_MEASURES_FOLDER / session
+    data_folder = Path(directory) / settings.READING_MEASURES_FOLDER / str(sid)
     # Use glob to find all csv files first, as Path.glob() does not support regex
     files = [f for f in data_folder.glob("*.csv") if re.match(file_pattern, f.name)]
 

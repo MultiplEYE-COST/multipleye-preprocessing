@@ -195,10 +195,6 @@ class MultipleyeDataCollection:
     def __getitem__(self, item):
         return self.sessions[item]
 
-    def _get_session_save_name(self, session_idf: str) -> str:
-        """Get a consistent session name for file names, excluding restart postfixes."""
-        return Sid.get_session_save_name(session_idf)
-
     def add_recorded_sessions(
         self,
         data_root: Path,
