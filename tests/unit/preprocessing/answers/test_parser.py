@@ -58,7 +58,7 @@ def test_parse_question_order(
 @pytest.mark.parametrize(
     "stimulus_name,order_code,expected",
     [
-        ("Arg_PISACowsMilk_10", 11, "10211"),
+        ("Arg_PISACowsMilk_10", 11, "10111"),
         ("Arg_PISARapaNui_10", 22, "10222"),
         ("Lit_Solaris_7", 31, "7131"),
         ("PopSci_Caveman_3", 12, "3112"),
@@ -73,7 +73,7 @@ def test_construct_question_id(stimulus_name, order_code, expected):
     [
         ("Lit_MagicMountain", 11, 6, "6111"),
         ("Lit_Alchemist", 12, 4, "4112"),
-        ("Arg_PISACowsMilk", 21, 10, "10221"),
+        ("Arg_PISACowsMilk", 21, 10, "10121"),
         ("Arg_PISARapaNui", 22, 11, "11222"),
         ("PopSci_Caveman", 31, 12, "12131"),
         ("PopSci_MultiplEYE", 32, 1, "1132"),

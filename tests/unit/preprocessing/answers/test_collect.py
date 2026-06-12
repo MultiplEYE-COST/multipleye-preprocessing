@@ -100,16 +100,19 @@ def test_collect_enrichment_multidigit_qid(mock_question_csv):
     assert q11[0, "answer_text"] is None
 
 
+def _expected_middle(stimulus_name: str, order_code: int) -> str:
+    """Compute the expected middle digit for a stimulus and order_code."""
+    return str(order_code)[1] if "PISA" in stimulus_name else "1"
+
+
 @pytest.mark.parametrize(
-    "stimulus_name,pisa_middle",
+    "stimulus_name",
     [
-        ("Arg_PISACowsMilk_10", "2"),
-        ("Lit_Solaris_7", "1"),
+        "Arg_PISACowsMilk_10",
+        "Lit_Solaris_7",
     ],
 )
-def test_collect_session_answers_builds_rows_and_ids(
-    tmp_path: Path, stimulus_name, pisa_middle
-):
+def test_collect_session_answers_builds_rows_and_ids(tmp_path: Path, stimulus_name):
     # Prepare a minimal question_order_versions.csv with one trial
     csv = (
         "question_order_version,local_question_1,local_question_2,bridging_question_1,bridging_question_2,global_question_1,global_question_2\n"
@@ -137,7 +140,10 @@ def test_collect_session_answers_builds_rows_and_ids(
     stim_num = stimulus_name.split("_")[-1]
     for row in df.iter_rows(named=True):
         oc = int(row["order_code"])
-        assert row["question_id"].startswith(stim_num + pisa_middle)
+        middle = _expected_middle(stimulus_name, oc)
+        assert row["question_id"].startswith(stim_num + middle), (
+            f"Expected {stim_num}{middle}{oc}, got {row['question_id']}"
+        )
         assert row["question_id"].endswith(str(oc))
 
     # File written and loadable
