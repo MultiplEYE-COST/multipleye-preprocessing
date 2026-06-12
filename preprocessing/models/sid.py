@@ -24,7 +24,6 @@ class Sid:
         country: Optional[str] = None,
         lab: Optional[str] = None,
         session: Optional[str] = None,
-        session_id: Optional[int] = None,
         postfix: str = "",
     ):
         if sid is not None and any(
@@ -103,8 +102,9 @@ class Sid:
     def base_id(self) -> str:
         """Returns the SID without the session part."""
         base = f"{self.pid}_{self.lang}_{self.country}_{self.lab}"
-        if self.postfix:
-            return f"{base}_{self.postfix}"
+        # the postfix does not have to be added really. But need to test it.
+        # if self.postfix:
+        #     return f"{base}_{self.postfix}"
         return base
 
     @property
@@ -153,13 +153,12 @@ class Sid:
         if not isinstance(other, Sid):
             return False
 
-        # Check all parts except session
+        # Check all parts except session and postfix
         if (
             self.pid != other.pid
             or self.lang.upper() != other.lang.upper()
             or self.country.upper() != other.country.upper()
             or self.lab != other.lab
-            or self.postfix != other.postfix
         ):
             return False
 

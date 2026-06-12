@@ -525,9 +525,8 @@ class MultipleyeDataCollection:
         if not output_dir:
             output_dir = self.reports_dir
 
-        session_save_name = self._get_session_save_name(session_name)
         session_results = (
-            Path(output_dir) / settings.SANITY_CHECKS_FOLDER / session_save_name
+            Path(output_dir) / settings.SANITY_CHECKS_FOLDER / session_name
         )
         os.makedirs(session_results, exist_ok=True)
 
@@ -637,7 +636,6 @@ class MultipleyeDataCollection:
 
     def create_session_overview(self, session_idf: str, path: str | Path = "") -> dict:
         sess = self.sessions[session_idf]
-        session_save_name = self._get_session_save_name(session_idf)
 
         if not path:
             overview_path = self.data_root.parent / f"{session_idf}_overview.yaml"
@@ -645,7 +643,7 @@ class MultipleyeDataCollection:
             overview_path = (
                 Path(path)
                 / settings.METADATA_FOLDER
-                / session_save_name
+                / session_idf
                 / f"{session_idf}_overview.yaml"
             )
             overview_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1192,10 +1190,10 @@ class MultipleyeDataCollection:
             )
         except ValueError:
             raise ValueError(
-                "The reading times could not be computed properly. Please check 1) if the completed "
+                f"The reading times could not be computed properly for {session_identifier}. Please check 1) if the completed "
                 "stimulus file is alright (i.e. completed should be 1 for all, no missing values, etc.), "
                 "2) if anything happened during the session (crash or "
-                "technical errors), 3) contact the support team."
+                "technical errors, e.g. check the end of the asc file if it looks normal), 3) contact the support team."
             )
 
         df.to_csv(

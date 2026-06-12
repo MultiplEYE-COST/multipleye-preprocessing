@@ -22,7 +22,7 @@ def test_reading_measures_check_uses_session_save_name():
     save_reading_measures_line = None
 
     for i, line in enumerate(lines):
-        if "settings.READING_MEASURES_FOLDER / session_save_name" in line:
+        if "settings.READING_MEASURES_FOLDER / idf" in line:
             output_folder_line = i
         if "preprocessing.save_reading_measures(" in line:
             save_reading_measures_line = i
@@ -34,7 +34,7 @@ def test_reading_measures_check_uses_session_save_name():
 
     context_around_check = "\n".join(lines[output_folder_line : output_folder_line + 5])
 
-    assert "session_save_name" in context_around_check, (
-        "Bug: The check for existing reading measures should use session_save_name, not output_folder. "
-        f"Found:\n{context_around_check}\n\nExpected 'session_save_name' in the check."
+    assert "idf" in context_around_check, (
+        "The check for existing reading measures should use idf (full session identifier) for the folder. "
+        f"Found:\n{context_around_check}\n\nExpected 'idf' in the check."
     )

@@ -373,6 +373,9 @@ class Settings:
         #: Expected number of questions for practice stimuli.
         self.NUM_QUESTIONS_PRACTICE = 2
 
+        #: Number of versions of stimuli orders and question versions
+        self.NUM_STIMULUS_ORDER_VERSIONS = 250
+
         # --- FOLDER AND FILE NAMES ---
 
         #: Columns that uniquely identify a trial.

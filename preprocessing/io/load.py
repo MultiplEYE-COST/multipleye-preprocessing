@@ -176,7 +176,7 @@ def load_trial_level_raw_data(
 def load_trial_level_events_data(
     gaze: pm.Gaze,
     directory: Path,
-    session: str,
+    idf: str,
     event_type: str,
     file_pattern: str | None = None,
 ) -> pm.Gaze:
@@ -193,7 +193,7 @@ def load_trial_level_events_data(
         An object containing gaze data and associated event information.
     directory : Path
         The base directory for preprocessed data.
-    session : str
+    session : str  # TODO: correct docstring
         The session identifier.
     event_type : str
         The type of event to load, must be one of the keys in `DEFAULT_EVENT_PROPERTIES`.
@@ -207,9 +207,9 @@ def load_trial_level_events_data(
         The updated gaze object with the loaded and integrated event data.
     """
     if event_type == "fixation":
-        data_folder = Path(directory) / settings.FIXATIONS_FOLDER / session
+        data_folder = Path(directory) / settings.FIXATIONS_FOLDER / idf
     elif event_type == "saccade":
-        data_folder = Path(directory) / settings.SACCADES_FOLDER / session
+        data_folder = Path(directory) / settings.SACCADES_FOLDER / idf
     else:
         raise ValueError(
             f"event_type must be {list(settings.EVENT_PROPERTIES.keys())}, got {event_type}"

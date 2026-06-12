@@ -9,8 +9,23 @@ import pymovements as pm
 from ..config import settings
 
 
-def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
-    directory = Path(directory) / settings.RAW_DATA_FOLDER / session
+def save_raw_data(
+    directory: Path, session: str, data: pm.Gaze, completed_stimuli: list
+) -> None:
+    """
+    Saves raw gaze data in separate csv files per trial.
+
+    Parameters
+    ----------
+    directory : Path
+        The directory where the raw data should be stored.
+    session : str
+        The name of the session (used for filenames).
+    data : pm.Gaze
+        The gaze data as a pymovements Gaze object.
+    completed_stimuli : list
+        List of stimulus IDs that are completed and should be saved.
+    """
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()
@@ -25,6 +40,9 @@ def save_raw_data(directory: Path, session: str, data: pm.Gaze) -> None:
         df = trial.samples
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
+        stimulus_no = stimulus.split("_")[-1]
+        if int(stimulus_no) not in completed_stimuli:
+            continue
         name = f"{session}_{trial}_{stimulus}_raw_data.csv"
         df = df["time", "pixel_x", "pixel_y", "pupil", "page"]
         df.write_csv(directory / name)
@@ -34,6 +52,7 @@ def save_events_data(
     event_type: str,
     directory: Path,
     session: str,
+    session_idf: str,
     split_column: str,
     name_columns: list[str],
     file_columns: list[str],
@@ -42,15 +61,27 @@ def save_events_data(
     """
     Saves events data (fixations or saccades) in separate csv files. The input is expected to be
     produced with pymovements.
-    :param event_type: what type of event should be stored. Either "fixation" or "saccade".
-    :param directory: the directory where the events data should be stored. The function will create a subfolder
-    for the session and event type (fixations or saccades).
-    :param session: The name of the session.
-    :param split_column: What column to split the events data by. The function will create a separate file for each
-    unique value in this column.
-    :param name_columns: Column values per split that should be included in the file name.
-    :param file_columns: Columns that should be included in the saved csv file.
-    :param data: The events data as a pymovements Gaze object.
+
+    Parameters
+    ----------
+    event_type : str
+        What type of event should be stored. Either "fixation" or "saccade".
+    directory : Path
+        The directory where the events data should be stored. The function will create a subfolder
+        for the session and event type (fixations or saccades).
+    session : str
+        The name of the session (used for filenames).
+    session_idf : str
+        The full session identifier (used for folder names).
+    split_column : str
+        What column to split the events data by. The function will create a separate file for each
+        unique value in this column.
+    name_columns : list of str
+        Column values per split that should be included in the file name.
+    file_columns : list of str
+        Columns that should be included in the saved csv file.
+    data : pm.Gaze
+        The events data as a pymovements Gaze object.
     """
 
     if event_type not in ["fixation", "saccade"]:
@@ -59,9 +90,9 @@ def save_events_data(
         )
 
     directory = (
-        Path(directory) / settings.FIXATIONS_FOLDER / session
+        Path(directory) / settings.FIXATIONS_FOLDER / session_idf
         if event_type == "fixation"
-        else Path(directory) / settings.SACCADES_FOLDER / session
+        else Path(directory) / settings.SACCADES_FOLDER / session_idf
     )
     directory.mkdir(parents=True, exist_ok=True)
 
@@ -83,8 +114,24 @@ def save_events_data(
         df.write_csv(directory / name)
 
 
-def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
-    directory = Path(directory) / settings.SCANPATHS_FOLDER / session
+def save_scanpaths(
+    directory: Path, session: str, session_idf: str, data: pm.Gaze
+) -> None:
+    """
+    Saves scanpaths in separate csv files per trial.
+
+    Parameters
+    ----------
+    directory : Path
+        The directory where the scanpaths should be stored.
+    session : str
+        The name of the session (used for filenames).
+    session_idf : str
+        The full session identifier (used for folder names).
+    data : pm.Gaze
+        The gaze data as a pymovements Gaze object.
+    """
+    directory = Path(directory) / settings.SCANPATHS_FOLDER / session_idf
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()
@@ -131,8 +178,24 @@ def save_scanpaths(directory: Path, session: str, data: pm.Gaze) -> None:
         df.write_csv(directory / name)
 
 
-def save_reading_measures(directory: Path, session: str, data: pl.DataFrame) -> None:
-    directory = Path(directory) / settings.READING_MEASURES_FOLDER / session
+def save_reading_measures(
+    directory: Path, session: str, session_idf: str, data: pl.DataFrame
+) -> None:
+    """
+    Saves reading measures in separate csv files per trial.
+
+    Parameters
+    ----------
+    directory : Path
+        The directory where the reading measures should be stored.
+    session : str
+        The name of the session (used for filenames).
+    session_idf : str
+        The full session identifier (used for folder names).
+    data : pl.DataFrame
+        The reading measures as a polars DataFrame.
+    """
+    directory = Path(directory) / settings.READING_MEASURES_FOLDER / session_idf
     directory.mkdir(parents=True, exist_ok=True)
 
     trials = data.partition_by(by="trial", as_dict=False)
@@ -145,8 +208,20 @@ def save_reading_measures(directory: Path, session: str, data: pl.DataFrame) -> 
         trial.write_csv(directory / name)
 
 
-def save_session_metadata(directory: Path, session: str, gaze: pm.Gaze) -> None:
-    metadata_directory = Path(directory) / settings.METADATA_FOLDER / session
+def save_session_metadata(directory: Path, gaze: pm.Gaze, session_idf: str) -> None:
+    """
+    Saves session metadata in a json file and also saves the gaze object's metadata.
+
+    Parameters
+    ----------
+    directory : Path
+        The directory where the metadata should be stored.
+    gaze : pm.Gaze
+        The gaze data as a pymovements Gaze object.
+    session_idf : str
+        The full session identifier (used for folder names).
+    """
+    metadata_directory = Path(directory) / settings.METADATA_FOLDER / session_idf
     metadata_directory.mkdir(parents=True, exist_ok=True)
 
     metadata = gaze._metadata

@@ -8,7 +8,7 @@ FFD - (first-fixation duration) duration of the first fixation on a word if this
 
 FPRT - (first-pass reading time) sum of the durations of all first-pass fixations on a word (0 if the word was skipped in the first-pass)
 
-FPFC - (first pass fixation count) number of of all first-pass fixations on a word
+FPFC - (first pass fixation count) number of all first-pass fixations on a word
 
 FD - (first duration) duration of the first fixation on a word (identical to FFD if not skipped in the first-pass)
 
