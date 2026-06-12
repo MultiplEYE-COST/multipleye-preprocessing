@@ -322,6 +322,18 @@ def collect_session_answers(
             pl.lit(None).alias("answer_text").cast(pl.Utf8),
         )
 
+    # Drop unanswered practice trial rows
+    n_before = long_df.height
+    long_df = long_df.filter(
+        ~(
+            pl.col("trial").str.starts_with("PRACTICE_")
+            & pl.col("final_answer_key").is_null()
+        )
+    )
+    n_dropped = n_before - long_df.height
+    if n_dropped > 0:
+        logger.debug(f"Dropped {n_dropped} unanswered practice trial row(s).")
+
     # Sort output file by trial and then slot
     slot_order = {
         "local_question_1": 0,

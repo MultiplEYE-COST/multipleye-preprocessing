@@ -453,7 +453,6 @@ class TestOutputColumns:
         [
             ("trial_1", "trial_1"),
             ("trial_7", "trial_7"),
-            ("PRACTICE_trial_1", "PRACTICE_trial_1"),
             (1, "trial_1"),
             (7, "trial_7"),
         ],
@@ -462,6 +461,26 @@ class TestOutputColumns:
         mapping = {trial_key: "Stim"}
         df = collect_session_answers(qcsv, mapping)
         assert df[0, "trial"] == expected_trial
+
+    def test_trial_column_naming_practice(self, qcsv):
+        """Practice trial naming requires answer data (unanswered practice rows are dropped)."""
+        msgs = _make_messages(
+            trial="PRACTICE_trial_1",
+            stim_name="Stim",
+            stim_id="1",
+            question_id="1111",
+            prelim_keys=[(2000, "target_key")],
+            final_key=(2600, "target_key"),
+            correct=True,
+        )
+        parsed = parse_answers_from_messages(msgs)
+        df = collect_session_answers(
+            qcsv,
+            {"PRACTICE_trial_1": "Stim"},
+            parsed_answers=parsed,
+            completed_stimuli_ids=[1],
+        )
+        assert df[0, "trial"] == "PRACTICE_trial_1"
 
     # --- stimulus naming ---
 
@@ -516,8 +535,5 @@ def test_practice_trial_answers(tmp_path):
         qcsv, mapping, stimuli=stimuli, out_path=out_path, completed_stimuli_ids=[13]
     )
 
-    assert len(result) == 6
-    assert result[0, "trial"] == "PRACTICE_trial_1"
-    assert result[0, "stimulus"] == "Enc_WikiMoon"
-    q11 = result.filter(pl.col("order_code") == 11)
-    assert q11[0, "correct_answer_text"] == "Correct"
+    assert result.is_empty()  # unanswered practice rows are dropped
+    assert out_path.read_text().strip().endswith("answer_source")  # header only
