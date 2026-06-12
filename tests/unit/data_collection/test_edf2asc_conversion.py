@@ -102,3 +102,85 @@ def test_convert_edf_to_asc_conversion_logic(
                 assert mock_run.call_args[0][0][0] == "edf2asc"
             else:
                 mock_run.assert_not_called()
+
+
+def test_convert_edf_to_asc_conversion_failure(data_collection, mock_session):
+    """Test error handling when ASC file is not created after conversion."""
+    output_dir = Path("/fake/output")
+    asc_folder = Path("asc")
+
+    with patch(
+        "preprocessing.data_collection.multipleye_data_collection.settings"
+    ) as mock_settings:
+        mock_settings.OUTPUT_DIR = output_dir
+        mock_settings.ASC_FOLDER = asc_folder
+        mock_settings.FORCE_RECONVERT_ASC = False
+
+        with (
+            patch("shutil.which", return_value="/usr/bin/edf2asc"),
+            patch.object(Path, "exists", return_value=False),
+            patch("subprocess.run"),
+            patch("shutil.copy2") as mock_copy,
+            patch.object(Path, "mkdir"),
+            patch(
+                "preprocessing.data_collection.multipleye_data_collection.tqdm",
+                side_effect=lambda x, **kwargs: x,
+            ),
+        ):
+            data_collection.convert_edf_to_asc()
+
+            data_collection.logger.error.assert_called_once_with(
+                "Failed to convert EDF to ASC for S001"
+            )
+            mock_copy.assert_not_called()
+
+
+def test_convert_edf_to_asc_postfix_identifier():
+    """Test session identifiers with postfixes are preserved in ASC folder paths."""
+    postfix_session_id = "001_EN_UK_1_ET1_start_after_trial_4"
+    output_dir = Path("/fake/output")
+    asc_folder = Path("asc")
+    expected_asc_path = (
+        output_dir / asc_folder / postfix_session_id / f"{postfix_session_id}.asc"
+    )
+
+    mock_ses = MagicMock(spec=Session)
+    mock_ses.session_file_path = Path("/fake/data/001/001.edf")
+
+    with patch("preprocessing.data_collection.multipleye_data_collection.get_logger"):
+        dc = MultipleyeDataCollection.__new__(MultipleyeDataCollection)
+        dc.sessions = {postfix_session_id: mock_ses}
+        dc.eye_tracker = "eyelink"
+        dc.logger = MagicMock()
+
+    def exists_side_effect(self_path):
+        path_str = str(self_path)
+        if path_str == str(expected_asc_path):
+            return False  # output asc missing, trigger conversion
+        if path_str.endswith(".asc"):
+            return True  # local asc exists after conversion
+        return False
+
+    with patch(
+        "preprocessing.data_collection.multipleye_data_collection.settings"
+    ) as mock_settings:
+        mock_settings.OUTPUT_DIR = output_dir
+        mock_settings.ASC_FOLDER = asc_folder
+        mock_settings.FORCE_RECONVERT_ASC = False
+
+        with (
+            patch("shutil.which", return_value="/usr/bin/edf2asc"),
+            patch.object(Path, "exists", autospec=True) as mock_exists,
+            patch("subprocess.run"),
+            patch("shutil.copy2"),
+            patch.object(Path, "mkdir"),
+            patch(
+                "preprocessing.data_collection.multipleye_data_collection.tqdm",
+                side_effect=lambda x, **kwargs: x,
+            ),
+        ):
+            mock_exists.side_effect = exists_side_effect
+
+            dc.convert_edf_to_asc()
+
+            assert mock_ses.asc_path == expected_asc_path

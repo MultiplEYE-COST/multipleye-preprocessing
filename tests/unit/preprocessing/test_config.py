@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import logging
 import pytest
 import yaml
@@ -18,6 +20,10 @@ def settings_obj():
         ("EXPECTED_SAMPLING_RATE_HZ", 1000),
         ("FIXATION", "fixation"),
         ("SACCADE", "saccade"),
+        ("ASC_FOLDER", Path("asc/")),
+        ("FORCE_RECONVERT_ASC", False),
+        ("SANITY_CHECKS_FOLDER", Path("sanity_checks/")),
+        ("METADATA_FOLDER", Path("metadata/")),
     ],
 )
 def test_settings_default_values(settings_obj, attr, expected):

@@ -184,6 +184,29 @@ def test_save_load_metadata_structure(tmp_path, dummy_gaze):
     assert len(loaded_gaze.validations) > 0
 
 
+def test_save_events_data_invalid_event_type(tmp_path, dummy_gaze):
+    with pytest.raises(
+        ValueError, match="Only fixations and saccades are currently supported"
+    ):
+        save_events_data(
+            "invalid_event",
+            tmp_path,
+            "session",
+            "session_idf",
+            "trial",
+            ["stimulus"],
+            ["name"],
+            dummy_gaze,
+        )
+
+
+def test_load_trial_level_events_data_invalid_event_type(tmp_path, dummy_gaze):
+    with pytest.raises(ValueError, match="event_type must be "):
+        load_trial_level_events_data(
+            dummy_gaze, tmp_path, "session_idf", "invalid_event"
+        )
+
+
 def test_load_reading_measures_with_actual_filenames(tmp_path):
     # Setup: Create dummy reading measures files with the reported naming convention
     session = "017_DA_DK_1_ET1"
