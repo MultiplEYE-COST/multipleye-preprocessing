@@ -68,6 +68,35 @@ def get_pipeline_info() -> tuple[str, str]:
     return version, last_update
 
 
+def get_edf2asc_version() -> str:
+    """Get the version of the edf2asc executable.
+
+    Returns
+    -------
+    str
+        edf2asc version or "unknown".
+    """
+    try:
+        output = subprocess.run(
+            ["edf2asc", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout
+        # Find the line starting with "EDF2ASC version"
+        for line in output.splitlines():
+            if "EDF2ASC version" in line:
+                return line.strip()
+        # Fallback if the string is not found but command succeeded
+        return (
+            output.splitlines()[1].strip()
+            if len(output.splitlines()) > 1
+            else "unknown"
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return "unknown"
+
+
 def setup_logging(
     log_file: Path | str | None = None,
     console_level: int | str | None = None,
@@ -208,6 +237,7 @@ def setup_logging(
     logger.log(version_log_level, f"Pipeline version: {pipeline_version}")
     logger.log(version_log_level, f"Last updated (git): {last_update}")
     logger.log(version_log_level, f"pymovements version: {pm.__version__}")
+    logger.log(version_log_level, f"edf2asc version: {get_edf2asc_version()}")
 
     _logging_initialized = True
 
