@@ -636,6 +636,7 @@ class MultipleyeDataCollection:
 
             (
                 self.sessions[session].completed_stimuli_ids,
+                self.sessions[session].completed_stimuli_names,
                 self.sessions[session].stimuli_trial_mapping,
             ) = self._load_session_completed_stimuli(session)
             self.sessions[session].messages = self._parse_asc(session)
@@ -792,7 +793,9 @@ class MultipleyeDataCollection:
             )
         return logfile
 
-    def _load_session_completed_stimuli(self, session_identifier):
+    def _load_session_completed_stimuli(
+        self, session_identifier
+    ) -> tuple[list, list, dict]:
         session_path = self.sessions[session_identifier].session_folder_path
         logfile_folder = Path(f"{session_path}/logfiles")
         completed_stim_path = logfile_folder / "completed_stimuli.csv"
@@ -834,11 +837,17 @@ class MultipleyeDataCollection:
             completed_stimuli = completed_stimuli[:-1]
 
         completed_stimuli = completed_stimuli.cast({"completed": pl.Int8})
-        completed_stimuli = completed_stimuli.filter(
+        completed_stimuli_ids = completed_stimuli.filter(
             completed_stimuli["completed"] == 1
         )["stimulus_id"].to_list()
+        # get completed stimuli completes names, i.e. name + id
+        completed_stimulus_names = completed_stimuli["stimulus_name"].to_list()
+        completed_stimulus_names = [
+            str(name) + "_" + str(stim_id)
+            for name, stim_id in zip(completed_stimulus_names, completed_stimuli_ids)
+        ]
 
-        return completed_stimuli, stimuli_trial_mapping
+        return completed_stimuli_ids, completed_stimulus_names, stimuli_trial_mapping
 
     def _load_session_stimulus_order(
         self, session_identifier, logfile_order_version: int

@@ -10,7 +10,9 @@ from ..config import settings
 
 
 def save_raw_data(
-    directory: Path, session: str, data: pm.Gaze, completed_stimuli: list
+    directory: Path,
+    session: str,
+    data: pm.Gaze,
 ) -> None:
     """
     Saves raw gaze data in separate csv files per trial.
@@ -40,9 +42,6 @@ def save_raw_data(
         df = trial.samples
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
-        stimulus_no = stimulus.split("_")[-1]
-        if int(stimulus_no) not in completed_stimuli:
-            continue
         name = f"{session}_{trial}_{stimulus}_raw_data.csv"
         df = df["time", "pixel_x", "pixel_y", "pupil", "page"]
         df.write_csv(directory / name)
