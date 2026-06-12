@@ -25,8 +25,6 @@ def save_raw_data(
         The name of the session (used for filenames).
     data : pm.Gaze
         The gaze data as a pymovements Gaze object.
-    completed_stimuli : list
-        List of stimulus IDs that are completed and should be saved.
     """
     directory.mkdir(parents=True, exist_ok=True)
 

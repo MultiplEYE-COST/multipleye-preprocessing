@@ -193,8 +193,8 @@ def load_trial_level_events_data(
         An object containing gaze data and associated event information.
     directory : Path
         The base directory for preprocessed data.
-    session : str  # TODO: correct docstring
-        The session identifier.
+    idf : str
+        The full session identifier (used for folder names).
     event_type : str
         The type of event to load, must be one of the keys in `DEFAULT_EVENT_PROPERTIES`.
     file_pattern : str, optional
@@ -281,6 +281,22 @@ def load_reading_measures(
     session: str,
     file_pattern: str = r".*?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv",
 ) -> pl.DataFrame:
+    """Load reading measures from CSV files.
+
+    Parameters
+    ----------
+    directory : Path
+        The base directory for preprocessed data.
+    session : str
+        The session identifier.
+    file_pattern : str, optional
+        Regex pattern to extract trial and stimulus from filenames.
+
+    Returns
+    -------
+    pl.DataFrame
+        A DataFrame containing the concatenated reading measures data.
+    """
     data_folder = Path(directory) / settings.READING_MEASURES_FOLDER / session
     # Use glob to find all csv files first, as Path.glob() does not support regex
     files = [f for f in data_folder.glob("*.csv") if re.match(file_pattern, f.name)]
