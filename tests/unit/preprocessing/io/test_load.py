@@ -3,6 +3,7 @@ import pytest
 from preprocessing.io.load import load_gaze_data
 from preprocessing.data_collection.stimulus import LabConfig
 from preprocessing.config import settings
+from preprocessing.models.sid import Sid
 
 
 @pytest.fixture
@@ -55,7 +56,7 @@ def test_load_gaze_data_with_messages(synthetic_asc, lab_config):
     gaze = load_gaze_data(
         asc_file=synthetic_asc,
         lab_config=lab_config,
-        session_idf="synthetic_session",
+        sid=Sid("001_SV_CH_Zurich_S1_ET1"),
         messages=True,
     )
 
@@ -87,7 +88,9 @@ def test_load_gaze_data_with_messages(synthetic_asc, lab_config):
 def test_load_gaze_data_without_messages(synthetic_asc, lab_config):
     # Load with messages=False (default)
     gaze = load_gaze_data(
-        asc_file=synthetic_asc, lab_config=lab_config, session_idf="synthetic_session"
+        asc_file=synthetic_asc,
+        lab_config=lab_config,
+        sid=Sid("001_SV_CH_Zurich_S1_ET1"),
     )
 
     # Assertions
@@ -109,7 +112,7 @@ def test_load_gaze_data_messages_none(synthetic_asc, lab_config):
     gaze = load_gaze_data(
         asc_file=synthetic_asc,
         lab_config=lab_config,
-        session_idf="synthetic_session",
+        sid=Sid("001_SV_CH_Zurich_S1_ET1"),
         messages=None,
     )
 
@@ -132,7 +135,7 @@ def test_load_gaze_data_with_patterns(synthetic_asc, lab_config):
     gaze = load_gaze_data(
         asc_file=synthetic_asc,
         lab_config=lab_config,
-        session_idf="synthetic_session",
+        sid=Sid("001_SV_CH_Zurich_S1_ET1"),
         messages=settings.ANSWER_MSG_PATTERNS,
     )
 
