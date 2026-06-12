@@ -14,6 +14,14 @@ from preprocessing.io.load import (
     load_reading_measures,
 )
 from preprocessing.config import settings
+from preprocessing.models.sid import Sid
+
+SID_STRINGS = ["001_EN_UK_1_S1", "017_DA_DK_1_ET1_start_after_trial_3"]
+
+EVENT_FOLDERS = {
+    "fixation": settings.FIXATIONS_FOLDER,
+    "saccade": settings.SACCADES_FOLDER,
+}
 
 
 @pytest.fixture
@@ -68,99 +76,80 @@ def dummy_gaze():
     return gaze
 
 
-def test_save_load_raw_data_structure(tmp_path, dummy_gaze):
-    session = "test_session"
-    raw_data_folder = tmp_path / settings.RAW_DATA_FOLDER / session
-    save_raw_data(raw_data_folder, session, dummy_gaze)
-    assert raw_data_folder.exists()
-    assert (raw_data_folder / f"{session}_trial_1_Enc_WikiMoon_1_raw_data.csv").exists()
+@pytest.mark.parametrize("sid_str", SID_STRINGS)
+def test_save_load_raw_data_structure(tmp_path, dummy_gaze, sid_str):
+    sid = Sid(sid_str)
+    save_raw_data(tmp_path, sid, dummy_gaze)
+    expected_path = tmp_path / settings.RAW_DATA_FOLDER / str(sid)
+    assert expected_path.exists()
+    assert (
+        expected_path / f"{sid.id_no_postfix}_trial_1_Enc_WikiMoon_1_raw_data.csv"
+    ).exists()
 
     loaded_gaze = load_trial_level_raw_data(
-        tmp_path, session, trial_columns=["trial", "stimulus", "page"]
+        tmp_path, sid, trial_columns=["trial", "stimulus", "page"]
     )
     assert len(loaded_gaze.samples) == 3
 
 
-def test_save_load_fixations_structure(tmp_path, dummy_gaze):
-    session = "test_session"
-    session_idf = "001_EN_UK_1_S1"
+@pytest.mark.parametrize("event_type", ["fixation", "saccade"])
+@pytest.mark.parametrize("sid_str", SID_STRINGS)
+def test_save_load_events_structure(tmp_path, dummy_gaze, event_type, sid_str):
+    sid = Sid(sid_str)
     save_events_data(
-        "fixation",
+        event_type,
         tmp_path,
-        session,
-        session_idf,
+        sid,
         "trial",
         ["stimulus"],
         ["name", "start", "end", "trial", "stimulus", "page"],
         dummy_gaze,
     )
-    expected_path = tmp_path / settings.FIXATIONS_FOLDER / session_idf
+    expected_path = tmp_path / EVENT_FOLDERS[event_type] / str(sid)
     assert expected_path.exists()
-    assert (expected_path / f"{session}_Enc_WikiMoon_1_fixation.csv").exists()
+    assert (
+        expected_path / f"{sid.id_no_postfix}_Enc_WikiMoon_1_{event_type}.csv"
+    ).exists()
 
-    loaded_gaze = load_trial_level_events_data(
-        dummy_gaze, tmp_path, session_idf, "fixation"
-    )
-    assert len(loaded_gaze.events.frame.filter(pl.col("name") == "fixation")) >= 1
+    loaded_gaze = load_trial_level_events_data(dummy_gaze, tmp_path, sid, event_type)
+    assert len(loaded_gaze.events.frame.filter(pl.col("name") == event_type)) >= 1
 
 
-def test_save_load_saccades_structure(tmp_path, dummy_gaze):
-    session = "test_session"
-    session_idf = "001_EN_UK_1_S1"
-    save_events_data(
-        "saccade",
-        tmp_path,
-        session,
-        session_idf,
-        "trial",
-        ["stimulus"],
-        ["name", "start", "end", "trial", "stimulus", "page"],
-        dummy_gaze,
-    )
-    expected_path = tmp_path / settings.SACCADES_FOLDER / session_idf
+@pytest.mark.parametrize("sid_str", SID_STRINGS)
+def test_save_scanpaths_structure(tmp_path, dummy_gaze, sid_str):
+    sid = Sid(sid_str)
+    save_scanpaths(tmp_path, sid, dummy_gaze)
+    expected_path = tmp_path / settings.SCANPATHS_FOLDER / str(sid)
     assert expected_path.exists()
-    assert (expected_path / f"{session}_Enc_WikiMoon_1_saccade.csv").exists()
-
-    loaded_gaze = load_trial_level_events_data(
-        dummy_gaze, tmp_path, session_idf, "saccade"
-    )
-    assert len(loaded_gaze.events.frame.filter(pl.col("name") == "saccade")) >= 1
+    assert (
+        expected_path / f"{sid.id_no_postfix}_trial_1_Enc_WikiMoon_1_scanpath.csv"
+    ).exists()
 
 
-def test_save_scanpaths_structure(tmp_path, dummy_gaze):
-    session = "test_session"
-    session_idf = "001_EN_UK_1_S1"
-    save_scanpaths(tmp_path, session, session_idf, dummy_gaze)
-    expected_path = tmp_path / settings.SCANPATHS_FOLDER / session_idf
-    assert expected_path.exists()
-    assert (expected_path / f"{session}_trial_1_Enc_WikiMoon_1_scanpath.csv").exists()
-
-
-def test_save_load_reading_measures_structure(tmp_path):
-    session = "test_session"
-    session_idf = "001_EN_UK_1_S1"
+@pytest.mark.parametrize("sid_str", SID_STRINGS)
+def test_save_load_reading_measures_structure(tmp_path, sid_str):
+    sid = Sid(sid_str)
     df_rm = pl.DataFrame(
         {"trial": ["trial_1"], "stimulus": ["Enc_WikiMoon_1"], "val": [1.0]}
     )
-    save_reading_measures(tmp_path, session, session_idf, df_rm)
-    expected_path = tmp_path / settings.READING_MEASURES_FOLDER / session_idf
+    save_reading_measures(tmp_path, sid, df_rm)
+    expected_path = tmp_path / settings.READING_MEASURES_FOLDER / str(sid)
     assert expected_path.exists()
     assert (
-        expected_path / f"{session}_trial_1_Enc_WikiMoon_1_reading_measures.csv"
+        expected_path
+        / f"{sid.id_no_postfix}_trial_1_Enc_WikiMoon_1_reading_measures.csv"
     ).exists()
 
-    loaded_rm = load_reading_measures(tmp_path, session_idf)
+    loaded_rm = load_reading_measures(tmp_path, sid)
     assert len(loaded_rm) == 1
 
 
-def test_save_load_metadata_structure(tmp_path, dummy_gaze):
-    session = "test_session"
-    session_idf = "001_EN_UK_1_S1"
-    raw_data_folder = tmp_path / settings.RAW_DATA_FOLDER / session_idf
-    # First save raw data because load_trial_level_raw_data expects it
-    save_raw_data(raw_data_folder, session, dummy_gaze)
-    save_session_metadata(tmp_path, dummy_gaze, session_idf)
-    expected_path = tmp_path / settings.METADATA_FOLDER / session_idf
+@pytest.mark.parametrize("sid_str", SID_STRINGS)
+def test_save_load_metadata_structure(tmp_path, dummy_gaze, sid_str):
+    sid = Sid(sid_str)
+    save_raw_data(tmp_path, sid, dummy_gaze)
+    save_session_metadata(tmp_path, dummy_gaze, sid)
+    expected_path = tmp_path / settings.METADATA_FOLDER / str(sid)
     assert expected_path.exists()
     assert (expected_path / "gaze_metadata.json").exists()
     assert (expected_path / "calibrations.feather").exists()
@@ -175,7 +164,7 @@ def test_save_load_metadata_structure(tmp_path, dummy_gaze):
 
     loaded_gaze = load_trial_level_raw_data(
         tmp_path,
-        session_idf,
+        sid,
         trial_columns=["trial", "stimulus", "page"],
         load_metadata=True,
     )
@@ -184,15 +173,16 @@ def test_save_load_metadata_structure(tmp_path, dummy_gaze):
     assert len(loaded_gaze.validations) > 0
 
 
-def test_save_events_data_invalid_event_type(tmp_path, dummy_gaze):
+@pytest.mark.parametrize("invalid_type", ["", "blinks", "INVALID"])
+def test_save_events_data_invalid_event_type(tmp_path, dummy_gaze, invalid_type):
+    sid = Sid("001_EN_UK_1_S1")
     with pytest.raises(
         ValueError, match="Only fixations and saccades are currently supported"
     ):
         save_events_data(
-            "invalid_event",
+            invalid_type,
             tmp_path,
-            "session",
-            "session_idf",
+            sid,
             "trial",
             ["stimulus"],
             ["name"],
@@ -200,24 +190,25 @@ def test_save_events_data_invalid_event_type(tmp_path, dummy_gaze):
         )
 
 
-def test_load_trial_level_events_data_invalid_event_type(tmp_path, dummy_gaze):
+@pytest.mark.parametrize("invalid_type", ["", "blinks", "INVALID"])
+def test_load_trial_level_events_data_invalid_event_type(
+    tmp_path, dummy_gaze, invalid_type
+):
+    sid = Sid("001_EN_UK_1_S1")
     with pytest.raises(ValueError, match="event_type must be "):
-        load_trial_level_events_data(
-            dummy_gaze, tmp_path, "session_idf", "invalid_event"
-        )
+        load_trial_level_events_data(dummy_gaze, tmp_path, sid, invalid_type)
 
 
 def test_load_reading_measures_with_actual_filenames(tmp_path):
-    # Setup: Create dummy reading measures files with the reported naming convention
-    session = "017_DA_DK_1_ET1"
-    reading_measures_dir = tmp_path / settings.READING_MEASURES_FOLDER / session
+    sid = Sid("017_DA_DK_1_ET1")
+    reading_measures_dir = tmp_path / settings.READING_MEASURES_FOLDER / str(sid)
     reading_measures_dir.mkdir(parents=True)
 
     # Files as reported in the issue
     filenames = [
-        f"{session}_PRACTICE_trial_1_Enc_WikiMoon_reading_measures.csv",
-        f"{session}_trial_1_Lit_MagicMountain_reading_measures.csv",
-        f"{session}_trial_5_PopSci_MultiplEYE_reading_measures.csv",
+        f"{sid.id_no_postfix}_PRACTICE_trial_1_Enc_WikiMoon_reading_measures.csv",
+        f"{sid.id_no_postfix}_trial_1_Lit_MagicMountain_reading_measures.csv",
+        f"{sid.id_no_postfix}_trial_5_PopSci_MultiplEYE_reading_measures.csv",
     ]
 
     for filename in filenames:
@@ -225,7 +216,7 @@ def test_load_reading_measures_with_actual_filenames(tmp_path):
         df.write_csv(reading_measures_dir / filename)
 
     # Test loading
-    df_loaded = load_reading_measures(tmp_path, session)
+    df_loaded = load_reading_measures(tmp_path, sid)
 
     assert len(df_loaded) == 3
     assert set(df_loaded["trial"].unique()) == {
