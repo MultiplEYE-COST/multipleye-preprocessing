@@ -71,7 +71,7 @@ def dummy_gaze():
 def test_save_load_raw_data_structure(tmp_path, dummy_gaze):
     session = "test_session"
     raw_data_folder = tmp_path / settings.RAW_DATA_FOLDER / session
-    save_raw_data(raw_data_folder, session, dummy_gaze, completed_stimuli=[1])
+    save_raw_data(raw_data_folder, session, dummy_gaze)
     assert raw_data_folder.exists()
     assert (raw_data_folder / f"{session}_trial_1_Enc_WikiMoon_1_raw_data.csv").exists()
 
@@ -158,7 +158,7 @@ def test_save_load_metadata_structure(tmp_path, dummy_gaze):
     session_idf = "001_EN_UK_1_S1"
     raw_data_folder = tmp_path / settings.RAW_DATA_FOLDER / session_idf
     # First save raw data because load_trial_level_raw_data expects it
-    save_raw_data(raw_data_folder, session, dummy_gaze, completed_stimuli=[1])
+    save_raw_data(raw_data_folder, session, dummy_gaze)
     save_session_metadata(tmp_path, dummy_gaze, session_idf)
     expected_path = tmp_path / settings.METADATA_FOLDER / session_idf
     assert expected_path.exists()
