@@ -353,6 +353,9 @@ class Settings:
         #: Append to existing log files instead of overwriting.
         self.APPEND_LOGS: bool = False
 
+        #: Force recalculation of ASC files even if they already exist in the output folder.
+        self.FORCE_RECONVERT_ASC: bool = False
+
         #: The expected sampling rate of the eye tracker in Hertz.
         self.EXPECTED_SAMPLING_RATE_HZ: int = 1000
 
@@ -380,6 +383,9 @@ class Settings:
 
         #: Subfolder name for raw data.
         self.RAW_DATA_FOLDER = Path("raw_data/")
+
+        #: Subfolder name for ASC files.
+        self.ASC_FOLDER = Path("asc/")
 
         #: Subfolder name for fixation data.
         self.FIXATIONS_FOLDER = Path("fixations/")

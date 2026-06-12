@@ -193,7 +193,7 @@ def load_trial_level_events_data(
         An object containing gaze data and associated event information.
     directory : Path
         The base directory for preprocessed data.
-    session : str
+    session : str  # TODO: correct docstring
         The session identifier.
     event_type : str
         The type of event to load, must be one of the keys in `DEFAULT_EVENT_PROPERTIES`.
