@@ -232,6 +232,30 @@ class MultipleyeDataCollection:
                 pilots = list(pilots)
                 items = list(items) + pilots
 
+            # Check for sessions without a data file
+            sessions_missing_data = []
+            for item in items:
+                if item.is_dir() and re.match(
+                    session_folder_regex, item.name, re.IGNORECASE
+                ):
+                    # check if the session is excluded or included
+                    if self.included_sessions:
+                        if item.name not in self.included_sessions:
+                            continue
+                    elif self.excluded_sessions:
+                        if item.name in self.excluded_sessions:
+                            continue
+
+                    session_file = list(Path(item.path).glob("*" + session_file_suffix))
+                    if len(session_file) == 0:
+                        sessions_missing_data.append(item.name)
+
+            if sessions_missing_data:
+                raise ValueError(
+                    f"The following sessions are missing a data file matching '{session_file_suffix}' "
+                    f"and will be skipped: {sorted(sessions_missing_data)}"
+                )
+
             for item in items:
                 if item.is_dir():
                     if re.match(session_folder_regex, item.name, re.IGNORECASE):
