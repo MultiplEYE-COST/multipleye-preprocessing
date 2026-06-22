@@ -38,7 +38,7 @@ def save_raw_data(directory: Path, sid: Sid, data: pm.Gaze) -> None:
         df = trial.samples
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
-        name = f"{sid.id_no_postfix}_{trial}_{stimulus}_raw_data.csv"
+        name = f"{str(sid)}_{trial}_{stimulus}_raw_data.csv"
         df = df["time", "pixel_x", "pixel_y", "pupil", "page"]
         df.write_csv(directory / name)
 
@@ -93,7 +93,7 @@ def save_events_data(
     events = data_copy.events.frame.filter(pl.col("name") == event_type)
 
     for group in events.partition_by(split_column):
-        name = f"{sid.id_no_postfix}"
+        name = f"{str(sid)}"
         for col in name_columns:
             if col not in group.columns:
                 raise ValueError(f"Column {col} not found in events data.")
@@ -141,7 +141,7 @@ def save_scanpaths(directory: Path, sid: Sid, data: pm.Gaze) -> None:
             continue
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
-        name = f"{sid.id_no_postfix}_{trial}_{stimulus}_scanpath.csv"
+        name = f"{str(sid)}_{trial}_{stimulus}_scanpath.csv"
 
         df = df[
             "onset",
@@ -186,7 +186,7 @@ def save_reading_measures(directory: Path, sid: Sid, data: pl.DataFrame) -> None
     for trial in trials:
         trial_id = trial["trial"][0]
         stimulus = trial["stimulus"][0]
-        name = f"{sid.id_no_postfix}_{trial_id}_{stimulus}_reading_measures.csv"
+        name = f"{str(sid)}_{trial_id}_{stimulus}_reading_measures.csv"
         trial = trial.drop("stimulus", "trial")
         trial.write_csv(directory / name)
 

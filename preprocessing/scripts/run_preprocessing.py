@@ -323,7 +323,7 @@ def run_preprocessing(config_path: str | None = None):
                 settings.OUTPUT_DIR
                 / settings.ANSWERS_FOLDER
                 / str(sid)
-                / f"{sid.id_no_postfix}_answers.csv"
+                / f"{str(sid)}_answers.csv"
             )
 
             if answers_csv.exists() and not settings.OVERWRITE:

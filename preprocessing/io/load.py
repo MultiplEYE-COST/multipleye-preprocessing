@@ -289,7 +289,7 @@ def load_trial_level_events_data(
 def load_reading_measures(
     directory: Path,
     sid: Sid,
-    file_pattern: str = r".*?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv",
+    file_pattern: str = r".+?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv",
 ) -> pl.DataFrame:
     """Load reading measures from CSV files.
 

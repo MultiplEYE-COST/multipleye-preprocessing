@@ -214,6 +214,14 @@ def test_sid_get_session_save_name(session_idf, expected_save_name):
     assert Sid.get_session_save_name(session_idf) == expected_save_name
 
 
+def test_sid_get_session_save_name_include_postfix():
+    sid_str = "003_DE_DE_1_ET1_full_restart"
+    assert (
+        Sid.get_session_save_name(sid_str, include_postfix=False) == "003_DE_DE_1_ET1"
+    )
+    assert Sid.get_session_save_name(sid_str, include_postfix=True) == sid_str
+
+
 @pytest.mark.parametrize(
     "sid1_str, sid2_str, expected_match",
     [
