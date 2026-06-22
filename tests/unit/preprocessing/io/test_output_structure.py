@@ -82,9 +82,7 @@ def test_save_load_raw_data_structure(tmp_path, dummy_gaze, sid_str):
     save_raw_data(tmp_path, sid, dummy_gaze)
     expected_path = tmp_path / settings.RAW_DATA_FOLDER / str(sid)
     assert expected_path.exists()
-    assert (
-        expected_path / f"{sid.id_no_postfix}_trial_1_Enc_WikiMoon_1_raw_data.csv"
-    ).exists()
+    assert (expected_path / f"{str(sid)}_trial_1_Enc_WikiMoon_1_raw_data.csv").exists()
 
     loaded_gaze = load_trial_level_raw_data(
         tmp_path, sid, trial_columns=["trial", "stimulus", "page"]
@@ -107,9 +105,7 @@ def test_save_load_events_structure(tmp_path, dummy_gaze, event_type, sid_str):
     )
     expected_path = tmp_path / EVENT_FOLDERS[event_type] / str(sid)
     assert expected_path.exists()
-    assert (
-        expected_path / f"{sid.id_no_postfix}_Enc_WikiMoon_1_{event_type}.csv"
-    ).exists()
+    assert (expected_path / f"{str(sid)}_Enc_WikiMoon_1_{event_type}.csv").exists()
 
     loaded_gaze = load_trial_level_events_data(dummy_gaze, tmp_path, sid, event_type)
     assert len(loaded_gaze.events.frame.filter(pl.col("name") == event_type)) >= 1
@@ -121,9 +117,7 @@ def test_save_scanpaths_structure(tmp_path, dummy_gaze, sid_str):
     save_scanpaths(tmp_path, sid, dummy_gaze)
     expected_path = tmp_path / settings.SCANPATHS_FOLDER / str(sid)
     assert expected_path.exists()
-    assert (
-        expected_path / f"{sid.id_no_postfix}_trial_1_Enc_WikiMoon_1_scanpath.csv"
-    ).exists()
+    assert (expected_path / f"{str(sid)}_trial_1_Enc_WikiMoon_1_scanpath.csv").exists()
 
 
 @pytest.mark.parametrize("sid_str", SID_STRINGS)
@@ -136,8 +130,7 @@ def test_save_load_reading_measures_structure(tmp_path, sid_str):
     expected_path = tmp_path / settings.READING_MEASURES_FOLDER / str(sid)
     assert expected_path.exists()
     assert (
-        expected_path
-        / f"{sid.id_no_postfix}_trial_1_Enc_WikiMoon_1_reading_measures.csv"
+        expected_path / f"{str(sid)}_trial_1_Enc_WikiMoon_1_reading_measures.csv"
     ).exists()
 
     loaded_rm = load_reading_measures(tmp_path, sid)

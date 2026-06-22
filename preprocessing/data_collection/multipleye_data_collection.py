@@ -225,12 +225,11 @@ class MultipleyeDataCollection:
 
         # get a list of all folders in the data folder
         if session_folder_regex:
-            items = os.scandir(self.data_root)
+            items = list(os.scandir(self.data_root))
             pilots = []
             if self.include_pilots:
-                pilots = os.scandir(self.data_root / self.pilot_folder)
-                pilots = list(pilots)
-                items = list(items) + pilots
+                pilots = list(os.scandir(self.data_root / self.pilot_folder))
+                items = items + pilots
 
             # Check for sessions without a data file
             sessions_missing_data = []
@@ -464,7 +463,9 @@ class MultipleyeDataCollection:
         year = dcn.year
 
         session_folder_regex = (
-            r"\d\d\d" + f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
+            r"\d\d\d"
+            + f"_{stimulus_language}_{country}_{lab_number}"
+            + r"_ET\d(?:_.*)?"
         )
 
         stimulus_folder_path = settings.OUTPUT_DIR / f"stimuli_{data_folder_name}"
