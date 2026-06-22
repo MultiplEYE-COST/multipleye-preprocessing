@@ -110,7 +110,7 @@ This should show the program's version and usage information.
 
 (running_pipelines)=
 
-## Running the Pipelines
+## Running the Pipeline
 
 The process described below is also documented in a step-by-step notebook. This notebook breaks up
 the
@@ -118,16 +118,16 @@ pipeline into the smaller steps. And you can go through them one by one.
 
 ```{tip}
 Go through the [step-by-step notebook](https://github.com/MultiplEYE-COST/multipleye-preprocessing/blob/main/preprocessing.ipynb).
-You can also open the same file locally at `preprocessing.ipynb` in the repo root.
+You can also open the same file locally at `preprocessing.ipynb` in the repo root. Note that the notebook is currently configured to only preprocess one session.
 ```
 
-After installation, the pipelines can be executed directly from the command line as they are
+After installation, the pipeline can be executed directly from the command line as they are
 registered as entry points in `pyproject.toml`.
 If this is your first time with the pipeline, or you are unsure if you have the right data and
-formats, please read into the more detailled {ref}`reference_guide` chapter.
+formats, please read into the more detailed {ref}`reference_guide` chapter.
 
 To run a pipeline you wil have to fill in the relevant information in the
-`multipleye_settings_preprocessing.yaml` file.
+`multipleye_settings_preprocessing.yaml` file. Please find more information on the config file: {ref}`configuration_guide`
 
 ### Download your MultiplEYE data
 

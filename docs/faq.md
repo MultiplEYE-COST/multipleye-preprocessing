@@ -2,8 +2,6 @@
 
 # Frequently Asked Questions
 
-This page is still under constructions. Questions will be added over time. For now, please refer to the getting started
-guide and the troubleshooting page for answers to common questions.
 If you have a question that is not answered there, please reach out to the maintainers.
 
 ---
@@ -20,54 +18,40 @@ If you have a question that is not answered there, please reach out to the maint
 
 ## General
 
-:::{dropdown} How do I set up the preprocessing pipeline?
+:::{dropdown} Who is this pipeline intended for?
 :open:
 
-*Content to be added. #installation*
+There are two primary use cases for this pipeline:
+* Researchers who are part of the MultiplEYE network and have collected eye-tracking and / or psychometric test data. You can use this pipeline to preprocess the data.
+* Students or researchers who are interested in learning about eye-tracking data preprocessing.
+You can use this pipeline to explore the preprocessing steps and understand how raw eye-tracking data is transformed
+into a standardized format for analysis. In this case, we refer to the tutorial notebook described in {ref}`getting_started`.
 :::
 
-:::{dropdown} What are the system requirements for running the pipeline?
+:::{dropdown} Can I use the pipeline with eye-tracking data other than MultiplEYE?
 
-*Content to be added. Specify - link getting-started*
+At the moment, the pipeline is designed to work with data collected in the MultiplEYE project.
+However, if your data is in a compatible format and you are willing to adapt the code,
+it may be possible to use the pipeline for other eye-tracking datasets. In any case, please contact the maintainers if you
+are interested to adapt the pipeline to other datasets.
 :::
 
 :::{dropdown} How long does preprocessing typically take?
 
-*Content to be added.* Plan with X time to...
+Given that the .edf files need to be converted to .asc files first, the preprocessing time can vary depending on the
+number of sessions and the size of the data. However, for the size of the MultiplEYE datasets, which include about 100 sessions,
+it can take a few hours.
 :::
 
 (faq_equipment)=
 
 ## Eye-Tracking Equipment
 
-:::{dropdown} What eye-tracking equipment is supported?
+:::{dropdown} What eye-trackers are supported?
 
-*Content to be added.*
+Currently, we support EyeLink eye-trackers with head-stabilized tracking.
 :::
 
-:::{dropdown} What file formats does the pipeline accept?
-
-*Content to be added.*
-:::
-
-:::{dropdown} How should I organise my raw data files?
-
-*Content to be added.*
-:::
-
-(faq_other)=
-
-## Other section
-
-:::{dropdown} Why is my preprocessing failing with a "missing XYZ" error?
-
-*Content to be added.*
-:::
-
-:::{dropdown} How do I handle corrupted or incomplete data files?
-
-*Content to be added.*
-:::
 
 ---
 

@@ -10,7 +10,7 @@
 :link-type: ref
 
 How to prepare before running your first preprocessing.\
-Start your endeavour here!
+Start your endeavor here!
 
 +++
 {ref}`Learn more » <getting_started>`
