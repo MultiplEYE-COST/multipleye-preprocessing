@@ -73,6 +73,7 @@ class StimulusPage:
 class ComprehensionQuestion:
     name: str
     id: str
+    snippet_no: int
     question: str
     target: str
     distractor_a: str
@@ -184,6 +185,7 @@ class Stimulus:
         for question_row in question_rows:
             question_name = question_row["item_id"]
             question_id = question_row["item_id"].split("_")[-1]
+            snippet_no = question_row["snippet_no"]
             question = question_row["question"]
             target = question_row["target"]
             distractor_a = question_row["distractor_a"]
@@ -206,6 +208,7 @@ class Stimulus:
             question = ComprehensionQuestion(
                 name=question_name,
                 id=question_id,
+                snippet_no=snippet_no,
                 question=question,
                 target=target,
                 distractor_a=distractor_a,

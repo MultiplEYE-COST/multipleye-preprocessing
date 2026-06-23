@@ -166,12 +166,28 @@ def collect_session_answers(
             return f"PRACTICE_trial_{num}"
         return str(actual_key)
 
+    # Build snippet map from stimuli objects
+    snippet_map = {}
+    if stimuli:
+        for stim in stimuli:
+            for q in stim.questions:
+                try:
+                    q_order_code = int(str(q.id)[-2:])
+                    # Map (stimulus_name, order_code) -> snippet_no
+                    snippet_map[(stim.name, q_order_code)] = q.snippet_no
+                except (ValueError, TypeError):
+                    continue
+
     def _safe_construct_question_id(
         stim_name: str, order_code: int, trial_key: any
     ) -> str | None:
         stim_id = stim_id_map.get(trial_key)
+        # Try to get snippet_no from map, default to 1
+        snippet_no = snippet_map.get((stim_name, order_code), 1)
         try:
-            return construct_question_id(stim_name, order_code, stimulus_id=stim_id)
+            return construct_question_id(
+                stim_name, order_code, stimulus_id=stim_id, snippet_no=snippet_no
+            )
         except (ValueError, KeyError, AttributeError):
             return None
 
@@ -281,12 +297,16 @@ def collect_session_answers(
 
                 # For Stimulus objects, the numeric ID is already in stim.id
                 q_id = construct_question_id(
-                    stim.name, q_order_code, stimulus_id=stim.id
+                    stim.name,
+                    q_order_code,
+                    stimulus_id=stim.id,
+                    snippet_no=q.snippet_no,
                 )
                 if q_id:
                     q_map[q_id] = {
                         "correct_answer_key": "target_key",
                         "correct_answer_text": q.target,
+                        "snippet_number": q.snippet_no,
                         "options": {
                             "target_key": q.target,
                             "distractor_a_key": q.distractor_a,
@@ -393,7 +413,12 @@ def collect_session_answers(
 
     # Add component columns
     long_df = long_df.with_columns(
-        pl.lit(1).alias("snippet_number").cast(pl.Int32),
+        pl.col("question_id")
+        .map_elements(
+            lambda qid: q_map.get(qid, {}).get("snippet_number", 1) if stimuli else 1,
+            return_dtype=pl.Int32,
+        )
+        .alias("snippet_number"),
     )
 
     # Select final columns in desired order

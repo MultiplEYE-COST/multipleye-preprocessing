@@ -20,6 +20,7 @@ def mock_stimuli():
     q1 = ComprehensionQuestion(
         name="Lit_MagicMountain_6_11",
         id="11",
+        snippet_no=1,
         question="Q1",
         target="Correct Text 1",
         distractor_a="Wrong 1",
@@ -183,6 +184,7 @@ def test_multidigit_qid_enrichment(tmp_path):
         ComprehensionQuestion(
             name=f"Lit_Alchemist_4_0411{i}",
             id=f"0411{i}",
+            snippet_no=1,
             question=f"Q{i}",
             target="Correct",
             distractor_a=f"WrongA{i}",
@@ -253,6 +255,7 @@ def twoq_stimuli():
         ComprehensionQuestion(
             name=f"Stim_6_{qid}",
             id=qid,
+            snippet_no=1,
             question=f"Q{i}",
             target="Correct A" if i == 1 else "Correct B",
             distractor_a="Wrong A1" if i == 1 else "Wrong A2",
@@ -548,6 +551,7 @@ def test_practice_trial_answers(tmp_path):
     q1 = ComprehensionQuestion(
         name="Enc_WikiMoon_13_11",
         id="11",
+        snippet_no=1,
         question="Q",
         target="Correct",
         distractor_a="A",

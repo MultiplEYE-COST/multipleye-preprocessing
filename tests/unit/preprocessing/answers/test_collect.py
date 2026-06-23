@@ -24,12 +24,14 @@ def _make_stimulus(
     name: str,
     trial_id: str,
     q_ids: list[str],
+    snippet_no: int = 1,
 ) -> list[Stimulus]:
     questions = []
     for i, qid in enumerate(q_ids, start=1):
         q = ComprehensionQuestion(
             name=f"{name}_{stim_id}_{qid}",
             id=qid,
+            snippet_no=snippet_no,
             question=f"Question {i}",
             target="Correct Answer",
             distractor_a="Wrong A",
@@ -155,10 +157,12 @@ def test_collect_session_answers_builds_rows_and_ids(tmp_path: Path, stimulus_na
     conditions = set(df["condition_number"].to_list())
     assert conditions == {1, 2, 3}
 
-    # Verify question_id format: <stim_num>1<order_code>
+    # Verify question_id format: <stim_num><snippet><order_code>
     stim_num = stimulus_name.split("_")[-1]
     expected_codes = {12, 11, 21, 22, 32, 31}
     found_qids = set(df["question_id"].to_list())
+    # All these mock examples use snippet_number 1 since no stimuli data was passed to collect_session_answers
+    # (except when stimuli is passed, which it isn't here)
     expected_qids = {f"{stim_num}1{code}" for code in expected_codes}
     assert found_qids == expected_qids
 
@@ -170,3 +174,68 @@ def test_collect_session_answers_builds_rows_and_ids(tmp_path: Path, stimulus_na
     assert out_path.exists()
     loaded = pl.read_csv(out_path)
     assert loaded.shape == df.shape
+
+
+def test_collect_multisnippet_snippet_number(tmp_path):
+    """Verify that snippet_number is correctly looked up from stimulus data (not always 1)."""
+    qcsv = tmp_path / "question_order_versions.csv"
+    # Stimulus 10 (multi-snippet), snippet 2 for some questions
+    qcsv.write_text(
+        "question_order_version,local_question_1,local_question_2,bridging_question_1,bridging_question_2,global_question_1,global_question_2\n"
+        "10,11,12,21,22,31,32\n"
+    )
+    mapping = {"trial_1": "Arg_PISACowsMilk_10"}
+
+    # Mock questions: some snippet 1, some snippet 2
+    # In reality, snippet_no is per question in the Excel.
+    # We'll simulate this by creating a Stimulus with questions having snippet_no=2.
+    qs = [
+        ComprehensionQuestion(
+            name=f"Arg_PISACowsMilk_10_{qid}",
+            id=qid,
+            snippet_no=2 if qid.endswith("2") else 1,
+            question="Q",
+            target="Correct",
+            distractor_a="A",
+            distractor_b="B",
+            distractor_c="C",
+            image_path=Path("img.png"),
+            aoi_image_path=Path("aoi.png"),
+        )
+        for qid in ["11", "12", "21", "22", "31", "32"]
+    ]
+    stimuli = [
+        Stimulus(
+            id=10,
+            name="Arg_PISACowsMilk_10",
+            type="experiment",
+            pages=[],
+            text_stimulus=None,
+            questions=qs,
+            instructions=[],
+            ratings=[],
+            trial_id="trial_1",
+        )
+    ]
+
+    df = collect_session_answers(
+        qcsv, mapping, stimuli=stimuli, completed_stimuli_ids=[10]
+    )
+
+    # Check snippet_numbers and question_ids
+    # local_question_1 (order_code 11) -> qid 10111 -> snippet 1
+    q11 = df.filter(pl.col("order_code") == 11).row(0, named=True)
+    assert q11["snippet_number"] == 1
+    assert q11["question_id"] == "10111"
+    # local_question_2 (order_code 12) -> qid 10212 -> snippet 2
+    q12 = df.filter(pl.col("order_code") == 12).row(0, named=True)
+    assert q12["snippet_number"] == 2
+    assert q12["question_id"] == "10212"
+    # bridging_question_2 (order_code 22) -> qid 10222 -> snippet 2
+    q22 = df.filter(pl.col("order_code") == 22).row(0, named=True)
+    assert q22["snippet_number"] == 2
+    assert q22["question_id"] == "10222"
+    # global_question_1 (order_code 31) -> qid 10131 -> snippet 1
+    q31 = df.filter(pl.col("order_code") == 31).row(0, named=True)
+    assert q31["snippet_number"] == 1
+    assert q31["question_id"] == "10131"
