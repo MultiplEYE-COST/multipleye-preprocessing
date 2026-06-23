@@ -79,7 +79,7 @@ def test_collect_session_answers_integration(mock_question_order_csv, mock_stimu
     assert q11["correct_answer_text"] == "Correct Text 1"
     assert q11["snippet_number"] == 1
     assert q11["condition_number"] == 1
-    assert q11["order_code"] == 11
+    assert q11["question_order_version"] == 6
 
 
 def test_decision_rt_from_last_prelim_key(mock_question_order_csv, mock_stimuli):
@@ -367,7 +367,7 @@ class TestOutputColumns:
         df = collect_session_answers(qcsv, {"trial_1": "Stim"})
         row = df.filter(pl.col("slot") == slot_name).row(0, named=True)
         assert row["condition_number"] == expected_condition
-        assert row["order_code"] is not None
+        assert row["question_order_version"] == 6
 
     # --- answer_source ---
 

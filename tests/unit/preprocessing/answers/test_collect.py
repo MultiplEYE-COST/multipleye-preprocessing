@@ -223,19 +223,15 @@ def test_collect_multisnippet_snippet_number(tmp_path):
     )
 
     # Check snippet_numbers and question_ids
-    # local_question_1 (order_code 11) -> qid 10111 -> snippet 1
-    q11 = df.filter(pl.col("order_code") == 11).row(0, named=True)
+    q11 = df.filter(pl.col("question_id") == "10111").row(0, named=True)
     assert q11["snippet_number"] == 1
     assert q11["question_id"] == "10111"
-    # local_question_2 (order_code 12) -> qid 10212 -> snippet 2
-    q12 = df.filter(pl.col("order_code") == 12).row(0, named=True)
+    q12 = df.filter(pl.col("question_id") == "10212").row(0, named=True)
     assert q12["snippet_number"] == 2
     assert q12["question_id"] == "10212"
-    # bridging_question_2 (order_code 22) -> qid 10222 -> snippet 2
-    q22 = df.filter(pl.col("order_code") == 22).row(0, named=True)
+    q22 = df.filter(pl.col("question_id") == "10222").row(0, named=True)
     assert q22["snippet_number"] == 2
     assert q22["question_id"] == "10222"
-    # global_question_1 (order_code 31) -> qid 10131 -> snippet 1
-    q31 = df.filter(pl.col("order_code") == 31).row(0, named=True)
+    q31 = df.filter(pl.col("question_id") == "10131").row(0, named=True)
     assert q31["snippet_number"] == 1
     assert q31["question_id"] == "10131"

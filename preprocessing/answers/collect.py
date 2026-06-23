@@ -60,12 +60,12 @@ def collect_session_answers(
     pl.DataFrame with columns:
       - trial (string, e.g., 'trial_1')
       - stimulus (string)
-      - slot (string, e.g., 'local_question_1')
       - question_id (string)
+      - question_order_version (int)
       - stimulus_id (int)
       - snippet_number (int)
-      - order_code (int: 11,12,21,22,31,32)
       - condition_number (int: 1=local, 2=bridging, 3=global)
+      - slot (string, e.g., 'local_question_1')
       - final_answer_key (string)
       - answer_text (string)
       - is_correct (bool)
@@ -136,6 +136,7 @@ def collect_session_answers(
     for slot in slots:
         df_slot = order_df.select(
             pl.col("trial"),
+            pl.col("question_order_version"),
             pl.lit(slot).alias("slot"),
             pl.col(slot).alias("order_code"),
             (pl.col(slot) // 10).alias("condition_number"),
@@ -421,12 +422,12 @@ def collect_session_answers(
     final_cols = [
         "trial",
         "stimulus",
-        "slot",
         "question_id",
+        "question_order_version",
         "stimulus_id",
         "snippet_number",
-        "order_code",
         "condition_number",
+        "slot",
         "final_answer_key",
         "answer_text",
         "is_correct",
