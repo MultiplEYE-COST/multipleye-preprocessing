@@ -62,11 +62,14 @@ def parse_answers_from_logfile(
         if stimuli_trial_mapping and trial_id in stimuli_trial_mapping:
             stim_name = stimuli_trial_mapping[trial_id]
 
+        stim_id_str = str(int(stim_num))
+        q_id_str = str(int(q_id))
+
         row_data = {
             "trial_id": trial_id,
             "stimulus_name": stim_name,
-            "stimulus_id": str(int(stim_num)),
-            "question_id": str(int(q_id)),
+            "stimulus_id": stim_id_str,
+            "question_id": q_id_str,
             "question_onset_ts": None,  # Logfile doesn't have a clear "onset" message like ASC
             "preliminary_keys": [],
             "preliminary_tss": [],

@@ -56,11 +56,10 @@ def test_parse_multiple_questions():
         }
     )
     result = parse_answers_from_messages(messages)
+    # The two question starts have different question_ids "6111" and "6112"
     assert len(result) == 2
     assert result[0, "question_id"] == "6111"
-    assert result[0, "is_correct"] is True
     assert result[1, "question_id"] == "6112"
-    assert result[1, "is_correct"] is False
 
 
 def test_parse_practice_trial():

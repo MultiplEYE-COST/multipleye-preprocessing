@@ -64,6 +64,7 @@ def test_collect_session_answers_integration(mock_question_order_csv, mock_stimu
         stimuli_trial_map=stimuli_trial_mapping,
         stimuli=mock_stimuli,
         parsed_answers=parsed_answers,
+        completed_stimuli_ids=[6],
     )
 
     # Check that it merged correctly
@@ -72,8 +73,12 @@ def test_collect_session_answers_integration(mock_question_order_csv, mock_stimu
 
     # Check the one we have answers for
     q11 = result.filter(pl.col("question_id") == "6111").row(0, named=True)
+    assert q11["stimulus_id"] == 6
     assert q11["confirmation_rt_ms"] == 2000.0  # 3000 - 1000
     assert q11["correct_answer_text"] == "Correct Text 1"
+    assert q11["snippet_number"] == 1
+    assert q11["condition_number"] == 1
+    assert q11["order_code"] == 11
 
 
 def test_decision_rt_from_last_prelim_key(mock_question_order_csv, mock_stimuli):
@@ -208,15 +213,22 @@ def test_multidigit_qid_enrichment(tmp_path):
 
     assert len(result) == 6
     # order_code=11 -> last 2 chars of "04111" = "11" -> question_id = 4111
-    q11 = result.filter(pl.col("order_code") == 11)
+    q11 = result.filter(pl.col("condition_number") == 1).filter(
+        pl.col("question_id") == "4111"
+    )
+    assert q11[0, "stimulus_id"] == 4
     assert q11[0, "question_id"] == "4111"
     assert q11[0, "correct_answer_key"] == "target_key"
     assert q11[0, "correct_answer_text"] == "Correct"
+    assert q11[0, "condition_number"] == 1
     # order_code=12 -> last 2 chars of "04112" = "12" -> question_id = 4112
-    q12 = result.filter(pl.col("order_code") == 12)
+    q12 = result.filter(pl.col("condition_number") == 1).filter(
+        pl.col("question_id") == "4112"
+    )
     assert q12[0, "question_id"] == "4112"
     assert q12[0, "correct_answer_key"] == "target_key"
     assert q12[0, "correct_answer_text"] == "Correct"
+    assert q12[0, "condition_number"] == 1
 
 
 # Fixtures
@@ -249,7 +261,7 @@ def twoq_stimuli():
             image_path=Path("img.png"),
             aoi_image_path=Path("aoi.png"),
         )
-        for i, qid in enumerate(["11", "12"], start=1)
+        for i, qid in enumerate(["11", "21"], start=1)
     ]
     return [
         Stimulus(
@@ -338,20 +350,21 @@ class TestOutputColumns:
     # --- order_code ---
 
     @pytest.mark.parametrize(
-        "slot_name,expected_code",
+        "slot_name,expected_condition",
         [
-            ("local_question_1", 11),
-            ("local_question_2", 12),
-            ("bridging_question_1", 21),
-            ("bridging_question_2", 22),
-            ("global_question_1", 31),
-            ("global_question_2", 32),
+            ("local_question_1", 1),
+            ("local_question_2", 1),
+            ("bridging_question_1", 2),
+            ("bridging_question_2", 2),
+            ("global_question_1", 3),
+            ("global_question_2", 3),
         ],
     )
-    def test_order_code_by_slot(self, qcsv, slot_name, expected_code):
+    def test_condition_number_by_slot(self, qcsv, slot_name, expected_condition):
         df = collect_session_answers(qcsv, {"trial_1": "Stim"})
         row = df.filter(pl.col("slot") == slot_name).row(0, named=True)
-        assert row["order_code"] == expected_code
+        assert row["condition_number"] == expected_condition
+        assert row["order_code"] is not None
 
     # --- answer_source ---
 
@@ -361,6 +374,7 @@ class TestOutputColumns:
             prelim_keys=[(2000, "target_key")],
             final_key=(2600, "target_key"),
             correct=True,
+            question_id="6111",
         )
         parsed = parse_answers_from_messages(msgs)
         df = collect_session_answers(
@@ -371,7 +385,11 @@ class TestOutputColumns:
             source=source,
             completed_stimuli_ids=[6],
         )
-        q11 = df.filter(pl.col("question_id") == "6111").row(0, named=True)
+        q11 = (
+            df.filter(pl.col("condition_number") == 1)
+            .filter(pl.col("question_id") == "6111")
+            .row(0, named=True)
+        )
         assert q11["answer_source"] == source
 
     # --- answer_text ---
@@ -390,6 +408,7 @@ class TestOutputColumns:
             prelim_keys=[(2000, key)],
             final_key=(2600, key),
             correct=(key == "target_key"),
+            question_id="6111",
         )
         parsed = parse_answers_from_messages(msgs)
         df = collect_session_answers(
@@ -399,7 +418,11 @@ class TestOutputColumns:
             parsed_answers=parsed,
             completed_stimuli_ids=[6],
         )
-        q11 = df.filter(pl.col("question_id") == "6111").row(0, named=True)
+        q11 = (
+            df.filter(pl.col("condition_number") == 1)
+            .filter(pl.col("question_id") == "6111")
+            .row(0, named=True)
+        )
         assert q11["answer_text"] == expected_text
 
     def test_answer_text_null_for_space(self, qcsv, twoq_stimuli):
@@ -407,6 +430,7 @@ class TestOutputColumns:
         msgs = _make_messages(
             confirm_ts=2000,
             correct=False,
+            question_id="6111",
         )
         parsed = parse_answers_from_messages(msgs)
         df = collect_session_answers(
@@ -416,7 +440,11 @@ class TestOutputColumns:
             parsed_answers=parsed,
             completed_stimuli_ids=[6],
         )
-        q11 = df.filter(pl.col("question_id") == "6111").row(0, named=True)
+        q11 = (
+            df.filter(pl.col("condition_number") == 1)
+            .filter(pl.col("question_id") == "6111")
+            .row(0, named=True)
+        )
         assert q11["answer_text"] is None
 
     # --- is_correct ---
@@ -426,7 +454,7 @@ class TestOutputColumns:
         [
             pytest.param("target_key", True, True, id="correct_answer"),
             pytest.param("distractor_a_key", False, False, id="wrong_answer"),
-            pytest.param("target_key", None, None, id="no_correctness_msg"),
+            pytest.param("target_key", None, True, id="no_correctness_msg"),
         ],
     )
     def test_is_correct_values(self, qcsv, twoq_stimuli, key, correct, expected):
@@ -434,6 +462,7 @@ class TestOutputColumns:
             prelim_keys=[(2000, key)],
             final_key=(2600, key),
             correct=correct,
+            question_id="6111",
         )
         parsed = parse_answers_from_messages(msgs)
         df = collect_session_answers(
@@ -443,7 +472,11 @@ class TestOutputColumns:
             parsed_answers=parsed,
             completed_stimuli_ids=[6],
         )
-        q11 = df.filter(pl.col("question_id") == "6111").row(0, named=True)
+        q11 = (
+            df.filter(pl.col("condition_number") == 1)
+            .filter(pl.col("question_id") == "6111")
+            .row(0, named=True)
+        )
         assert q11["is_correct"] is expected
 
     # --- trial naming ---
@@ -480,6 +513,7 @@ class TestOutputColumns:
             parsed_answers=parsed,
             completed_stimuli_ids=[1],
         )
+        assert df.height > 0
         assert df[0, "trial"] == "PRACTICE_trial_1"
 
     # --- stimulus naming ---
@@ -493,8 +527,12 @@ class TestOutputColumns:
         ],
     )
     def test_stimulus_column(self, qcsv, stim_name):
-        df = collect_session_answers(qcsv, {"trial_1": stim_name})
+        stim_id = 10 if "PISA" in stim_name else 7 if "Solaris" in stim_name else 13
+        df = collect_session_answers(
+            qcsv, {"trial_1": stim_name}, completed_stimuli_ids=[stim_id]
+        )
         assert df[0, "stimulus"] == stim_name
+        assert df[0, "stimulus_id"] == stim_id
 
 
 def test_practice_trial_answers(tmp_path):

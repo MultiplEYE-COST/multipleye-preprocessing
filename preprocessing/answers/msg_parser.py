@@ -82,13 +82,15 @@ def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
 
         m = START_RE.match(content)
         if m:
+            stim_id = m.group("stimulus_id")
+            q_id = m.group("question_id")
             parsed_rows.append(
                 {
                     "time": float(time),
                     "trial_id": m.group("trial"),
                     "stimulus_name": m.group("stimulus_name"),
-                    "stimulus_id": m.group("stimulus_id"),
-                    "question_id": m.group("question_id"),
+                    "stimulus_id": stim_id,
+                    "question_id": q_id,
                     "action": "question_start",
                 }
             )
@@ -96,6 +98,8 @@ def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
 
         m = PRELIMINARY_RE.match(content)
         if m:
+            stim_id = m.group("stimulus_id")
+            q_id = m.group("question_id")
             key = m.group("key")
             action = (
                 "final_confirmation"
@@ -107,8 +111,8 @@ def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
                     "time": float(time),
                     "trial_id": m.group("trial"),
                     "stimulus_name": m.group("stimulus_name"),
-                    "stimulus_id": m.group("stimulus_id"),
-                    "question_id": m.group("question_id"),
+                    "stimulus_id": stim_id,
+                    "question_id": q_id,
                     "action": action,
                     "key_type": key if action == "preliminary_answer" else None,
                 }
@@ -117,13 +121,15 @@ def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
 
         m = FINAL_ANSWER_RE.match(content)
         if m:
+            stim_id = m.group("stimulus_id")
+            q_id = m.group("question_id")
             parsed_rows.append(
                 {
                     "time": float(time),
                     "trial_id": m.group("trial"),
                     "stimulus_name": m.group("stimulus_name"),
-                    "stimulus_id": m.group("stimulus_id"),
-                    "question_id": m.group("question_id"),
+                    "stimulus_id": stim_id,
+                    "question_id": q_id,
                     "action": "final_answer_given",
                     "key_type": m.group("key"),
                 }
@@ -132,13 +138,15 @@ def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
 
         m = CORRECTNESS_RE.match(content)
         if m:
+            stim_id = m.group("stimulus_id")
+            q_id = m.group("question_id")
             parsed_rows.append(
                 {
                     "time": float(time),
                     "trial_id": m.group("trial"),
                     "stimulus_name": m.group("stimulus_name"),
-                    "stimulus_id": m.group("stimulus_id"),
-                    "question_id": m.group("question_id"),
+                    "stimulus_id": stim_id,
+                    "question_id": q_id,
                     "action": "correctness",
                     "is_correct": m.group("correct") == "True",
                 }
@@ -151,13 +159,15 @@ def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
 
         m = STOP_RE.match(content)
         if m:
+            stim_id = m.group("stimulus_id")
+            q_id = m.group("question_id")
             parsed_rows.append(
                 {
                     "time": float(time),
                     "trial_id": m.group("trial"),
                     "stimulus_name": m.group("stimulus_name"),
-                    "stimulus_id": m.group("stimulus_id"),
-                    "question_id": m.group("question_id"),
+                    "stimulus_id": stim_id,
+                    "question_id": q_id,
                     "action": "question_stop",
                 }
             )

@@ -138,6 +138,11 @@ def collect_session_answers(
             pl.col("trial"),
             pl.lit(slot).alias("slot"),
             pl.col(slot).alias("order_code"),
+            pl.col(slot)
+            .cast(pl.Utf8)
+            .str.slice(0, 1)
+            .cast(pl.Int32)
+            .alias("condition_number"),
         )
         per_slot_frames.append(df_slot)
 
@@ -174,6 +179,12 @@ def collect_session_answers(
         pl.col("trial")
         .map_elements(_stim_for_trial, return_dtype=pl.Utf8)
         .alias("stimulus"),
+        pl.col("trial")
+        .map_elements(
+            lambda t: stim_id_map.get(trial_mapping.get(int(t))),
+            return_dtype=pl.Int32,
+        )
+        .alias("stimulus_id"),
         pl.col("trial")
         .map_elements(_to_trial_id, return_dtype=pl.Utf8)
         .alias("trial_id"),
@@ -308,12 +319,22 @@ def collect_session_answers(
                 return_dtype=pl.Utf8,
             )
             .alias("correct_answer_text"),
+        )
+        long_df = long_df.with_columns(
             pl.struct(["question_id", "final_answer_key"])
             .map_elements(
                 lambda x: _get_answer_text(x["question_id"], x["final_answer_key"]),
                 return_dtype=pl.Utf8,
             )
             .alias("answer_text"),
+            # Re-calculate or confirm is_correct if we have keys
+            pl.when(
+                pl.col("final_answer_key").is_not_null()
+                & pl.col("correct_answer_key").is_not_null()
+            )
+            .then(pl.col("final_answer_key") == pl.col("correct_answer_key"))
+            .otherwise(pl.col("is_correct"))
+            .alias("is_correct"),
         )
     else:
         long_df = long_df.with_columns(
@@ -344,18 +365,20 @@ def collect_session_answers(
         "global_question_2": 5,
     }
 
-    def _trial_sort_key(trial_id: str) -> str:
-        if trial_id.startswith("PRACTICE_"):
+    def _trial_sort_key(trial_id: str | None) -> str:
+        if trial_id is not None and str(trial_id).startswith("PRACTICE_"):
             try:
-                num = int(trial_id.split("_")[-1])
+                num = int(str(trial_id).split("_")[-1])
                 return f"0_{num:03d}"
             except (ValueError, IndexError):
                 return "0_000"
+        if trial_id is None:
+            return "2_unknown"
         try:
-            num = int(trial_id.split("_")[-1])
+            num = int(str(trial_id).split("_")[-1])
             return f"1_{num:03d}"
         except (ValueError, IndexError):
-            return f"2_{trial_id}"
+            return f"2_{str(trial_id)}"
 
     long_df = long_df.with_columns(
         pl.col("trial")
@@ -368,13 +391,21 @@ def collect_session_answers(
     long_df = long_df.sort(["_trial_sort", "_slot_sort"])
     long_df = long_df.drop(["_trial_sort", "_slot_sort"])
 
+    # Add component columns
+    long_df = long_df.with_columns(
+        pl.lit(1).alias("snippet_number").cast(pl.Int32),
+    )
+
     # Select final columns in desired order
     final_cols = [
         "trial",
         "stimulus",
         "slot",
-        "order_code",
         "question_id",
+        "stimulus_id",
+        "snippet_number",
+        "order_code",
+        "condition_number",
         "final_answer_key",
         "answer_text",
         "is_correct",

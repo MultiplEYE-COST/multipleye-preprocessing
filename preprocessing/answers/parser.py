@@ -43,14 +43,9 @@ def construct_question_id(
 ) -> str:
     """Construct the canonical question id.
 
-    Format: <stimulus_numeric_id><middle><order_code>
-    - middle digit is the second digit of the order_code for PISA texts, otherwise '1'.
-    - order_code is a two-digit number among {11, 12, 21, 22, 31, 32}.
+    Format: <stimulus_numeric_id>1<order_code>
     """
-    if stimulus_id is not None:
-        stim_num = str(stimulus_id)
-    else:
-        stim_num = _extract_stimulus_numeric_id(stimulus_name)
-
-    middle = str(order_code)[1] if "PISA" in stimulus_name else "1"
-    return f"{stim_num}{middle}{order_code}"
+    stim_num = (
+        str(stimulus_id) if stimulus_id else _extract_stimulus_numeric_id(stimulus_name)
+    )
+    return f"{stim_num}1{order_code}"
