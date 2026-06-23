@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Mapping, Sequence
+from collections.abc import Mapping, Sequence
 
 import polars as pl
 
@@ -61,8 +61,11 @@ def collect_session_answers(
       - trial (string, e.g., 'trial_1')
       - stimulus (string)
       - slot (string, e.g., 'local_question_1')
-      - order_code (int: 11,12,21,22,31,32)
       - question_id (string)
+      - stimulus_id (int)
+      - snippet_number (int)
+      - order_code (int: 11,12,21,22,31,32)
+      - condition_number (int: 1=local, 2=bridging, 3=global)
       - final_answer_key (string)
       - answer_text (string)
       - is_correct (bool)
@@ -101,15 +104,12 @@ def collect_session_answers(
     logger.debug(f"DEBUG: Sorted norm_map keys: {sorted_keys}")
 
     # trial_mapping: CSV row index -> actual trial identifier (int or PRACTICE_X)
-    trial_mapping = {}
-    for i, key in enumerate(sorted_keys, start=1):
-        trial_mapping[i] = key
+    trial_mapping = dict(enumerate(sorted_keys, start=1))
 
     # stim_id_mapping: actual trial identifier -> stimulus numeric ID
     stim_id_map = {}
     if completed_stimuli_ids and len(completed_stimuli_ids) == len(sorted_keys):
-        for key, s_id in zip(sorted_keys, completed_stimuli_ids):
-            stim_id_map[key] = s_id
+        stim_id_map = dict(zip(sorted_keys, completed_stimuli_ids))
     elif completed_stimuli_ids:
         logger.warning(
             f"Completed stimuli count ({len(completed_stimuli_ids)}) does not match "
@@ -138,11 +138,7 @@ def collect_session_answers(
             pl.col("trial"),
             pl.lit(slot).alias("slot"),
             pl.col(slot).alias("order_code"),
-            pl.col(slot)
-            .cast(pl.Utf8)
-            .str.slice(0, 1)
-            .cast(pl.Int32)
-            .alias("condition_number"),
+            (pl.col(slot) // 10).alias("condition_number"),
         )
         per_slot_frames.append(df_slot)
 
@@ -172,7 +168,7 @@ def collect_session_answers(
         for stim in stimuli:
             for q in stim.questions:
                 try:
-                    q_order_code = int(str(q.id)[-2:])
+                    q_order_code = int(q.id[-2:])
                     # Map (stimulus_name, order_code) -> snippet_no
                     snippet_map[(stim.name, q_order_code)] = q.snippet_no
                 except (ValueError, TypeError):
@@ -286,12 +282,12 @@ def collect_session_answers(
         )
 
     # Add correct answers from stimuli objects
+    q_map: dict = {}
     if stimuli:
-        q_map = {}
         for stim in stimuli:
             for q in stim.questions:
                 try:
-                    q_order_code = int(str(q.id)[-2:])
+                    q_order_code = int(q.id[-2:])
                 except (ValueError, TypeError):
                     continue
 
@@ -315,7 +311,7 @@ def collect_session_answers(
                         },
                     }
 
-        def _get_correct_info(q_id: str, field: str) -> str | any | None:
+        def _get_correct_info(q_id: str, field: str) -> str | None:
             return q_map.get(q_id, {}).get(field)
 
         def _get_answer_text(q_id: str, key: str) -> str | None:
@@ -415,7 +411,7 @@ def collect_session_answers(
     long_df = long_df.with_columns(
         pl.col("question_id")
         .map_elements(
-            lambda qid: q_map.get(qid, {}).get("snippet_number", 1) if stimuli else 1,
+            lambda qid: q_map.get(qid, {}).get("snippet_number", 1),
             return_dtype=pl.Int32,
         )
         .alias("snippet_number"),

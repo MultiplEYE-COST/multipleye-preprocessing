@@ -158,20 +158,20 @@ def load_trial_level_raw_data(
     if load_metadata:
         metadata_path = Path(directory) / settings.METADATA_FOLDER / str(sid)
 
-        with open(metadata_path / "gaze_metadata.json", "r", encoding="utf8") as f:
+        with open(metadata_path / "gaze_metadata.json", encoding="utf8") as f:
             metadata = json.load(f)
 
         gaze._metadata = metadata
 
-        with open(metadata_path / "experiment.yaml", "r") as f:
+        with open(metadata_path / "experiment.yaml") as f:
             exp = yaml.safe_load(f)
 
-        with open(metadata_path / "validations.tsv", "r", encoding="utf8") as f:
+        with open(metadata_path / "validations.tsv", encoding="utf8") as f:
             validations_df = pl.read_csv(f, separator="\t")
 
         gaze.validations = validations_df
 
-        with open(metadata_path / "calibrations.tsv", "r", encoding="utf8") as f:
+        with open(metadata_path / "calibrations.tsv", encoding="utf8") as f:
             calibrations_df = pl.read_csv(f, separator="\t")
 
         gaze.calibrations = calibrations_df
@@ -239,7 +239,7 @@ def load_trial_level_events_data(
         if match is None:
             logging.info(f"Skipping file {file} for event loading")
         else:
-            for group_name in match.groupdict().keys():
+            for group_name in match.groupdict():
                 if group_name not in trial_df.columns:
                     trial_df = trial_df.with_columns(
                         pl.lit(match.group(group_name)).alias(group_name)

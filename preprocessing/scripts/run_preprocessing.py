@@ -10,6 +10,7 @@ import preprocessing
 from preprocessing import settings
 
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
+import contextlib
 
 
 def run_preprocessing(config_path: str | None = None):
@@ -222,10 +223,8 @@ def run_preprocessing(config_path: str | None = None):
                 # Unnest event columns (e.g. location struct -> location_x/location_y)
                 # so downstream code doesn't need to handle struct columns.
                 if gaze is not None and gaze.events is not None:
-                    try:
+                    with contextlib.suppress(Warning):
                         gaze.events.unnest()
-                    except Warning:
-                        pass
         else:
             pbar.set_description(f"Skipping event detection {idf}:")
             # Load existing if available

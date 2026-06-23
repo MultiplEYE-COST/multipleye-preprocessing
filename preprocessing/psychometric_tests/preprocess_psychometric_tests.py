@@ -1282,9 +1282,7 @@ def _find_one_filetype_with_columns(
     if not valid_csvs:
         details = ""
         if missing_cols_info:
-            details = "\nChecked: " + ", ".join(
-                f"'{f}'" for f in missing_cols_info.keys()
-            )
+            details = "\nChecked: " + ", ".join(f"'{f}'" for f in missing_cols_info)
         raise ValueError(
             f"No CSV files with the required columns {columns} were found in '{display_path}'.{details}"
         )

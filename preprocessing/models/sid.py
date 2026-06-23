@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Optional
 import re
 
 __all__ = ["Sid"]
@@ -17,13 +16,13 @@ class Sid:
 
     def __init__(
         self,
-        sid: Optional[str] = None,
+        sid: str | None = None,
         *,
-        pid: Optional[str] = None,
-        lang: Optional[str] = None,
-        country: Optional[str] = None,
-        lab: Optional[str] = None,
-        session: Optional[str] = None,
+        pid: str | None = None,
+        lang: str | None = None,
+        country: str | None = None,
+        lab: str | None = None,
+        session: str | None = None,
         postfix: str = "",
     ):
         if sid is not None and any(

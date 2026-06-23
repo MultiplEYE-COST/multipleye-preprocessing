@@ -56,7 +56,7 @@ def validate_psychometric_data(
             participant_issues.append(msg)
             config_sid = None
 
-        with open(config_file, "r") as f:
+        with open(config_file) as f:
             try:
                 config_data = yaml.safe_load(f)
             except yaml.YAMLError as exc:

@@ -35,11 +35,6 @@ def parse_answers_from_logfile(
     if relevant_df.is_empty():
         return _empty_result_df()
 
-    # Normalize trial_id to match messages/mapping (e.g. 1 -> "trial_1")
-    # In the toy logfile, trial_number is often 1, 2, 3...
-    # But it can also be PRACTICE_trial_1 if handled specially?
-    # Actually the toy logfile showed trial_number as 1, 2, 3.
-
     result_rows = []
 
     # We group by trial_number, stimulus_number, and page_number (which is question_id)

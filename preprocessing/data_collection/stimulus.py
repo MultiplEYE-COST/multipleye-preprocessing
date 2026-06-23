@@ -71,6 +71,8 @@ class StimulusPage:
 
 @dataclass
 class ComprehensionQuestion:
+    """A comprehension question belonging to a stimulus."""
+
     name: str
     id: str
     snippet_no: int

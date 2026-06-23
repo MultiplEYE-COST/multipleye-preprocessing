@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Optional
 import re
 
 __all__ = ["Dcn"]
@@ -16,13 +15,13 @@ class Dcn:
 
     def __init__(
         self,
-        name: Optional[str] = None,
+        name: str | None = None,
         *,
-        lang: Optional[str] = None,
-        country: Optional[str] = None,
-        city: Optional[str] = None,
-        lab: Optional[str] = None,
-        year: Optional[str] = None,
+        lang: str | None = None,
+        country: str | None = None,
+        city: str | None = None,
+        lab: str | None = None,
+        year: str | None = None,
     ):
         if name is not None and any(
             v is not None for v in [lang, country, city, lab, year]

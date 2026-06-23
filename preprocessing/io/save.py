@@ -8,6 +8,7 @@ import polars as pl
 import pymovements as pm
 from ..config import settings
 from ..models.sid import Sid
+import contextlib
 
 
 def save_raw_data(directory: Path, sid: Sid, data: pm.Gaze) -> None:
@@ -31,10 +32,8 @@ def save_raw_data(directory: Path, sid: Sid, data: pm.Gaze) -> None:
     trials = new_data.split(by="trial", as_dict=False)
 
     for trial in trials:
-        try:
+        with contextlib.suppress(Warning):
             trial.unnest()
-        except Warning:
-            pass
         df = trial.samples
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]

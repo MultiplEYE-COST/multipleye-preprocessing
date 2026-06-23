@@ -763,7 +763,7 @@ class Settings:
 
         logger.debug(f"Loading config from: {path}")
 
-        with open(path, "r") as f:
+        with open(path) as f:
             user_configs = yaml.safe_load(f)
 
         if user_configs:

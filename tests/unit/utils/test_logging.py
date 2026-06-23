@@ -71,7 +71,7 @@ def test_logging_to_file(mock_multipleye_instance, temp_log_file, log_level, log
     mock_multipleye_instance.logger.log(log_level, test_message)
 
     assert temp_log_file.exists()
-    with open(temp_log_file, "r") as f:
+    with open(temp_log_file) as f:
         content = f.read()
         assert test_message in content
         assert log_name in content
@@ -87,7 +87,7 @@ def test_warning_capture(warnings_to_log, temp_log_file):
     logging.getLogger("py.warnings").warning(test_warning_msg)
 
     assert temp_log_file.exists()
-    with open(temp_log_file, "r") as f:
+    with open(temp_log_file) as f:
         content = f.read()
         assert test_warning_msg in content
 
@@ -120,7 +120,7 @@ def test_ignored_log_regexes(temp_log_file, monkeypatch):
 
     # Check the log file
     assert temp_log_file.exists()
-    with open(temp_log_file, "r") as f:
+    with open(temp_log_file) as f:
         content = f.read()
         assert ignored_msg not in content
         assert allowed_msg in content
@@ -131,7 +131,7 @@ def test_ignored_log_regexes(temp_log_file, monkeypatch):
     with pytest.warns(UserWarning, match=allowed_msg):
         warnings.warn(allowed_msg, UserWarning)
 
-    with open(temp_log_file, "r") as f:
+    with open(temp_log_file) as f:
         content = f.read()
         assert ignored_msg not in content
         assert allowed_msg in content
@@ -166,7 +166,7 @@ def test_log_append_behavior(
     logger = logging.getLogger("test_append" if append_flag else "test_no_append")
     logger.warning(message)
 
-    with open(temp_log_file, "r") as f:
+    with open(temp_log_file) as f:
         content = f.read()
         assert ("Initial content" in content) == initial_kept
         assert message in content

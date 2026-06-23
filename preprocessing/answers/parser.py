@@ -44,9 +44,28 @@ def construct_question_id(
     stimulus_id: int | str | None = None,
     snippet_no: int = 1,
 ) -> str:
-    """Construct the canonical question id.
+    """Build the canonical question id for a comprehension question.
 
-    Format: <stimulus_numeric_id><snippet_no><order_code>
+    Format: <stimulus_id><snippet_no><order_code>.
+    The snippet_no distinguishes questions from different text snippets within
+    a multi-snippet stimulus (e.g., Arg_PISACowsMilk, Arg_PISARapaNui).
+    Most stimuli have snippet_no=1 for all questions.
+
+    Parameters
+    ----------
+    stimulus_name : str
+        Name of the stimulus (e.g. 'Arg_PISACowsMilk_10').
+    order_code : int
+        Two-digit code encoding condition and order (e.g. 11, 12, 21, 22, 31, 32).
+    stimulus_id : int | str | None, optional
+        Numeric stimulus ID. If None, extracted from stimulus_name suffix.
+    snippet_no : int, optional
+        Snippet number within the stimulus (default 1).
+
+    Returns
+    -------
+    str
+        Canonical question id.
     """
     stim_num = (
         str(stimulus_id) if stimulus_id else _extract_stimulus_numeric_id(stimulus_name)

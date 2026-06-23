@@ -2,6 +2,23 @@ import polars as pl
 import re
 
 
+def _result_schema() -> dict:
+    return {
+        "trial_id": pl.Utf8,
+        "stimulus_name": pl.Utf8,
+        "stimulus_id": pl.Utf8,
+        "question_id": pl.Utf8,
+        "question_onset_ts": pl.Float64,
+        "preliminary_keys": pl.List(pl.Utf8),
+        "preliminary_tss": pl.List(pl.Float64),
+        "final_confirmation_ts": pl.Float64,
+        "image_offset_ts": pl.Float64,
+        "final_answer_key": pl.Utf8,
+        "is_correct": pl.Boolean,
+        "question_stop_ts": pl.Float64,
+    }
+
+
 def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
     """Parse comprehension question answers from ASC messages.
 
@@ -174,22 +191,7 @@ def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
             continue
 
     if not parsed_rows:
-        return pl.DataFrame(
-            schema={
-                "trial_id": pl.Utf8,
-                "stimulus_name": pl.Utf8,
-                "stimulus_id": pl.Utf8,
-                "question_id": pl.Utf8,
-                "question_onset_ts": pl.Float64,
-                "preliminary_keys": pl.List(pl.Utf8),
-                "preliminary_tss": pl.List(pl.Float64),
-                "final_confirmation_ts": pl.Float64,
-                "image_offset_ts": pl.Float64,
-                "final_answer_key": pl.Utf8,
-                "is_correct": pl.Boolean,
-                "question_stop_ts": pl.Float64,
-            }
-        )
+        return pl.DataFrame(schema=_result_schema())
 
     df_parsed = pl.DataFrame(parsed_rows)
 
@@ -244,20 +246,4 @@ def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
 
         result_rows.append(row_data)
 
-    return pl.DataFrame(
-        result_rows,
-        schema={
-            "trial_id": pl.Utf8,
-            "stimulus_name": pl.Utf8,
-            "stimulus_id": pl.Utf8,
-            "question_id": pl.Utf8,
-            "question_onset_ts": pl.Float64,
-            "preliminary_keys": pl.List(pl.Utf8),
-            "preliminary_tss": pl.List(pl.Float64),
-            "final_confirmation_ts": pl.Float64,
-            "image_offset_ts": pl.Float64,
-            "final_answer_key": pl.Utf8,
-            "is_correct": pl.Boolean,
-            "question_stop_ts": pl.Float64,
-        },
-    )
+    return pl.DataFrame(result_rows, schema=_result_schema())

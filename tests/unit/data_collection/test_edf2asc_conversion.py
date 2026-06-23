@@ -71,9 +71,7 @@ def test_convert_edf_to_asc_conversion_logic(
         path_str = str(self_path)
         if path_str == str(expected_asc_path):
             return asc_exists
-        if path_str.endswith(".asc") and not path_str.startswith("/fake/output"):
-            return True  # local asc after conversion exists
-        return False
+        return path_str.endswith(".asc") and not path_str.startswith("/fake/output")
 
     with patch(
         "preprocessing.data_collection.multipleye_data_collection.settings"
@@ -157,9 +155,7 @@ def test_convert_edf_to_asc_postfix_identifier():
         path_str = str(self_path)
         if path_str == str(expected_asc_path):
             return False  # output asc missing, trigger conversion
-        if path_str.endswith(".asc"):
-            return True  # local asc exists after conversion
-        return False
+        return path_str.endswith(".asc")
 
     with patch(
         "preprocessing.data_collection.multipleye_data_collection.settings"
