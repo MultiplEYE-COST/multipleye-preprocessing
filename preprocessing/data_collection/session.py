@@ -69,6 +69,7 @@ class Session:
     fixations: bool = field(default=False, init=False)
     saccades: bool = field(default=False, init=False)
     reading_measures: bool = field(default=False, init=False)
+    answers: bool = field(default=False, init=False)
 
     trials = list[Trial]
 
@@ -102,6 +103,7 @@ class Session:
             "Fixations": self.fixations,
             "Saccades": self.saccades,
             "Reading_measures": self.reading_measures,
+            "Answers": self.answers,
         }
 
         return dict_repr

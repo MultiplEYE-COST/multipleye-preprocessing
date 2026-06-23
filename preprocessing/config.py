@@ -230,7 +230,7 @@ class Settings:
             return self.__dict__["RAW_DATA_FILENAME_REGEX"]
         trial_col = self.TRIAL_COL
         stimulus_col = self.STIMULUS_COL
-        return rf".+_(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
+        return rf".+?(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
 
     @RAW_DATA_FILENAME_REGEX.setter
     def RAW_DATA_FILENAME_REGEX(self, value: str) -> None:
@@ -243,7 +243,7 @@ class Settings:
             return self.__dict__["EVENT_DATA_FILENAME_REGEX"]
         trial_col = self.TRIAL_COL
         stimulus_col = self.STIMULUS_COL
-        return rf".+_(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_{{event_type}}.csv"
+        return rf".+?(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_{{event_type}}.csv"
 
     @EVENT_DATA_FILENAME_REGEX.setter
     def EVENT_DATA_FILENAME_REGEX(self, value: str) -> None:
@@ -405,6 +405,31 @@ class Settings:
         #: Subfolder name for metadata files.
         self.METADATA_FOLDER = Path("metadata/")
 
+        #: Subfolder name for comprehension question answers.
+        self.ANSWERS_FOLDER = Path("comp_answers/")
+
+        #: Regex patterns for relevant ASC messages for comprehension questions.
+        self.ANSWER_MSG_PATTERNS = [
+            r"start_recording_.*_question_\d+",
+            r".*_preliminary_answer_.*",
+            r"question_screen_image_offset",
+            r".*_final_answer_given_is_.*",
+            r".*_answer_given_is_correct:.*",
+            r"stop_recording_.*_question_\d+",
+        ]
+
+        # --- PIPELINE STAGES ---
+        #: Whether to perform fixation detection.
+        self.RUN_FIXATION_DETECTION = True
+        #: Whether to perform saccade detection.
+        self.RUN_SACCADE_DETECTION = True
+        #: Whether to perform reading measures calculation.
+        self.RUN_READING_MEASURES = True
+        #: Whether to collect comprehension question answers.
+        self.RUN_COMPREHENSION_ANSWERS = True
+        #: Whether to create sanity check reports.
+        self.RUN_SANITY_CHECKS = True
+
         #: Column name for the trial identifier.
         self.TRIAL_COL = "trial"
 
@@ -517,9 +542,10 @@ class Settings:
 
         #: Mapping of eye tracker brands to known model names.
         self.EYETRACKER_NAMES = {
-            "eyelink": [
+            "eyelink": [  # TODO: Update list to mapping between same eyetrackers - use dict
                 "EyeLink 1000 Plus",
                 "EyeLink 1000+",
+                "EyeLink 1000-Plus",
                 "EyeLink II",
                 "EyeLink 1000",
                 "EyeLink Portable Duo",
@@ -737,7 +763,7 @@ class Settings:
 
         logger.debug(f"Loading config from: {path}")
 
-        with open(path, "r") as f:
+        with open(path) as f:
             user_configs = yaml.safe_load(f)
 
         if user_configs:

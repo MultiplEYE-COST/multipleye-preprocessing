@@ -177,7 +177,7 @@ class MultipleyeDataCollection:
         if not self.overview:
             self.overview = self.create_dataset_overview()
 
-        return "\n".join("{}\t{}".format(k, v) for k, v in self.overview.items())
+        return "\n".join(f"{k}\t{v}" for k, v in self.overview.items())
 
     # TODO: check these chatgpt functions :D
     def __iter__(self):
@@ -217,20 +217,41 @@ class MultipleyeDataCollection:
 
         found_sessions = []
 
-        if not session_file_suffix:
+        if not session_file_suffix and self.eye_tracker == "eyelink":
             # TODO: add configs for each eye tracker such that we don't always have to loop through all eye trackers
             #  but can write generic code. E.g. self.eye_tracker.session_file_regex
-            if self.eye_tracker == "eyelink":
-                session_file_suffix = r".edf"
+            session_file_suffix = r".edf"
 
         # get a list of all folders in the data folder
         if session_folder_regex:
-            items = os.scandir(self.data_root)
+            items = list(os.scandir(self.data_root))
             pilots = []
             if self.include_pilots:
-                pilots = os.scandir(self.data_root / self.pilot_folder)
-                pilots = list(pilots)
-                items = list(items) + pilots
+                pilots = list(os.scandir(self.data_root / self.pilot_folder))
+                items = items + pilots
+
+            # Check for sessions without a data file
+            sessions_missing_data = []
+            for item in items:
+                if item.is_dir() and re.match(
+                    session_folder_regex, item.name, re.IGNORECASE
+                ):
+                    # check if the session is excluded or included
+                    if self.included_sessions:
+                        if item.name not in self.included_sessions:
+                            continue
+                    elif self.excluded_sessions and item.name in self.excluded_sessions:
+                        continue
+
+                    session_file = list(Path(item.path).glob("*" + session_file_suffix))
+                    if len(session_file) == 0:
+                        sessions_missing_data.append(item.name)
+
+            if sessions_missing_data:
+                raise ValueError(
+                    f"The following sessions are missing a data file matching '{session_file_suffix}' "
+                    f"and will be skipped: {sorted(sessions_missing_data)}"
+                )
 
             for item in items:
                 if item.is_dir():
@@ -284,7 +305,9 @@ class MultipleyeDataCollection:
                             )
 
         if not found_sessions:
-            raise ValueError(f"No sessions found in data folder {self.data_root}")
+            raise ValueError(
+                f"No sessions found (or none matching the ex-/inclusion criteria) in data folder {self.data_root}"
+            )
 
         unique_sessions = set(found_sessions)
 
@@ -438,7 +461,9 @@ class MultipleyeDataCollection:
         year = dcn.year
 
         session_folder_regex = (
-            r"\d\d\d" + f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
+            r"\d\d\d"
+            + f"_{stimulus_language}_{country}_{lab_number}"
+            + r"_ET\d(?:_.*)?"
         )
 
         stimulus_folder_path = settings.OUTPUT_DIR / f"stimuli_{data_folder_name}"
@@ -574,7 +599,7 @@ class MultipleyeDataCollection:
         :return:
         """
         if not session:
-            sessions = [key for key in self.sessions.keys()]
+            sessions = [key for key in self.sessions]
             return sessions
         elif session not in self.sessions:
             raise KeyError(f"Session {session} not found in {self.data_root}.")
@@ -661,12 +686,11 @@ class MultipleyeDataCollection:
             except (ValueError, TypeError):
                 p_id = session.split("_")[0] if "_" in session else session
 
-            if "start_after_trial" in session:
-                if p_id not in self.crashed_session_ids:
-                    self.crashed_session_ids.append(p_id)
-                    self.logger.warning(
-                        f"Session {session} started after a trial. Only the completed stimuli will be considered."
-                    )
+            if "start_after_trial" in session and p_id not in self.crashed_session_ids:
+                self.crashed_session_ids.append(p_id)
+                self.logger.warning(
+                    f"Session {session} started after a trial. Only the completed stimuli will be considered."
+                )
 
             (
                 self.sessions[session].completed_stimuli_ids,
@@ -692,16 +716,15 @@ class MultipleyeDataCollection:
             if (
                 self.sessions[session].stimulus_order_ids
                 != self.sessions[session].completed_stimuli_ids
-            ):
-                if p_id not in self.crashed_session_ids:
-                    msg = (
-                        f"Stimulus order and completed stimuli do not match for "
-                        f"session {session}. Please check the files carefully."
-                    )
-                    self.logger.warning(msg)
-                    if not hasattr(logging, "_captured_warnings"):
-                        logging._captured_warnings = []  # type: ignore
-                    logging._captured_warnings.append(msg)  # type: ignore
+            ) and p_id not in self.crashed_session_ids:
+                msg = (
+                    f"Stimulus order and completed stimuli do not match for "
+                    f"session {session}. Please check the files carefully."
+                )
+                self.logger.warning(msg)
+                if not hasattr(logging, "_captured_warnings"):
+                    logging._captured_warnings = []  # type: ignore
+                logging._captured_warnings.append(msg)  # type: ignore
 
             self.sessions[session].stimuli = self._load_session_stimuli(
                 self.stimulus_dir,
@@ -782,7 +805,7 @@ class MultipleyeDataCollection:
         )
 
         regex = settings.LOGFILE_ORDER_VERSION_REGEX
-        with open(general_logfile, "r", encoding="utf-8") as f:
+        with open(general_logfile, encoding="utf-8") as f:
             text = f.read()
         match = re.search(regex, text)
 
@@ -1045,7 +1068,7 @@ class MultipleyeDataCollection:
         os.makedirs(result_folder, exist_ok=True)
         in_break = False
 
-        with open(asc_file, "r", encoding="utf-8") as f:
+        with open(asc_file, encoding="utf-8") as f:
             for line in f.readlines():
                 if match := settings.MESSAGE_REGEX.match(line):
                     messages.append(match.groupdict())
@@ -1441,7 +1464,7 @@ class MultipleyeDataCollection:
 
             pq_file = folder / f"{sid.base_id}_pq_data.json"
             if pq_file.exists():
-                with open(pq_file, "r", encoding="utf-8") as f:
+                with open(pq_file, encoding="utf-8") as f:
                     data = json.load(f)
 
                 # due to a bug in an earlier version of the experiment, some of the participant data has been lost,

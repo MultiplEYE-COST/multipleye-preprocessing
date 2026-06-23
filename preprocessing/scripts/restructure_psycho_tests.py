@@ -100,7 +100,7 @@ def fix_psycho_tests_structure(
         # Check if there is a corresponding data file
         name = config_file.stem
 
-        with open(config_file, "r") as f:
+        with open(config_file) as f:
             try:
                 yaml.safe_load(f)
             except yaml.YAMLError as exc:
@@ -133,7 +133,7 @@ def fix_psycho_tests_structure(
         except (ValueError, TypeError):
             config_sid = None
 
-        for yaml_flag, folder_name in settings.PSYCHOMETRIC_TEST_MAPPING.items():
+        for folder_name in settings.PSYCHOMETRIC_TEST_MAPPING.values():
             # Try exact match first
             old_path = data_folder / folder_name / name
 

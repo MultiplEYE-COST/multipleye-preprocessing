@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Optional
 import re
 
 __all__ = ["Sid"]
@@ -17,13 +16,13 @@ class Sid:
 
     def __init__(
         self,
-        sid: Optional[str] = None,
+        sid: str | None = None,
         *,
-        pid: Optional[str] = None,
-        lang: Optional[str] = None,
-        country: Optional[str] = None,
-        lab: Optional[str] = None,
-        session: Optional[str] = None,
+        pid: str | None = None,
+        lang: str | None = None,
+        country: str | None = None,
+        lab: str | None = None,
+        session: str | None = None,
         postfix: str = "",
     ):
         if sid is not None and any(
@@ -119,11 +118,11 @@ class Sid:
         return base
 
     @staticmethod
-    def get_session_save_name(session_idf: str) -> str:
-        """Get a consistent session name for file names, excluding restart postfixes."""
+    def get_session_save_name(session_idf: str, include_postfix: bool = False) -> str:
+        """Get a consistent session name for file names, optionally including restart postfixes."""
         try:
             sid = Sid(session_idf)
-            return sid.id_no_postfix
+            return str(sid) if include_postfix else sid.id_no_postfix
         except (ValueError, TypeError):
             # Fallback for non-compliant identifiers
             return "_".join(session_idf.split("_")[:5])

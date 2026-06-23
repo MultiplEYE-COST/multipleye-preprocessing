@@ -156,16 +156,15 @@ def prepare_language_folder(data_collection_name: str | None = None):
         / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
     )
 
-    if destination_aoi_path.exists():
-        # check if it already contains 24 files and the fixed marker
-        if (
-            len(list(destination_aoi_path.glob("*.csv"))) == 24
-            and (destination_aoi_path / ".fixed").exists()
-        ):
-            logger.debug(
-                f"AOI files already exist, are split and fixed in {destination_aoi_path}. Skipping."
-            )
-            return
+    if (  # check if it already contains 24 files and the fixed marker
+        destination_aoi_path.exists()
+        and len(list(destination_aoi_path.glob("[!.]*.csv"))) == 24
+        and (destination_aoi_path / ".fixed").exists()
+    ):
+        logger.debug(
+            f"AOI files already exist, are split and fixed in {destination_aoi_path}. Skipping."
+        )
+        return
 
     if not destination_aoi_path.exists():
         if source_aoi_path.exists():

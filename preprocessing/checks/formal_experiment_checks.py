@@ -70,15 +70,15 @@ def check_all_screens_logfile(
         # print(f"Checking {stimulus.name} in Logfile")
         try:
             trial_id = logfile.filter(
-                (pl.col("stimulus_number") == str(stimulus.id))
+                pl.col("stimulus_number") == str(stimulus.id)
             ).item(
                 0, "trial_number"
             )  # get the trial number for the stimulus as ratingscreens don't have an entry in the stimulus_number column
         except (pl.exceptions.NoRowsReturnedError, IndexError):
             trial_id = logfile.filter(
-                (pl.col("stimulus_number") == str(float(stimulus.id)))
+                pl.col("stimulus_number") == str(float(stimulus.id))
             ).item(0, "trial_number")
-        stimulus_frame = logfile.filter((pl.col("trial_number") == trial_id))
+        stimulus_frame = logfile.filter(pl.col("trial_number") == trial_id)
         # print(stimulus_frame)
         # check if all pages are present
         for page in stimulus.pages:
@@ -118,7 +118,7 @@ def sanity_check_gaze_frame(gaze, stimuli, report_file):
     for stimulus in stimuli:
         # print(f"Checking {stimulus.name}")
         stimulus_frame = gaze.samples.filter(
-            (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
+            pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}"
         ).unique(settings.PAGE_COL)
         # check if all pages are present
         for page in stimulus.pages:

@@ -20,6 +20,7 @@ def load_gaze_data(
     lab_config: LabConfig,
     sid: Sid,
     trial_cols: list[str] = None,
+    messages: bool | list[str] = False,
 ) -> pm.Gaze:
     """Load sample gaze data from an ASC file.
 
@@ -39,6 +40,10 @@ def load_gaze_data(
         The session identifier.
     trial_cols : list of str, optional
         List of columns to be associated with trial-level metadata. Default is None.
+    messages : bool or list of str, optional
+        Whether to extract messages from the ASC file. If True, all messages are extracted.
+        If a list of strings is provided, only messages matching the patterns are extracted.
+        Default is False.
 
     Returns
     -------
@@ -60,12 +65,16 @@ def load_gaze_data(
         sampling_rate=lab_config.sampling_frequency_hz,
     )
 
+    if messages is None:
+        messages = False
+
     gaze = pm.gaze.from_asc(
         asc_file,
         patterns=settings.GAZE_PATTERNS,
         trial_columns=trial_cols,
         add_columns={"session": str(sid)},
         experiment=experiment,
+        messages=messages,
     )
 
     # Filter out data outside of trials
@@ -149,20 +158,20 @@ def load_trial_level_raw_data(
     if load_metadata:
         metadata_path = Path(directory) / settings.METADATA_FOLDER / str(sid)
 
-        with open(metadata_path / "gaze_metadata.json", "r", encoding="utf8") as f:
+        with open(metadata_path / "gaze_metadata.json", encoding="utf8") as f:
             metadata = json.load(f)
 
         gaze._metadata = metadata
 
-        with open(metadata_path / "experiment.yaml", "r") as f:
+        with open(metadata_path / "experiment.yaml") as f:
             exp = yaml.safe_load(f)
 
-        with open(metadata_path / "validations.tsv", "r", encoding="utf8") as f:
+        with open(metadata_path / "validations.tsv", encoding="utf8") as f:
             validations_df = pl.read_csv(f, separator="\t")
 
         gaze.validations = validations_df
 
-        with open(metadata_path / "calibrations.tsv", "r", encoding="utf8") as f:
+        with open(metadata_path / "calibrations.tsv", encoding="utf8") as f:
             calibrations_df = pl.read_csv(f, separator="\t")
 
         gaze.calibrations = calibrations_df
@@ -230,7 +239,7 @@ def load_trial_level_events_data(
         if match is None:
             logging.info(f"Skipping file {file} for event loading")
         else:
-            for group_name in match.groupdict().keys():
+            for group_name in match.groupdict():
                 if group_name not in trial_df.columns:
                     trial_df = trial_df.with_columns(
                         pl.lit(match.group(group_name)).alias(group_name)
@@ -280,7 +289,7 @@ def load_trial_level_events_data(
 def load_reading_measures(
     directory: Path,
     sid: Sid,
-    file_pattern: str = r".*?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv",
+    file_pattern: str = r".+?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv",
 ) -> pl.DataFrame:
     """Load reading measures from CSV files.
 

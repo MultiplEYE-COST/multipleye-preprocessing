@@ -211,10 +211,7 @@ def setup_logging(
 
         def filter(self, record: logging.LogRecord) -> bool:
             msg = record.getMessage()
-            for pattern in self.patterns:
-                if pattern.search(msg):
-                    return False
-            return True
+            return all(not pattern.search(msg) for pattern in self.patterns)
 
     if hasattr(settings, "IGNORED_LOG_REGEXES") and settings.IGNORED_LOG_REGEXES:
         regex_filter = RegexFilter(settings.IGNORED_LOG_REGEXES)

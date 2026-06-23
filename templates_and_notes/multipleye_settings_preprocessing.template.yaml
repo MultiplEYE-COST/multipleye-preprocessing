@@ -73,6 +73,18 @@ acceptable_num_trials: 10
 # --- EYE TRACKER LABELS (do not change) ---
 tracked_eye: ["L", "R", "RIGHT", "LEFT"]
 
+# --- PIPELINE STAGES ---
+# Whether to perform fixation detection.
+RUN_FIXATION_DETECTION: true
+# Whether to perform saccade detection.
+RUN_SACCADE_DETECTION: true
+# Whether to perform reading measures calculation.
+RUN_READING_MEASURES: true
+# Whether to collect comprehension question answers.
+RUN_COMPREHENSION_ANSWERS: true
+# Whether to create sanity check reports.
+RUN_SANITY_CHECKS: true
+
 # --- INTERNAL (do not change) ---
 # Whether to force reconversion of EDF files to ASC even if output exists.
 force_reconvert_asc: false
@@ -83,6 +95,7 @@ scanpaths_folder: "scanpaths/"
 reading_measures_folder: "reading_measures/"
 sanity_checks_folder: "sanity_checks/"
 metadata_folder: "metadata/"
+answers_folder: "comp_answers/"
 trial_cols: ["trial", "stimulus", "page"]
 trial_col: "trial"
 page_col: "page"
