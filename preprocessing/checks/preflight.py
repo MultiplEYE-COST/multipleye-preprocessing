@@ -7,6 +7,7 @@ consolidated error instead of triggering mid-loop failures one at a time.
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import sys
 from pathlib import Path
@@ -118,8 +119,8 @@ def run_preflight_check(data_collection) -> None:
 
 
 def _require_file(path: Path, label: str, groups: dict[str, list[str]]) -> None:
-    """Record a missing file or directory."""
-    if not path.exists():
+    """Record a missing file or directory (case-insensitive existence check)."""
+    if not _ci_exists(path):
         groups.setdefault(label, []).append(str(path))
 
 
@@ -129,9 +130,100 @@ def _require_glob(
     label: str,
     groups: dict[str, list[str]],
 ) -> None:
-    """Record if no files match a glob pattern in the given directory."""
-    if not list(directory.glob(pattern)):
+    """Record if no files match a glob pattern (case-insensitive)."""
+    if not _ci_glob(directory, pattern):
         groups.setdefault(label, []).append(str(directory / pattern))
+
+
+def _ci_exists(path: Path) -> bool:
+    """Check if a path exists, falling back to case-insensitive comparison."""
+    if path.exists():
+        return True
+    parent = path.parent
+    if not parent.exists():
+        return False
+    try:
+        entries = os.listdir(parent)
+    except OSError:
+        return False
+    target = path.name.casefold()
+    return any(entry.casefold() == target for entry in entries)
+
+
+def _ci_resolve(path: Path) -> Path:
+    """Resolve a path to its actual on-disk spelling (case correction)."""
+    if path.exists():
+        return path
+    parent = path.parent
+    if not parent.exists():
+        return path
+    try:
+        entries = os.listdir(parent)
+    except OSError:
+        return path
+    target = path.name.casefold()
+    for entry in entries:
+        if entry.casefold() == target:
+            return parent / entry
+    return path
+
+
+def _ci_glob(directory: Path, pattern: str) -> list[Path]:
+    """Case-insensitive glob, returning actual on-disk paths."""
+    if not directory.exists():
+        return []
+    try:
+        entries = os.listdir(directory)
+    except OSError:
+        return []
+    pattern_cf = pattern.casefold()
+    return [
+        directory / entry
+        for entry in entries
+        if fnmatch.fnmatch(entry.casefold(), pattern_cf)
+    ]
+
+
+def _find_archives(directory: Path) -> list[str]:
+    """Find common archive files in the given directory."""
+    patterns = ["*.zip", "*.tar.gz", "*.tar", "*.tgz", "*.7z", "*.rar"]
+    archives: list[str] = []
+    for pattern in patterns:
+        for p in _ci_glob(directory, pattern):
+            archives.append(p.name)
+    return archives
+
+
+def _stim_dir_empty_check(stim_dir: Path, groups: dict[str, list[str]]) -> bool:
+    """Check the stimulus directory is usable.
+
+    Returns True if usable, False if missing or empty
+    (caller can skip further shared-file checks).
+    """
+    if not _ci_exists(stim_dir):
+        groups.setdefault("Stimulus folder", []).append(
+            f"Stimulus folder does not exist: {stim_dir}"
+        )
+        return False
+
+    try:
+        entries = [e for e in os.listdir(stim_dir) if not e.startswith(".")]
+    except OSError:
+        entries = []
+
+    if not entries:
+        msg = f"Stimulus folder is empty: {stim_dir}"
+        archives = _find_archives(stim_dir.parent)
+        if archives:
+            archive_list = ", ".join(sorted(archives))
+            msg += (
+                f"\n  Found archive(s) in parent directory: {archive_list}"
+                f"\n  Extract the archive into the stimulus folder first."
+            )
+        groups.setdefault("Stimulus folder", []).append(msg)
+        return False
+
+    return True
 
 
 def _check_shared_files(
@@ -149,6 +241,10 @@ def _check_shared_files(
 
     lang_lower = lang.lower()
     country_lower = country.lower()
+
+    # --- Stimulus directory empty check -----------------------------------
+    if not _stim_dir_empty_check(stim_dir, errors):
+        return
 
     # --- Stimulus definition files (errors) -------------------------------
     _require_file(
@@ -228,22 +324,22 @@ def _check_sessions(data_collection, groups: dict[str, list[str]]) -> None:
         sid = session.session_identifier
 
         # 1. EDF data file
-        if not session.session_file_path.exists():
+        if not _ci_exists(session.session_file_path):
             groups.setdefault("EDF data file", []).append(sid)
 
         # 2. Logfiles folder
         logfiles: Path = session.session_folder_path / "logfiles"
-        if not logfiles.exists():
+        if not _ci_exists(logfiles):
             groups.setdefault("Logfiles folder", []).append(sid)
             continue
 
         # 3. EXPERIMENT_*.txt
-        experiment_logs = list(logfiles.glob("EXPERIMENT_*.txt"))
+        experiment_logs = _ci_glob(logfiles, "EXPERIMENT_*.txt")
         if len(experiment_logs) == 0:
             groups.setdefault("EXPERIMENT_*.txt", []).append(sid)
 
         # 4. GENERAL_LOGFILE_*.txt
-        general_logs = list(logfiles.glob("GENERAL_LOGFILE_*.txt"))
+        general_logs = _ci_glob(logfiles, "GENERAL_LOGFILE_*.txt")
         if len(general_logs) == 0:
             groups.setdefault("GENERAL_LOGFILE_*.txt", []).append(sid)
 
@@ -273,13 +369,13 @@ def _check_parseable_csv(
     sid: str,
     required_cols: set[str],
 ) -> None:
-    """Check a CSV exists, is parseable, and has the expected columns."""
-    if not path.exists():
+    """Check a CSV exists, is parseable, and has the expected columns (case-insensitive)."""
+    if not _ci_exists(path):
         groups.setdefault(label, []).append(f"{sid} (missing)")
         return
 
     try:
-        df = pl.read_csv(path, infer_schema_length=0)
+        df = pl.read_csv(_ci_resolve(path), infer_schema_length=0)
     except Exception as e:
         groups.setdefault(label, []).append(f"{sid} ({e})")
         return
@@ -316,11 +412,14 @@ def _format_message(groups: dict[str, list[str]]) -> str:
         for path in groups[label]:
             lines.append(f"\n  {label} not found:\n      {os.path.relpath(path)}")
 
-    # Image folders (shared, but with dynamic names)
+    # Image folders and stimulus folder (shared, with dynamic messages)
     for label in list(groups.keys()):
         if label.startswith("Image folder:"):
             for path in groups[label]:
                 lines.append(f"\n  {label} not found:\n      {os.path.relpath(path)}")
+    if "Stimulus folder" in groups:
+        for msg in groups["Stimulus folder"]:
+            lines.append(f"\n  {msg}")
 
     # Per-session file-type groups
     for label in [
