@@ -429,6 +429,8 @@ class Settings:
         self.RUN_COMPREHENSION_ANSWERS = True
         #: Whether to create sanity check reports.
         self.RUN_SANITY_CHECKS = True
+        #: Whether to run the preflight input file check before processing.
+        self.RUN_PREFLIGHT_CHECK = True
 
         #: Column name for the trial identifier.
         self.TRIAL_COL = "trial"

@@ -84,6 +84,8 @@ RUN_READING_MEASURES: true
 RUN_COMPREHENSION_ANSWERS: true
 # Whether to create sanity check reports.
 RUN_SANITY_CHECKS: true
+# Whether to run the preflight input file check before processing.
+RUN_PREFLIGHT_CHECK: true
 
 # --- INTERNAL (do not change) ---
 # Whether to force reconversion of EDF files to ASC even if output exists.
