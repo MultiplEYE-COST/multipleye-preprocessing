@@ -82,7 +82,7 @@ def run_preprocessing(config_path: str | None = None):
         asc = sess.asc_path
 
         # create or load raw data
-        raw_data_folder = settings.OUTPUT_DIR / settings.RAW_DATA_FOLDER / str(sid)
+        raw_data_folder = sid.raw_data_dir
         if raw_data_folder.exists() and not settings.OVERWRITE:
             # check if the folder contains the expected number of files, if not, we will overwrite
             num_expected_files = len(sess.completed_stimuli_ids)
@@ -134,10 +134,8 @@ def run_preprocessing(config_path: str | None = None):
         )
 
         # create or load fixation data
-        fixation_data_folder = (
-            settings.OUTPUT_DIR / settings.FIXATIONS_FOLDER / str(sid)
-        )
-        saccade_data_folder = settings.OUTPUT_DIR / settings.SACCADES_FOLDER / str(sid)
+        fixation_data_folder = sid.fixations_dir
+        saccade_data_folder = sid.saccades_dir
 
         if settings.RUN_FIXATION_DETECTION or settings.RUN_SACCADE_DETECTION:
             if gaze is None:
@@ -237,14 +235,14 @@ def run_preprocessing(config_path: str | None = None):
                 gaze = preprocessing.load_trial_level_events_data(
                     gaze,
                     settings.OUTPUT_DIR,
-                    idf,
+                    sid,
                     event_type=settings.FIXATION,
                     file_pattern=None,
                 )
                 gaze = preprocessing.load_trial_level_events_data(
                     gaze,
                     settings.OUTPUT_DIR,
-                    idf,
+                    sid,
                     event_type=settings.SACCADE,
                     file_pattern=None,
                 )
@@ -270,7 +268,7 @@ def run_preprocessing(config_path: str | None = None):
 
                 preprocessing.save_session_metadata(settings.OUTPUT_DIR, gaze, sid)
 
-        rm_folder = settings.OUTPUT_DIR / settings.READING_MEASURES_FOLDER / str(sid)
+        rm_folder = sid.reading_measures_dir
 
         if settings.RUN_READING_MEASURES:
             if (
@@ -318,12 +316,7 @@ def run_preprocessing(config_path: str | None = None):
 
         # === COMPREHENSION QUESTION ANSWERS ===
         if settings.RUN_COMPREHENSION_ANSWERS:
-            answers_csv = (
-                settings.OUTPUT_DIR
-                / settings.ANSWERS_FOLDER
-                / str(sid)
-                / f"{str(sid)}_answers.csv"
-            )
+            answers_csv = sid.answers_dir / f"{sid}_answers.csv"
 
             if answers_csv.exists() and not settings.OVERWRITE:
                 pbar.set_description(f"Loading comprehension answers {idf}")

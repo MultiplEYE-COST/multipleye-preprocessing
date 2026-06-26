@@ -1,5 +1,6 @@
 import pytest
 from preprocessing.models.sid import Sid
+from preprocessing.config import settings
 
 
 @pytest.mark.parametrize(
@@ -243,3 +244,26 @@ def test_sid_equals_soft(sid1_str, sid2_str, expected_match):
     sid2 = Sid(sid2_str)
     assert sid1.equals_soft(sid2) == expected_match
     assert sid2.equals_soft(sid1) == expected_match
+
+
+FOLDER_PROPERTIES = [
+    ("raw_data_dir", settings.RAW_DATA_FOLDER),
+    ("fixations_dir", settings.FIXATIONS_FOLDER),
+    ("saccades_dir", settings.SACCADES_FOLDER),
+    ("scanpaths_dir", settings.SCANPATHS_FOLDER),
+    ("reading_measures_dir", settings.READING_MEASURES_FOLDER),
+    ("metadata_dir", settings.METADATA_FOLDER),
+    ("answers_dir", settings.ANSWERS_FOLDER),
+]
+
+
+@pytest.mark.parametrize("prop_name, subfolder", FOLDER_PROPERTIES)
+@pytest.mark.parametrize(
+    "sid_str",
+    ["001_EN_UK_1_S1", "003_DE_DE_1_ET1_full_restart"],
+)
+def test_sid_dir_properties(monkeypatch, tmp_path, prop_name, subfolder, sid_str):
+    monkeypatch.setattr(type(settings), "OUTPUT_DIR", tmp_path)
+    sid = Sid(sid_str)
+    expected = tmp_path / subfolder / str(sid)
+    assert getattr(sid, prop_name) == expected
