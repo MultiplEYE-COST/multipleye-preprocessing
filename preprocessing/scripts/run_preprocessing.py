@@ -64,6 +64,11 @@ def run_preprocessing(config_path: str | None = None):
             f"Invalid experiment type: {settings.EXPERIMENT_TYPE}. Supported types: [MultiplEYE, MeRID]"
         )
 
+    if settings.RUN_PREFLIGHT_CHECK:
+        from ..checks.preflight import run_preflight_check
+
+        run_preflight_check(data_collection)
+
     data_collection.convert_edf_to_asc()
     data_collection.prepare_session_level_information()
 

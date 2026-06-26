@@ -58,6 +58,7 @@ def eyelink(method):
 class MultipleyeDataCollection:
     participant_data_path: Path | str | None
     crashed_session_ids: list[str] = []
+    skipped_session_ids: list[str] = []
     num_sessions = 1
     overview = {}
 
@@ -91,6 +92,7 @@ class MultipleyeDataCollection:
         **kwargs,
     ):
         self.sessions: dict[str, Session] = {}
+        self.skipped_session_ids: list[str] = []
         # TODO: in theory this can be multiple languages for the stimuli..
         self.language = stimulus_language
         self.country = country
@@ -230,29 +232,6 @@ class MultipleyeDataCollection:
                 pilots = list(os.scandir(self.data_root / self.pilot_folder))
                 items = items + pilots
 
-            # Check for sessions without a data file
-            sessions_missing_data = []
-            for item in items:
-                if item.is_dir() and re.match(
-                    session_folder_regex, item.name, re.IGNORECASE
-                ):
-                    # check if the session is excluded or included
-                    if self.included_sessions:
-                        if item.name not in self.included_sessions:
-                            continue
-                    elif self.excluded_sessions and item.name in self.excluded_sessions:
-                        continue
-
-                    session_file = list(Path(item.path).glob("*" + session_file_suffix))
-                    if len(session_file) == 0:
-                        sessions_missing_data.append(item.name)
-
-            if sessions_missing_data:
-                raise ValueError(
-                    f"The following sessions are missing a data file matching '{session_file_suffix}' "
-                    f"and will be skipped: {sorted(sessions_missing_data)}"
-                )
-
             for item in items:
                 if item.is_dir():
                     if re.match(session_folder_regex, item.name, re.IGNORECASE):
@@ -270,10 +249,11 @@ class MultipleyeDataCollection:
                             )
 
                             if len(session_file) == 0:
-                                raise ValueError(
-                                    f"No files found in folder {item.name} that match "
-                                    f"the pattern {session_file_suffix}"
+                                self.logger.warning(
+                                    f"No EDF file found for {item.name}, skipping."
                                 )
+                                self.skipped_session_ids.append(item.name)
+                                continue
 
                             elif len(session_file) > 1:
                                 raise ValueError(
