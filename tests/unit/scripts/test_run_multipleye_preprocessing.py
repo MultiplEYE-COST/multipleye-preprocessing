@@ -6,9 +6,9 @@ from pathlib import Path
 def test_reading_measures_uses_sid_consistently():
     """Test that reading measures check and save use the same Sid instance.
 
-    The Sid refactoring ensures `str(sid)` is used for folder names and
-    `sid.id_no_postfix` for filenames, eliminating the old bug where
-    folder checks used a different identifier than saves.
+    The Sid refactoring centralises folder path construction on `Sid`
+    properties, so `sid.reading_measures_dir` is the single source of truth
+    for folder lookups and save destinations.
     """
     source_file = Path("preprocessing/scripts/run_preprocessing.py")
     source_code = source_file.read_text()
@@ -19,18 +19,18 @@ def test_reading_measures_uses_sid_consistently():
     save_reading_measures_line = None
 
     for i, line in enumerate(lines):
-        if "settings.READING_MEASURES_FOLDER / str(sid)" in line:
+        if "rm_folder = sid.reading_measures_dir" in line:
             rm_folder_line = i
         if "preprocessing.save_reading_measures(" in line:
             save_reading_measures_line = i
 
-    assert rm_folder_line is not None, "Could not find rm_folder check line"
+    assert rm_folder_line is not None, "Could not find rm_folder assignment"
     assert save_reading_measures_line is not None, (
         "Could not find save_reading_measures call"
     )
 
     assert rm_folder_line < save_reading_measures_line, (
-        "rm_folder check should be defined before the save call"
+        "rm_folder should be assigned before the save call"
     )
 
 
