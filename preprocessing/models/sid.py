@@ -154,16 +154,6 @@ class Sid:
 
         return _settings.OUTPUT_DIR / _settings.ANSWERS_FOLDER / str(self)
 
-    @staticmethod
-    def get_session_save_name(session_idf: str, include_postfix: bool = False) -> str:
-        """Get a consistent session name for file names, optionally including restart postfixes."""
-        try:
-            sid = Sid(session_idf)
-            return str(sid) if include_postfix else sid.id_no_postfix
-        except (ValueError, TypeError):
-            # Fallback for non-compliant identifiers
-            return "_".join(session_idf.split("_")[:5])
-
     def __str__(self) -> str:
         base = self.id_no_postfix
         if self.postfix:

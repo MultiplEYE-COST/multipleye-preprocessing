@@ -198,32 +198,6 @@ def test_sid_id_no_postfix(sid_str, expected_no_postfix):
 
 
 @pytest.mark.parametrize(
-    "session_idf, expected_save_name",
-    [
-        ("001_EN_UK_1_PT1", "001_EN_UK_1_PT1"),
-        ("002_ZH_CH_LAB2_S2_restart", "002_ZH_CH_LAB2_S2"),
-        ("003_DE_DE_1_ET1_full_restart", "003_DE_DE_1_ET1"),
-        (
-            "004_FR_FR_1_PT1_start_after_trial_10",
-            "004_FR_FR_1_PT1",
-        ),
-        ("non_compliant_id_extra_part", "non_compliant_id_extra_part"),
-        ("short", "short"),
-    ],
-)
-def test_sid_get_session_save_name(session_idf, expected_save_name):
-    assert Sid.get_session_save_name(session_idf) == expected_save_name
-
-
-def test_sid_get_session_save_name_include_postfix():
-    sid_str = "003_DE_DE_1_ET1_full_restart"
-    assert (
-        Sid.get_session_save_name(sid_str, include_postfix=False) == "003_DE_DE_1_ET1"
-    )
-    assert Sid.get_session_save_name(sid_str, include_postfix=True) == sid_str
-
-
-@pytest.mark.parametrize(
     "sid1_str, sid2_str, expected_match",
     [
         ("001_EN_UK_1_S1", "001_EN_UK_1_PT1", True),
