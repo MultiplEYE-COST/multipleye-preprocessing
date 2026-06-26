@@ -95,7 +95,6 @@ def run_preprocessing(config_path: str | None = None):
 
             pbar.set_description(f"Loading samples {idf}:")
             gaze = preprocessing.load_trial_level_raw_data(
-                settings.OUTPUT_DIR,
                 sid,
                 trial_columns=settings.TRIAL_COLS,
                 load_metadata=True,
@@ -116,12 +115,8 @@ def run_preprocessing(config_path: str | None = None):
                 pl.col("stimulus").is_in(sess.completed_stimuli_names)
             )
 
-            preprocessing.save_raw_data(
-                settings.OUTPUT_DIR,
-                sid,
-                gaze,
-            )
-            preprocessing.save_session_metadata(settings.OUTPUT_DIR, gaze, sid)
+            preprocessing.save_raw_data(sid, gaze)
+            preprocessing.save_session_metadata(gaze, sid)
 
         sess.pm_gaze_metadata = gaze._metadata
         sess.calibrations = gaze.calibrations
@@ -167,7 +162,6 @@ def run_preprocessing(config_path: str | None = None):
                 pbar.set_description(f"Loading events {idf}:")
                 gaze = preprocessing.load_trial_level_events_data(
                     gaze,
-                    settings.OUTPUT_DIR,
                     sid,
                     event_type=settings.FIXATION,
                     file_pattern=None,
@@ -175,7 +169,6 @@ def run_preprocessing(config_path: str | None = None):
 
                 gaze = preprocessing.load_trial_level_events_data(
                     gaze,
-                    settings.OUTPUT_DIR,
                     sid,
                     event_type=settings.SACCADE,
                     file_pattern=None,
@@ -192,7 +185,6 @@ def run_preprocessing(config_path: str | None = None):
                 if settings.RUN_FIXATION_DETECTION:
                     preprocessing.save_events_data(
                         settings.FIXATION,
-                        settings.OUTPUT_DIR,
                         sid,
                         "trial",
                         ["trial", "stimulus"],
@@ -203,7 +195,6 @@ def run_preprocessing(config_path: str | None = None):
                 if settings.RUN_SACCADE_DETECTION:
                     preprocessing.save_events_data(
                         settings.SACCADE,
-                        settings.OUTPUT_DIR,
                         sid,
                         "trial",
                         ["trial", "stimulus"],
@@ -264,9 +255,9 @@ def run_preprocessing(config_path: str | None = None):
                     gaze,
                     sess.stimuli,
                 )
-                preprocessing.save_scanpaths(settings.OUTPUT_DIR, sid, gaze)
+                preprocessing.save_scanpaths(sid, gaze)
 
-                preprocessing.save_session_metadata(settings.OUTPUT_DIR, gaze, sid)
+                preprocessing.save_session_metadata(gaze, sid)
 
         rm_folder = sid.reading_measures_dir
 
@@ -293,10 +284,7 @@ def run_preprocessing(config_path: str | None = None):
                     )
 
                 pbar.set_description(f"Loading reading measures {idf}:")
-                reading_measures = preprocessing.load_reading_measures(
-                    settings.OUTPUT_DIR,
-                    sid,
-                )
+                reading_measures = preprocessing.load_reading_measures(sid)
 
                 data_collection[sess.session_identifier].reading_measures = True
 
@@ -307,9 +295,7 @@ def run_preprocessing(config_path: str | None = None):
                     sess.stimuli,
                 )
 
-                preprocessing.save_reading_measures(
-                    settings.OUTPUT_DIR, sid, reading_measures
-                )
+                preprocessing.save_reading_measures(sid, reading_measures)
                 data_collection[sess.session_identifier].reading_measures = True
         else:
             pbar.set_description(f"Skipping reading measures {idf}:")
