@@ -326,6 +326,12 @@ def preflight_env(tmp_path: Path):
             lambda env: _rmtree(env[0].stimulus_dir.parent / "documentation"),
             0,
         ),
+        # ---- empty stimulus folder ------------------------------------------
+        (
+            "stimulus_folder_empty",
+            lambda env: _make_empty(env[0].stimulus_dir),
+            1,
+        ),
         # ---- multiple failures ----------------------------------------------
         (
             "multiple_failures",
@@ -481,6 +487,80 @@ def test_preflight_multiple_sessions(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
+# Empty stimulus directory
+# ---------------------------------------------------------------------------
+
+
+def test_preflight_stimulus_dir_empty_message(preflight_env):
+    """Empty stimulus directory produces a descriptive message."""
+    dc, _ = preflight_env
+    _make_empty(dc.stimulus_dir)
+
+    with pytest.raises(PreflightError) as exc_info:
+        run_preflight_check(dc)
+
+    msg = str(exc_info.value)
+    assert "Stimulus folder is empty" in msg
+    assert exc_info.value.num_errors == 1
+
+
+def test_preflight_stimulus_dir_empty_with_archive(tmp_path: Path):
+    """If an archive sits next to the empty stim dir, mention it."""
+    stim_dir = tmp_path / "stimuli"
+    stim_dir.mkdir()
+    # Create a dummy archive
+    (tmp_path / "stimuli_data.zip").write_text("fake zip", encoding="utf-8")
+    # Session still works
+    sid = "001_EN_UK_1_ET1"
+    sess_folder = tmp_path / "sessions" / sid
+    sess_folder.mkdir(parents=True)
+    (sess_folder / "data.edf").write_text("data", encoding="utf-8")
+    logfiles = sess_folder / "logfiles"
+    logfiles.mkdir()
+    (logfiles / "EXPERIMENT_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "GENERAL_001.txt").write_text("data", encoding="utf-8")
+    _write_csv(
+        logfiles / "completed_stimuli.csv",
+        ["stimulus_id", "stimulus_name", "trial_id", "completed"],
+        [["1", "Arg_PISACowsMilk", "1", "1"]],
+    )
+    _write_csv(
+        logfiles / "question_order_versions.csv",
+        [
+            "question_order_version",
+            "local_question_1",
+            "local_question_2",
+            "bridging_question_1",
+            "bridging_question_2",
+            "global_question_1",
+            "global_question_2",
+        ],
+        [["1", "101", "102", "201", "202", "301", "302"]],
+    )
+
+    session = FakeSession(
+        session_identifier=sid,
+        session_file_path=sess_folder / "data.edf",
+        session_folder_path=sess_folder,
+    )
+    dc = FakeDataCollection(
+        stimulus_dir=stim_dir,
+        language="EN",
+        country="UK",
+        lab_number=1,
+        sessions={sid: session},
+    )
+
+    with pytest.raises(PreflightError) as exc_info:
+        run_preflight_check(dc)
+
+    msg = str(exc_info.value)
+    assert "Stimulus folder is empty" in msg
+    assert "stimuli_data.zip" in msg
+    assert "Extract the archive" in msg
+
+
+# ---------------------------------------------------------------------------
 # Warning-only scenarios
 # ---------------------------------------------------------------------------
 
@@ -516,3 +596,14 @@ def _remove_glob(directory: Path, pattern: str) -> None:
     """Remove all files matching a glob pattern in the given directory."""
     for p in directory.glob(pattern):
         p.unlink()
+
+
+def _make_empty(path: Path) -> None:
+    """Remove all contents of a directory, leaving it empty."""
+    import shutil
+
+    for child in list(path.iterdir()):
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
