@@ -914,23 +914,23 @@ class MultipleyeDataCollection:
             version = int(version)
 
             if version == logfile_order_version:
-                if settings.DEVELOPMENT:
-                    # only in develop mode we allow ignoring missing version numbers in the stimulus folder
-                    stim_order_version = self.stim_order_versions[
-                        self.stim_order_versions["version_number"] == version
-                    ]
+                # Try to look up the stimulus order by version number instead
+                # of participant ID, since the PID wasn't found in the CSV.
+                stim_order_version = self.stim_order_versions[
+                    self.stim_order_versions["version_number"] == version
+                ]
 
-                    if stim_order_version.empty:
-                        raise ValueError(
-                            "Stimulus order version from the asc cannot be found in the version csv. "
-                            "The team should upload the correct stimulus folder. It could be that a "
-                            "test version is uploaded. "
-                        )
-
-                    self.logger.warning(
-                        "Using the stimulus order version in logfile. The team should still "
-                        "upload the correct stimulus folder!!"
+                if stim_order_version.empty:
+                    raise ValueError(
+                        f"Stimulus order version {version} extracted from the ASC file "
+                        f"cannot be found in the stimulus order versions CSV. "
+                        f"The team should upload the correct stimulus folder."
                     )
+
+                self.logger.warning(
+                    "Using the stimulus order version from the ASC file. "
+                    "The team should still upload the correct stimulus folder!"
+                )
 
             else:
                 self.logger.warning(
