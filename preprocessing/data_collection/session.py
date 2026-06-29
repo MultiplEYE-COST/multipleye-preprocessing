@@ -5,6 +5,7 @@ import polars as pl
 
 from ..data_collection.stimulus import Stimulus, LabConfig
 from ..data_collection.trial import Trial
+from ..models import Sid
 
 
 @dataclass
@@ -72,6 +73,10 @@ class Session:
     answers: bool = field(default=False, init=False)
 
     trials = list[Trial]
+
+    @property
+    def sid(self) -> "Sid":
+        return Sid(self.session_identifier)
 
     def create_overview(self):
         self._create_stats()
