@@ -226,14 +226,12 @@ def run_preprocessing(config_path: str | None = None):
                 logger.info(f"Using existing event data for {sess.sid}")
                 gaze = preprocessing.load_trial_level_events_data(
                     gaze,
-                    settings.OUTPUT_DIR,
                     sess.sid,
                     event_type=settings.FIXATION,
                     file_pattern=None,
                 )
                 gaze = preprocessing.load_trial_level_events_data(
                     gaze,
-                    settings.OUTPUT_DIR,
                     sess.sid,
                     event_type=settings.SACCADE,
                     file_pattern=None,
