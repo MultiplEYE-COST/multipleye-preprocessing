@@ -21,6 +21,7 @@ from .io.load import (
 from .answers.msg_parser import parse_answers_from_messages
 from .answers.experiment_log_parser import parse_answers_from_logfile
 from .answers.collect import collect_session_answers
+from .checks.preflight import run_preflight_check
 
 from .scripts.prepare_language_folder import prepare_language_folder
 from .scripts.restructure_psycho_tests import fix_psycho_tests_structure
@@ -46,4 +47,5 @@ __all__ = [
     "parse_answers_from_messages",
     "parse_answers_from_logfile",
     "collect_session_answers",
+    "run_preflight_check",
 ]
