@@ -175,16 +175,16 @@ def save_reading_measures(sid: Sid, data: pl.DataFrame) -> None:
         trial.write_csv(directory / name)
 
 
-def save_session_metadata(gaze: pm.Gaze, sid: Sid) -> None:
+def save_session_metadata(sid: Sid, gaze: pm.Gaze) -> None:
     """
     Saves session metadata in a json file and also saves the gaze object's metadata.
 
     Parameters
     ----------
-    gaze : pm.Gaze
-        The gaze data as a pymovements Gaze object.
     sid : Sid
         The session identifier.
+    gaze : pm.Gaze
+        The gaze data as a pymovements Gaze object.
     """
     metadata_directory = sid.metadata_dir
     metadata_directory.mkdir(parents=True, exist_ok=True)

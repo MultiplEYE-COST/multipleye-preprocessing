@@ -142,7 +142,7 @@ def test_save_load_reading_measures_structure(tmp_path, sid_str):
 def test_save_load_metadata_structure(tmp_path, dummy_gaze, sid_str):
     sid = Sid(sid_str)
     save_raw_data(sid, dummy_gaze)
-    save_session_metadata(dummy_gaze, sid)
+    save_session_metadata(sid, dummy_gaze)
     assert sid.metadata_dir.exists()
     assert (sid.metadata_dir / "gaze_metadata.json").exists()
     assert (sid.metadata_dir / "calibrations.feather").exists()
