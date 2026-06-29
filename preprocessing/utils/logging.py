@@ -132,7 +132,7 @@ def setup_logging(
     RESET = "\033[0m"
     COLORS = {
         logging.DEBUG: "\033[36m",  # Cyan
-        logging.INFO: "\033[37m",  # Light gray
+        logging.INFO: "\033[34m",  # Blue
         logging.WARNING: "\033[33m",  # Yellow
         logging.ERROR: "\033[31m",  # Red
         logging.CRITICAL: "\033[1;41m",  # Bold on red background
