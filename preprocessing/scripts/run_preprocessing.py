@@ -117,7 +117,7 @@ def run_preprocessing(config_path: str | None = None):
             )
 
             preprocessing.save_raw_data(sess.sid, gaze)
-            preprocessing.save_session_metadata(gaze, sess.sid)
+            preprocessing.save_session_metadata(sess.sid, gaze)
 
         sess.pm_gaze_metadata = gaze._metadata
         sess.calibrations = gaze.calibrations
@@ -258,7 +258,7 @@ def run_preprocessing(config_path: str | None = None):
                 )
                 preprocessing.save_scanpaths(sess.sid, gaze)
 
-                preprocessing.save_session_metadata(gaze, sess.sid)
+                preprocessing.save_session_metadata(sess.sid, gaze)
 
         rm_folder = sess.sid.reading_measures_dir
 
