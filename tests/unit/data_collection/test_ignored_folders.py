@@ -73,7 +73,7 @@ def test_add_recorded_sessions_logging(
     ):
         instance.add_recorded_sessions(data_root, regex)
 
-        warning_msg = f"Folder in eye-tracking-sessions {folder_name} does not match the eye-tracking session regex pattern {regex}. Not considered an eye-tracking session."
+        warning_msg = f"Folder in eye-tracking-sessions '{folder_name}' does not match the eye-tracking session regex pattern {regex}. Not considered an eye-tracking session."
 
         if should_warn:
             instance.logger.warning.assert_called_with(warning_msg)

@@ -408,7 +408,7 @@ def test_preflight_multiple_sessions(tmp_path: Path):
         / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_lab_configuration.json"
     ).write_text("{}", encoding="utf-8")
     (config_dir / f"stimulus_order_versions_{lang}_{country}_{labnum}.csv").write_text(
-        "participant_id,version_number\n001,1\n", encoding="utf-8"
+        "participant_id,version_number\n000,1\n001,1\n002,1\n", encoding="utf-8"
     )
 
     for folder_name in [

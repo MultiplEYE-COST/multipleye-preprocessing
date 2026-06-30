@@ -280,7 +280,7 @@ class MultipleyeDataCollection:
                     else:
                         if item.name not in settings.IGNORED_SESSION_FOLDERS:
                             self.logger.warning(
-                                f"Folder in eye-tracking-sessions {item.name} does not match the eye-tracking session regex pattern "
+                                f"Folder in eye-tracking-sessions '{item.name}' does not match the eye-tracking session regex pattern "
                                 f"{session_folder_regex}. Not considered an eye-tracking session."
                             )
 
