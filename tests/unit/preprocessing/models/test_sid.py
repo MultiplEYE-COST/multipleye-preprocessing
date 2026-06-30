@@ -228,6 +228,7 @@ FOLDER_PROPERTIES = [
     ("reading_measures_dir", settings.READING_MEASURES_FOLDER),
     ("metadata_dir", settings.METADATA_FOLDER),
     ("answers_dir", settings.ANSWERS_FOLDER),
+    ("psychometric_tests_dir", settings.PSYCHOMETRIC_TESTS_FOLDER),
 ]
 
 

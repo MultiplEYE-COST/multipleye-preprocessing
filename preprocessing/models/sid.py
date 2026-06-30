@@ -154,6 +154,12 @@ class Sid:
 
         return _settings.OUTPUT_DIR / _settings.ANSWERS_FOLDER / str(self)
 
+    @property
+    def psychometric_tests_dir(self) -> Path:
+        from ..config import settings as _settings
+
+        return _settings.OUTPUT_DIR / _settings.PSYCHOMETRIC_TESTS_FOLDER / str(self)
+
     def __str__(self) -> str:
         base = self.id_no_postfix
         if self.postfix:
