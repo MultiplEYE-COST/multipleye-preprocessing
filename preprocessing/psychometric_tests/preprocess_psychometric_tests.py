@@ -334,7 +334,7 @@ def create_merged_psychometric_overview(overview_path: Path) -> Path:
     Path
         Path to the generated merged overview CSV.
     """
-    df = read_csv(overview_path)
+    df = read_csv(overview_path, dtype={"participant_id": str})
     if df.empty:
         return overview_path
 
