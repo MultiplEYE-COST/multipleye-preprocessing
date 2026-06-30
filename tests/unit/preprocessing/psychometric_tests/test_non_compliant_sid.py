@@ -6,7 +6,7 @@ from preprocessing.psychometric_tests.preprocess_psychometric_tests import (
 from preprocessing.config import settings
 
 
-def test_non_compliant_sid_in_preprocess(tmp_path):
+def test_non_compliant_sid_in_preprocess(tmp_path, monkeypatch):
     # Setup: Create a non-compliant session folder
     # Based on issue: 010_DE_Lueneburg_1_PT1.yaml (not SID compliant)
     # A compliant SID is like 001_en_UK_1_PT1 (3 digits, 2 chars lang, 2 chars country, lab, session)
@@ -21,23 +21,28 @@ def test_non_compliant_sid_in_preprocess(tmp_path):
     # Create a dummy yaml file inside
     (non_compliant_folder / "010_DE_Lueneburg_1_PT1.yaml").touch()
 
-    # Mock settings.PSYCHOMETRIC_TESTS_DIR
-    original_dir = settings.PSYCHOMETRIC_TESTS_DIR
-    settings.PSYCHOMETRIC_TESTS_DIR = sessions_dir
+    output_dir = tmp_path / "output" / "dcn" / "psychometric_tests"
+    monkeypatch.setattr(settings, "PSYCHOMETRIC_TESTS_DIR", sessions_dir)
+    monkeypatch.setattr(settings, "OUTPUT_DIR", tmp_path / "output" / "dcn")
+    settings.__dict__["DATA_COLLECTION_NAME"] = "dcn"
 
-    try:
-        overview_path = preprocess_all_sessions(sessions_dir)
-        df = pd.read_csv(overview_path)
+    overview_path = preprocess_all_sessions(sessions_dir)
+    df = pd.read_csv(overview_path)
 
-        # Check session_id for non-compliant folder
-        # The participant_id might also be extracted incorrectly if not compliant
-        # 010_DE_Lueneburg_1_PT1 fallback pid was session.name[:3]
-        row = df[df["participant_id"].astype(str).isin(["10", "010"])].iloc[0]
+    assert overview_path == output_dir / "psychometric_overview_dcn.csv"
 
-        assert row["session_id"] == "010_DE_Lueneburg_1_PT1"
+    # Check session_id for non-compliant folder
+    # The participant_id might also be extracted incorrectly if not compliant
+    # 010_DE_Lueneburg_1_PT1 fallback pid was session.name[:3]
+    row = df[df["participant_id"].astype(str).isin(["10", "010"])].iloc[0]
+    assert row["session_id"] == "010_DE_Lueneburg_1_PT1"
 
-    finally:
-        settings.PSYCHOMETRIC_TESTS_DIR = original_dir
+    detailed_path = (
+        output_dir
+        / "010_DE_Lueneburg_1_PT1"
+        / "psychometric_details_010_DE_Lueneburg_1_PT1.csv"
+    )
+    assert detailed_path.exists()
 
 
 def test_non_compliant_sid_in_merged_overview(tmp_path):
