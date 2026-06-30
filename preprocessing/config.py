@@ -422,6 +422,8 @@ class Settings:
         ]
 
         # --- PIPELINE STAGES ---
+        #: Whether to run the preflight input file check before processing.
+        self.RUN_PREFLIGHT_CHECK = True
         #: Whether to perform fixation detection.
         self.RUN_FIXATION_DETECTION = True
         #: Whether to perform saccade detection.
@@ -430,12 +432,10 @@ class Settings:
         self.RUN_READING_MEASURES = True
         #: Whether to collect comprehension question answers.
         self.RUN_COMPREHENSION_ANSWERS = True
-        #: Whether to process psychometric tests.
-        self.RUN_PSYCHOMETRIC_TESTS = True
         #: Whether to create sanity check reports.
         self.RUN_SANITY_CHECKS = True
-        #: Whether to run the preflight input file check before processing.
-        self.RUN_PREFLIGHT_CHECK = True
+        #: Whether to process psychometric tests.
+        self.RUN_PSYCHOMETRIC_TESTS = True
 
         #: Column name for the trial identifier.
         self.TRIAL_COL = "trial"

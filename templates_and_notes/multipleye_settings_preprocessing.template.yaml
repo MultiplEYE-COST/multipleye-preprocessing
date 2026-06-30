@@ -74,6 +74,8 @@ acceptable_num_trials: 10
 tracked_eye: ["L", "R", "RIGHT", "LEFT"]
 
 # --- PIPELINE STAGES ---
+# Whether to run the preflight input file check before processing.
+RUN_PREFLIGHT_CHECK: true
 # Whether to perform fixation detection.
 RUN_FIXATION_DETECTION: true
 # Whether to perform saccade detection.
@@ -82,12 +84,10 @@ RUN_SACCADE_DETECTION: true
 RUN_READING_MEASURES: true
 # Whether to collect comprehension question answers.
 RUN_COMPREHENSION_ANSWERS: true
-# Whether to process psychometric tests.
-RUN_PSYCHOMETRIC_TESTS: true
 # Whether to create sanity check reports.
 RUN_SANITY_CHECKS: true
-# Whether to run the preflight input file check before processing.
-RUN_PREFLIGHT_CHECK: true
+# Whether to process psychometric tests.
+RUN_PSYCHOMETRIC_TESTS: true
 
 # --- INTERNAL (do not change) ---
 # Whether to force reconversion of EDF files to ASC even if output exists.
