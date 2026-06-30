@@ -152,7 +152,7 @@ class Settings:
 
     @property
     def PSYCHOMETRIC_TESTS_DIR(self) -> Path:
-        """The directory for psychometric tests."""
+        """The directory for psychometric test sessions (input, session-first)."""
         if "PSYCHOMETRIC_TESTS_DIR" in self.__dict__:
             return self.__dict__["PSYCHOMETRIC_TESTS_DIR"]
         return self.DATASET_DIR / "psychometric-tests-sessions"
@@ -163,7 +163,7 @@ class Settings:
 
     @property
     def PSYM_CORE_DATA(self) -> Path:
-        """The directory for core psychometric data."""
+        """The directory for raw psychometric data (task-first, input)."""
         if "PSYM_CORE_DATA" in self.__dict__:
             return self.__dict__["PSYM_CORE_DATA"]
         return self.PSYCHOMETRIC_TESTS_DIR / "core_data"
@@ -408,6 +408,9 @@ class Settings:
         #: Subfolder name for comprehension question answers.
         self.ANSWERS_FOLDER = Path("comp_answers/")
 
+        #: Subfolder name for psychometric tests output (overview + detailed CSVs).
+        self.PSYCHOMETRIC_TESTS_FOLDER = Path("psychometric_tests/")
+
         #: Regex patterns for relevant ASC messages for comprehension questions.
         self.ANSWER_MSG_PATTERNS = [
             r"start_recording_.*_question_\d+",
@@ -427,6 +430,8 @@ class Settings:
         self.RUN_READING_MEASURES = True
         #: Whether to collect comprehension question answers.
         self.RUN_COMPREHENSION_ANSWERS = True
+        #: Whether to process psychometric tests.
+        self.RUN_PSYCHOMETRIC_TESTS = True
         #: Whether to create sanity check reports.
         self.RUN_SANITY_CHECKS = True
         #: Whether to run the preflight input file check before processing.

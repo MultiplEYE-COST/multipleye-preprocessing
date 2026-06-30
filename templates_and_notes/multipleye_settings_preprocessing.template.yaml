@@ -82,6 +82,8 @@ RUN_SACCADE_DETECTION: true
 RUN_READING_MEASURES: true
 # Whether to collect comprehension question answers.
 RUN_COMPREHENSION_ANSWERS: true
+# Whether to process psychometric tests.
+RUN_PSYCHOMETRIC_TESTS: true
 # Whether to create sanity check reports.
 RUN_SANITY_CHECKS: true
 # Whether to run the preflight input file check before processing.
@@ -98,6 +100,7 @@ reading_measures_folder: "reading_measures/"
 sanity_checks_folder: "sanity_checks/"
 metadata_folder: "metadata/"
 answers_folder: "comp_answers/"
+psychometric_tests_folder: "psychometric_tests/"
 trial_cols: ["trial", "stimulus", "page"]
 trial_col: "trial"
 page_col: "page"
