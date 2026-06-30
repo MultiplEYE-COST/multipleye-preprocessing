@@ -246,3 +246,24 @@ def test_prepare_language_folder_optional_aoi_images(
     assert (
         preprocessed_stim_dir / f"aoi_stimuli_images_{suffix}" / "overlay.png"
     ).exists()
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_prepare_language_folder_no_pt_data(
+    mock_data_collection_factory, data_collection_name
+):
+    """Pipeline should warn, not raise, when psychometric-tests-sessions is missing."""
+    tmp_path, data_collection_name, aoi_dir = mock_data_collection_factory(
+        data_collection_name
+    )
+    setup_stimulus_assets(tmp_path, data_collection_name, aoi_dir)
+
+    # Remove the psychometric-tests-sessions folder
+    import shutil
+
+    shutil.rmtree(
+        tmp_path / "data" / data_collection_name / "psychometric-tests-sessions"
+    )
+
+    # Should not raise
+    prepare_language_folder(data_collection_name)

@@ -86,7 +86,7 @@ def prepare_language_folder(data_collection_name: str | None = None):
                 tar.extractall(path=data_folder_path)
             logger.info(f"Extracted 'psychometric-tests' from '{tar_path}'")
         else:
-            msg = (
+            logger.warning(
                 f"The 'psychometric-tests-sessions' folder does not exist in '{data_folder_path}'. "
                 "If this data collection includes psychometric tests, please create the folder "
                 f"'{psychometric_tests_path}' and unzip the psychometric test data there.\n"
@@ -100,23 +100,25 @@ def prepare_language_folder(data_collection_name: str | None = None):
                 "      WikiVocab/{sid}/...\n"
                 f"    participant_configs_{dcn.lang}_{dcn.country}_{dcn.lab}/\n"
                 "      {sid}.yaml\n"
+                "Skipping psychometric tests preparation."
             )
-            raise FileNotFoundError(msg)
+            psychometric_tests_path = None
 
-    # che if ps tests need to be prepared because they use the old structure
-    config_path = (
-        psychometric_tests_path
-        / f"participant_configs_{dcn.lang}_{dcn.country}_{dcn.lab}"
-    )
-    data_path = (
-        psychometric_tests_path
-        / f"psychometric_test_{dcn.lang}_{dcn.country}_{dcn.lab}"
-    )
-    if config_path.exists() and data_path.exists():
-        logger.info(
-            f"Preparing psychometric tests structure for {data_collection_name}..."
+    # check if ps tests need to be prepared because they use the old structure
+    if psychometric_tests_path is not None:
+        config_path = (
+            psychometric_tests_path
+            / f"participant_configs_{dcn.lang}_{dcn.country}_{dcn.lab}"
         )
-        fix_psycho_tests_structure(config_path, data_path)
+        data_path = (
+            psychometric_tests_path
+            / f"psychometric_test_{dcn.lang}_{dcn.country}_{dcn.lab}"
+        )
+        if config_path.exists() and data_path.exists():
+            logger.info(
+                f"Preparing psychometric tests structure for {data_collection_name}..."
+            )
+            fix_psycho_tests_structure(config_path, data_path)
 
     # check if the participant folders are zipped and if yes, unzip them
     for participant_folder in eye_tracking_sessions_path.glob("*"):
