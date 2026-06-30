@@ -101,6 +101,7 @@ def run_preflight_check(data_collection) -> None:
     _check_shared_files(data_collection, errors, warnings)
     _check_skipped_sessions(data_collection, errors)
     _check_sessions(data_collection, errors)
+    _check_stimulus_order_coverage(data_collection, errors)
 
     pt_warnings: list[str] = []
     _check_psychometric_tests(data_collection, pt_warnings)
@@ -406,6 +407,75 @@ def _check_parseable_csv(
         )
 
 
+def _check_stimulus_order_coverage(
+    data_collection,
+    groups: dict[str, list[str]],
+) -> None:
+    """Check that every session's participant ID is present in the stimulus order versions CSV.
+
+    Detects missing and duplicate participant IDs, which would cause
+    ``_load_session_stimulus_order`` to fail mid-pipeline.
+    """
+    from ..config import settings
+    from ..models.sid import Sid
+
+    # Resolve the *source* stimulus dir (same logic as _check_shared_files)
+    dcn_name = getattr(data_collection, "data_collection_name", None)
+    if dcn_name:
+        source_stim_dir = settings.DATASET_DIR / f"stimuli_{dcn_name}"
+    else:
+        source_stim_dir = data_collection.stimulus_dir
+    if not source_stim_dir.exists():
+        source_stim_dir = data_collection.stimulus_dir
+
+    csv_path = (
+        source_stim_dir
+        / "config"
+        / f"stimulus_order_versions_{data_collection.language}_{data_collection.country}_{data_collection.lab_number}.csv"
+    )
+    if not _ci_exists(csv_path):
+        return  # already reported by _check_shared_files
+
+    try:
+        df = pl.read_csv(_ci_resolve(csv_path), infer_schema_length=0)
+    except Exception:
+        return  # already reported by _check_shared_files
+
+    if "participant_id" not in df.columns:
+        return  # already reported by _check_shared_files
+
+    # Read non-null participant IDs from the CSV
+    csv_pids_raw = df.filter(pl.col("participant_id").is_not_null())[
+        "participant_id"
+    ].to_list()
+
+    # Check each session's PID
+    missing_pids: list[str] = []
+    duplicate_pids: list[str] = []
+    for session in data_collection.sessions.values():
+        try:
+            pid = Sid(session.session_identifier).pid
+        except (ValueError, TypeError):
+            continue
+
+        count = sum(1 for p in csv_pids_raw if str(int(float(p))).zfill(3) == pid)
+        if count == 0:
+            missing_pids.append(f"{session.session_identifier} (PID {pid})")
+        elif count > 1:
+            duplicate_pids.append(
+                f"{session.session_identifier} (PID {pid}, {count} entries)"
+            )
+
+    for entry in missing_pids:
+        groups.setdefault("Stimulus order versions coverage", []).append(
+            f"{entry} — not found in stimulus_order_versions CSV"
+        )
+    for entry in duplicate_pids:
+        groups.setdefault("Stimulus order versions coverage", []).append(
+            f"{entry} — duplicate entries in stimulus_order_versions CSV"
+        )
+
+
 def _format_message(groups: dict[str, list[str]]) -> str:
     """Transform the grouped error dict into a human-readable message."""
     n_total = sum(len(v) for v in groups.values())
@@ -448,6 +518,7 @@ def _format_message(groups: dict[str, list[str]]) -> str:
         "GENERAL_LOGFILE_*.txt",
         "completed_stimuli.csv",
         "question_order_versions.csv",
+        "Stimulus order versions coverage",
     ]:
         if label not in groups:
             continue
@@ -455,6 +526,26 @@ def _format_message(groups: dict[str, list[str]]) -> str:
         lines.append(f"\n  {label} \u2014 {len(entries)}:")
         for entry in entries:
             lines.append(f"      {entry}")
+
+    # --- Sessions concerned (summary) -------------------------------------
+    per_session_labels = [
+        "EDF data file",
+        "Logfiles folder",
+        "EXPERIMENT_*.txt",
+        "GENERAL_LOGFILE_*.txt",
+        "completed_stimuli.csv",
+        "question_order_versions.csv",
+        "Stimulus order versions coverage",
+    ]
+    sessions_concerned: set[str] = set()
+    for label in per_session_labels:
+        for entry in groups.get(label, []):
+            sid = entry.split(" (")[0]
+            sessions_concerned.add(sid)
+    if sessions_concerned:
+        lines.append(
+            f"\n  Sessions concerned: {', '.join(f"'{s}'" for s in sorted(sessions_concerned))}"
+        )
 
     return "\n".join(lines)
 
