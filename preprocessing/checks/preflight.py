@@ -238,7 +238,20 @@ def _check_shared_files(
     warnings: dict[str, list[str]] | None = None,
 ) -> None:
     """Check files that are shared across all sessions (data-collection level)."""
-    stim_dir = data_collection.stimulus_dir
+    from ..config import settings
+
+    # Always validate the source stimulus folder in data/, not the OUTPUT_DIR copy that
+    # prepare_language_folder may have created.
+    source_stim_dir = getattr(
+        data_collection,
+        "data_collection_name",
+        None,
+    )
+    if source_stim_dir:
+        source_stim_dir = settings.DATASET_DIR / f"stimuli_{source_stim_dir}"
+    if not source_stim_dir or not source_stim_dir.exists():
+        source_stim_dir = data_collection.stimulus_dir
+    stim_dir = source_stim_dir
     lang = data_collection.language
     country = data_collection.country
     labnum = data_collection.lab_number
