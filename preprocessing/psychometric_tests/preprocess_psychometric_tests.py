@@ -79,6 +79,17 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
         test_session_folder = settings.PSYCHOMETRIC_TESTS_DIR
 
     output_dir = settings.OUTPUT_DIR / settings.PSYCHOMETRIC_TESTS_FOLDER
+
+    if not test_session_folder.exists() or not any(
+        _is_valid_folder(p) for p in test_session_folder.iterdir()
+    ):
+        from ..utils.logging import get_logger
+
+        get_logger(__name__).info(
+            "No psychometric test session folders found. Skipping."
+        )
+        return output_dir
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Run sanity check before processing
