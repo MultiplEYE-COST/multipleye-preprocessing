@@ -24,10 +24,12 @@ from .answers.collect import collect_session_answers
 
 from .scripts.prepare_language_folder import prepare_language_folder
 from .scripts.restructure_psycho_tests import fix_psycho_tests_structure
+from .psychometric_tests.preprocess_psychometric_tests import preprocess_all_sessions
 
 __all__ = [
     "prepare_language_folder",
     "fix_psycho_tests_structure",
+    "preprocess_all_sessions",
     "preprocess_gaze",
     "compute_event_properties",  # needed in API? - not directly used in the preprocessing pipeline
     "calculate_reading_measures",

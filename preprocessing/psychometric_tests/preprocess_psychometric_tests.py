@@ -38,25 +38,26 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
     3. Extracts session information (PID, session part, postfix).
     4. Preprocesses each individual test (LWMC, RAN, Stroop, Flanker, WikiVocab, PLAB).
     5. Aggregates results into an overview row per session.
-    6. Writes a detailed CSV for each session within its folder.
-    7. Writes a comprehensive overview CSV for all sessions.
+    6. Writes a detailed CSV for each session to the output directory.
+    7. Writes a comprehensive overview CSV for all sessions to the output directory.
 
     Two types of outputs are generated:
 
-    1. **Overview CSV** (one row per session) saved directly under the
-       psychometric-tests-sessions folder. The filename is descriptive and
-       includes the study/session tag (e.g. "SQ_CH_1_PT2"). The overview
-       contains only the requested summary metrics:
+    1. **Overview CSV** (one row per session) saved to
+       ``OUTPUT_DIR / PSYCHOMETRIC_TESTS_FOLDER``.
+       The filename includes the data collection name.
+       The overview contains only the requested summary metrics:
        - LWMC: scores only (no times)
        - Stroop & Flanker: AccuracyEffect and TREffect only
        - WikiVocab: rt_mean, accuracy, incorrect_correct_score
        - RAN: Reaction time for two trials
        - PLAB: RT mean and accuracy
 
-    2. **Per-session detailed CSV** placed in each session folder with all
-       available detailed metrics in a readable, wide format (namespaced
-       columns). For example, grouped RT/accuracy for Stroop/Flanker are stored
-       as columns like ``Stroop_congruent_rt_mean``.
+    2. **Per-session detailed CSV** saved to
+       ``OUTPUT_DIR / PSYCHOMETRIC_TESTS_FOLDER / {session_name}``
+       with all available detailed metrics in a readable, wide format
+       (namespaced columns). For example, grouped RT/accuracy for
+       Stroop/Flanker are stored as columns like ``Stroop_congruent_rt_mean``.
 
     Parameters
     ----------
@@ -76,6 +77,9 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
     """
     if test_session_folder is None:
         test_session_folder = settings.PSYCHOMETRIC_TESTS_DIR
+
+    output_dir = settings.OUTPUT_DIR / settings.PSYCHOMETRIC_TESTS_FOLDER
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Run sanity check before processing
     validate_psychometric_data(
@@ -265,23 +269,22 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                     category=UserWarning,
                 )
 
-        # Write per-session detailed CSV inside the session folder
+        # Write per-session detailed CSV to the output directory
         try:
-            detailed_path = session / f"psychometric_details_{session.stem}.csv"
+            detailed_out = output_dir / session.name
+            detailed_out.mkdir(parents=True, exist_ok=True)
+            detailed_path = detailed_out / f"psychometric_details_{session.name}.csv"
             pd.DataFrame([detailed_row]).to_csv(detailed_path, index=False)
         except Exception as exc:
             warnings.warn(
-                f"Failed to write detailed CSV for {session.stem}: {exc}",
+                f"Failed to write detailed CSV for {session.name}: {exc}",
                 category=UserWarning,
             )
 
         overview_rows.append(overview_row)
 
-    # Write overview CSV (wide format) directly into psychometric-tests-sessions folder
-    out_path = (
-        test_session_folder
-        / f"psychometric_overview_{test_session_folder.parent.stem}.csv"
-    )
+    # Write overview CSV (wide format) to the output directory
+    out_path = output_dir / f"psychometric_overview_{settings.DATA_COLLECTION_NAME}.csv"
     df = pd.DataFrame(overview_rows)
     # Ensure columns order: session_id, participant_id, then flags, then notes, then the rest
     session_cols = ["session_id"]

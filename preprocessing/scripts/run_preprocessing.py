@@ -378,6 +378,14 @@ def run_preprocessing(config_path: str | None = None):
     data_collection.create_dataset_overview(path=settings.OUTPUT_DIR)
     data_collection.parse_participant_data(settings.OUTPUT_DIR / "participant_data.csv")
 
+    if settings.RUN_PSYCHOMETRIC_TESTS:
+        logger.info("Processing psychometric tests...")
+        from ..psychometric_tests.preprocess_psychometric_tests import (
+            preprocess_all_sessions,
+        )
+
+        preprocess_all_sessions(settings.PSYCHOMETRIC_TESTS_DIR)
+
 
 def main():
     """Run MultiplEYE preprocessing with the config file as argument."""
