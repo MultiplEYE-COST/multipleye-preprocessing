@@ -4,9 +4,16 @@
 
 # MultiplEYE Preprocessing
 
+> [!TIP]
+> Version
+> [v2026.07.01](https://github.com/MultiplEYE-COST/multipleye-preprocessing/releases/tag/v2026.07.01)
+> (July 2026) marks the first stable release.
+> From this version onward, the output format and core API are
+> considered stable. Future updates will focus on maintenance,
+> bug fixes, and feature additions without breaking changes.
+
 > [!IMPORTANT]
-> This repository is **actively maintained and evolving**.
-> Features, configurations, and behaviors may change as we improve the codebase. Please:
+> This repository is **stable and actively maintained**. Please:
 > - Keep the repository up-to-date to receive the latest changes, fixes, and improvements
 > - Report issues if you encounter unexpected behavior
 > - Refer to the documentation for the latest information on how to use the pipeline
@@ -28,7 +35,8 @@ the [troubleshooting guide](https://multipleye-cost.github.io/multipleye-preproc
 
 ### 1. Run the Preprocessing Pipeline
 
-Process raw eye-tracking data (EyeLink `.edf` files) through a complete preprocessing workflow:
+Process raw eye-tracking data (EyeLink `.edf` files) and score psychometric tests in one
+workflow:
 
 ```bash
 # Configure your settings in multipleye_settings_preprocessing.yaml
@@ -41,32 +49,27 @@ This pipeline handles:
 - Parsing and validating eye-tracking data
 - Applying filters and detecting events
 - Generating preprocessed output files
+- Scoring psychometric tests
 
 > [!TIP]
 > A step-by-step notebook is available in `preprocessing.ipynb` to walk through the pipeline in
 > detail.
 
-### 2. Score Psychometric Tests
+> [!IMPORTANT]
+> Psychometric tests require data to be structured correctly. See the
+> [Psychometric Tests documentation](https://multipleye-cost.github.io/multipleye-preprocessing/guide/psychometric_tests/)
+> for details on the expected data format.
 
-Calculate scores from the psychometric test battery:
+### 2. Score Psychometric Tests (Standalone)
+
+If you only need to re-score psychometric tests without re-running the full pipeline, use the
+standalone command:
 
 ```bash
 preprocess_psychometric_tests
 ```
 
-This calculates scores for:
-
-- **Lewandowsky WMC Battery** (Memory Update, Operation Span, Sentence Span, Spatial STM)
-- **Rapid Automatized Naming (RAN)**
-- **Stroop Test**
-- **Flanker Task**
-- **PLAB** (Pimsleur Language Aptitude Battery)
-- **WikiVocab**
-
-> [!IMPORTANT]
-> The psychometric tests require data to be structured correctly. See the
-> [Psychometric Tests documentation](https://multipleye-cost.github.io/multipleye-preprocessing/guide/psychometric_tests/)
-> for details on the expected data format.
+This uses the same data already prepared by `run_preprocessing` and produces the same output.
 
 ---
 
@@ -86,12 +89,6 @@ source .venv/bin/activate  # Unix/Mac
 .venv\Scripts\activate  # Windows
 ```
 
-> [!WARNING]
-> This project is **actively maintained and evolving**. Features, configurations, and behaviors may
-> change as we improve the codebase. Please:
-> - Keep the repository up-to-date to receive the latest changes, fixes, and improvements
-> - Report issues if you encounter unexpected behavior
-
 ---
 
 ## Documentation Overview
@@ -110,8 +107,8 @@ source .venv/bin/activate  # Unix/Mac
 ## Quick Start
 
 1. Update settings in `multipleye_settings_preprocessing.yaml`
-2. Run preprocessing: `run_preprocessing`
-3. Score psychometric tests: `preprocess_psychometric_tests`
+2. Run the full pipeline (eye-tracking + psychometric tests): `run_preprocessing`
+3. Re-score psychometric tests standalone (optional): `preprocess_psychometric_tests`
 
 > [!CAUTION]
 > EyeLink-specific: You must install the EyeLink Developers Kit to convert `.edf` files. See the
