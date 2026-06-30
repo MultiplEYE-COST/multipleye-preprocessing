@@ -1375,7 +1375,7 @@ class MultipleyeDataCollection:
             et_sid = None
 
         if self.psychometric_tests:
-            pt_dir = self.data_root.parent / "psychometric-tests-sessions"
+            pt_dir = settings.PSYCHOMETRIC_TESTS_DIR
             found_path = None
 
             if pt_dir.exists() and et_sid:

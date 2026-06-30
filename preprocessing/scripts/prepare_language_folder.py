@@ -86,10 +86,22 @@ def prepare_language_folder(data_collection_name: str | None = None):
                 tar.extractall(path=data_folder_path)
             logger.info(f"Extracted 'psychometric-tests' from '{tar_path}'")
         else:
-            raise FileNotFoundError(
+            msg = (
                 f"The 'psychometric-tests-sessions' folder does not exist in '{data_folder_path}'. "
-                "Please ensure the data collection is correctly structured."
+                "If this data collection includes psychometric tests, please create the folder "
+                f"'{psychometric_tests_path}' and unzip the psychometric test data there.\n"
+                "Expected structure after unzipping (task-first):\n"
+                f"  psychometric-tests-sessions/\n"
+                f"    psychometric_test_{dcn.lang}_{dcn.country}_{dcn.lab}/\n"
+                "      PLAB/{sid}/...\n"
+                "      RAN/{sid}/...\n"
+                "      Stroop_Flanker/{sid}/...\n"
+                "      WMC/{sid}/...\n"
+                "      WikiVocab/{sid}/...\n"
+                f"    participant_configs_{dcn.lang}_{dcn.country}_{dcn.lab}/\n"
+                "      {sid}.yaml\n"
             )
+            raise FileNotFoundError(msg)
 
     # che if ps tests need to be prepared because they use the old structure
     config_path = (
