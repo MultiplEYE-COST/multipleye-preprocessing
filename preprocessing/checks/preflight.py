@@ -73,6 +73,10 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
             for path in warnings[label]:
                 lines.append(f"\n  {label} not found:\n      {os.path.relpath(path)}")
 
+    if "Psychometric tests" in warnings:
+        for msg in warnings["Psychometric tests"]:
+            lines.append(f"\n  {msg}")
+
     print("\n".join(lines), file=sys.stderr)
 
 
@@ -98,12 +102,14 @@ def run_preflight_check(data_collection) -> None:
     _check_skipped_sessions(data_collection, errors)
     _check_sessions(data_collection, errors)
 
-    if errors:
-        combined = {}
-        combined.update(warnings)
-        combined.update(errors)
-        raise PreflightError(combined)
+    pt_warnings: list[str] = []
+    _check_psychometric_tests(data_collection, pt_warnings)
 
+    if errors:
+        raise PreflightError(errors)
+
+    if pt_warnings:
+        warnings["Psychometric tests"] = pt_warnings
     if warnings:
         _print_warnings(warnings)
         return
@@ -438,3 +444,135 @@ def _format_message(groups: dict[str, list[str]]) -> str:
             lines.append(f"      {entry}")
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Psychometric tests
+# ---------------------------------------------------------------------------
+
+
+def _check_psychometric_tests(
+    data_collection,
+    pt_warnings: list[str],
+) -> None:
+    """Check psychometric tests data availability (warn-only).
+
+    Detects the format of psychometric test data and auto-restructures if
+    task-first format is found.
+    All issues are appended to *pt_warnings*: the batch processing has its own logging.
+    """
+    from ..config import settings
+
+    if not settings.RUN_PSYCHOMETRIC_TESTS:
+        return
+
+    pt_dir = settings.PSYCHOMETRIC_TESTS_DIR
+    lang = data_collection.language
+    country = data_collection.country
+    lab = str(data_collection.lab_number)
+    test_names = set(settings.PSYCHOMETRIC_TEST_MAPPING.values())
+
+    if not pt_dir.exists():
+        pt_warnings.append(
+            f"No 'psychometric-tests-sessions' folder found at {pt_dir}. "
+            "Psychometric tests stage will be skipped."
+        )
+        return
+
+    if _detect_session_first(pt_dir, test_names):
+        _validate_session_first(pt_dir, test_names, pt_warnings)
+        return
+
+    for base in [pt_dir, pt_dir / "core_data"]:
+        config_path = base / f"participant_configs_{lang}_{country}_{lab}"
+        data_path = base / f"psychometric_test_{lang}_{country}_{lab}"
+
+        if config_path.exists() and data_path.exists():
+            logger.info(
+                f"Task-first psychometric test data found at {data_path}. "
+                f"Auto-restructuring to {pt_dir}..."
+            )
+            try:
+                from ..scripts.restructure_psycho_tests import (
+                    fix_psycho_tests_structure,
+                )
+
+                fix_psycho_tests_structure(config_path, data_path)
+                logger.info("Psychometric tests restructured to session-first format.")
+            except Exception as e:
+                pt_warnings.append(
+                    f"Auto-restructuring psychometric tests failed: {e}. "
+                    "You can run 'restructure_psychometric_tests' CLI manually."
+                )
+            return
+
+    archives = _find_archives(pt_dir)
+    if archives:
+        pt_warnings.append(
+            f"Archives found in {pt_dir}: {', '.join(archives)}. "
+            "Please unzip the psychometric test data and place it in the expected structure:\n"
+            f"  {pt_dir}/psychometric_test_{lang}_{country}_{lab}/\n"
+            f"    PLAB/{{sid}}/...\n"
+            f"    RAN/{{sid}}/...\n"
+            f"    Stroop_Flanker/{{sid}}/...\n"
+            f"    WMC/{{sid}}/...\n"
+            f"    WikiVocab/{{sid}}/...\n"
+            f"  {pt_dir}/participant_configs_{lang}_{country}_{lab}/\n"
+            f"    {{sid}}.yaml"
+        )
+        return
+
+    pt_warnings.append(
+        f"No recognizable psychometric test data found in {pt_dir}. "
+        "Psychometric tests stage will be skipped."
+    )
+
+
+def _detect_session_first(pt_dir: Path, test_names: set[str]) -> bool:
+    """Check if *pt_dir* contains session-first (restructured) data.
+
+    A folder counts as session-first if its name is SID-compliant and it
+    contains at least one test subfolder (PLAB, RAN, etc.).
+    """
+    from ..models.sid import Sid
+
+    for child in pt_dir.iterdir():
+        if not child.is_dir():
+            continue
+        try:
+            Sid(child.name)
+        except (ValueError, TypeError):
+            continue
+        try:
+            for sub in child.iterdir():
+                if sub.is_dir() and sub.name in test_names:
+                    return True
+        except OSError:
+            continue
+    return False
+
+
+def _validate_session_first(
+    pt_dir: Path,
+    test_names: set[str],
+    pt_warnings: list[str],
+) -> None:
+    """Warn-only validation of session-first psychometric test data."""
+    for child in sorted(pt_dir.iterdir()):
+        if not child.is_dir():
+            continue
+        has_test_subfolder = any((child / t).is_dir() for t in test_names)
+        if not has_test_subfolder:
+            continue
+
+        config_files = list(child.glob("*.yaml"))
+        if not config_files:
+            pt_warnings.append(
+                f"Session folder '{child.name}' has no YAML config file."
+            )
+
+        for test_name in sorted(test_names):
+            if not (child / test_name).is_dir():
+                pt_warnings.append(
+                    f"Session folder '{child.name}' is missing test folder: {test_name}"
+                )

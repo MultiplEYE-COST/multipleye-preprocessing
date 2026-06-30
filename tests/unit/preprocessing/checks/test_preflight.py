@@ -6,11 +6,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
+import yaml
 
 from preprocessing.checks.preflight import (
     PreflightError,
     run_preflight_check,
+    _check_psychometric_tests,
 )
+from preprocessing.config import settings
 
 
 @dataclass
@@ -607,3 +610,309 @@ def _make_empty(path: Path) -> None:
             shutil.rmtree(child)
         else:
             child.unlink()
+
+
+# ---------------------------------------------------------------------------
+# Psychometric tests preflight checks
+# ---------------------------------------------------------------------------
+
+ALL_TESTS = ["PLAB", "RAN", "Stroop_Flanker", "WMC", "WikiVocab"]
+
+
+@pytest.fixture
+def pt_env(tmp_path: Path, monkeypatch):
+    """Set up a basic environment with PT dir and a FakeDataCollection."""
+    pt_dir = tmp_path / "data" / "dcn" / "psychometric-tests-sessions"
+    pt_dir.mkdir(parents=True)
+    monkeypatch.setattr(type(settings), "PSYCHOMETRIC_TESTS_DIR", pt_dir)
+    monkeypatch.setattr(settings, "RUN_PSYCHOMETRIC_TESTS", True)
+
+    dc = FakeDataCollection(
+        stimulus_dir=tmp_path / "stimuli",
+        language="EN",
+        country="UK",
+        lab_number=1,
+        sessions={},
+    )
+    return dc, pt_dir
+
+
+def _make_session_first(
+    pt_dir: Path,
+    sid: str = "001_EN_UK_1_PT1",
+    tests: list[str] | None = None,
+    with_yaml: bool = True,
+):
+    """Create a session-first folder with given test subfolders."""
+    tests = tests if tests is not None else ALL_TESTS
+    session = pt_dir / sid
+    session.mkdir(parents=True, exist_ok=True)
+    if with_yaml:
+        (session / f"{sid}.yaml").touch()
+    for t in tests:
+        (session / t).mkdir()
+    return session
+
+
+def _make_task_first(
+    base: Path,
+    lang: str = "EN",
+    country: str = "UK",
+    lab: str = "1",
+    tests: list[str] | None = None,
+):
+    """Create a task-first structure under *base* (either pt_dir or core_data)."""
+    tests = tests if tests is not None else ["PLAB", "RAN"]
+    config_dir = base / f"participant_configs_{lang}_{country}_{lab}"
+    config_dir.mkdir(parents=True)
+    yaml.safe_dump({"dummy": True}, open(config_dir / "001_EN_UK_1_S1.yaml", "w"))
+
+    data_dir = base / f"psychometric_test_{lang}_{country}_{lab}"
+    for t in tests:
+        s = data_dir / t / "001_EN_UK_1_PT1"
+        s.mkdir(parents=True)
+        (s / "data.csv").write_text("dummy", encoding="utf-8")
+    return config_dir, data_dir
+
+
+@pytest.mark.parametrize(
+    "scenario, setup_fn, expect_warnings",
+    [
+        (
+            "session_first_missing_tests",
+            lambda pt_dir: _make_session_first(pt_dir, tests=["PLAB"]),
+            ["missing test folder: RAN", "missing test folder: WMC"],
+        ),
+        (
+            "session_first_missing_yaml",
+            lambda pt_dir: _make_session_first(pt_dir, with_yaml=False),
+            ["no YAML config"],
+        ),
+    ],
+    ids=["session_first_missing_tests", "session_first_missing_yaml"],
+)
+def test_pt_check_session_first_warnings(pt_env, scenario, setup_fn, expect_warnings):
+    """Session-first data with issues produces the expected warnings."""
+    dc, pt_dir = pt_env
+    setup_fn(pt_dir)
+    pt_warnings: list[str] = []
+    _check_psychometric_tests(dc, pt_warnings)
+    for substr in expect_warnings:
+        assert any(substr in w for w in pt_warnings), (
+            f"Expected '{substr}' in warnings: {pt_warnings}"
+        )
+
+
+def test_pt_check_session_first_valid(pt_env):
+    """Well-formed session-first data produces no warnings."""
+    dc, pt_dir = pt_env
+    _make_session_first(pt_dir)
+    pt_warnings: list[str] = []
+    _check_psychometric_tests(dc, pt_warnings)
+    assert pt_warnings == []
+
+
+def test_pt_check_task_first_auto_restructure_flat(pt_env):
+    """Auto-restructures flat task-first data to session-first."""
+    dc, pt_dir = pt_env
+    _make_task_first(pt_dir)
+
+    pt_warnings: list[str] = []
+    _check_psychometric_tests(dc, pt_warnings)
+
+    assert not any("No recognizable" in w for w in pt_warnings)
+    assert not any("Archives found" in w for w in pt_warnings)
+
+    restructured = pt_dir / "001_EN_UK_1_PT1"
+    assert restructured.exists()
+    assert (restructured / "PLAB").is_dir()
+    assert (restructured / "001_EN_UK_1_S1.yaml").exists()
+
+
+def test_pt_check_task_first_auto_restructure_core_data(pt_env):
+    """Auto-restructures task-first data under core_data/ wrapper."""
+    dc, pt_dir = pt_env
+    core_data = pt_dir / "core_data"
+    core_data.mkdir()
+    _make_task_first(core_data)
+
+    pt_warnings: list[str] = []
+    _check_psychometric_tests(dc, pt_warnings)
+
+    restructured = pt_dir / "001_EN_UK_1_PT1"
+    assert restructured.exists()
+    assert (restructured / "PLAB").is_dir()
+
+
+def test_pt_check_no_folder(tmp_path: Path, monkeypatch):
+    """Warns when psychometric-tests-sessions folder doesn't exist."""
+    monkeypatch.setattr(
+        type(settings), "PSYCHOMETRIC_TESTS_DIR", tmp_path / "nonexistent"
+    )
+    monkeypatch.setattr(settings, "RUN_PSYCHOMETRIC_TESTS", True)
+
+    dc = FakeDataCollection(
+        stimulus_dir=tmp_path / "stimuli",
+        language="EN",
+        country="UK",
+        lab_number=1,
+        sessions={},
+    )
+    pt_warnings: list[str] = []
+    _check_psychometric_tests(dc, pt_warnings)
+    assert len(pt_warnings) == 1
+    assert "No 'psychometric-tests-sessions' folder" in pt_warnings[0]
+
+
+@pytest.mark.parametrize(
+    "setup_fn, expected_substrings",
+    [
+        (
+            lambda pt_dir: (pt_dir / "psychometric_data.zip").write_text(
+                "fake", encoding="utf-8"
+            ),
+            ["Archives found", "psychometric_data.zip", "psychometric_test_EN_UK_1"],
+        ),
+        (
+            lambda pt_dir: (
+                (pt_dir / "random_folder").mkdir()
+                or (pt_dir / "random_folder" / "stuff.txt").write_text(
+                    "x", encoding="utf-8"
+                )
+            ),
+            ["No recognizable"],
+        ),
+    ],
+    ids=["archives_found", "unrecognized_data"],
+)
+def test_pt_check_data_issues(
+    tmp_path: Path, monkeypatch, setup_fn, expected_substrings
+):
+    """Warns about archives or unrecognized data in the PT folder."""
+    pt_dir = tmp_path / "pt"
+    pt_dir.mkdir()
+    monkeypatch.setattr(type(settings), "PSYCHOMETRIC_TESTS_DIR", pt_dir)
+    monkeypatch.setattr(settings, "RUN_PSYCHOMETRIC_TESTS", True)
+    setup_fn(pt_dir)
+
+    dc = FakeDataCollection(
+        stimulus_dir=tmp_path / "stimuli",
+        language="EN",
+        country="UK",
+        lab_number=1,
+        sessions={},
+    )
+    pt_warnings: list[str] = []
+    _check_psychometric_tests(dc, pt_warnings)
+    assert len(pt_warnings) == 1
+    for substr in expected_substrings:
+        assert substr in pt_warnings[0]
+
+
+def test_pt_check_flag_disabled(pt_env, monkeypatch):
+    """No warnings when RUN_PSYCHOMETRIC_TESTS is False."""
+    dc, pt_dir = pt_env
+    monkeypatch.setattr(settings, "RUN_PSYCHOMETRIC_TESTS", False)
+    pt_warnings: list[str] = []
+    _check_psychometric_tests(dc, pt_warnings)
+    assert pt_warnings == []
+
+
+def test_pt_does_not_inflate_error_count(tmp_path: Path, monkeypatch):
+    """PT warnings must not inflate PreflightError.num_errors."""
+    monkeypatch.setattr(
+        type(settings), "PSYCHOMETRIC_TESTS_DIR", tmp_path / "nonexistent_pt"
+    )
+    monkeypatch.setattr(settings, "RUN_PSYCHOMETRIC_TESTS", True)
+
+    stim_dir = tmp_path / "stimuli"
+    stim_dir.mkdir()
+    lang = "EN"
+    lang_lower = lang.lower()
+    country = "UK"
+    country_lower = country.lower()
+    labnum = 1
+    city = "city"
+    year = 2024
+
+    (stim_dir / f"multipleye_stimuli_experiment_{lang}.xlsx").write_text("x")
+    (stim_dir / f"multipleye_comprehension_questions_{lang}.xlsx").write_text("x")
+    (
+        stim_dir
+        / f"multipleye_participant_instructions_{lang_lower}_with_img_paths.csv"
+    ).write_text("x")
+
+    config_dir = stim_dir / "config"
+    config_dir.mkdir()
+    (
+        config_dir / f"config_{lang_lower}_{country_lower}_{city}_{labnum}_{year}.py"
+    ).write_text("x")
+    (
+        config_dir
+        / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_lab_configuration.json"
+    ).write_text("{}")
+    (config_dir / f"stimulus_order_versions_{lang}_{country}_{labnum}.csv").write_text(
+        "participant_id,version_number\n001,1\n"
+    )
+
+    for folder_name in [
+        f"stimuli_images_{lang_lower}_{country_lower}_{labnum}",
+        f"aoi_stimuli_{lang_lower}_{country_lower}_{labnum}",
+        f"aoi_stimuli_images_{lang_lower}_{country_lower}_{labnum}",
+        f"question_images_{lang_lower}_{country_lower}_{labnum}",
+        f"aoi_question_images_{lang_lower}_{country_lower}_{labnum}",
+        f"participant_instructions_images_{lang_lower}_{country_lower}_{labnum}",
+    ]:
+        (stim_dir / folder_name).mkdir()
+
+    doc_dir = stim_dir.parent / "documentation"
+    doc_dir.mkdir()
+    (
+        doc_dir
+        / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_metadata_form.json"
+    ).write_text("{}")
+
+    sid = "001_EN_UK_1_ET1"
+    sess_folder = tmp_path / "sessions" / sid
+    sess_folder.mkdir(parents=True)
+    logfiles = sess_folder / "logfiles"
+    logfiles.mkdir()
+    (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text("x")
+    (logfiles / "GENERAL_LOGFILE_001.txt").write_text("x")
+    _write_csv(
+        logfiles / "completed_stimuli.csv",
+        ["stimulus_id", "stimulus_name", "trial_id", "completed"],
+        [["1", "Arg_PISACowsMilk", "1", "1"]],
+    )
+    _write_csv(
+        logfiles / "question_order_versions.csv",
+        [
+            "question_order_version",
+            "local_question_1",
+            "local_question_2",
+            "bridging_question_1",
+            "bridging_question_2",
+            "global_question_1",
+            "global_question_2",
+        ],
+        [["1", "101", "102", "201", "202", "301", "302"]],
+    )
+
+    session = FakeSession(
+        session_identifier=sid,
+        session_file_path=sess_folder / "data.edf",
+        session_folder_path=sess_folder,
+    )
+    dc = FakeDataCollection(
+        stimulus_dir=stim_dir,
+        language="EN",
+        country="UK",
+        lab_number=1,
+        city=city,
+        year=year,
+        sessions={sid: session},
+    )
+
+    with pytest.raises(PreflightError) as exc_info:
+        run_preflight_check(dc)
+    assert exc_info.value.num_errors == 1
