@@ -322,17 +322,20 @@ data/MultiplEYE_SQ_CH_Zurich_1_2025/psychometric-tests-sessions/
 │   ├── WikiVocab
 │   │   ├── SQCH1_008_PT2_2025-09-13_15-26-53.csv
 │   │   └── images
-│   └── psychometric_details_008_SQ_CH_1_PT2.csv (detail output for session)
+│   └── psychometric_details_008_SQ_CH_1_PT2.csv
 ```
 
-The `psychometric_details_008_SQ_CH_1_PT2.csv` is written as an output of the psychometric tests
-with all detailled measures for the session.
+The `psychometric_details_008_SQ_CH_1_PT2.csv` is written inside the session folder as an output,
+with all detailed measures for the session.
 Furthermore, an overview of all sessions will be written to
-`data/{data_collection_id}/{data_collection_id}_overview.yaml`
+`preprocessed_data/{data_collection_id}/psychometric_tests/psychometric_overview_{data_collection_id}.csv`,
+and a merged overview (one row per participant, combining PT sessions) to
+`psychometric_overview_{data_collection_id}_merged.csv`.
 
 If it happens that the data is structured first by the test folder and then by session folder,
-the data can be restructured using the `preprocessing.scripts.restructure_psycho_tests:main`
-script.
+`prepare_language_folder` and the preflight check will detect this and restructure the data
+automatically.
+The `restructure_psycho_tests` CLI tool can still be used as a fallback.
 This can be invoked like this:
 
 ```bash
@@ -383,21 +386,36 @@ only calculating the results of tests with existing data.
 
 ### Running the Calculations
 
-The psychometric test calculations are performed by the `preprocess_psychometric_tests()` function,
-which processes each test separately and combines the results into overview and detailed output
-files.
+The psychometric test calculations are performed as part of the main preprocessing pipeline
+(via `run_preprocessing`, gated by `RUN_PSYCHOMETRIC_TESTS`), or standalone via the
+`preprocess_psychometric_tests()` function.
+Both process each test separately and combine the results into overview and detailed output files.
+
+#### Output Location
+
+All psychometric test results are written to
+`preprocessed_data/{data_collection_id}/psychometric_tests/`.
 
 #### Overview vs. Detailed Output
 
-The pipeline generates two types of output for each participant:
+The pipeline generates two types of output:
 
-- **Overview file** (`{data_collection_id}_overview.yaml`): Contains primary metrics as per
-  the original paper outputs.
-- **Detailed file** (`psychometric_details_{session_id}.csv`): Contains more detailed values.
+- **Overview file** (`psychometric_overview_{data_collection_id}.csv`): Contains one row per
+  session with primary metrics as per the original paper outputs.
+- **Merged overview file** (`psychometric_overview_{data_collection_id}_merged.csv`): Contains one
+  row per participant, merging disjoint PT sessions (e.g. PT1 with PT2).
+- **Detailed file** (`psychometric_details_{session_id}.csv`): Per-session CSV with all detailed
+  values, written to a subfolder named after the session.
 
 #### Command Line Usage
 
-The tests can be calculated with the following command:
+The tests can be calculated as part of the full pipeline:
+
+```bash
+run_preprocessing --config_path path/to/your_config.yaml
+```
+
+Or standalone:
 
 ```bash
 preprocess_psychometric_tests

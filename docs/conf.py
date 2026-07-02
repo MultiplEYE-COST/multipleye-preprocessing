@@ -26,6 +26,7 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx_design",
     "sphinx_copybutton",
+    "sphinxcontrib.mermaid",
 ]
 
 templates_path = ["_templates"]
