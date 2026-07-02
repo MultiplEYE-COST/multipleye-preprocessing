@@ -19,6 +19,7 @@ the psychometric tests. This step is rather fast.
 configuration
 preprocessing
 technical_architecture
+pipeline_stages
 reading_measures
 psychometric_tests
 

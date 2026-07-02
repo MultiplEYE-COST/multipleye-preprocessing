@@ -21,6 +21,7 @@ dependencies = [
     "ipykernel>=7.1.0",
     "jupyterlab",
     "ipywidgets",
+    "sphinxcontrib-mermaid>=2.0.2",
 ]
 
 [tool.uv.sources]
