@@ -109,7 +109,7 @@ class Stimulus:
         trial: str,
     ) -> "Stimulus":
         # assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
-        stimulus_df_path = stimulus_dir / f"multipleye_stimuli_experiment_{lang}.xlsx"
+        stimulus_df_path = stimulus_dir / f"multipleye_stimuli_experiment_{lang.casefold()}.xlsx"
         assert stimulus_df_path.exists(), f"File {stimulus_df_path} does not exist"
 
         stimulus_df = pl.read_excel(stimulus_df_path, engine="calamine")

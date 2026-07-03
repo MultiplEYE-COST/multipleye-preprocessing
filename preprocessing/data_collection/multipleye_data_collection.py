@@ -157,7 +157,7 @@ class MultipleyeDataCollection:
         # each participant
         stim_order_versions = (
             self.stimulus_dir / "config" / f"stimulus_order_versions_"
-            f"{self.language}_{self.country}_{self.lab_number}.csv"
+            f"{self.language.casefold()}_{self.country.casefold()}_{self.lab_number}.csv"
         )
         stim_order_versions = pd.read_csv(stim_order_versions)
         self.stim_order_versions = stim_order_versions[

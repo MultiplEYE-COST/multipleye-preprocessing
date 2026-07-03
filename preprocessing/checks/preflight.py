@@ -268,12 +268,12 @@ def _check_shared_files(
 
     # --- Stimulus definition files (errors) -------------------------------
     _require_file(
-        stim_dir / f"multipleye_stimuli_experiment_{lang}.xlsx",
+        stim_dir / f"multipleye_stimuli_experiment_{lang_lower}.xlsx",
         "Stimulus definition xlsx",
         errors,
     )
     _require_file(
-        stim_dir / f"multipleye_comprehension_questions_{lang}.xlsx",
+        stim_dir / f"multipleye_comprehension_questions_{lang_lower}.xlsx",
         "Comprehension questions xlsx",
         errors,
     )
@@ -299,7 +299,7 @@ def _check_shared_files(
         errors,
     )
     _require_file(
-        config_dir / f"stimulus_order_versions_{lang}_{country}_{labnum}.csv",
+        config_dir / f"stimulus_order_versions_{lang_lower}_{country_lower}_{labnum}.csv",
         "Stimulus order versions CSV",
         errors,
     )
