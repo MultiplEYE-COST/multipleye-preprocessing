@@ -11,6 +11,7 @@ import pymovements as pm
 from pymovements.stimulus import TextStimulus
 
 from ..config import settings
+from ..utils.data_path_utils import _ci_resolve
 from ..mapping.aoi import enlarge_aois
 from ..utils.logging import get_logger
 
@@ -109,8 +110,8 @@ class Stimulus:
         trial: str,
     ) -> "Stimulus":
         # assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
-        stimulus_df_path = (
-            stimulus_dir / f"multipleye_stimuli_experiment_{lang.casefold()}.xlsx"
+        stimulus_df_path = _ci_resolve(
+            stimulus_dir / f"multipleye_stimuli_experiment_{lang}.xlsx"
         )
         assert stimulus_df_path.exists(), f"File {stimulus_df_path} does not exist"
 
