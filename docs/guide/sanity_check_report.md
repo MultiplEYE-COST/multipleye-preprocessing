@@ -8,6 +8,8 @@
 section. Each field entry explains what the value means, what an example looks like, what the
 acceptable range is, and what values signal a problem. Where code-configured thresholds exist, the
 configuration key is noted.
+Finally in {ref}`reading-the-sanity-report`, there are important takeaways on how to interpret the
+report.
 
 ---
 
@@ -342,3 +344,54 @@ review.
 | `✅`   | Pass    | Metadata in range; good validation; necessary calibration found; final validation present                                                                                              |
 | `❌`   | Fail    | Stimulus after bad validation; bad validation score; calibration after last stimulus; no final validation                                                                              |
 | `⚠️`  | Warning | Moderate validation; start after moderate validation; missing calibration after bad; no validation before start; validation/calibration during stimulus; post-last-stimulus validation |
+
+---
+
+(reading-the-sanity-report)=
+
+## Reading the report
+
+**How to interpret the report holistically rather than field-by-field.** The patterns below
+help distinguish normal sessions from problematic ones. These are heuristics, not hard rules --
+revise them as domain knowledge evolves. [@saphjra for review]
+
+### Normal session
+
+A clean session typically shows: 12-15 validations, mostly good (score <0.305), no bad
+validations, data loss under 2%, and comprehension accuracy above 70%. Stimulus starts
+should always follow a good validation, and the final validation should be present (without an
+intervening calibration).
+
+### Cross-field patterns
+
+- **Good scores, bad gaze overlay.** Plots can show scan-path misalignment or drift even when
+  validation errors are below 0.3. This is non-obvious and should always be checked against the
+  gaze-over-stimulus plots. The validation score is an average; poor tracking at individual
+  points can still degrade reading measures.
+
+- **Many recalibrations + persistent data loss.** Frequent recalibrations mid-session suggest
+  the experimenter tried to improve quality. If data loss and drift remain high despite this,
+  the root cause is more likely an eye-tracker setup problem (positioning, lighting,
+  participant alignment) rather than calibration.
+
+- **Validation errors above 0.3 without recalibration.** When a moderate or bad validation is
+  not followed by a recalibration, the subsequent trial ran with poor calibration. The
+  experimenter should have recalibrated before starting that trial.
+
+- **Lost messages.** Missing ASC message patterns (start_recording, onset, offset,
+  stop_recording) usually indicate connection issues between the host PC and presentation PC.
+  Open tasks on the host PC or an active Wi-Fi connection can interfere.
+
+- **Mid-trial recalibrations.** Calibrations during stimulus presentation (flagged in the
+  summary) interrupt the participant's reading and can affect comprehension performance. They
+  should be used sparingly and only when drift becomes visible.
+
+- **Obligatory break under 5 minutes.** A shorter break reduces participant attention and
+  readiness for the second half of the experiment, which may impact both comprehension answers
+  and data quality in later trials.
+
+- **Inconsistent tracked eye.** If validation tracked eyes show a mix of left and right, the
+  eye-tracker switched the tracked eye mid-session. This suggests a hardware issue or the
+  experimenter adjusted settings on the host PC during the session.
+
+[final paragraph, 2-3 sentences]
