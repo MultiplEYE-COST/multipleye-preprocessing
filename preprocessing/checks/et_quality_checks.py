@@ -239,7 +239,7 @@ def check_validation_requirements(
             score = -1
 
     _report_to_file(
-        "\nValidation/Calibration summary\n------------------------------------------",
+        "\n## Validation/Calibration Summary",
         report_file,
     )
     _report_to_file(f"Good validations: {good_vals}/{val_count}", report_file)
