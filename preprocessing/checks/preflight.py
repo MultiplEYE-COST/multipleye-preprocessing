@@ -241,18 +241,14 @@ def _check_shared_files(
     """Check files that are shared across all sessions (data-collection level)."""
     from ..config import settings
 
-    # Always validate the source stimulus folder in data/, not the OUTPUT_DIR copy that
-    # prepare_language_folder may have created.
-    source_stim_dir = getattr(
-        data_collection,
-        "data_collection_name",
-        None,
-    )
-    if source_stim_dir:
-        source_stim_dir = settings.DATASET_DIR / f"stimuli_{source_stim_dir}"
-    if not source_stim_dir or not source_stim_dir.exists():
-        source_stim_dir = data_collection.stimulus_dir
-    stim_dir = source_stim_dir
+    # Preflight always validates the input data/ folder, never the
+    # preprocessed_data/ output copy.  Fall back to stimulus_dir only for
+    # test/demo contexts that lack a real data_collection_name.
+    dcn_name = getattr(data_collection, "data_collection_name", None)
+    if dcn_name:
+        stim_dir = settings.DATASET_DIR / f"stimuli_{dcn_name}"
+    else:
+        stim_dir = data_collection.stimulus_dir.resolve()
     lang = data_collection.language
     country = data_collection.country
     labnum = data_collection.lab_number
@@ -299,7 +295,8 @@ def _check_shared_files(
         errors,
     )
     _require_file(
-        config_dir / f"stimulus_order_versions_{lang_lower}_{country_lower}_{labnum}.csv",
+        config_dir
+        / f"stimulus_order_versions_{lang_lower}_{country_lower}_{labnum}.csv",
         "Stimulus order versions CSV",
         errors,
     )
@@ -420,18 +417,19 @@ def _check_stimulus_order_coverage(
     from ..models.sid import Sid
 
     # Resolve the *source* stimulus dir (same logic as _check_shared_files)
+    # Preflight always validates the input data/ folder, never the
+    # preprocessed_data/ output copy.  Fall back to stimulus_dir only for
+    # test/demo contexts that lack a real data_collection_name.
     dcn_name = getattr(data_collection, "data_collection_name", None)
     if dcn_name:
         source_stim_dir = settings.DATASET_DIR / f"stimuli_{dcn_name}"
     else:
-        source_stim_dir = data_collection.stimulus_dir
-    if not source_stim_dir.exists():
-        source_stim_dir = data_collection.stimulus_dir
+        source_stim_dir = data_collection.stimulus_dir.resolve()
 
     csv_path = (
         source_stim_dir
         / "config"
-        / f"stimulus_order_versions_{data_collection.language}_{data_collection.country}_{data_collection.lab_number}.csv"
+        / f"stimulus_order_versions_{data_collection.language.casefold()}_{data_collection.country.casefold()}_{data_collection.lab_number}.csv"
     )
     if not _ci_exists(csv_path):
         return  # already reported by _check_shared_files
