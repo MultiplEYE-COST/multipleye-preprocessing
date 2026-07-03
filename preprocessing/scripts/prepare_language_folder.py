@@ -170,6 +170,15 @@ def prepare_language_folder(data_collection_name: str | None = None):
         / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
     )
 
+    # Always copy stimulus assets (config, xlsx, images) before AOI checks
+    # so files stay in sync even when AOIs are already fixed.
+    _copy_stimulus_assets(
+        stimulus_folder_path,
+        preprocessed_stimulus_path,
+        eye_tracking_sessions_path,
+        dcn,
+    )
+
     if (  # check if it already contains 24 files and the fixed marker
         destination_aoi_path.exists()
         and len(list(destination_aoi_path.glob("[!.]*.csv"))) == 24
@@ -187,14 +196,6 @@ def prepare_language_folder(data_collection_name: str | None = None):
         else:
             logger.warning(f"Source AOI path {source_aoi_path} does not exist.")
             return
-
-    # Copy other stimulus files
-    _copy_stimulus_assets(
-        stimulus_folder_path,
-        preprocessed_stimulus_path,
-        eye_tracking_sessions_path,
-        dcn,
-    )
 
     # get all aoi files in the preprocessed folder
     aoi_files = list(destination_aoi_path.glob("[!.]*.csv"))

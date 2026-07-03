@@ -446,9 +446,11 @@ class MultipleyeDataCollection:
             + r"_ET\d(?:_.*)?"
         )
 
-        stimulus_folder_path = settings.OUTPUT_DIR / f"stimuli_{data_folder_name}"
+        stimulus_folder_path = (
+            settings.OUTPUT_DIR / f"stimuli_{data_folder_name}"
+        ).resolve()
         if not stimulus_folder_path.exists():
-            stimulus_folder_path = data_dir / f"stimuli_{data_folder_name}"
+            stimulus_folder_path = (data_dir / f"stimuli_{data_folder_name}").resolve()
 
         config_file = (
             stimulus_folder_path
