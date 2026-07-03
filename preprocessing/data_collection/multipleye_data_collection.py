@@ -22,6 +22,7 @@ from ..models.dcn import Dcn
 from ..config import settings
 from ..utils.data_path_utils import _ci_resolve
 from ..utils.conversion import convert_to_time_str
+from ..utils.data_collection_utils import _report_to_file
 from ..utils.logging import get_logger
 from ..checks.et_quality_checks import (
     check_comprehension_question_answers,
@@ -534,7 +535,7 @@ class MultipleyeDataCollection:
         )
         os.makedirs(session_results, exist_ok=True)
 
-        report_file_path = session_results / f"{session_name}_{self.city}_report.txt"
+        report_file_path = session_results / f"{session_name}_{self.city}_report.md"
         self.sessions[session_name].sanity_report_path = report_file_path
 
         if not report_file_path.exists() or overwrite:
@@ -547,8 +548,13 @@ class MultipleyeDataCollection:
 
             stimuli = self.sessions[session_name].stimuli
 
+            _report_to_file(
+                f"# Sanity Check: {session_name} — {self.city}\n",
+                report_file_path,
+            )
+            _report_to_file("## Metadata", report_file_path)
+
             with open(report_file_path, "a+", encoding="utf-8") as report_file:
-                # set report object
                 report = partial(report_meta, report_file=report_file)
                 check_metadata(
                     self.sessions[session_name].pm_gaze_metadata,
@@ -557,11 +563,16 @@ class MultipleyeDataCollection:
                     report,
                 )
 
+            _report_to_file("## Logfile", report_file_path)
             self._check_logfiles(stimuli, session_name)
+            _report_to_file("## Gaze Frame", report_file_path)
             self._check_stimuli_gaze_frame(gaze, stimuli, session_name)
+            _report_to_file("## ASC Messages", report_file_path)
             self._check_asc_messages(stimuli, messages, session_name)
+            _report_to_file("## Validation & Calibration", report_file_path)
             self._check_asc_validation(session_name)
             self._load_psychometric_tests(session_name)
+            _report_to_file("## Comprehension Answers", report_file_path)
             self._extract_question_answers(stimuli, session_name)
             fix_report = self._check_avg_fix_durations(gaze)
 
@@ -569,6 +580,9 @@ class MultipleyeDataCollection:
                 session_results / f"fixation_statistics_per_page_{session_name}.tsv",
                 separator="\t",
             )
+
+            legend = "\n---\n\n**Legend:** ✅ Pass | ❌ Fail | ⚠️ Warning\n"
+            _report_to_file(legend, report_file_path)
 
             if plotting:
                 self._create_plots(
