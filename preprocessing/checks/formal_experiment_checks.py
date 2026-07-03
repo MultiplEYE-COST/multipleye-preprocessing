@@ -287,7 +287,7 @@ def _check_optional_screens(messages, messages_only, report_file):
         )
         if indices:
             _report_to_file(
-                f"{messages[indices[0]]['message']} found {len(indices)} times",
+                f"- {messages[indices[0]]['message']} found {len(indices)} times",
                 report_file,
             )
 
@@ -319,24 +319,23 @@ def _check_optional_screens(messages, messages_only, report_file):
                                     / 1000
                                 )
                                 _report_to_file(
-                                    f"{text} lasting {duration:.2f} seconds found at {msg['timestamp']}",
+                                    f"- {text} lasting {duration:.2f} seconds found at {msg['timestamp']}",
                                     report_file,
                                 )
                                 break
                     else:
                         _report_to_file(
-                            f"{optional_screen} found at {messages[index]['timestamp']} but no duration found",
+                            f"- {optional_screen} found at {messages[index]['timestamp']} but no duration found",
                             report_file,
                         )
 
                 else:
                     msg = messages[index]
                     _report_to_file(
-                        f"{msg['message']} found at {msg['timestamp']}", report_file
+                        f"- {msg['message']} found at {msg['timestamp']}", report_file
                     )
-                    # print(f"{msg['message']} found at {msg['timestamp']}")
         else:
-            _report_to_file(f"{optional_screen} not found", report_file)
+            _report_to_file(f"- {optional_screen} not found", report_file)
 
 
 def _check_one_time_screens(messages_only: list[str], report_file: Path):
@@ -404,7 +403,7 @@ def _extract_reading_time(
             ((float(break_timestamp) - float(last_msg_timestamp)) / 60000), 2
         )
         _report_to_file(
-            f"{trial}: {stimulus_name}: {trial_duration} minutes", report_file
+            f"- {trial}: {stimulus_name}: {trial_duration} minutes", report_file
         )
 
         next_timestamp = messages[index_next].get("timestamp")
@@ -412,7 +411,7 @@ def _extract_reading_time(
         break_duration = round(
             ((float(next_timestamp) - float(break_timestamp)) / 60000), 2
         )
-        _report_to_file(f"obligatory break: {break_duration} minutes", report_file)
+        _report_to_file(f"- obligatory break: {break_duration} minutes", report_file)
 
     else:
         next_timestamp = messages[index_next].get("timestamp")
@@ -420,7 +419,7 @@ def _extract_reading_time(
             ((float(next_timestamp) - float(last_msg_timestamp)) / 60000), 2
         )
         _report_to_file(
-            f"{trial}:  {stimulus_name}: {trial_duration} minutes", report_file
+            f"- {trial}: {stimulus_name}: {trial_duration} minutes", report_file
         )
 
 
