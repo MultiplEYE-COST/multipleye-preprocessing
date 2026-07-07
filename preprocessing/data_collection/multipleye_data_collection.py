@@ -20,6 +20,7 @@ from tqdm import tqdm
 from ..models.sid import Sid
 from ..models.dcn import Dcn
 from ..config import settings
+from ..utils.data_path_utils import _ci_resolve
 from ..utils.conversion import convert_to_time_str
 from ..utils.logging import get_logger
 from ..checks.et_quality_checks import (
@@ -155,7 +156,7 @@ class MultipleyeDataCollection:
 
         # load stimulus order versions to know what stimulus randomization was used for
         # each participant
-        stim_order_versions = (
+        stim_order_versions = _ci_resolve(
             self.stimulus_dir / "config" / f"stimulus_order_versions_"
             f"{self.language}_{self.country}_{self.lab_number}.csv"
         )
@@ -446,9 +447,11 @@ class MultipleyeDataCollection:
             + r"_ET\d(?:_.*)?"
         )
 
-        stimulus_folder_path = settings.OUTPUT_DIR / f"stimuli_{data_folder_name}"
+        stimulus_folder_path = (
+            settings.OUTPUT_DIR / f"stimuli_{data_folder_name}"
+        ).resolve()
         if not stimulus_folder_path.exists():
-            stimulus_folder_path = data_dir / f"stimuli_{data_folder_name}"
+            stimulus_folder_path = (data_dir / f"stimuli_{data_folder_name}").resolve()
 
         config_file = (
             stimulus_folder_path

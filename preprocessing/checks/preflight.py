@@ -7,13 +7,13 @@ consolidated error instead of triggering mid-loop failures one at a time.
 
 from __future__ import annotations
 
-import fnmatch
 import os
 import sys
 from pathlib import Path
 
 import polars as pl
 
+from ..utils.data_path_utils import _ci_exists, _ci_glob, _ci_resolve
 from ..utils.logging import get_logger
 
 logger = get_logger()
@@ -142,55 +142,6 @@ def _require_glob(
         groups.setdefault(label, []).append(str(directory / pattern))
 
 
-def _ci_exists(path: Path) -> bool:
-    """Check if a path exists, falling back to case-insensitive comparison."""
-    if path.exists():
-        return True
-    parent = path.parent
-    if not parent.exists():
-        return False
-    try:
-        entries = os.listdir(parent)
-    except OSError:
-        return False
-    target = path.name.casefold()
-    return any(entry.casefold() == target for entry in entries)
-
-
-def _ci_resolve(path: Path) -> Path:
-    """Resolve a path to its actual on-disk spelling (case correction)."""
-    if path.exists():
-        return path
-    parent = path.parent
-    if not parent.exists():
-        return path
-    try:
-        entries = os.listdir(parent)
-    except OSError:
-        return path
-    target = path.name.casefold()
-    for entry in entries:
-        if entry.casefold() == target:
-            return parent / entry
-    return path
-
-
-def _ci_glob(directory: Path, pattern: str) -> list[Path]:
-    """Case-insensitive glob, returning actual on-disk paths."""
-    if not directory.exists():
-        return []
-    try:
-        entries = os.listdir(directory)
-    except OSError:
-        return []
-    pattern_cf = pattern.casefold()
-    return [
-        directory / entry
-        for entry in entries
-        if fnmatch.fnmatch(entry.casefold(), pattern_cf)
-    ]
-
-
 def _find_archives(directory: Path) -> list[str]:
     """Find common archive files in the given directory."""
     patterns = ["*.zip", "*.tar.gz", "*.tar", "*.tgz", "*.7z", "*.rar"]
@@ -241,26 +192,19 @@ def _check_shared_files(
     """Check files that are shared across all sessions (data-collection level)."""
     from ..config import settings
 
-    # Always validate the source stimulus folder in data/, not the OUTPUT_DIR copy that
-    # prepare_language_folder may have created.
-    source_stim_dir = getattr(
-        data_collection,
-        "data_collection_name",
-        None,
-    )
-    if source_stim_dir:
-        source_stim_dir = settings.DATASET_DIR / f"stimuli_{source_stim_dir}"
-    if not source_stim_dir or not source_stim_dir.exists():
-        source_stim_dir = data_collection.stimulus_dir
-    stim_dir = source_stim_dir
+    # Preflight always validates the input data/ folder, never the
+    # preprocessed_data/ output copy.  Fall back to stimulus_dir only for
+    # test/demo contexts that lack a real data_collection_name.
+    dcn_name = getattr(data_collection, "data_collection_name", None)
+    if dcn_name:
+        stim_dir = settings.DATASET_DIR / f"stimuli_{dcn_name}"
+    else:
+        stim_dir = data_collection.stimulus_dir.resolve()
     lang = data_collection.language
     country = data_collection.country
     labnum = data_collection.lab_number
     city = data_collection.city
     year = data_collection.year
-
-    lang_lower = lang.lower()
-    country_lower = country.lower()
 
     # --- Stimulus directory empty check -----------------------------------
     if not _stim_dir_empty_check(stim_dir, errors):
@@ -278,8 +222,7 @@ def _check_shared_files(
         errors,
     )
     _require_file(
-        stim_dir
-        / f"multipleye_participant_instructions_{lang_lower}_with_img_paths.csv",
+        stim_dir / f"multipleye_participant_instructions_{lang}_with_img_paths.csv",
         "Participant instructions CSV",
         errors,
     )
@@ -288,7 +231,7 @@ def _check_shared_files(
     config_dir = stim_dir / "config"
     _require_glob(
         config_dir,
-        f"config_{lang_lower}_{country_lower}_*_{labnum}_*.py",
+        f"config_{lang}_{country}_*_{labnum}_*.py",
         "Config python file",
         errors,
     )
@@ -306,18 +249,18 @@ def _check_shared_files(
 
     # --- Image/AOI folders (errors) ---------------------------------------
     for folder_name in [
-        f"stimuli_images_{lang_lower}_{country_lower}_{labnum}",
-        f"aoi_stimuli_{lang_lower}_{country_lower}_{labnum}",
-        f"question_images_{lang_lower}_{country_lower}_{labnum}",
-        f"participant_instructions_images_{lang_lower}_{country_lower}_{labnum}",
+        f"stimuli_images_{lang}_{country}_{labnum}",
+        f"aoi_stimuli_{lang}_{country}_{labnum}",
+        f"question_images_{lang}_{country}_{labnum}",
+        f"participant_instructions_images_{lang}_{country}_{labnum}",
     ]:
         _require_file(stim_dir / folder_name, f"Image folder: {folder_name}", errors)
 
     # --- Image/AOI folders (warnings — flaky, code handles absence) -------
     _warnings = warnings or {}
     for folder_name in [
-        f"aoi_stimuli_images_{lang_lower}_{country_lower}_{labnum}",
-        f"aoi_question_images_{lang_lower}_{country_lower}_{labnum}",
+        f"aoi_stimuli_images_{lang}_{country}_{labnum}",
+        f"aoi_question_images_{lang}_{country}_{labnum}",
     ]:
         _require_file(stim_dir / folder_name, f"Image folder: {folder_name}", _warnings)
 
@@ -420,13 +363,14 @@ def _check_stimulus_order_coverage(
     from ..models.sid import Sid
 
     # Resolve the *source* stimulus dir (same logic as _check_shared_files)
+    # Preflight always validates the input data/ folder, never the
+    # preprocessed_data/ output copy.  Fall back to stimulus_dir only for
+    # test/demo contexts that lack a real data_collection_name.
     dcn_name = getattr(data_collection, "data_collection_name", None)
     if dcn_name:
         source_stim_dir = settings.DATASET_DIR / f"stimuli_{dcn_name}"
     else:
-        source_stim_dir = data_collection.stimulus_dir
-    if not source_stim_dir.exists():
-        source_stim_dir = data_collection.stimulus_dir
+        source_stim_dir = data_collection.stimulus_dir.resolve()
 
     csv_path = (
         source_stim_dir
