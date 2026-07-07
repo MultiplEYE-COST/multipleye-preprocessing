@@ -466,6 +466,12 @@ class Settings:
         #: Acceptable range (min, max) for maximum validation accuracy scores.
         self.ACCEPTABLE_MAX_VALIDATION_SCORES = (0.0, 1.5)
 
+        #: Single validation classification — scores below this are GOOD.
+        self.SINGLE_VALIDATION_GOOD_MAX = 0.305
+
+        #: Single validation classification — scores below this are MODERATE (≥ GOOD_MAX, < this is MODERATE).
+        self.SINGLE_VALIDATION_MODERATE_MAX = 0.45
+
         #: Mapping from YAML config flags to folder names for psychometric tests.
         self.PSYCHOMETRIC_TEST_MAPPING = {
             "plab": "PLAB",
