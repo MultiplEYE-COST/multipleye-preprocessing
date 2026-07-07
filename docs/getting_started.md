@@ -157,7 +157,3 @@ You can always check the available options for each script by using the `--help`
 ```bash
 run_preprocessing --help
 ```
-
-Processing the {ref}`psychometric_tests` is not part of the preprocessing pipeline.
-This is done separately, find the
-{ref}`instructions on the corresponding page <running_calculations_psychometric>`.
