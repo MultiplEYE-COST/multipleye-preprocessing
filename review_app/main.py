@@ -1,13 +1,33 @@
 """FastAPI app, route registration, and startup."""
 
+from pathlib import Path
+import urllib.request
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from .config import PREPROCESSED_DATA_DIR
 from .routes.home import router as home_router
-from .routes.collection import router as collection_router
-from .routes.session import router as session_router
+from .routes.collection import (
+    router as collection_router,
+    page_router as collection_page_router,
+)
+from .routes.session import router as session_router, api_router as session_api_router
+
+_HTMX_URL = "https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
+_HTMX_PATH = Path(__file__).parent / "static" / "htmx.min.js"
+
+
+def _ensure_htmx() -> None:
+    """Download HTMX on first use so it is available offline later."""
+    if not _HTMX_PATH.exists():
+        try:
+            data = urllib.request.urlopen(_HTMX_URL, timeout=10).read()
+            _HTMX_PATH.write_bytes(data)
+        except Exception as exc:
+            print(
+                f"WARNING: could not download HTMX ({exc}); CDN will be used as fallback."
+            )
 
 
 app = FastAPI(
@@ -16,21 +36,26 @@ app = FastAPI(
     version="2026.07.01",
 )
 
+app.include_router(home_router)
+app.include_router(collection_router)
+app.include_router(collection_page_router)
+app.include_router(session_router)
+app.include_router(session_api_router)
+
+if PREPROCESSED_DATA_DIR.exists():
+    app.mount("/files", StaticFiles(directory=str(PREPROCESSED_DATA_DIR)), name="files")
+
+_ensure_htmx()
+app.mount(
+    "/static",
+    StaticFiles(directory=str(Path(__file__).parent / "static")),
+    name="static",
+)
+
 
 @app.on_event("startup")
 def _startup() -> None:
-    """Ensure the preprocessed data directory exists on startup."""
     PREPROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-
-app.include_router(home_router)
-app.include_router(collection_router)
-app.include_router(session_router)
-
-# Mount the preprocessed data directory for static file serving (plots, reports, etc.)
-# Files are served under /files/<dcn_name>/... with path validation in the routes.
-if PREPROCESSED_DATA_DIR.exists():
-    app.mount("/files", StaticFiles(directory=str(PREPROCESSED_DATA_DIR)), name="files")
 
 
 def run() -> None:

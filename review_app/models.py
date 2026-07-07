@@ -39,6 +39,7 @@ class SessionSummary(BaseModel):
     n_warn_flags: int = 0
     review_status: ReviewStatus = "unreviewed"
     reviewer: str = ""
+    comment_preview: str = ""
 
 
 class SessionDetail(BaseModel):
@@ -57,10 +58,13 @@ class DcnSummary(BaseModel):
     dcn_name: str
     language: str = ""
     country: str = ""
+    city: str = ""
     year: str = ""
     n_sessions: int = 0
     n_pilots: int = 0
     is_processed: bool = False
+    has_raw_data: bool = False
+    preflight_status: CheckStatus = "pass"
     n_reviewed_unreviewed: int = 0
     n_reviewed_accepted: int = 0
     n_reviewed_flagged: int = 0

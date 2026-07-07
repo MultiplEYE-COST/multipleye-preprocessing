@@ -17,6 +17,8 @@ PREPROCESSED_DATA_DIR = Path(
     )
 )
 
+RAW_DATA_DIR = Path(os.environ.get("RAW_DATA_DIR", Path.cwd() / "data"))
+
 # Folder name constants (mirrors preprocessing.config.Settings defaults).
 _METADATA_FOLDER = "metadata/"
 _SANITY_CHECKS_FOLDER = "sanity_checks/"

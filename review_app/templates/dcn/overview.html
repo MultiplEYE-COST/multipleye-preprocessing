@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}MultiplEYE Data Review — {{ dcn.dcn_name }}{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h2>{{ dcn.dcn_name }}</h2>
+    <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px">
+      <span title="{{ lang_name(dcn.language) }}">{{ dcn.language }}</span> · {{ dcn.country }} · {{ dcn.city }} · {{ dcn.year }}
+      &middot; {{ dcn.n_sessions }} sessions ({{ dcn.n_pilots }} pilots)
+    </div>
+  </div>
+  <div>
+    <span class="badge badge-unreviewed">{{ dcn.n_reviewed_unreviewed }} unreviewed</span>
+    <span class="badge badge-pass">{{ dcn.n_reviewed_accepted }} accepted</span>
+    <span class="badge badge-fail">{{ dcn.n_reviewed_flagged }} flagged</span>
+    <span class="badge badge-warn">{{ dcn.n_reviewed_excluded }} excluded</span>
+  </div>
+</div>
+
+{% if dcn.has_raw_data and not dcn.is_processed %}
+<div class="card" style="margin-bottom:0.75rem;padding:0.75rem 1rem">
+  <div style="display:flex;align-items:center;gap:8px;font-size:0.85rem">
+    <span>Preflight:</span>
+    <span class="badge badge-{{ dcn.preflight_status }}">{{ dcn.preflight_status }}</span>
+    <span style="color:var(--text-secondary);font-size:0.8rem">Raw data found — run preprocessing to review sessions.</span>
+  </div>
+</div>
+{% endif %}
+
+{% set total = dcn.n_sessions %}
+{% if total > 0 %}
+{% set pct_at = (dcn.n_reviewed_accepted / total * 100) | round(1) %}
+{% set pct_fg = (dcn.n_reviewed_flagged / total * 100) | round(1) %}
+{% set pct_ex = (dcn.n_reviewed_excluded / total * 100) | round(1) %}
+{% set pct_ur = (dcn.n_reviewed_unreviewed / total * 100) | round(1) %}
+<div style="height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin-top:8px;display:flex">
+  {% if pct_ur > 0 %}<div style="height:100%;width:{{ pct_ur }}%;background:var(--border);opacity:0.3"></div>{% endif %}
+  {% if pct_at > 0 %}<div style="height:100%;width:{{ pct_at }}%;background:var(--pass);opacity:0.6"></div>{% endif %}
+  {% if pct_fg > 0 %}<div style="height:100%;width:{{ pct_fg }}%;background:var(--fail);opacity:0.6"></div>{% endif %}
+  {% if pct_ex > 0 %}<div style="height:100%;width:{{ pct_ex }}%;background:var(--warn);opacity:0.6"></div>{% endif %}
+</div>
+{% endif %}
+
+<div style="display:flex;gap:2rem;border-bottom:2px solid var(--border);margin-bottom:1rem">
+  <a href="#" class="tab-link active" data-tab="sessions" style="padding:0.5rem 0;border-bottom:2px solid var(--accent);margin-bottom:-2px;color:var(--accent)">Sessions</a>
+  <a href="#" class="tab-link" data-tab="flags" style="padding:0.5rem 0;color:var(--text-secondary)">By Flag</a>
+  <a href="#" class="tab-link" data-tab="stats" style="padding:0.5rem 0;color:var(--text-secondary)">Stats</a>
+  <a href="#" class="tab-link" data-tab="psychometric" style="padding:0.5rem 0;color:var(--text-secondary)">Psychometric</a>
+</div>
+
+<div id="tab-sessions" class="tab-content">
+  <input id="session-filter" class="search" type="text" placeholder="Filter by SID, PID...">
+  <table>
+    <thead><tr>
+      <th data-sort="sid">SID</th>
+      <th data-sort="pid">PID</th>
+      <th>Type</th>
+      <th data-sort="flags">Flags</th>
+      <th>Review</th>
+      <th>Comment</th>
+      <th>Reviewer</th>
+    </tr></thead>
+    <tbody>
+    {% for s in sessions %}
+    <tr class="session-row" data-href="/dcn/{{ dcn.dcn_name }}/session/{{ s.sid }}" style="cursor:pointer">
+      <td class="sid" data-sid="{{ s.sid }}">{{ s.sid }}</td>
+      <td data-pid="{{ s.pid }}">{{ s.pid }}</td>
+      <td>{% if s.is_pilot %}<span class="badge badge-warn">pilot{% else %}<span class="badge badge-pass">exp{% endif %}</span></td>
+      <td data-flags="{{ s.n_flags }}">
+        {% if s.n_fail_flags %}<span class="badge badge-fail">{{ s.n_fail_flags }}{% endif %}
+        {% if s.n_warn_flags %}<span class="badge badge-warn">{{ s.n_warn_flags }}{% endif %}
+        {% if s.n_flags == 0 %}<span class="badge badge-pass">0{% endif %}
+      </td>
+      <td>{% set bc = {"unreviewed": "badge-unreviewed", "accepted": "badge-pass", "flagged": "badge-fail", "excluded": "badge-warn"} %}<span class="badge {{ bc[s.review_status] }}">{{ s.review_status }}</span></td>
+      <td class="comment">{{ s.comment_preview }}</td>
+      <td>{{ s.reviewer }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="tab-flags" class="tab-content" style="display:none">
+  <p style="color:var(--text-secondary);margin-bottom:1rem">Sessions grouped by triggered check.</p>
+  <div id="flag-content"><p style="color:var(--text-secondary);font-size:0.85rem">Coming soon.</p></div>
+</div>
+
+<div id="tab-stats" class="tab-content" style="display:none">
+  <p style="color:var(--text-secondary);margin-bottom:1rem">Key metric distributions across sessions.</p>
+  <div id="stats-content"><p style="color:var(--text-secondary);font-size:0.85rem">Coming soon.</p></div>
+</div>
+
+<div id="tab-psychometric" class="tab-content" style="display:none">
+  <p style="color:var(--text-secondary);margin-bottom:1rem">Psychometric test scores per session.</p>
+  <div id="psychometric-content"><p style="color:var(--text-secondary);font-size:0.85rem">Coming soon.</p></div>
+</div>
+
+<script>
+document.querySelectorAll('.tab-link').forEach(function(link) {
+  link.addEventListener('click', function(e) {
+    e.preventDefault();
+    var tab = this.dataset.tab;
+    document.querySelectorAll('.tab-link').forEach(function(t) {
+      t.style.borderBottom = 'none'; t.style.color = 'var(--text-secondary)';
+    });
+    this.style.borderBottom = '2px solid var(--accent)'; this.style.color = 'var(--accent)';
+    document.querySelectorAll('.tab-content').forEach(function(t) { t.style.display = 'none'; });
+    document.getElementById('tab-' + tab).style.display = '';
+  });
+});
+</script>
+{% endblock %}

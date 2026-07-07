@@ -1,8 +1,9 @@
 """DCN-level routes — overview, session list, flags, stats, psychometric."""
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse, HTMLResponse
 
+from ..templating import render
 from ..services.dcn import get_dcn, list_sessions
 from ..models import FlagSummary
 
@@ -113,3 +114,24 @@ async def dcn_stats(dcn_name: str) -> JSONResponse:
         for key, vals in sorted(values.items())
     }
     return JSONResponse(stats)
+
+
+# ---- HTML page routes (no /api prefix) ----
+
+page_router = APIRouter()
+
+
+@page_router.get("/dcn/{dcn_name}")
+async def dcn_page(request: Request, dcn_name: str):
+    dcn = get_dcn(dcn_name)
+    if dcn is None:
+        raise HTTPException(status_code=404, detail=f"DCN '{dcn_name}' not found")
+    sessions = list_sessions(dcn_name)
+    html = render(
+        "dcn/overview.html",
+        request=request,
+        dcn=dcn,
+        sessions=sessions,
+        now="",
+    )
+    return HTMLResponse(html)

@@ -174,3 +174,6 @@ public/*
 jupyter_execute/*
 
 uv.lock
+
+# review web UI auto-downloaded JS
+review_app/static/htmx.min.js
