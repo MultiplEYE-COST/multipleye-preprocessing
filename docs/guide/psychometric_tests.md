@@ -325,13 +325,6 @@ data/MultiplEYE_SQ_CH_Zurich_1_2025/psychometric-tests-sessions/
 │   └── psychometric_details_008_SQ_CH_1_PT2.csv
 ```
 
-The `psychometric_details_008_SQ_CH_1_PT2.csv` is written inside the session folder as an output,
-with all detailed measures for the session.
-Furthermore, an overview of all sessions will be written to
-`preprocessed_data/{data_collection_id}/psychometric_tests/psychometric_overview_{data_collection_id}.csv`,
-and a merged overview (one row per participant, combining PT sessions) to
-`psychometric_overview_{data_collection_id}_merged.csv`.
-
 If it happens that the data is structured first by the test folder and then by session folder,
 `prepare_language_folder` and the preflight check will detect this and restructure the data
 automatically.
