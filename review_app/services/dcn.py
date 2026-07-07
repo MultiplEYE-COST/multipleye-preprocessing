@@ -1,46 +1,44 @@
-"""Discover data collections and read overview YAMLs."""
+"""Discover data collections (from both raw data/ and preprocessed_data/) and read overviews."""
 
 import yaml
 
 from preprocessing.models import Dcn
 
-from ..config import (
-    PREPROCESSED_DATA_DIR,
-    metadata_path,
-    quality_thresholds_path,
-)
+from ..config import PREPROCESSED_DATA_DIR, RAW_DATA_DIR
 from ..models import DcnSummary, SessionSummary
 from .review import load_review
 from .session_data import read_overview, compute_checks
+from .preflight import run_preflight
+
+
+def _discover_dcn_names() -> set[str]:
+    """Collect DCN names from both raw data/ and preprocessed_data/."""
+    names: set[str] = set()
+
+    for base in (RAW_DATA_DIR, PREPROCESSED_DATA_DIR):
+        if not base.exists():
+            continue
+        for entry in base.iterdir():
+            if not entry.is_dir():
+                continue
+            try:
+                Dcn(entry.name)
+                names.add(entry.name)
+            except (ValueError, TypeError):
+                pass
+
+    return names
 
 
 def list_dcns() -> list[DcnSummary]:
-    """List all data collections in the preprocessed data directory.
-
-    :returns: List of DcnSummary for each discovered data collection.
-    """
-    if not PREPROCESSED_DATA_DIR.exists():
-        return []
-
     dcns: list[DcnSummary] = []
-    for entry in sorted(PREPROCESSED_DATA_DIR.iterdir()):
-        if not entry.is_dir():
-            continue
-        try:
-            dcn = Dcn(entry.name)
-        except (ValueError, TypeError):
-            continue
+    for dcn_name in sorted(_discover_dcn_names()):
+        dcn = Dcn(dcn_name)
         dcns.append(_build_dcn_summary(dcn))
-
     return dcns
 
 
 def get_dcn(dcn_name: str) -> DcnSummary | None:
-    """Get a single data collection's summary.
-
-    :param dcn_name: Data collection name.
-    :returns: DcnSummary or None if not found.
-    """
     dcns = list_dcns()
     for d in dcns:
         if d.dcn_name == dcn_name:
@@ -50,8 +48,11 @@ def get_dcn(dcn_name: str) -> DcnSummary | None:
 
 def _build_dcn_summary(dcn: Dcn) -> DcnSummary:
     dcn_name = str(dcn)
-    is_processed = quality_thresholds_path(dcn_name).exists()
-    sessions = list_sessions(dcn_name)
+    meta_dir = PREPROCESSED_DATA_DIR / dcn_name / "metadata"
+    is_processed = meta_dir.exists() and any(meta_dir.iterdir())
+    has_raw_data = (RAW_DATA_DIR / dcn_name).exists()
+
+    sessions = list_sessions(dcn_name) if is_processed else []
 
     n_reviewed: dict[str, int] = {
         "unreviewed": 0,
@@ -65,14 +66,22 @@ def _build_dcn_summary(dcn: Dcn) -> DcnSummary:
         if s.is_pilot:
             n_pilots += 1
 
+    preflight_status = "pass"
+    if has_raw_data:
+        preflight = run_preflight(dcn_name)
+        preflight_status = preflight.get("status", "pass")
+
     return DcnSummary(
         dcn_name=dcn_name,
         language=dcn.lang,
         country=dcn.country,
+        city=dcn.city,
         year=dcn.year,
         n_sessions=len(sessions),
         n_pilots=n_pilots,
         is_processed=is_processed,
+        has_raw_data=has_raw_data,
+        preflight_status=preflight_status,
         n_reviewed_unreviewed=n_reviewed.get("unreviewed", 0),
         n_reviewed_accepted=n_reviewed.get("accepted", 0),
         n_reviewed_flagged=n_reviewed.get("flagged", 0),
@@ -81,17 +90,9 @@ def _build_dcn_summary(dcn: Dcn) -> DcnSummary:
 
 
 def list_sessions(dcn_name: str) -> list[SessionSummary]:
-    """List all sessions in a data collection with review status.
+    from ..config import _METADATA_FOLDER
 
-    Scans the metadata/ folder for session overview YAMLs.
-
-    :param dcn_name: Data collection name.
-    :returns: List of SessionSummary.
-    """
-    from ..config import PREPROCESSED_DATA_DIR
-
-    meta_base = PREPROCESSED_DATA_DIR / dcn_name / "metadata"
-
+    meta_base = PREPROCESSED_DATA_DIR / dcn_name / _METADATA_FOLDER
     if not meta_base.exists():
         return []
 
@@ -103,11 +104,12 @@ def list_sessions(dcn_name: str) -> list[SessionSummary]:
         summary = _build_session_summary(dcn_name, sid)
         if summary:
             sessions.append(summary)
-
     return sessions
 
 
 def _build_session_summary(dcn_name: str, sid: str) -> SessionSummary | None:
+    from ..config import metadata_path, quality_thresholds_path
+
     overview = read_overview(metadata_path(dcn_name, sid) / f"{sid}_overview.yaml")
     if overview is None:
         return None
@@ -126,6 +128,7 @@ def _build_session_summary(dcn_name: str, sid: str) -> SessionSummary | None:
     n_warn = sum(1 for c in checks if c.status == "warn")
 
     review = load_review(dcn_name, sid)
+    comment_preview = review.comment.split("\n")[0][:80] if review.comment else ""
 
     return SessionSummary(
         sid=sid,
@@ -136,4 +139,5 @@ def _build_session_summary(dcn_name: str, sid: str) -> SessionSummary | None:
         n_warn_flags=n_warn,
         review_status=review.status,
         reviewer=review.reviewer,
+        comment_preview=comment_preview,
     )

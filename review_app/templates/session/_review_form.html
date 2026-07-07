@@ -1,0 +1,32 @@
+{% set base = "/api/dcn/" ~ dcn ~ "/session/" ~ detail.sid ~ "/review" %}
+{% set reviewer = detail.review.reviewer if detail.review.reviewer else "" %}
+{% set fmt_date = detail.review.reviewed_at.replace("T", " ").split("+")[0].split("Z")[0] if detail.review.reviewed_at else "" %}
+{% set action = review_action if review_action else ("saved" if fmt_date else "loaded") %}
+<div style="display:flex;gap:6px;margin-bottom:0.75rem;flex-wrap:wrap">
+  {% for s in ["unreviewed", "accepted", "flagged", "excluded"] %}
+  <button class="btn btn-sm {{ 'active' if detail.review.status == s else '' }}"
+          hx-post="{{ base }}?status={{ s }}&comment={{ detail.review.comment | urlencode }}"
+          hx-target="#review-form"
+          hx-swap="innerHTML"
+          title="Shortcut: {{ loop.index }}">
+    {{ s }} <span class="kbd">{{ loop.index }}</span>
+  </button>
+  {% endfor %}
+</div>
+
+<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.5rem">
+  <span id="reviewer-label">{% if reviewer %}reviewed by: {{ reviewer }} · {% endif %}</span>
+  {% if fmt_date %}{{ action }} {{ fmt_date }}{% else %}no review saved yet{% endif %}
+</div>
+
+<form hx-post="{{ base }}?status={{ detail.review.status }}"
+      hx-target="#review-form"
+      hx-swap="innerHTML">
+  <textarea name="comment" rows="3" tabindex="1"
+            style="width:100%;margin-bottom:0.5rem;padding:0.4rem;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text);font-family:var(--font);font-size:0.85rem">{{ detail.review.comment }}</textarea>
+  <button type="submit" class="btn btn-primary btn-sm">Save <span class="kbd">Ctrl+Enter</span></button>
+  <span id="save-feedback" style="font-size:0.8rem;color:var(--text-secondary);margin-left:0.5rem"></span>
+</form>
+<script nonce="">
+(function(){var rl=document.getElementById('reviewer-label');if(rl&&!rl.textContent.trim()){var r=window.getReviewer();if(r)rl.textContent='reviewed by: '+r+' · ';}})();
+</script>
