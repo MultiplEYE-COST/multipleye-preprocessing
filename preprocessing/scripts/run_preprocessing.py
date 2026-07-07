@@ -9,6 +9,7 @@ import preprocessing
 from preprocessing import settings
 
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
+from preprocessing.checks.quality_thresholds import write_quality_thresholds
 import contextlib
 
 
@@ -375,6 +376,7 @@ def run_preprocessing(config_path: str | None = None):
 
     data_collection.create_dataset_overview(path=settings.OUTPUT_DIR)
     data_collection.parse_participant_data(settings.OUTPUT_DIR / "participant_data.csv")
+    write_quality_thresholds(settings.OUTPUT_DIR)
 
     if settings.RUN_PSYCHOMETRIC_TESTS:
         logger.info("Processing psychometric tests...")

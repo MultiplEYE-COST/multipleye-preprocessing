@@ -69,6 +69,9 @@ acceptable_data_loss_ratios: [0.0, 0.1]
 acceptable_recording_durations: [600, 7200]
 acceptable_num_practice_trials: 2
 acceptable_num_trials: 10
+# Single validation classification thresholds (used for GOOD/MODERATE/BAD).
+single_validation_good_max: 0.305
+single_validation_moderate_max: 0.45
 
 # --- PSYCHOMETRIC TEST THRESHOLDS ---
 # Minimum reaction time for WikiVocab in seconds.
