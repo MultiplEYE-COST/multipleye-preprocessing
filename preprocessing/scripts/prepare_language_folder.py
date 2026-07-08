@@ -128,9 +128,10 @@ def prepare_language_folder(data_collection_name: str | None = None):
             shutil.unpack_archive(
                 participant_folder, extract_dir=eye_tracking_sessions_path
             )
-            logger.info(f"Extracted participant data from '{participant_folder}'")
-            # remove the zip file after extraction
-            participant_folder.unlink()
+            logger.info(
+                f"Extracted participant data from '{participant_folder}' "
+                f"into '{eye_tracking_sessions_path}'"
+            )
 
     pilot_folder = eye_tracking_sessions_path / "pilot_sessions"
     if pilot_folder.exists():
@@ -140,10 +141,9 @@ def prepare_language_folder(data_collection_name: str | None = None):
                     pilot_participant_folder, extract_dir=pilot_folder
                 )
                 logger.info(
-                    f"Extracted pilot participant data from '{pilot_participant_folder}'"
+                    f"Extracted pilot participant data from '{pilot_participant_folder}' "
+                    f"into '{pilot_folder}'"
                 )
-                # remove the zip file after extraction
-                pilot_participant_folder.unlink()
 
     stimulus_folder_path = data_folder_path / f"stimuli_{data_collection_name}"
 
