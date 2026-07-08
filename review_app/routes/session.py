@@ -7,6 +7,7 @@ from ..templating import render
 from ..services.session_data import read_overview, build_session_detail
 from ..services.thresholds import load_thresholds
 from ..services.review import load_review, save_review
+from ..services.swipe import load_judgments, _NON_SCANPATH_KEYWORDS
 
 
 router = APIRouter()
@@ -51,31 +52,39 @@ async def session_page(
                         "activity": "",
                     }
                 )
-            else:
-                parts = name.split("_")
-                activity = ""
-                page = ""
-                if len(parts) >= 2:
-                    last = parts[-1]
-                    if last.startswith("q") and last[1:].isdigit():
-                        page = f"question {last[1:]}"
-                        stimulus = "_".join(parts[:-1])
-                    elif last.isdigit():
-                        page = f"page {last}"
-                        stimulus = "_".join(parts[:-1])
-                    else:
-                        stimulus = "_".join(parts[:-2]) if len(parts) >= 3 else name
-                        activity = parts[-1]
+                continue
+            parts = name.split("_")
+            activity = ""
+            page = ""
+            if len(parts) >= 2:
+                last = parts[-1]
+                if last.startswith("q") and last[1:].isdigit():
+                    page = f"question {last[1:]}"
+                    stimulus = "_".join(parts[:-1])
+                elif last.isdigit():
+                    page = f"page {last}"
+                    stimulus = "_".join(parts[:-1])
                 else:
-                    stimulus = name
-                plots.append(
-                    {
-                        "url": url,
-                        "stimulus": stimulus,
-                        "page": page,
-                        "activity": activity,
-                    }
-                )
+                    stimulus = "_".join(parts[:-2]) if len(parts) >= 3 else name
+                    activity = parts[-1]
+            else:
+                stimulus = name
+            if page.startswith("question"):
+                continue
+            stimulus_parts = stimulus.lower().split("_")
+            if any(kw in stimulus_parts for kw in _NON_SCANPATH_KEYWORDS):
+                continue
+            plots.append(
+                {
+                    "url": url,
+                    "stimulus": stimulus,
+                    "page": page,
+                    "activity": activity,
+                }
+            )
+
+    swipe_judgments = load_judgments(dcn)
+    swipe_judgment = swipe_judgments.get(sid)
 
     html = render(
         "session/detail.html",
@@ -83,6 +92,7 @@ async def session_page(
         detail=detail,
         dcn=dcn,
         plots=plots,
+        swipe_judgment=swipe_judgment,
         now="",
         review_action="loaded",
     )
@@ -112,6 +122,32 @@ async def session_detail(
     return detail.model_dump()
 
 
+@api_router.get("/{sid}/open")
+async def session_open_folder(
+    dcn: str,
+    sid: str,
+):
+    """Open the session's data folder in the OS file manager."""
+    import subprocess
+    import sys
+    from ..config import RAW_DATA_DIR
+
+    folder = RAW_DATA_DIR / dcn / "eye-tracking-sessions" / sid
+    if not folder.exists():
+        raise HTTPException(
+            status_code=404, detail=f"Session folder not found: {folder}"
+        )
+
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", str(folder.resolve())])
+    elif sys.platform == "linux":
+        subprocess.Popen(["xdg-open", str(folder.resolve())])
+    elif sys.platform == "win32":
+        subprocess.Popen(["explorer", str(folder.resolve())])
+
+    return {"opened": str(folder.resolve())}
+
+
 @api_router.post("/{sid}/review")
 async def session_review_save(
     request: Request,
@@ -124,8 +160,20 @@ async def session_review_save(
     form = await request.form()
     comment = str(form.get("comment", request.query_params.get("comment", "")))
     reviewer = str(form.get("reviewer", request.query_params.get("reviewer", "")))
+    type_of_issue = str(
+        form.get("type_of_issue", request.query_params.get("type_of_issue", ""))
+    )
+    needs_reprocessing = form.get(
+        "needs_reprocessing", request.query_params.get("needs_reprocessing", "false")
+    ) in ("true", "True", "1")
     annotation = save_review(
-        dcn, sid, status=status, reviewer=reviewer, comment=comment
+        dcn,
+        sid,
+        status=status,
+        reviewer=reviewer,
+        comment=comment,
+        type_of_issue=type_of_issue,
+        needs_reprocessing=needs_reprocessing,
     )
     ov = read_overview(session_overview_path(dcn, sid))
     thresholds = load_thresholds(dcn)

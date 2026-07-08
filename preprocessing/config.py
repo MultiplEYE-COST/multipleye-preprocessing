@@ -496,6 +496,10 @@ class Settings:
         #: Expected minimum number of experimental trials.
         self.ACCEPTABLE_NUM_TRIALS = 10
 
+        #: Minimum number of completed trials before a session is considered complete.
+        #: MultiplEYE full session = 12, MeRID split = 6, crash = <6.
+        self.ACCEPTABLE_NUM_COMPLETED_TRIALS = 6
+
         #: Column name for the activity identifier.
         self.ACTIVITY_COL = "activity"
 

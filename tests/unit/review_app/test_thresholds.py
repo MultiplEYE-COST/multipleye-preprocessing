@@ -47,3 +47,21 @@ class TestCheckValue:
         spec, status = check_value("anything", 5, None)
         assert status == "pass"
         assert spec is None
+
+    def test_range_warn_boundary(self) -> None:
+        """Within 10% of [min, max] boundary should warn."""
+        thresholds = {"num_completed_trials": [6, 12]}
+        # 5.4 is within 10% of 6 (margin = 0.6)
+        spec54, status54 = check_value("num_completed_trials", 5.4, thresholds)
+        assert status54 == "warn"
+
+    def test_range_as_minimum_threshold(self) -> None:
+        """num_completed_trials uses [6, 12] as a 'minimum' threshold:
+        4 should fail, 6 should pass, 12 should pass."""
+        thresholds = {"num_completed_trials": [6, 12]}
+        spec4, status4 = check_value("num_completed_trials", 4, thresholds)
+        assert status4 == "fail"
+        spec6, status6 = check_value("num_completed_trials", 6, thresholds)
+        assert status6 == "pass"
+        spec12, status12 = check_value("num_completed_trials", 12, thresholds)
+        assert status12 == "pass"

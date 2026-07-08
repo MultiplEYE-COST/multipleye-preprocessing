@@ -14,6 +14,11 @@
     <span class="badge badge-pass">{{ dcn.n_reviewed_accepted }} accepted</span>
     <span class="badge badge-fail">{{ dcn.n_reviewed_flagged }} flagged</span>
     <span class="badge badge-warn">{{ dcn.n_reviewed_excluded }} excluded</span>
+    <div style="text-align:right;font-size:0.8rem;margin-top:6px;display:flex;gap:6px;justify-content:flex-end">
+      <a href="#" onclick="fetch('/api/dcn/{{ dcn.dcn_name }}/open/input').then(function(r){return r.json()});return false" class="btn btn-sm" style="text-decoration:none"><i class="fa-regular fa-folder-open" style="margin-right:4px"></i>Input</a>
+      <a href="#" onclick="fetch('/api/dcn/{{ dcn.dcn_name }}/open/output').then(function(r){return r.json()});return false" class="btn btn-sm" style="text-decoration:none"><i class="fa-regular fa-folder-open" style="margin-right:4px"></i>Output</a>
+      <a href="/dcn/{{ dcn.dcn_name }}/swipe" class="btn btn-sm" style="text-decoration:none;background:var(--accent);color:#fff;border-color:var(--accent)"><i class="fa-solid fa-arrows-left-right" style="margin-right:4px"></i>Swipe</a>
+    </div>
   </div>
 </div>
 
@@ -55,6 +60,7 @@
       <th data-sort="sid">SID</th>
       <th data-sort="pid">PID</th>
       <th>Type</th>
+      <th>Trials</th>
       <th data-sort="flags">Flags</th>
       <th>Review</th>
       <th>Comment</th>
@@ -66,12 +72,13 @@
       <td class="sid" data-sid="{{ s.sid }}">{{ s.sid }}</td>
       <td data-pid="{{ s.pid }}">{{ s.pid }}</td>
       <td>{% if s.is_pilot %}<span class="badge badge-warn">pilot{% else %}<span class="badge badge-pass">exp{% endif %}</span></td>
+      <td>{% if s.num_completed_trials is not none %}{{ s.num_completed_trials }}/12{% else %}—{% endif %}</td>
       <td data-flags="{{ s.n_flags }}">
         {% if s.n_fail_flags %}<span class="badge badge-fail">{{ s.n_fail_flags }}{% endif %}
         {% if s.n_warn_flags %}<span class="badge badge-warn">{{ s.n_warn_flags }}{% endif %}
         {% if s.n_flags == 0 %}<span class="badge badge-pass">0{% endif %}
       </td>
-      <td>{% set bc = {"unreviewed": "badge-unreviewed", "accepted": "badge-pass", "flagged": "badge-fail", "excluded": "badge-warn"} %}<span class="badge {{ bc[s.review_status] }}">{{ s.review_status }}</span></td>
+      <td>{% set bc = {"unreviewed": "badge-unreviewed", "accepted": "badge-pass", "flagged": "badge-fail", "excluded": "badge-warn"} %}<span class="badge {{ bc[s.review_status] }}">{{ s.review_status }}</span>{% if s.needs_reprocessing %}<span style="margin-left:4px;font-size:0.7rem;color:var(--warn)" title="Needs reprocessing">↻</span>{% endif %}</td>
       <td class="comment">{{ s.comment_preview }}</td>
       <td>{{ s.reviewer }}</td>
     </tr>

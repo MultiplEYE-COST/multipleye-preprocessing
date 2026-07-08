@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}MultiplEYE Data Review{% endblock %}</title>
+{% block head_extra %}{% endblock %}
 <script>
 (function(){var t=localStorage.getItem('review_theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
 </script>
@@ -35,11 +36,11 @@ a:hover{text-decoration:underline}
 .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem}
 .topbar h2{margin:0}
 .card{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem;margin-bottom:1rem;overflow:hidden}
-table{width:100%;border-collapse:collapse;table-layout:fixed}
+table{width:100%;border-collapse:collapse}
 th,td{text-align:left;padding:0.6rem 0.75rem;border-bottom:1px solid var(--border);font-size:0.9rem}
 th{font-weight:600;color:var(--text-secondary);cursor:pointer;user-select:none}
 th:hover{color:var(--text)}
-td.sid{width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.sid{white-space:nowrap}
 td.comment{width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85rem;color:var(--text-secondary)}
 td.flags{white-space:nowrap;width:60px}
 .plot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px}
@@ -54,12 +55,18 @@ tr:hover{background:var(--bg)}
 [data-theme="dark"] .badge-warn{background:#78350f;color:#fcd34d}
 [data-theme="dark"] .badge-fail{background:#7f1d1d;color:#fca5a5}
 [data-theme="dark"] .badge-unreviewed{background:#27272a;color:#a1a1aa}
+.badge-issue{background:#e0e7ff;color:#4338ca}
+[data-theme="dark"] .badge-issue{background:#1e1b4b;color:#a5b4fc}
 .pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:0.8rem;font-weight:500;background:var(--bg);border:1px solid var(--border);margin-right:4px}
 .btn{padding:0.4rem 1rem;border-radius:6px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);cursor:pointer;font-size:0.875rem}
 .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .btn-primary:hover{background:var(--accent-hover)}
 .btn-sm{padding:0.25rem 0.6rem;font-size:0.8rem}
 .btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-issue{background:var(--bg);color:var(--text-secondary);border-color:var(--border);font-size:0.78rem}
+.btn-issue.active{background:var(--warn);color:#fff;border-color:var(--warn)}
+.btn-issue.issue-disabled{opacity:0.4;cursor:default;pointer-events:none}
+.btn-issue.issue-disabled.active{opacity:0.5}
 .toggle-group{display:inline-flex;gap:0}
 .toggle-group .btn{border-radius:0;border-right:none}
 .toggle-group .btn:first-child{border-radius:6px 0 0 6px}
@@ -95,6 +102,7 @@ tr:hover{background:var(--bg)}
       </div>
       <a href="#" onclick="toggleTheme();return false" style="display:block;margin-bottom:0.5rem;font-size:0.85rem"><i class="fa-regular fa-moon" style="margin-right:6px;width:16px"></i>Dark mode</a>
       <a href="#" onclick="document.getElementById('kbd-help').style.display='';return false" style="display:block;font-size:0.85rem"><i class="fa-regular fa-keyboard" style="margin-right:6px;width:16px"></i>Keyboard shortcuts <span class="kbd">?</span></a>
+      <a href="#" onclick="shutdownServer();return false" style="display:block;font-size:0.85rem;color:var(--fail);margin-top:0.5rem"><i class="fa-regular fa-circle-stop" style="margin-right:6px;width:16px"></i>Stop server</a>
     </div>
   </nav>
   <div class="main">
@@ -126,6 +134,14 @@ tr:hover{background:var(--bg)}
       <div style="color:var(--text-secondary)">detail</div>
       <div><span class="kbd">4</span><span style="margin-left:6px">Excluded</span></div>
       <div style="color:var(--text-secondary)">detail</div>
+      <div><span class="kbd">7</span><span style="margin-left:6px">Issue: Cal-/Validation</span></div>
+      <div style="color:var(--text-secondary)">detail (flagged+)</div>
+      <div><span class="kbd">8</span><span style="margin-left:6px">Issue: Data loss</span></div>
+      <div style="color:var(--text-secondary)">detail (flagged+)</div>
+      <div><span class="kbd">9</span><span style="margin-left:6px">Issue: Incomplete</span></div>
+      <div style="color:var(--text-secondary)">detail (flagged+)</div>
+      <div><span class="kbd">0</span><span style="margin-left:6px">Issue: See comment</span></div>
+      <div style="color:var(--text-secondary)">detail (flagged+)</div>
       <div><span class="kbd">p</span><span style="margin-left:6px">Open first plot</span></div>
       <div style="color:var(--text-secondary)">detail</div>
       <div><span class="kbd">&larr;</span><span style="margin:0 4px;color:var(--text-secondary)">/</span><span class="kbd">h</span><span style="margin-left:6px">Prev plot</span></div>

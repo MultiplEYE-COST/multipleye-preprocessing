@@ -121,6 +121,33 @@ async def dcn_stats(dcn_name: str) -> JSONResponse:
 page_router = APIRouter()
 
 
+@router.get("/{dcn_name}/open/{which}")
+async def open_dcn_folder(dcn_name: str, which: str):
+    """Open a DCN's data folder in the OS file manager (Finder on macOS)."""
+    import subprocess
+    import sys
+    from ..config import PREPROCESSED_DATA_DIR, RAW_DATA_DIR
+
+    if which == "input":
+        folder = RAW_DATA_DIR / dcn_name
+    elif which == "output":
+        folder = PREPROCESSED_DATA_DIR / dcn_name
+    else:
+        raise HTTPException(status_code=400, detail="which must be 'input' or 'output'")
+
+    if not folder.exists():
+        raise HTTPException(status_code=404, detail=f"Folder not found: {folder}")
+
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", str(folder.resolve())])
+    elif sys.platform == "linux":
+        subprocess.Popen(["xdg-open", str(folder.resolve())])
+    elif sys.platform == "win32":
+        subprocess.Popen(["explorer", str(folder.resolve())])
+
+    return {"opened": str(folder.resolve())}
+
+
 @page_router.get("/dcn/{dcn_name}")
 async def dcn_page(request: Request, dcn_name: str):
     dcn = get_dcn(dcn_name)

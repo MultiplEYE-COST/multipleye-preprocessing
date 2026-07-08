@@ -23,6 +23,7 @@ def write_quality_thresholds(output_dir: str | Path) -> None:
         "total_session_duration": list(settings.ACCEPTABLE_RECORDING_DURATIONS),
         "num_practice_trials": settings.ACCEPTABLE_NUM_PRACTICE_TRIALS,
         "num_experiment_trials": settings.ACCEPTABLE_NUM_TRIALS,
+        "num_completed_trials": [settings.ACCEPTABLE_NUM_COMPLETED_TRIALS, 12],
         "expected_sampling_rate_hz": settings.EXPECTED_SAMPLING_RATE_HZ,
         "single_validation_good_max": settings.SINGLE_VALIDATION_GOOD_MAX,
         "single_validation_moderate_max": settings.SINGLE_VALIDATION_MODERATE_MAX,

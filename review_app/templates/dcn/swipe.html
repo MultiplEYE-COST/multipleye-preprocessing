@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block title %}Swipe — {{ dcn.dcn_name }}{% endblock %}
+{% block head_extra %}
+<style>
+.swipe-layout{display:flex;gap:1.5rem;align-items:flex-start;margin-top:0.5rem}
+.swipe-card-wrapper{flex:1;max-width:620px;margin:0 auto}
+
+/* Tinder card */
+.swipe-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);position:relative;transition:transform 0.3s,opacity 0.3s;min-height:200px}
+.swipe-card.swiping-right{transform:translateX(140%) rotate(10deg);opacity:0}
+.swipe-card.swiping-left{transform:translateX(-140%) rotate(-10deg);opacity:0}
+.swipe-card.swiping-up{transform:translateY(-140%);opacity:0}
+.swipe-card.judged-keep{border:3px solid var(--pass)}
+.swipe-card.judged-flag{border:3px solid var(--fail)}
+
+/* Tinder swipe overlays */
+.swipe-overlay{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;z-index:10;opacity:0;transition:opacity 0.2s;border-radius:14px;pointer-events:none}
+.overlay-keep{background:rgba(34,197,94,0.35)}
+.overlay-keep span{color:#22c55e;font-size:3rem;font-weight:800;text-shadow:0 2px 12px rgba(34,197,94,0.5)}
+.overlay-flag{background:rgba(239,68,68,0.35)}
+.overlay-flag span{color:#ef4444;font-size:3rem;font-weight:800;text-shadow:0 2px 12px rgba(239,68,68,0.5)}
+.show-overlay-keep .overlay-keep{opacity:1}
+.show-overlay-flag .overlay-flag{opacity:1}
+
+.swipe-card-image{width:100%;height:380px;object-fit:contain;background:var(--bg);display:block;border-bottom:1px solid var(--border)}
+
+/* plot caption below image */
+.swipe-plot-caption{padding:0.4rem 1.25rem 0;font-size:0.8rem;color:var(--text-secondary);text-align:center;font-style:italic}
+
+.swipe-card-info{padding:1rem 1.25rem}
+.swipe-card-info h2{margin:0 0 0.25rem;font-size:1.3rem}
+.swipe-card-info .subtitle{font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.75rem}
+.swipe-card-info .badge{margin-right:4px}
+.swipe-card-info .flag-item{font-size:0.8rem;margin:2px 0}
+
+/* action buttons */
+.swipe-actions{display:flex;gap:0.5rem;justify-content:center;padding:0 1.25rem 0.75rem}
+.swipe-actions button{flex:1;padding:0.7rem;border-radius:10px;border:none;font-size:0.9rem;font-weight:700;cursor:pointer;transition:transform 0.15s}
+.swipe-actions button:hover{transform:scale(1.06)}
+.btn-flag{background:#ef4444;color:#fff}
+.btn-flag:hover{background:#dc2626}
+.btn-skip{background:var(--border);color:var(--text-secondary)}
+.btn-skip:hover{background:var(--text-secondary);color:#fff}
+.btn-keep{background:#22c55e;color:#fff}
+.btn-keep:hover{background:#16a34a}
+.swipe-actions button .kbd,.swipe-undo-hint .kbd{display:inline-block;background:rgba(0,0,0,0.15);border-radius:3px;padding:0 5px;font-size:0.75rem;margin-left:3px;font-weight:400}
+
+/* undo button */
+.swipe-undo-hint{text-align:center;padding:0 1.25rem 1rem}
+.swipe-undo-hint button{background:transparent;border:1px solid var(--border);border-radius:8px;padding:0.4rem 1rem;font-size:0.8rem;cursor:pointer;color:var(--text-secondary);transition:all 0.15s}
+.swipe-undo-hint button:hover{border-color:var(--text);color:var(--text)}
+
+/* plot nav */
+.swipe-plot-nav{display:flex;align-items:center;justify-content:center;gap:0.5rem;padding:0.5rem 1.25rem 0;font-size:0.8rem;color:var(--text-secondary)}
+.swipe-plot-nav button{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.85rem;transition:all 0.15s}
+.swipe-plot-nav button:hover{background:var(--border)}
+
+/* sidebar */
+.swipe-sidebar{width:220px;flex-shrink:0;position:sticky;top:80px}
+.swipe-stats{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1rem;font-size:0.85rem}
+.swipe-stats h3{margin:0 0 0.75rem;font-size:0.95rem}
+.swipe-stats .stat-row{display:flex;justify-content:space-between;margin:6px 0;color:var(--text-secondary)}
+.swipe-stats .stat-row .val{font-weight:600}
+.swipe-stats .stat-row .val.keep{color:var(--pass)}
+.swipe-stats .stat-row .val.flag{color:var(--fail)}
+.swipe-stats .progress-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin:10px 0}
+.swipe-stats .progress-bar .fill{height:100%;border-radius:3px;background:var(--accent);transition:width 0.3s}
+.swipe-kbd-hint{font-size:0.75rem;color:var(--text-secondary);margin-top:1rem;line-height:1.8;text-align:center}
+.swipe-kbd-hint kbd{display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:1px 6px;font-size:0.7rem;min-width:20px;text-align:center;margin:0 1px}
+
+/* empty state */
+.swipe-empty{text-align:center;padding:3rem;color:var(--text-secondary)}
+.swipe-empty h2{font-size:1.5rem;margin-bottom:0.5rem}
+
+.swipe-nav-links{margin-bottom:1rem}
+#no-more-cards{display:none}
+
+/* It's a match! overlay */
+.match-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px)}
+.match-overlay.show{display:flex}
+.match-box{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);border-radius:24px;padding:3rem 4rem;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4);animation:matchPop .5s cubic-bezier(.175,.885,.32,1.275) forwards;position:relative;overflow:hidden}
+.match-box h2{color:#fff;font-size:2.5rem;margin:0;font-weight:800;text-shadow:0 2px 10px rgba(0,0,0,0.2);letter-spacing:-0.5px}
+.match-box .match-sub{color:rgba(255,255,255,0.8);font-size:0.95rem;margin:0.5rem 0 0}
+.match-box .match-sid{color:rgba(255,255,255,0.6);font-size:0.8rem;margin:0.25rem 0 0}
+.match-particle{position:absolute;pointer-events:none;font-size:1.4rem;opacity:0;animation:matchFloat 2.2s ease-out forwards}
+.match-particle:nth-child(1){left:8%;animation-delay:0s}
+.match-particle:nth-child(2){left:28%;animation-delay:.25s;font-size:1.8rem}
+.match-particle:nth-child(3){left:50%;animation-delay:.1s}
+.match-particle:nth-child(4){left:72%;animation-delay:.35s;font-size:1.2rem}
+.match-particle:nth-child(5){left:88%;animation-delay:.15s;font-size:1.6rem}
+.match-particle:nth-child(6){left:18%;animation-delay:.3s}
+.match-particle:nth-child(7){left:60%;animation-delay:.2s;font-size:1rem}
+.match-particle:nth-child(8){left:40%;animation-delay:.12s;font-size:2rem}
+@keyframes matchPop{0%{transform:scale(.3) rotate(-6deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+@keyframes matchFloat{0%{transform:translateY(0) scale(0) rotate(0);opacity:0}15%{opacity:1;transform:translateY(-15px) scale(1.1) rotate(8deg)}100%{transform:translateY(-160px) scale(.35) rotate(-15deg);opacity:0}}
+
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="swipe-nav-links">
+  <a href="/dcn/{{ dcn.dcn_name }}" class="btn">&larr; back to {{ dcn.dcn_name }}</a>
+</div>
+
+<h2 style="margin-bottom:1rem">Swipe <span style="font-size:0.85rem;color:var(--text-secondary)">— review scanpaths</span></h2>
+
+<div class="swipe-layout">
+  <div class="swipe-card-wrapper">
+    <div class="swipe-card" id="swipe-card">
+      <div id="card-content">
+        <div class="swipe-loading"><p>Loading sessions...</p></div>
+      </div>
+      <div id="no-more-cards" class="swipe-empty">
+        <h2>All caught up!</h2>
+        <p>You have reviewed all sessions in this collection.</p>
+        <a href="/dcn/{{ dcn.dcn_name }}" class="btn">&larr; back to {{ dcn.dcn_name }}</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="swipe-sidebar" id="swipe-sidebar">
+    <div class="swipe-stats" id="swipe-stats">
+      <h3>Progress</h3>
+      <div class="progress-bar"><div class="fill" id="progress-fill" style="width:{{ stats.progress_pct }}%"></div></div>
+      <div class="stat-row"><span>Judged</span><span class="val" id="stat-judged">{{ stats.judged }} / {{ stats.total }}</span></div>
+      <div class="stat-row"><span style="color:var(--pass)">Keep</span><span class="val keep" id="stat-keep">{{ stats.keep }}</span></div>
+      <div class="stat-row"><span style="color:var(--fail)">Flag</span><span class="val flag" id="stat-flag">{{ stats.flag }}</span></div>
+      <div class="stat-row"><span style="color:var(--text-secondary)">Skip</span><span class="val" id="stat-skip">{{ stats.skip }}</span></div>
+    </div>
+    <div class="swipe-kbd-hint">
+      <kbd>&larr;</kbd> Flag &middot;
+      <kbd>&rarr;</kbd> Keep<br>
+      <kbd>&uarr;</kbd> Undo &middot;
+      <kbd>&darr;</kbd> Skip &middot;
+      <kbd>A</kbd> / <kbd>D</kbd> Plot
+    </div>
+  </div>
+</div>
+
+<div class="match-overlay" id="match-overlay">
+  <div class="match-box" id="match-box">
+    <div class="match-particle">❤</div>
+    <div class="match-particle">❤</div>
+    <div class="match-particle">❤</div>
+    <div class="match-particle">❤</div>
+    <div class="match-particle">❤</div>
+    <div class="match-particle">❤</div>
+    <div class="match-particle">❤</div>
+    <div class="match-particle">❤</div>
+    <h2>It&rsquo;s a match!</h2>
+    <p class="match-sub">This session is a keeper</p>
+    <p class="match-sid" id="match-sid"></p>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var sessions = {{ sessions | tojson }};
+var stats = {{ stats | tojson }};
+var dcnName = (window.location.pathname.match(/\/dcn\/([^/]+)/)||[])[1]||"";
+if (!sessions || !sessions.length) {
+  document.getElementById("card-content").innerHTML = '<div class="swipe-loading"><p>No sessions available.</p></div>';
+  return;
+}
+
+var idx = 0, history = [], plotIdx = {}, animating = false, _matchPending = false;
+var card = document.getElementById("swipe-card");
+var content = document.getElementById("card-content");
+var noMore = document.getElementById("no-more-cards");
+sessions.forEach(function(s){ plotIdx[s.sid] = 0; });
+
+function api(path){
+  var m = window.location.pathname.match(/\/dcn\/([^/]+)/);
+  return m ? "/api/dcn/"+encodeURIComponent(m[1])+path : "";
+}
+
+/* preload */
+var preloadCache = {};
+function preloadPlots(s, ci){
+  if(!s||!s.plots)return;
+  [ci, ci+1, ci+2, ci-1].forEach(function(i){
+    if(i>=0&&i<s.plots.length){
+      var u=s.plots[i].url;
+      if(!preloadCache[u]){ preloadCache[u]=true; var img=new Image(); img.src=u; }
+    }
+  });
+}
+
+function updateStats(st){
+  if(!st)return;
+  var e=function(i){return document.getElementById(i);};
+  if(e("stat-judged"))e("stat-judged").textContent=st.judged+" / "+st.total;
+  if(e("stat-keep"))e("stat-keep").textContent=st.keep;
+  if(e("stat-flag"))e("stat-flag").textContent=st.flag;
+  if(e("stat-skip"))e("stat-skip").textContent=st.skip;
+  if(e("progress-fill"))e("progress-fill").style.width=st.progress_pct+"%";
+}
+
+function showCard(){
+  if(idx>=sessions.length){ content.style.display="none"; noMore.style.display=""; return; }
+  noMore.style.display="none"; content.style.display=""; renderCard(sessions[idx]);
+}
+
+function renderCard(s){
+  var plots=s.plots||[], pi=plotIdx[s.sid]||0;
+  if(pi>=plots.length)pi=0;
+  var cp=plots.length>0?plots[pi]:null;
+
+  var tb=s.type_of_issue?'<span class="badge badge-issue">'+(s.type_of_issue.replace("_"," "))+'</span>':"";
+  var rb=s.needs_reprocessing?'<span class="pill" style="background:#eab308;color:#fff;border:none;font-size:0.78rem">needs reprocessing</span>':"";
+  var pb=s.is_pilot?'<span class="badge badge-warn">pilot</span> ':"";
+  var sb="";
+  if(s.review_status&&s.review_status!=="unreviewed"){
+    var bc={unreviewed:"badge-unreviewed",accepted:"badge-pass",flagged:"badge-fail",excluded:"badge-warn"};
+    sb='<span class="badge '+bc[s.review_status]+'">'+s.review_status+'</span> ';
+  }
+
+  var fh="";
+  if(s.flagged_checks&&s.flagged_checks.length){
+    fh='<div style="margin-top:0.5rem"><strong style="font-size:0.8rem;color:#ef4444"><i class="fa-solid fa-flag" style="margin-right:4px"></i>Red flags</strong>';
+    s.flagged_checks.forEach(function(f){
+      var c=f.status==="fail"?"#ef4444":"#eab308";
+      var t=f.threshold?" ("+(Array.isArray(f.threshold)?"expected "+f.threshold[0]+"\u2013"+f.threshold[1]:"threshold: "+f.threshold)+")":"";
+      fh+='<div class="flag-item"><span style="color:'+c+'">\u25CF</span> '+f.label+": "+f.value+t+"</div>";
+    });
+    fh+="</div>";
+  }
+
+  var cap="";
+  if(cp){
+    var p=[cp.stimulus];
+    if(cp.page)p.push(cp.page);
+    if(cp.activity)p.push(cp.activity);
+    cap=p.join(" \u2014 ");
+  }
+
+  var pn="";
+  if(plots.length>1){
+    pn='<div class="swipe-plot-nav"><button onclick="_swipePrev()" title="Previous (A)">&#9664; <span class="kbd">A</span></button><span>'+(pi+1)+"/"+plots.length+'</span><button onclick="_swipeNext()" title="Next (D)"><span class="kbd">D</span> &#9654;</button></div>';
+  }
+
+  var oh='<div class="swipe-overlay overlay-keep"><span>KEEP</span></div><div class="swipe-overlay overlay-flag"><span>FLAG</span></div>';
+
+  content.innerHTML=
+    oh+
+    (cp?'<img class="swipe-card-image" src="'+cp.url+'" alt="Scanpath" loading="lazy">':'<div class="swipe-card-image" style="display:flex;align-items:center;justify-content:center;color:#64748b;font-size:0.9rem">No scanpath plots</div>')+
+    pn+
+    (cap?'<div class="swipe-plot-caption">'+cap+'</div>':'')+
+    '<div class="swipe-card-info"><h2><a href="/dcn/'+encodeURIComponent(dcnName)+'/session/'+encodeURIComponent(s.sid)+'" target="_blank" style="text-decoration:none;color:inherit">'+s.sid+'</a> <span style="font-size:0.7rem;color:var(--text-secondary)">&#8599;</span></h2>'+
+    '<div class="subtitle">PID '+s.pid+' &middot; '+(s.language||"")+(s.country?", "+s.country:"")+((s.language||s.country)?" &middot; ":"")+'Cal: '+s.num_calibrations+' &middot; Val: '+s.num_validations+'</div>'+
+    '<div class="subtitle" style="margin-bottom:0.5rem">'+pb+sb+rb+" "+tb+'</div>'+fh+'</div>'+
+    '<div class="swipe-actions">'+
+    '<button class="btn-flag" onclick="_swipeJudge(\'flag\')">&#10005; Flag <span class="kbd">\u2190</span></button>'+
+    '<button class="btn-skip" onclick="_swipeJudge(\'skip\')">&#9654; Skip <span class="kbd">\u2193</span></button>'+
+    '<button class="btn-keep" onclick="_swipeJudge(\'keep\')">&#10003; Keep <span class="kbd">\u2192</span></button>'+
+    '</div>'+
+    '<div class="swipe-undo-hint"><button onclick="_swipeUndo()">\u21A9 Undo <span class="kbd">\u2191</span></button></div>';
+  card.className="swipe-card"+(s.judgment?" judged-"+s.judgment:"");
+  preloadPlots(s,pi);
+  updateStats(stats);
+}
+
+function animateAndNext(dir){
+  if(animating)return;
+  card.classList.remove("swiping-right","swiping-left","swiping-up","show-overlay-keep","show-overlay-flag");
+  void card.offsetWidth;
+  if(dir==="right")card.classList.add("swiping-right","show-overlay-keep");
+  else if(dir==="left")card.classList.add("swiping-left","show-overlay-flag");
+  else if(dir==="up")card.classList.add("swiping-up");
+  animating=true;
+  setTimeout(function(){
+    animating=false; card.classList.remove("show-overlay-keep","show-overlay-flag"); idx++;
+    if(_matchPending){ _matchPending=false; showMatchOverlay(sessions[idx-1].sid); }
+    else showCard();
+  },300);
+}
+
+function judge(sid,j){
+  fetch(api("/swipe/judge?sid="+encodeURIComponent(sid)+"&judgment="+encodeURIComponent(j)),{method:"POST"})
+  .then(function(r){return r.json();}).then(function(d){ sessions[idx].judgment=j; stats=d.stats; updateStats(stats); });
+}
+
+function undo(sid){
+  fetch(api("/swipe/undo?sid="+encodeURIComponent(sid)),{method:"POST"})
+  .then(function(r){return r.json();}).then(function(d){ sessions[idx].judgment=void 0; stats=d.stats; updateStats(stats); });
+}
+
+window._swipeJudge=function(j){
+  if(!sessions[idx])return;
+  history.push(idx);
+  judge(sessions[idx].sid,j);
+  _matchPending = (j==="keep" && Math.random()<0.01);
+  animateAndNext(j==="keep"?"right":j==="flag"?"left":"up");
+};
+
+window._swipeUndo=function(){
+  if(_matchPending || animating)return;
+  if(idx<=0&&history.length===0)return;
+  var p=history.pop();
+  if(p===void 0||p===null){if(idx>0)p=idx-1;else return;}
+  undo(sessions[p].sid);
+  idx=p; showCard();
+};
+
+function showMatchOverlay(sid){
+  document.getElementById("match-sid").textContent=sid;
+  document.getElementById("match-overlay").classList.add("show");
+  setTimeout(function(){
+    document.getElementById("match-overlay").classList.remove("show");
+    showCard();
+  },4000);
+}
+
+window._swipePrev=function(){
+  var s=sessions[idx]; if(!s||!s.plots||!s.plots.length)return;
+  plotIdx[s.sid]=(plotIdx[s.sid]||0)-1;
+  if(plotIdx[s.sid]<0)plotIdx[s.sid]=s.plots.length-1;
+  renderCard(s);
+};
+
+window._swipeNext=function(){
+  var s=sessions[idx]; if(!s||!s.plots||!s.plots.length)return;
+  plotIdx[s.sid]=(plotIdx[s.sid]||0)+1;
+  if(plotIdx[s.sid]>=s.plots.length)plotIdx[s.sid]=0;
+  renderCard(s);
+};
+
+document.addEventListener("keydown",function(e){
+  if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA")return;
+  if(!document.getElementById("swipe-card"))return;
+  if(document.getElementById("match-overlay").classList.contains("show"))return;
+  if(e.key==="ArrowLeft"){e.preventDefault();window._swipeJudge("flag");}
+  else if(e.key==="ArrowRight"){e.preventDefault();window._swipeJudge("keep");}
+  else if(e.key==="ArrowDown"){e.preventDefault();window._swipeJudge("skip");}
+  else if(e.key==="ArrowUp"){e.preventDefault();window._swipeUndo();}
+  else if(e.key==="a"||e.key==="A"){e.preventDefault();window._swipePrev();}
+  else if(e.key==="d"||e.key==="D"){e.preventDefault();window._swipeNext();}
+});
+
+showCard();
+})();
+</script>
+{% endblock %}

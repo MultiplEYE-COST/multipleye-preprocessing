@@ -10,14 +10,13 @@ from pathlib import Path
 import os
 
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
 PREPROCESSED_DATA_DIR = Path(
-    os.environ.get(
-        "PREPROCESSED_DATA_DIR",
-        Path.cwd() / "preprocessed_data",
-    )
+    os.environ.get("PREPROCESSED_DATA_DIR", _REPO_ROOT / "preprocessed_data")
 )
 
-RAW_DATA_DIR = Path(os.environ.get("RAW_DATA_DIR", Path.cwd() / "data"))
+RAW_DATA_DIR = Path(os.environ.get("RAW_DATA_DIR", _REPO_ROOT / "data"))
 
 # Folder name constants (mirrors preprocessing.config.Settings defaults).
 _METADATA_FOLDER = "metadata/"

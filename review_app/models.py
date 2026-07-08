@@ -28,6 +28,11 @@ class ReviewAnnotation(BaseModel):
     reviewed_at: str | None = Field(
         default=None, description="ISO timestamp, auto-set on save"
     )
+    type_of_issue: str = Field(
+        default="",
+        description="calibration_validation | data_loss | incomplete | see_comment",
+    )
+    needs_reprocessing: bool = Field(default=False)
 
 
 class SessionSummary(BaseModel):
@@ -40,6 +45,8 @@ class SessionSummary(BaseModel):
     review_status: ReviewStatus = "unreviewed"
     reviewer: str = ""
     comment_preview: str = ""
+    num_completed_trials: int | None = None
+    needs_reprocessing: bool = False
 
 
 class SessionDetail(BaseModel):
