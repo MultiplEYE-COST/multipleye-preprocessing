@@ -9,11 +9,22 @@
       PID {{ parts[0] }} · <span title="{{ lang_name(parts[1]) }}">{{ parts[1] }}</span> · {{ parts[2] }}
       {% if detail.is_pilot %} &middot; <span class="badge badge-warn">pilot</span>{% endif %}
       &middot; <span class="badge badge-{{ detail.review.status }}">{{ detail.review.status }}</span>
+      {% if swipe_judgment %} &middot; <span class="badge badge-{{ 'pass' if swipe_judgment == 'keep' else 'fail' if swipe_judgment == 'flag' else 'warn' }}">swipe: {{ swipe_judgment }}</span>{% endif %}
       {% if detail.review.reviewer %} &middot; reviewed by {{ detail.review.reviewer }}{% endif %}
       {% if detail.review.reviewed_at %} &middot; {{ detail.review.reviewed_at[:10] }}{% endif %}
+      {% if detail.review.needs_reprocessing %} &middot; <span class="pill" style="background:var(--warn);color:#fff;border:none">needs reprocessing</span>{% endif %}
+      {% if detail.review.type_of_issue %} &middot; <span class="badge badge-issue">{{ detail.review.type_of_issue }}</span>{% endif %}
     </div>
   </div>
-  <a href="/dcn/{{ dcn }}" class="btn">&larr; back to {{ dcn }}</a>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+    <a href="/dcn/{{ dcn }}" class="btn">&larr; back to {{ dcn }}</a>
+    <button class="btn btn-sm"
+            hx-get="/api/dcn/{{ dcn }}/session/{{ detail.sid }}/open"
+            hx-swap="none"
+            title="Open session data folder in Finder">
+      <i class="fa-regular fa-folder-open" style="margin-right:4px"></i>Data folder
+    </button>
+  </div>
 </div>
 
 <div class="row row-cols-2">

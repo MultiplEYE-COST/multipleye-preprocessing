@@ -94,6 +94,11 @@ CHECK_REGISTRY: list[dict] = [
     },
     # Experiment
     {
+        "field": "num_completed_trials",
+        "label": "Completed trials",
+        "category": "Experiment",
+    },
+    {
         "field": "num_experiment_trials",
         "label": "Experiment trials completed",
         "category": "Experiment",
@@ -160,7 +165,7 @@ def compute_checks(overview: dict, thresholds: dict | None) -> list[CheckResult]
                 check_id=field,
                 label=entry["label"],
                 value=_serialize(value),
-                threshold=_serialize(threshold_spec),
+                threshold=_serialize_threshold(threshold_spec),
                 status=status,
             )
         )
@@ -174,8 +179,25 @@ def _is_checkable(value: object) -> bool:
 
 def _serialize(value: object) -> str | float | int | bool | None:
     """Serialize a value for the API response (passthrough for primitive types)."""
-    if isinstance(value, (float, int, bool, str)):
+    if isinstance(value, float):
+        return round(value, 4)
+    if isinstance(value, (int, bool, str)):
         return value
+    if value is None:
+        return None
+    return str(value)
+
+
+def _serialize_threshold(value: object) -> str | list[float | int] | None:
+    """Serialize a threshold spec — bare int/float becomes str.
+
+    ``CheckResult.threshold`` accepts ``str | list[float | int] | None`` but
+    NOT bare ``int``/``float``. This converter ensures scalar numeric thresholds
+    (e.g. ``num_completed_trials: 6`` in a legacy ``quality_thresholds.yaml``)
+    are rendered as strings instead of crashing pydantic validation.
+    """
+    if isinstance(value, list):
+        return [float(v) if isinstance(v, (int, float)) else v for v in value]
     if value is None:
         return None
     return str(value)

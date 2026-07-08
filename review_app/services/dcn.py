@@ -129,6 +129,7 @@ def _build_session_summary(dcn_name: str, sid: str) -> SessionSummary | None:
 
     review = load_review(dcn_name, sid)
     comment_preview = review.comment.split("\n")[0][:80] if review.comment else ""
+    num_completed_trials = overview.get("num_completed_trials")
 
     return SessionSummary(
         sid=sid,
@@ -140,4 +141,6 @@ def _build_session_summary(dcn_name: str, sid: str) -> SessionSummary | None:
         review_status=review.status,
         reviewer=review.reviewer,
         comment_preview=comment_preview,
+        num_completed_trials=num_completed_trials,
+        needs_reprocessing=review.needs_reprocessing,
     )

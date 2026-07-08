@@ -1,5 +1,5 @@
 {% for p in plots %}
-<div style="text-align:center">
+<div style="text-align:center;position:relative">
   <img class="plot-thumb" src="{{ p.url }}" style="width:150px;height:100px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer" draggable="true" loading="lazy" data-stimulus="{{ p.stimulus }}" data-page="{{ p.page }}" data-activity="{{ p.activity }}">
   <div class="plot-label">{{ p.stimulus }} {{ p.page }}</div>
 </div>

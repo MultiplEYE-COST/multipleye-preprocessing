@@ -69,6 +69,9 @@ acceptable_data_loss_ratios: [0.0, 0.1]
 acceptable_recording_durations: [600, 7200]
 acceptable_num_practice_trials: 2
 acceptable_num_trials: 10
+# Minimum number of completed trials (stimulus_order_ids) before a session is flagged as incomplete.
+# MultiplEYE full session = 12, MeRID split = 6, crash = <6.
+acceptable_num_completed_trials: 6
 # Single validation classification thresholds (used for GOOD/MODERATE/BAD).
 single_validation_good_max: 0.305
 single_validation_moderate_max: 0.45

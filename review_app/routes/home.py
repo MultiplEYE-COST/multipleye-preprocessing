@@ -1,5 +1,8 @@
 """Home page — list all data collections."""
 
+import os
+import signal
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
@@ -22,3 +25,11 @@ async def home(request: Request):
         now="",
     )
     return HTMLResponse(html)
+
+
+@router.post("/api/shutdown")
+async def shutdown():
+    """Kill the uvicorn reloader process to stop the server."""
+    parent_pid = int(os.environ.get("REVIEW_APP_PARENT_PID", os.getpid()))
+    os.kill(parent_pid, signal.SIGTERM)
+    return {"status": "shutting down"}

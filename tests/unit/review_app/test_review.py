@@ -2,7 +2,14 @@
 
 from pathlib import Path
 
-from review_app.services.review import save_review, load_review, REVIEW_STATUSES
+import yaml
+
+from review_app.services.review import (
+    save_review,
+    load_review,
+    REVIEW_STATUSES,
+    ISSUE_TYPES,
+)
 
 
 def test_load_review_missing(monkeypatch) -> None:
@@ -88,3 +95,101 @@ def test_reviewed_at_auto_set(monkeypatch, tmp_path: Path) -> None:
 
 def test_review_statuses_match_plan() -> None:
     assert REVIEW_STATUSES == {"unreviewed", "accepted", "flagged", "excluded"}
+
+
+def test_save_with_type_of_issue(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    saved = save_review(
+        "MultiplEYE_DA_DK_Aalborg_1_2026",
+        "001_DA_DK_1_ET1",
+        status="flagged",
+        reviewer="Test",
+        type_of_issue="data_loss",
+    )
+    assert saved.type_of_issue == "data_loss"
+
+    loaded = load_review("MultiplEYE_DA_DK_Aalborg_1_2026", "001_DA_DK_1_ET1")
+    assert loaded.type_of_issue == "data_loss"
+
+
+def test_save_with_needs_reprocessing(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    saved = save_review(
+        "MultiplEYE_DA_DK_Aalborg_1_2026",
+        "001_DA_DK_1_ET1",
+        status="flagged",
+        reviewer="Test",
+        needs_reprocessing=True,
+    )
+    assert saved.needs_reprocessing is True
+
+    loaded = load_review("MultiplEYE_DA_DK_Aalborg_1_2026", "001_DA_DK_1_ET1")
+    assert loaded.needs_reprocessing is True
+
+
+def test_save_with_all_new_fields(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    saved = save_review(
+        "MultiplEYE_DA_DK_Aalborg_1_2026",
+        "001_DA_DK_1_ET1",
+        status="flagged",
+        reviewer="Test",
+        comment="Bad calibration.",
+        type_of_issue="calibration_validation",
+        needs_reprocessing=True,
+    )
+    assert saved.type_of_issue == "calibration_validation"
+    assert saved.needs_reprocessing is True
+    assert saved.status == "flagged"
+    assert saved.comment == "Bad calibration."
+
+    loaded = load_review("MultiplEYE_DA_DK_Aalborg_1_2026", "001_DA_DK_1_ET1")
+    assert loaded.type_of_issue == "calibration_validation"
+    assert loaded.needs_reprocessing is True
+    assert loaded.status == "flagged"
+    assert loaded.comment == "Bad calibration."
+
+
+def test_save_invalid_type_of_issue_raises(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    import pytest
+
+    with pytest.raises(ValueError, match="Invalid issue type"):
+        save_review(
+            "MultiplEYE_DA_DK_Aalborg_1_2026",
+            "001_DA_DK_1_ET1",
+            status="flagged",
+            reviewer="Test",
+            type_of_issue="bogus_type",
+        )
+
+
+def test_load_old_review_without_new_fields(monkeypatch, tmp_path: Path) -> None:
+    """Loading a review YAML without type_of_issue/needs_reprocessing
+    should return defaults (empty string / False)."""
+    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    path = (
+        tmp_path
+        / "MultiplEYE_DA_DK_Aalborg_1_2026"
+        / "sanity_checks"
+        / "001_DA_DK_1_ET1"
+    )
+    path.mkdir(parents=True)
+    yaml_path = path / "001_DA_DK_1_ET1_review.yaml"
+    yaml_path.write_text(
+        yaml.dump({"status": "flagged", "reviewer": "Old", "comment": "No issue field"})
+    )
+
+    loaded = load_review("MultiplEYE_DA_DK_Aalborg_1_2026", "001_DA_DK_1_ET1")
+    assert loaded.type_of_issue == ""
+    assert loaded.needs_reprocessing is False
+    assert loaded.status == "flagged"
+    assert loaded.reviewer == "Old"
+
+
+def test_issue_types_defined() -> None:
+    assert "calibration_validation" in ISSUE_TYPES
+    assert "data_loss" in ISSUE_TYPES
+    assert "incomplete" in ISSUE_TYPES
+    assert "see_comment" in ISSUE_TYPES
+    assert len(ISSUE_TYPES) == 4

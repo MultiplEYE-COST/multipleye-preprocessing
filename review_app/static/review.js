@@ -87,29 +87,60 @@
     }
   });
 
+  function getCurrentIssue() {
+    var active = document.querySelector("#review-form .btn-issue.active");
+    return active ? active.dataset.issueKey : "";
+  }
+  function getCurrentRepro() {
+    var cb = document.querySelector('#review-form input[name="needs_reprocessing"]');
+    return cb ? cb.checked : false;
+  }
+  function getCurrentStatus() {
+    var active = document.querySelector("#review-form .btn.active");
+    return active ? active.textContent.trim().split(" ")[0] : "unreviewed";
+  }
+  function reviewFetch(params) {
+    var sid = window.location.pathname.match(/\/session\/([^/]+)/);
+    var dcn = window.location.pathname.match(/\/dcn\/([^/]+)/);
+    if (!sid || !dcn) return;
+    var comment = document.querySelector('#review-form textarea[name="comment"]');
+    var commentVal = comment ? comment.value : "";
+    var issue = params.type_of_issue !== undefined ? params.type_of_issue : getCurrentIssue();
+    var repro = params.needs_reprocessing !== undefined ? params.needs_reprocessing : getCurrentRepro();
+    var url = "/api/dcn/" + encodeURIComponent(dcn[1]) + "/session/" + encodeURIComponent(sid[1]) +
+              "/review?status=" + encodeURIComponent(params.status || getCurrentStatus()) +
+              "&comment=" + encodeURIComponent(commentVal) +
+              "&reviewer=" + encodeURIComponent(window.getReviewer()) +
+              "&type_of_issue=" + encodeURIComponent(issue) +
+              "&needs_reprocessing=" + (repro ? "true" : "false");
+    fetch(url, { method: "POST" })
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        var target = document.getElementById("review-form");
+        if (target) target.innerHTML = html;
+      });
+  }
+
   document.addEventListener("keydown", function (e) {
     /* ---------- 1-4 keyboard shortcuts (always work) ---------- */
     var statusMap = { "1": "unreviewed", "2": "accepted", "3": "flagged", "4": "excluded" };
     if (statusMap[e.key] && document.querySelector("#review-form")) {
       e.preventDefault();
       if (!window.getReviewer()) { window.promptReviewer(); return; }
-      var sid = window.location.pathname.match(/\/session\/([^/]+)/);
-      var dcn = window.location.pathname.match(/\/dcn\/([^/]+)/);
-      if (sid && dcn) {
-        var comment = document.querySelector('#review-form textarea[name="comment"]');
-        var commentVal = comment ? comment.value : "";
-        var url = "/api/dcn/" + encodeURIComponent(dcn[1]) + "/session/" + encodeURIComponent(sid[1]) +
-                  "/review?status=" + statusMap[e.key] +
-                  "&comment=" + encodeURIComponent(commentVal) +
-                  "&reviewer=" + encodeURIComponent(window.getReviewer());
-        fetch(url, { method: "POST" })
-          .then(function (r) { return r.text(); })
-          .then(function (html) {
-            var target = document.getElementById("review-form");
-            if (target) target.innerHTML = html;
-          });
-      }
+      reviewFetch({ status: statusMap[e.key] });
       return;
+    }
+
+    /* ---------- 7-0 keyboard shortcuts for issue types (only when status is flagged/excluded) ---------- */
+    var issueMap = { "7": "calibration_validation", "8": "data_loss", "9": "incomplete", "0": "see_comment" };
+    if (issueMap[e.key] !== undefined && document.querySelector("#review-form")) {
+      var curStatus = getCurrentStatus();
+      if (curStatus === "flagged" || curStatus === "excluded") {
+        e.preventDefault();
+        if (!window.getReviewer()) { window.promptReviewer(); return; }
+        reviewFetch({ status: curStatus, type_of_issue: issueMap[e.key] });
+        return;
+      }
     }
 
     /* ---------- 'p' opens first plot ---------- */
@@ -233,6 +264,66 @@
       var i = (lightbox._idx || 0) - 1;
       if (i < 0) i = currentPlots.length - 1;
       showPlot(i); e.preventDefault();
+    }
+  });
+
+  /* ---------- stop server with polling feedback ---------- */
+  window.shutdownServer = function () {
+    if (!confirm("Stop the review server?")) return;
+    document.body.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:var(--font);color:var(--text-secondary);flex-direction:column;gap:1rem">' +
+      '<div>Server shutting down\u2026</div>' +
+      '<div id="shutdown-status" style="font-size:0.8rem;opacity:0.6">sent shutdown signal</div>' +
+      "</div>";
+    fetch("/api/shutdown", { method: "POST" }).catch(function () {});
+    var attempts = 0;
+    var poll = setInterval(function () {
+      attempts++;
+      fetch("/", { method: "HEAD" })
+        .then(function () {
+          var el = document.getElementById("shutdown-status");
+          if (el) el.textContent = "waiting\u2026 (" + attempts + ")";
+          if (attempts > 20) {
+            clearInterval(poll);
+            var el = document.getElementById("shutdown-status");
+            if (el) {
+              el.textContent = "failed to stop server \u2014 close this tab manually";
+              el.style.color = "var(--fail)";
+            }
+          }
+        })
+        .catch(function () {
+          clearInterval(poll);
+          var el = document.getElementById("shutdown-status");
+          if (el) {
+            el.textContent = "server stopped \u2014 you can close this tab";
+            el.style.color = "var(--pass)";
+          }
+        });
+    }, 1000);
+  };
+
+  /* ---------- status button click (reads current textarea before saving) ---------- */
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest(".btn-status");
+    if (!btn) return;
+    if (!window.getReviewer()) { window.promptReviewer(); return; }
+    reviewFetch({ status: btn.dataset.statusKey });
+  });
+
+  /* ---------- issue type button click (only fires for flagged/excluded) ---------- */
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest(".btn-issue");
+    if (!btn || btn.classList.contains("issue-disabled")) return;
+    if (!window.getReviewer()) { window.promptReviewer(); return; }
+    reviewFetch({ type_of_issue: btn.dataset.issueKey });
+  });
+
+  /* ---------- needs_reprocessing checkbox auto-save on toggle ---------- */
+  document.addEventListener("change", function (e) {
+    if (e.target.matches('#review-form input[name="needs_reprocessing"]')) {
+      if (!window.getReviewer()) return;
+      reviewFetch({ needs_reprocessing: e.target.checked });
     }
   });
 

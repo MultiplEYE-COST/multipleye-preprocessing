@@ -79,3 +79,53 @@ def test_check_registry_covers_expected_fields() -> None:
     assert "tracked_eye_consistent" in fields
     assert "avg_comprehension_score" in fields
     assert "total_session_duration" in fields
+    assert "num_completed_trials" in fields
+
+
+def test_compute_checks_num_completed_trials_pass() -> None:
+    overview = {"num_completed_trials": 12}
+    thresholds = {"num_completed_trials": [6, 12]}
+    checks = compute_checks(overview, thresholds)
+    check_map = {c.check_id: c for c in checks}
+    assert check_map["num_completed_trials"].status == "pass"
+    assert check_map["num_completed_trials"].value == 12
+    assert check_map["num_completed_trials"].threshold == [6.0, 12.0]
+
+
+def test_compute_checks_num_completed_trials_fail() -> None:
+    overview = {"num_completed_trials": 4}
+    thresholds = {"num_completed_trials": [6, 12]}
+    checks = compute_checks(overview, thresholds)
+    check_map = {c.check_id: c for c in checks}
+    assert check_map["num_completed_trials"].status == "fail"
+    assert check_map["num_completed_trials"].value == 4
+
+
+def test_compute_checks_scalar_threshold_does_not_crash() -> None:
+    """Regression: scalar thresholds (e.g. ``num_completed_trials: 6`` in a
+    legacy ``quality_thresholds.yaml``) must be serialized as ``"6"`` (str)
+    not ``6`` (int). ``CheckResult.threshold`` accepts ``str | list | None``
+    — a bare ``int`` would crash pydantic and propagate up through
+    ``list_sessions()`` → ``_build_dcn_summary()`` → ``list_dcns()``,
+    blanking the entire home page.
+
+    This test covers the code path where ``threshold_spec`` from
+    ``check_value()`` is a scalar int/float. The comparison semantics
+    (scalar = upper bound) are tested in ``test_thresholds.py``.
+    """
+    overview = {
+        "data_loss_ratio": 0.02,
+        "num_practice_trials": 2,
+    }
+    thresholds = {
+        "data_loss_ratio": 0.1,
+        "num_practice_trials": 2,
+    }
+    checks = compute_checks(overview, thresholds)
+    check_map = {c.check_id: c for c in checks}
+
+    assert check_map["data_loss_ratio"].status == "pass"
+    assert check_map["data_loss_ratio"].threshold == "0.1"
+
+    assert check_map["num_practice_trials"].status == "pass"
+    assert check_map["num_practice_trials"].threshold == "2"

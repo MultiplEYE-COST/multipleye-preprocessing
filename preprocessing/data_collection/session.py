@@ -63,6 +63,9 @@ class Session:
     num_moderate_validations: int = field(default=0, init=False)
     num_bad_validations: int = field(default=0, init=False)
 
+    # completed trials
+    num_completed_trials: int = field(default=0, init=False)
+
     # sanity report
     sanity_report_path: Path = field(default="unknown", init=False)
 
@@ -117,6 +120,9 @@ class Session:
             "num_good_validations": self.num_good_validations,
             "num_moderate_validations": self.num_moderate_validations,
             "num_bad_validations": self.num_bad_validations,
+            "num_completed_trials": len(self.stimulus_order_ids)
+            if isinstance(self.stimulus_order_ids, list)
+            else None,
             "Raw_data": self.raw_data,
             "Fixations": self.fixations,
             "Saccades": self.saccades,

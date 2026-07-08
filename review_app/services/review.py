@@ -38,7 +38,17 @@ def load_review(dcn_name: str, sid: str) -> ReviewAnnotation:
         reviewer=data.get("reviewer", ""),
         comment=data.get("comment", ""),
         reviewed_at=data.get("reviewed_at"),
+        type_of_issue=data.get("type_of_issue", ""),
+        needs_reprocessing=data.get("needs_reprocessing", False),
     )
+
+
+ISSUE_TYPES = {
+    "calibration_validation": "Cal-/Validation",
+    "data_loss": "Data loss",
+    "incomplete": "Incomplete",
+    "see_comment": "See comment",
+}
 
 
 def save_review(
@@ -47,6 +57,8 @@ def save_review(
     status: str,
     reviewer: str = "",
     comment: str = "",
+    type_of_issue: str = "",
+    needs_reprocessing: bool = False,
 ) -> ReviewAnnotation:
     """Save a review annotation to the per-session YAML file.
 
@@ -57,12 +69,19 @@ def save_review(
     :param status: Review status.
     :param reviewer: Reviewer name (auto-set from cookie).
     :param comment: Review comment.
+    :param type_of_issue: Optional issue type classification.
+    :param needs_reprocessing: Whether the session needs reprocessing.
     :returns: The saved ReviewAnnotation.
     :raises ValueError: If status is not a valid review status.
     """
     if status not in REVIEW_STATUSES:
         raise ValueError(
             f"Invalid review status: {status}. Must be one of {REVIEW_STATUSES}"
+        )
+
+    if type_of_issue and type_of_issue not in ISSUE_TYPES:
+        raise ValueError(
+            f"Invalid issue type: {type_of_issue}. Must be one of {list(ISSUE_TYPES.keys())}"
         )
 
     reviewed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -72,6 +91,8 @@ def save_review(
         reviewer=reviewer,
         comment=comment,
         reviewed_at=reviewed_at,
+        type_of_issue=type_of_issue,
+        needs_reprocessing=needs_reprocessing,
     )
 
     path = review_file_path(dcn_name, sid)
@@ -82,6 +103,8 @@ def save_review(
         "reviewer": annotation.reviewer,
         "comment": annotation.comment,
         "reviewed_at": annotation.reviewed_at,
+        "type_of_issue": annotation.type_of_issue,
+        "needs_reprocessing": annotation.needs_reprocessing,
     }
 
     fd, tmp_path = tempfile.mkstemp(suffix=".yaml", dir=path.parent)
