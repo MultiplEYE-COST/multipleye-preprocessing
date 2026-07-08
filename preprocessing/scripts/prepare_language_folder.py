@@ -72,7 +72,42 @@ def prepare_language_folder(data_collection_name: str | None = None):
                     "and removed 'core_sessions' folder."
                 )
                 for folder in core_folders:
-                    shutil.move(str(folder), str(eye_tracking_sessions_path))
+                    dest = eye_tracking_sessions_path / folder.name
+                    if dest.exists():
+                        src_names = {p.name for p in folder.rglob("*") if p.is_file()}
+                        dst_names = {p.name for p in dest.rglob("*") if p.is_file()}
+                        only_in_src = src_names - dst_names
+                        only_in_dst = dst_names - src_names
+                        if only_in_src or only_in_dst:
+                            msg_parts = [
+                                f"Folder '{folder.name}' exists in both "
+                                f"'core_sessions' and 'eye-tracking-sessions' "
+                                f"with different contents."
+                            ]
+                            if only_in_src:
+                                msg_parts.append(
+                                    f"  Only in core_sessions ({len(only_in_src)} files): "
+                                    + ", ".join(sorted(only_in_src)[:10])
+                                )
+                            if only_in_dst:
+                                msg_parts.append(
+                                    f"  Only in eye-tracking-sessions ({len(only_in_dst)} files): "
+                                    + ", ".join(sorted(only_in_dst)[:10])
+                                )
+                            msg_parts.append(
+                                "  Resolve manually by inspecting both folders, "
+                                "then remove the one from 'core_sessions'."
+                            )
+                            logger.warning("\n".join(msg_parts))
+                        else:
+                            logger.debug(
+                                f"Folder '{folder.name}' already exists in "
+                                f"eye-tracking-sessions with identical files — "
+                                f"removing core_sessions copy."
+                            )
+                            shutil.rmtree(str(folder))
+                    else:
+                        shutil.move(str(folder), str(eye_tracking_sessions_path))
                 shutil.rmtree(core_session_path)
                 logger.info(
                     "Moved folders from 'core_sessions' to 'eye-tracking-sessions' "
