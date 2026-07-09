@@ -8,6 +8,7 @@ import yaml
 
 from preprocessing.models.sid import Sid
 from preprocessing.utils import get_logger, validate_psychometric_data
+from preprocessing.utils.file_utils import _copytree
 
 logger = get_logger()
 
@@ -155,7 +156,7 @@ def fix_psycho_tests_structure(
             if old_path.exists():
                 new_test_path = session_folder / folder_name
                 new_test_path.mkdir(parents=True, exist_ok=True)
-                shutil.copytree(old_path, new_test_path, dirs_exist_ok=True)
+                _copytree(old_path, new_test_path, dirs_exist_ok=True)
 
         # copy the config file to the new session folder
         new_config_path = session_folder / config_file.name
