@@ -15,13 +15,17 @@ dependencies = [
     "pandas>=2.2.2",
     "pillow==12.2.0",
     "polars>=1.28.1",
+    "pymovements",
     "tqdm>=4.66.4",
     "openpyxl>=3.0.0",
     "ipykernel>=7.1.0",
     "jupyterlab",
     "ipywidgets",
-    "pymovements==0.27.0",
+    "sphinxcontrib-mermaid>=2.0.2",
 ]
+
+[tool.uv.sources]
+pymovements = { git = "https://github.com/pymovements/pymovements.git", branch = "main" }
 
 [tool.setuptools.packages.find]
 include = ["preprocessing"]
