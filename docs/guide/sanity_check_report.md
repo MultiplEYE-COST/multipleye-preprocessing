@@ -156,8 +156,8 @@ and ratings per stimulus. Only failures are reported.
 
 *Acceptable:* Empty section (all screens present in ASC).
 
-*Problematic:* Missing pages means no gaze data for that stimulus. Missing questions or ratings
-affect comprehension answer extraction. [@saphjra for detailed field descriptions]
+*Problematic:* Missing pages means no gaze data for that stimulus, because the respective page was never shown to the participant. This indicates a serious issue with the experiment.
+Missing questions or ratings affect comprehension answer extraction. [@saphjra for detailed field descriptions]
 
 ---
 
@@ -224,11 +224,9 @@ screens. Count and duration are always reported; absence is noted explicitly.
 - optional_break_duration: lasting 56.27 seconds found at 3610707
 - obligatory_break found 1 times
 - obligatory_break_duration: lasting 939.35 seconds found at 6107427
-- recalibration not found
 ```
 
-*Acceptable:* Fixation triggers should not be found. Recalibration should be present if validation
-scores exceeded threshold.
+*Acceptable:* Fixation triggers should not be found.
 
 *Problematic:* Fixation trigger events mean the experimenter manually intervened. Missing
 recalibration with high validation scores means poor calibration was not addressed.
@@ -321,9 +319,9 @@ ratio.** Practice trials have 2 questions; main trials have 6. Stimulus names ar
 **Overall correct answers**: 52 out of 64 (0.81)
 ```
 
-*Acceptable:* >70% overall.
+*Acceptable:* >50% overall.
 
-*Problematic:* Below 50% suggests disengagement. Stimuli with 0 correct answers warrant manual
+*Problematic:* Below 25% suggests disengagement, as this value is even below randomly guessing. Stimuli with 0 correct answers warrant manual
 review.
 
 ---
@@ -358,7 +356,7 @@ revise them as domain knowledge evolves. [@saphjra for review]
 ### Normal session
 
 A clean session typically shows: 12-15 validations, mostly good (score <0.305), no bad
-validations, data loss under 2%, and comprehension accuracy above 70%. Stimulus starts
+validations, data loss under 2%, and comprehension accuracy above 60%. Stimulus starts
 should always follow a good validation, and the final validation should be present (without an
 intervening calibration).
 
@@ -368,6 +366,15 @@ intervening calibration).
   validation errors are below 0.3. This is non-obvious and should always be checked against the
   gaze-over-stimulus plots. The validation score is an average; poor tracking at individual
   points can still degrade reading measures.
+
+- **High data loss with good validation.** If the validation score is good but data loss is
+  high, the eye-tracker had either a blind spot, visible in the plots if gaze gets always lost in the same area
+  or it jumped between different recognized reflections for example due to the participant wearing mascara, glasses
+  or contact lenses.
+
+- **Good validation but low comprehension scores or visible skimming/skipping in plots.** If the validation score is good but comprehension
+  accuracy is below 50% or if the plots show only few fixation per page or only on the first part of the page
+  the participant may have been distracted, fatigued, or disengaged.
 
 - **Many recalibrations + persistent data loss.** Frequent recalibrations mid-session suggest
   the experimenter tried to improve quality. If data loss and drift remain high despite this,
@@ -391,7 +398,8 @@ intervening calibration).
   and data quality in later trials.
 
 - **Inconsistent tracked eye.** If validation tracked eyes show a mix of left and right, the
-  eye-tracker switched the tracked eye mid-session. This suggests a hardware issue or the
-  experimenter adjusted settings on the host PC during the session.
+  eye-tracker switched the tracked eye mid-session. This suggests either a calibration issue of the participant,
+  which was mitigated by changing the tracked eye or a mistake by the experimenter, has to be documented in any case in
+  the session notes.
 
 [final paragraph, 2-3 sentences]
