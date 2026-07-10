@@ -61,7 +61,8 @@ line is a bullet prefixed with `✅` if the value passes, or blank if it does no
 
 - **MAX validation scores:** Comma-separated list of maximum validation error scores per
   validation. High max scores indicate poor accuracy at certain grid points even if the average
-  was acceptable. [@saphjra]
+  was acceptable. If the plots show gaze drift or misalignment, whilst having a good average score the max score
+  is another indicator of calibration quality an can point to one very badly calibrated area.
 
   *Example:* `1.15, 0.46, 0.87, 0.61, 0.68, 0.86, ...`
 
@@ -70,15 +71,15 @@ line is a bullet prefixed with `✅` if the value passes, or blank if it does no
   *Problematic:* Values above 1.5 mean the eye-tracker lost accuracy at certain positions.
 
 - **Tracked eye:** The eye reported as tracked by the eye-tracker. Should stay the same across
-  trials. May mismatch in technical cases or if the experimenter selected the wrong eye on the
-  host PC. [@saphjra for acceptable list rationale]
+  trials. May mismatch if experimenter change the tracked eye during session, has to be checked if documented.
+  critical if not.
 
   *Example:* `R`
 
-  *Acceptable:* `L`, `R`, `LEFT`, `RIGHT` (`TRACKED_EYE`).
+  *Acceptable:* `L`, `R`, `LEFT`, `RIGHT`.
 
-  *Problematic:* Inconsistent eye across validations. A value outside the accepted set indicates a
-  configuration or hardware issue.
+  *Problematic:* Inconsistent with validation tracked eyes or a value outside the accepted set. Both indicates a
+  set-up issue and have to be checked if documented, if not this is a critical issue and the session has to be discarded.
 
 - **Validation tracked eyes:** Comma-separated list of which eye was tracked during each
   validation. Each entry corresponds to one validation event. All should match the tracked eye
@@ -372,10 +373,11 @@ intervening calibration).
 - **Good scores, bad gaze overlay.** Plots can show scan-path misalignment or drift even when
   validation errors are below 0.3. This is non-obvious and should always be checked against the
   gaze-over-stimulus plots. The validation score is an average; poor tracking at individual
-  points can still degrade reading measures.
+  points can still degrade reading measures. If additionally many more validations than calibrations are present,
+  this is a strong signal that the experimenter only achieved better validation score without improving calibration.
 
 - **High data loss with good validation.** If the validation score is good but data loss is
-  high, the eye-tracker had either a blind spot, visible in the plots if gaze gets always lost in the same area
+  high, the eye-tracker had either a blind spot, visible in the plots if gaze gets always lost in the same area,
   or it jumped between different recognized reflections for example due to the participant wearing mascara, glasses
   or contact lenses.
 
@@ -394,7 +396,7 @@ intervening calibration).
 
 - **Lost messages.** Missing ASC message patterns (start_recording, onset, offset,
   stop_recording) usually indicate connection issues between the host PC and presentation PC.
-  Open tasks on the host PC or an active Wi-Fi connection can interfere.
+  Open tasks on the host PC or an active Wi-Fi connection can interfere. Has to be resolved before further data collection.
 
 - **Mid-trial recalibrations.** Calibrations during stimulus presentation (flagged in the
   summary) interrupt the participant's reading and can affect comprehension performance. They
