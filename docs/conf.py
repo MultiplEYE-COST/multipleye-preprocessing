@@ -13,7 +13,7 @@ from datetime import datetime
 project = "MultiplEYE Preprocessing pEYEpline"
 copyright = f"2024–{datetime.now().year}, Deborah N. Jakobi et al"
 author = "Deborah N. Jakobi et al."
-release = "2026.07.01"
+release = "2026.07.08"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "MultiplEYE-preprocessing"
-version = "2026.07.01"
+version = "2026.07.08"
 description = "Pipeline for Multipleye data preprocessing"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -15,7 +15,7 @@ dependencies = [
     "pandas>=2.2.2",
     "pillow==12.2.0",
     "polars>=1.28.1",
-    "pymovements",
+    "pymovements>=0.27.1",
     "tqdm>=4.66.4",
     "openpyxl>=3.0.0",
     "ipykernel>=7.1.0",
@@ -24,8 +24,9 @@ dependencies = [
     "sphinxcontrib-mermaid>=2.0.2",
 ]
 
-[tool.uv.sources]
-pymovements = { git = "https://github.com/pymovements/pymovements.git", branch = "main" }
+#[tool.uv.sources]
+# this can be used to get a pymovements version from the git repo, before a version releases:
+#pymovements = { git = "https://github.com/pymovements/pymovements.git", branch = "main" }
 
 [tool.setuptools.packages.find]
 include = ["preprocessing"]
