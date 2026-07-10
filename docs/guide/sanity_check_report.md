@@ -141,7 +141,11 @@ items are reported as bullet entries; an empty section means everything is prese
 
 *Acceptable:* Empty section (no missing entries).
 
-*Problematic:* Missing pages are most critical -- the stimulus presentation was not logged.
+*Problematic:* Missing pages are most critical, check if the corresponding page is also missing in the asc file.
+If the message is also missing in the asc file and no lost message msg is present in the report, the experiment did no run correctly.
+Missing pages means no gaze data for that stimulus, because the respective page was never shown to the participant.
+This indicates a serious issue with the experiment and should be reported to the experimenter immediately and has to be fixed before further data collection.
+
 [@saphjra for detailed field descriptions]
 
 ---
@@ -156,8 +160,10 @@ and ratings per stimulus. Only failures are reported.
 
 *Acceptable:* Empty section (all screens present in ASC).
 
-*Problematic:* Missing pages means no gaze data for that stimulus, because the respective page was never shown to the participant. This indicates a serious issue with the experiment.
-Missing questions or ratings affect comprehension answer extraction. [@saphjra for detailed field descriptions]
+*Problematic:* If no lost message msg is present in the report, this means the experiment did no run correctly.
+Missing pages means no gaze data for that stimulus, because the respective page was never shown to the participant.
+This indicates a serious issue with the experiment and should be reported to the experimenter
+It has to be fixed before further data collection.
 
 ---
 
@@ -195,7 +201,8 @@ and `stop_recording`.
 *Acceptable:* Empty (all expected messages present).
 
 *Problematic:* Any missing pattern disrupts gaze-to-stimulus alignment.
-
+This indicates a serious issue with the experiment and should be reported to the experimenter immediately.
+It has to be fixed before further data collection.
 ### One-time screens
 
 Checks that all one-time experiment screens appear in the ASC file. Screens checked include:
