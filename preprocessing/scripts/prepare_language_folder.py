@@ -1,6 +1,7 @@
 import argparse
 import re
 import shutil
+import os
 import tarfile
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import pandas as pd
 
 from ..models.dcn import Dcn
 from ..utils.data_path_utils import check_data_collection_exists
+from ..utils.file_utils import _copytree, _to_win_long_path
 from ..utils.logging import get_logger
 from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
 from ..utils.fix_multipleye_aoi_files import (
@@ -192,7 +194,7 @@ def prepare_language_folder(data_collection_name: str | None = None):
     if not destination_aoi_path.exists():
         if source_aoi_path.exists():
             logger.debug(f"Copying AOI files to {destination_aoi_path}...")
-            shutil.copytree(source_aoi_path, destination_aoi_path)
+            _copytree(source_aoi_path, destination_aoi_path)
         else:
             logger.warning(f"Source AOI path {source_aoi_path} does not exist.")
             return
@@ -258,7 +260,7 @@ def _copy_stimulus_assets(
     dest_img = dest_stimulus_dir / stimuli_images_folder
     if source_img.exists() and not dest_img.exists():
         logger.debug(f"Copying {stimuli_images_folder}...")
-        shutil.copytree(source_img, dest_img)
+        _copytree(source_img, dest_img)
 
     # 2. Copy Participant Instruction Images (all)
     instr_images_folder = f"participant_instructions_images_{suffix}"
@@ -266,7 +268,7 @@ def _copy_stimulus_assets(
     dest_instr = dest_stimulus_dir / instr_images_folder
     if source_instr.exists() and not dest_instr.exists():
         logger.debug(f"Copying {instr_images_folder}...")
-        shutil.copytree(source_instr, dest_instr)
+        _copytree(source_instr, dest_instr)
 
     logger.debug("Copying remaining stimulus assets...")
 
@@ -277,21 +279,24 @@ def _copy_stimulus_assets(
         dest_aoi_img = dest_stimulus_dir / aoi_img_folder
         if source_aoi_img.exists() and not dest_aoi_img.exists():
             logger.debug(f"Copying {aoi_img_folder}...")
-            shutil.copytree(source_aoi_img, dest_aoi_img)
+            _copytree(source_aoi_img, dest_aoi_img)
 
     # 4. Copy Config folder (includes stimulus order versions)
     source_config = source_stimulus_dir / "config"
     dest_config = dest_stimulus_dir / "config"
     if source_config.exists() and not dest_config.exists():
         logger.debug("Copying config folder...")
-        shutil.copytree(source_config, dest_config)
+        _copytree(source_config, dest_config)
 
     # 5. Copy Excel files needed for loading
     for pattern in ["[!.]*.xlsx", "[!.]*.xls", "[!.]*.csv"]:
         for file in source_stimulus_dir.glob(pattern):
             dest_file = dest_stimulus_dir / file.name
             if not dest_file.exists():
-                shutil.copy2(file, dest_file)
+                shutil.copy2(
+                    _to_win_long_path(file) if os.name == "nt" else file,
+                    _to_win_long_path(dest_file) if os.name == "nt" else dest_file,
+                )
 
     # 6. Copy used Question Images
     question_images_folder = f"question_images_{suffix}"
@@ -308,7 +313,7 @@ def _copy_stimulus_assets(
             dest_v = dest_q_base / v_folder
             if source_v.exists() and not dest_v.exists():
                 logger.debug(f"Copying {v_folder}...")
-                shutil.copytree(source_v, dest_v)
+                _copytree(source_v, dest_v)
 
 
 def _get_used_stimulus_versions(eye_tracking_sessions_dir: Path) -> set[int]:
