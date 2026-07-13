@@ -70,6 +70,25 @@ acceptable_recording_durations: [600, 7200]
 acceptable_num_practice_trials: 2
 acceptable_num_trials: 10
 
+# --- PSYCHOMETRIC TEST THRESHOLDS ---
+# Minimum reaction time for WikiVocab in seconds.
+psym_wikivocab_min_rt: 0.2
+
+# Maximum reaction time for WikiVocab in seconds. `.inf` (infinite) means no upper limit.
+psym_wikivocab_max_rt: .inf
+
+# Minimum reaction time for Stroop in seconds.
+psym_stroop_min_rt: 0.2
+
+# Maximum reaction time for Stroop in seconds.
+psym_stroop_max_rt: .inf
+
+# Minimum reaction time for Flanker in seconds.
+psym_flanker_min_rt: 0.0
+
+# Maximum reaction time for Flanker in seconds.
+psym_flanker_max_rt: .inf
+
 # --- EYE TRACKER LABELS (do not change) ---
 tracked_eye: ["L", "R", "RIGHT", "LEFT"]
 
