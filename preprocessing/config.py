@@ -522,6 +522,26 @@ class Settings:
         #: Event name for saccades.
         self.SACCADE = "saccade"
 
+        # --- PSYCHOMETRIC TEST THRESHOLDS ---
+
+        #: Minimum reaction time for WikiVocab in seconds.
+        self.PSYM_WIKIVOCAB_MIN_RT = 0.2
+
+        #: Maximum reaction time for WikiVocab in seconds.
+        self.PSYM_WIKIVOCAB_MAX_RT = float("inf")
+
+        #: Minimum reaction time for Stroop in seconds.
+        self.PSYM_STROOP_MIN_RT = 0.2
+
+        #: Maximum reaction time for Stroop in seconds.
+        self.PSYM_STROOP_MAX_RT = float("inf")
+
+        #: Minimum reaction time for Flanker in seconds.
+        self.PSYM_FLANKER_MIN_RT = 0.0
+
+        #: Maximum reaction time for Flanker in seconds.
+        self.PSYM_FLANKER_MAX_RT = float("inf")
+
         # --- REGULAR EXPRESSIONS ---
 
         #: Regex to parse generic messages from eye tracker logs.
