@@ -102,6 +102,16 @@ class Session:
             "num_validations": self.num_validations,
             "avg_validation_error": self.avg_validation_error,
             "data_loss_ratio": self.pm_gaze_metadata["data_loss_ratio"],
+            "measure_data_loss_ratio": getattr(
+                self,
+                "_measure_data_loss_ratio",
+                None,
+            ),
+            "measure_data_loss_ratio_blinks": getattr(
+                self,
+                "_measure_data_loss_ratio_blinks",
+                None,
+            ),
             "Mount_configuration": self.pm_gaze_metadata["mount_configuration"],
             "Pupil_data_type": self.pm_gaze_metadata["pupil_data_type"],
             "Raw_data": self.raw_data,
