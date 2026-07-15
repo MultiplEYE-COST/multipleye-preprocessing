@@ -79,70 +79,32 @@ def load_gaze_data(
         events=True,
     )
 
-    # Compute measure-based blink loss and store for later comparison (dev-only).
+    # Compute measure-based blink loss via measure_events_ratio.
     # Parsed events (including blinks) are available here but must be cleared
     # before returning — they crash save_raw_data's unnest of the pixel column.
     sr = gaze.experiment.sampling_rate or float(
         gaze._metadata.get("sampling_rate", 1000.0),
     )
+    trial_cols = gaze.trial_columns or ["trial", "stimulus", "page"]
+
     if gaze.events is not None and not gaze.events.frame.is_empty():
-        try:
-            blink_expr = gaze.measure_events_ratio("blink_eyelink", sampling_rate=sr)
-            blink_result = gaze.samples.group_by(gaze.trial_columns).agg(blink_expr)
-            col_name = "event_ratio_blink_eyelink"
-            if col_name in blink_result.columns:
-                if blink_result[col_name].dtype == pl.List:
-                    vals = blink_result[col_name].list.first()
-                else:
-                    vals = blink_result[col_name]
-                meas_blink = vals.mean()
-            else:
-                meas_blink = 0.0
-            gaze._metadata["_measure_data_loss_ratio_blinks"] = meas_blink
-        except Exception as exc:
-            logging.exception(
-                "[DATA_LOSS_COMPARE] blink measure computation failed",
-                exc_info=exc,
+        blink_expr = gaze.measure_events_ratio("blink_eyelink", sampling_rate=sr)
+        blink_result = gaze.samples.group_by(trial_cols).agg(blink_expr)
+        col_name = "event_ratio_blink_eyelink"
+        if col_name in blink_result.columns:
+            vals = (
+                blink_result[col_name].list.first()
+                if blink_result[col_name].dtype == pl.List
+                else blink_result[col_name]
             )
-            logging.warning(
-                f"[DATA_LOSS_COMPARE] {sid}: trial_columns={gaze.trial_columns}",
-            )
-            blink_evs = gaze.events.frame.filter(pl.col("name") == "blink_eyelink")
-            logging.warning(
-                f"[DATA_LOSS_COMPARE] {sid}: blink events shape={blink_evs.shape}, "
-                f"columns={blink_evs.columns}, "
-                f"first onset/offset={blink_evs.head(2).select(['onset', 'offset']).to_dicts()}",
-            )
-            blink_result = gaze.samples.select(
-                gaze.measure_events_ratio("blink_eyelink", sampling_rate=sr),
-            )
-            logging.warning(
-                f"[DATA_LOSS_COMPARE] {sid}: trial_columns={gaze.trial_columns}",
-            )
-            blink_result = gaze.samples.select(
-                gaze.measure_events_ratio("blink_eyelink", sampling_rate=sr),
-            )
-            blink_result = gaze.samples.select(
-                gaze.measure_events_ratio("blink_eyelink", sampling_rate=sr),
-            )
-            col_name = "event_ratio_blink_eyelink"
-            if blink_result[col_name].dtype == pl.List:
-                meas_blink = blink_result[col_name].list.first()[0]
-            else:
-                meas_blink = blink_result[col_name][0]
-            if isinstance(meas_blink, list):
-                meas_blink = meas_blink[0]
-            gaze._metadata["_measure_data_loss_ratio_blinks"] = meas_blink
-        except Exception as exc:
-            logging.exception(
-                "[DATA_LOSS_COMPARE] blink measure computation failed",
-                exc_info=exc,
-            )
+            gaze._measure_data_loss_ratio_blinks = vals.mean()
+
+    # Clear parsed events to avoid save_raw_data crash.
     gaze.events = Events(
         data=pl.DataFrame(
-            schema={col: pl.Utf8 for col in (gaze.trial_columns or [])},
+            schema={col: pl.Utf8 for col in trial_cols},
         ),
-        trial_columns=gaze.trial_columns,
+        trial_columns=trial_cols,
     )
 
     # Filter out data outside of trials

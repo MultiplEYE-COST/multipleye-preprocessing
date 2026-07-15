@@ -13,119 +13,6 @@ from preprocessing.scripts.prepare_language_folder import prepare_language_folde
 import contextlib
 
 
-def _compare_data_loss_measures(gaze, sess):
-    """Compute measure-based data loss and log comparison to console + CSV.
-
-    Temporary dev function. Compares metadata values (from parsing) against
-    pymovements.measure.data_loss() and gaze.measure_events_ratio() to verify
-    equivalence before removing the metadata dict.
-
-    The total loss measure is computed here. The blink loss measure is pre-computed
-    inside load_gaze_data() and stored in gaze._metadata['_measure_data_loss_ratio_blinks'].
-    """
-    logger = get_logger()
-
-    meta_total = gaze._metadata.get("data_loss_ratio")
-    meta_blink = gaze._metadata.get("data_loss_ratio_blinks")
-    meas_blink = gaze._metadata.get("_measure_data_loss_ratio_blinks")
-
-    sr = gaze.experiment.sampling_rate
-    if sr is None:
-        sr = float(gaze._metadata.get("sampling_rate", 1000.0))
-
-    if "pixel" in gaze.samples.columns:
-        data_col = "pixel"
-    elif "pixel_x" in gaze.samples.columns:
-        data_col = "pixel_x"
-    else:
-        for col in gaze.samples.columns:
-            if col.startswith("x_") and col.endswith("_pix"):
-                data_col = col
-                break
-            if col == "x_pix":
-                data_col = col
-                break
-        else:
-            data_col = None
-
-    if data_col is None:
-        logger.warning(
-            f"[DATA_LOSS_COMPARE] {sess.sid}: could not determine pixel column, "
-            f"available: {gaze.samples.columns}",
-        )
-        return
-
-    trial_cols = settings.TRIAL_COLS if settings.TRIAL_COLS else ["trial", "stimulus"]
-    try:
-        dl_expr = pm.measure.data_loss(data_col, sampling_rate=sr, unit="ratio")
-        meas_total = (
-            gaze.samples.group_by(trial_cols)
-            .agg(dl_expr)
-            .select(pl.col("data_loss_ratio").mean())
-            .item()
-        )
-    except Exception:
-        logger.warning(
-            f"[DATA_LOSS_COMPARE] {sess.sid}: data_loss measure failed",
-            exc_info=True,
-        )
-        meas_total = None
-
-    sess._measure_data_loss_ratio = meas_total
-    sess._measure_data_loss_ratio_blinks = meas_blink
-
-    delta_total = (
-        abs(meas_total - meta_total)
-        if meta_total is not None and meas_total is not None
-        else None
-    )
-    delta_blink = (
-        abs(meas_blink - meta_blink)
-        if meta_blink is not None and meas_blink is not None
-        else None
-    )
-
-    meta_total_str = f"{meta_total:.6f}" if meta_total is not None else "None"
-    meas_total_str = f"{meas_total:.6f}" if meas_total is not None else "None"
-    dl_total_str = f"{delta_total:.6f}" if delta_total is not None else "N/A"
-    meta_blink_str = f"{meta_blink:.6f}" if meta_blink is not None else "None"
-    meas_blink_str = f"{meas_blink:.6f}" if meas_blink is not None else "None"
-    dl_blink_str = f"{delta_blink:.6f}" if delta_blink is not None else "N/A"
-
-    logger.info(
-        f"[COMPARE] data_loss_ratio:        "
-        f"metadata={meta_total_str}  measure={meas_total_str}",
-    )
-    logger.info(
-        f"[COMPARE] data_loss_ratio_blinks: "
-        f"metadata={meta_blink_str}  measure={meas_blink_str}",
-    )
-    logger.info(
-        f"[COMPARE] delta: total={dl_total_str}  blink={dl_blink_str}",
-    )
-
-    # Write to comparison CSV
-    comparison_path = settings.OUTPUT_DIR / "data_loss_comparison.csv"
-    new_row = pl.DataFrame(
-        {
-            "sid": [str(sess.sid)],
-            "meta_total": [meta_total],
-            "meas_total": [meas_total],
-            "delta_total": [delta_total],
-            "meta_blink": [meta_blink],
-            "meas_blink": [meas_blink],
-            "delta_blink": [delta_blink],
-        }
-    )
-    if comparison_path.exists():
-        existing = pl.read_csv(comparison_path)
-        combined = pl.concat([existing, new_row], how="diagonal_relaxed")
-    else:
-        combined = new_row
-        combined = new_row
-    combined.write_csv(comparison_path)
-
-
 def run_preprocessing(config_path: str | None = None):
     settings.load(config_path)
     logger = get_logger()
@@ -230,10 +117,16 @@ def run_preprocessing(config_path: str | None = None):
                 pl.col("stimulus").is_in(sess.completed_stimuli_names)
             )
 
-            # Compute measure-based data loss for comparison with metadata (dev-only)
-            # Must run before save_raw_data() — after saving, columns become
-            # pixel_x/pixel_y and blink events are lost.
-            _compare_data_loss_measures(gaze, sess)
+            # Compute per-trial total data loss via pymovements.measure.data_loss().
+            # Simple mean across trials (each trial weighted equally).
+            trial_cols = settings.TRIAL_COLS or ["trial", "stimulus"]
+            sr = gaze.experiment.sampling_rate or float(gaze._metadata["sampling_rate"])
+            gaze._measure_data_loss_ratio = (
+                gaze.samples.group_by(trial_cols)
+                .agg(pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio"))
+                .select(pl.col("data_loss_ratio").mean())
+                .item()
+            )
 
             preprocessing.save_raw_data(sess.sid, gaze)
             preprocessing.save_session_metadata(sess.sid, gaze)
@@ -241,6 +134,18 @@ def run_preprocessing(config_path: str | None = None):
         sess.pm_gaze_metadata = gaze._metadata
         sess.calibrations = gaze.calibrations
         sess.validations = gaze.validations
+
+        # Store measure-based data loss values (computed in load_gaze_data).
+        sess._measure_data_loss_ratio = getattr(
+            gaze,
+            "_measure_data_loss_ratio",
+            None,
+        )
+        sess._measure_data_loss_ratio_blinks = getattr(
+            gaze,
+            "_measure_data_loss_ratio_blinks",
+            None,
+        )
 
         # preprocess gaze data
         pbar.set_description(f"Preprocessing samples {sess.sid}:")
