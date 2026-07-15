@@ -16,8 +16,16 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.10
     hooks:
+      # Run the formatter.
+      - id: ruff-format
       # Run the linter.
       - id: ruff-check
         args: [ --fix ]
-      # Run the formatter.
-      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: update-version
+        name: Sync and Validate Version
+        entry: python preprocessing/scripts/sync_version.py
+        language: python
+        files: 'CITATION\.cff|pyproject\.toml|docs/conf\.py'
+        pass_filenames: false

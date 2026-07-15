@@ -26,7 +26,7 @@ def compute_event_properties(
         processor = pm.EventSamplesProcessor((prop_name, kwargs))
         new_props = processor.process(
             gaze.events.frame,
-            gaze.frame,
+            gaze.samples,
             identifiers=gaze.trial_columns,
             name=event_name,
         )

@@ -10,7 +10,7 @@
 :link-type: ref
 
 How to prepare before running your first preprocessing.\
-Start your endeavour here!
+Start your endeavor here!
 
 +++
 {ref}`Learn more » <getting_started>`
@@ -20,31 +20,51 @@ Start your endeavour here!
 :link: reference_guide
 :link-type: ref
 
-Theoretical background...
+If you are interested in the details of the preprocessing pipeline,
+this section is for you.
 
 +++
 {ref}`Learn more »<reference_guide>`
 :::
 
+:::{grid-item-card} {material-regular}`help_outline;2em` FAQ
+:link: faq
+:link-type: ref
+
+Answers to frequently asked questions.
+
++++
+{ref}`Learn more »<faq>`
+:::
+
+:::{grid-item-card} {material-regular}`warning;2em` Troubleshooting
+:link: troubleshooting
+:link-type: ref
+
+Solutions to common warnings and errors.
+
++++
+{ref}`Learn more »<troubleshooting>`
+:::
+
 ::::
 
-The preprocessing pipeline for the MultiplEYE corpus by {cite:t}`JakobiDingEtAl2025MultipleyeCorpus`.
-This website documents the current state of the preprocessing pipeline, **which is still under development**. This pipeline
-is designed to process the raw eye-tracking data and psychometric test data
-collected in the MultiplEYE project, transforming it into a standardized format suitable for analysis
-and sharing with the research community.
+The preprocessing pipeline for the MultiplEYE corpus by
+{cite:t}`JakobiDingEtAl2025MultipleyeCorpus`.
+This pipeline is designed to process the raw eye-tracking data and psychometric test data
+collected in the MultiplEYE project, transforming it into a standardized format suitable for
+analysis and sharing with the research community.
 
 The pipeline is built in Python and its core functionalities rely on the `pymovements` library,
-which provides tools for processing eye-tracking data. See [pymovements website](https://github.com/pymovements/pymovements)
+which provides tools for processing eye-tracking data.
+See [pymovements website](https://pymovements.readthedocs.io/en/stable/).
 
 ## Setup and use
 
-In order to use the preprocessing pipeline, please follow the instructions in the {ref}`getting_started` section.
+To use the preprocessing pipeline, please follow the instructions in the
+{ref}`getting_started` section.
 This section will guide you through the setup of the pipeline, including how to install
 dependencies and run the preprocessing on your data collection.
-
-
-[//]: # (TODO: write section)
 
 ## How to cite
 
@@ -52,8 +72,6 @@ If you use this preprocessing pipeline, or parts of it in your research,
 please cite the pipeline as specified in {cite:t}`Jakobi2026MultiplEYEPreprocessing`.
 You can also find citation information for this project in the `CITATION.cff`
 file in the repository and cite it accordingly.
-
-[//]: # (TODO: add citation)
 
 ## Acknowledgments
 
@@ -63,16 +81,17 @@ This project has been partially funded by:
 - Swiss National Science Foundation (SNSF), 212276 (MeRID)
 - swissuniversities, OpenEye
 
-
 ```{eval-rst}
 .. toctree::
    :hidden:
    :name: table_of_contents
    :caption: Table of Contents
-   :maxdepth: 1
+   :maxdepth: 2
    :glob:
 
    getting_started
    guide/index
+   faq
+   troubleshooting
    bibliography
 ```

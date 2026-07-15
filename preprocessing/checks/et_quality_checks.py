@@ -1,9 +1,10 @@
 from pathlib import Path
-from typing import Any, Callable, TextIO
+from typing import Any, TextIO
+from collections.abc import Callable
 
 import polars as pl
 
-from .. import constants
+from ..config import settings
 from ..data_collection.stimulus import Stimulus
 from ..utils import _report_to_file
 
@@ -42,8 +43,8 @@ def report_to_file_metadata(
             result = "✅"
 
     if percentage:
-        values = [f"{value:.6%}" for value in values]
-    report_file.write(f"{result} {name}: {', '.join(map(str, values))}\n")
+        values = [f"{value:.3%}" for value in values]
+    report_file.write(f"- {result} **{name}**: {', '.join(map(str, values))}\n")
 
 
 def check_comprehension_question_answers(
@@ -56,7 +57,7 @@ def check_comprehension_question_answers(
     overall_answers = 0
     for stimulus in stimuli:
         # get the trial number for the stimulus as rating screens don't have an entry in the stimulus_number column
-        trial_id = logfile.filter((pl.col("stimulus_number") == f"{stimulus.id}")).item(
+        trial_id = logfile.filter(pl.col("stimulus_number") == f"{stimulus.id}").item(
             0, "trial_number"
         )
         stimulus_frame = logfile.filter(
@@ -68,18 +69,18 @@ def check_comprehension_question_answers(
         overall_correct_answers += len(correct_answers)
         overall_answers += len(answers)
         _report_to_file(
-            f"Correct answers for {stimulus.name}: {len(correct_answers)} out of {len(answers)} answers",
+            f"- Correct answers for **{stimulus.name}**: {len(correct_answers)} out of {len(answers)} answers",
             report_file,
         )
 
-    if not overall_answers == 0:
+    if overall_answers != 0:
         _report_to_file(
-            f"Overall correct answers: {overall_correct_answers} out of {overall_answers} answers {overall_correct_answers / overall_answers:.2f}",
+            f"\n**Overall correct answers**: {overall_correct_answers} out of {overall_answers} answers ({overall_correct_answers / overall_answers:.2f})",
             report_file,
         )
     else:
         _report_to_file(
-            f"Overall correct answers: {overall_correct_answers} out of {overall_answers} answers",
+            f"\n**Overall correct answers**: {overall_correct_answers} out of {overall_answers} answers",
             report_file,
         )
 
@@ -148,13 +149,13 @@ def check_validation_requirements(
                     f"Validation after last stimulus: {m['time']}, score: {score}"
                 )
                 _report_to_file(
-                    f"Validation after last stimulus: {m['time']}, score: {score}",
+                    f"- ⚠️ Validation after last stimulus: {m['time']}, score: {score}",
                     report_file,
                 )
 
             elif score < 0.305:
                 _report_to_file(
-                    f"✅ Good validation at {m['time']} with score {m['accuracy_avg']}",
+                    f"- ✅ Good validation at {m['time']} with score {m['accuracy_avg']}",
                     report_file,
                 )
                 bad_val = False
@@ -185,7 +186,7 @@ def check_validation_requirements(
             if "start" in m["message"]:
                 real_num_stimuli += 1
                 in_stimulus = True
-                _report_to_file(f"{m['message']} at {m['time']}", report_file)
+                _report_to_file(f"- {m['message']} at {m['time']}", report_file)
                 if cal:
                     mes["no_val_before_stimulus"].append(
                         f"⚠️ {m['message']} without prior validation at {m['time']}. Only calibration at {m['time']}"
@@ -211,7 +212,7 @@ def check_validation_requirements(
             if "end" in m["message"]:
                 real_num_stimuli += 1
                 in_stimulus = False
-                _report_to_file(f"{m['message']} at {m['time']}", report_file)
+                _report_to_file(f"- {m['message']} at {m['time']}", report_file)
 
         else:
             cal_count += 1
@@ -232,61 +233,59 @@ def check_validation_requirements(
                     f"Calibration after last stimulus: {m['time']}"
                 )
                 _report_to_file(
-                    f"❌ Calibration after last stimulus: {m['time']}", report_file
+                    f"- ❌ Calibration after last stimulus: {m['time']}", report_file
                 )
 
             score = -1
 
     _report_to_file(
-        "\nValidation/Calibration summary\n------------------------------------------",
+        "\n## Validation/Calibration Summary",
         report_file,
     )
-    _report_to_file(f"Good validations: {good_vals}/{val_count}", report_file)
-    _report_to_file(f"Moderate validations: {moderate_vls}/{val_count}", report_file)
-    _report_to_file(f"Bad validations: {len(mes['bad_vals'])}/{val_count}", report_file)
+    _report_to_file(f"- Good validations: {good_vals}/{val_count}", report_file)
+    _report_to_file(f"- Moderate validations: {moderate_vls}/{val_count}", report_file)
+    _report_to_file(
+        f"- Bad validations: {len(mes['bad_vals'])}/{val_count}", report_file
+    )
 
-    _report_to_file("Stimulus start after bad/moderate validation", report_file)
+    _report_to_file("\n**Stimulus start after bad/moderate validation**", report_file)
     for start in mes["start_after_bad_val"]:
-        start = "\t" + start
-        _report_to_file(start, report_file)
+        _report_to_file(f"- {start}", report_file)
     for start in mes["start_after_moderate_val"]:
-        start = "\t" + start
-        _report_to_file(start, report_file)
+        _report_to_file(f"- {start}", report_file)
 
-    _report_to_file("Missing calibrations after bad/moderate validations", report_file)
+    _report_to_file(
+        "\n**Missing calibrations after bad/moderate validations**", report_file
+    )
     for start in mes["no_cal_after_bad_val"]:
-        start = "\t" + start
-        _report_to_file(start, report_file)
+        _report_to_file(f"- {start}", report_file)
 
-    _report_to_file("Necessary calibrations after bad validations", report_file)
+    _report_to_file("\n**Necessary calibrations after bad validations**", report_file)
     for cal in mes["necessary_cals"]:
-        cal = "\t" + cal
-        _report_to_file(cal, report_file)
+        _report_to_file(f"- {cal}", report_file)
 
-    _report_to_file("No validation before stimulus start", report_file)
+    _report_to_file("\n**No validation before stimulus start**", report_file)
     for start in mes["no_val_before_stimulus"]:
-        start = "\t" + start
-        _report_to_file(start, report_file)
+        _report_to_file(f"- {start}", report_file)
 
-    _report_to_file("Validation/calibration during stimulus presentation", report_file)
+    _report_to_file(
+        "\n**Validation/calibration during stimulus presentation**", report_file
+    )
     for vc in mes["val_cal_during_stimulus"]:
-        vc = "\t" + vc
-        _report_to_file(vc, report_file)
+        _report_to_file(f"- {vc}", report_file)
 
-    _report_to_file("Bad validations", report_file)
+    _report_to_file("\n**Bad validations**", report_file)
     for bad in mes["bad_vals"]:
-        bad = "\t" + bad
-        _report_to_file(bad, report_file)
+        _report_to_file(f"- {bad}", report_file)
 
-    _report_to_file("Moderate validations", report_file)
+    _report_to_file("\n**Moderate validations**", report_file)
     for moderate in mes["moderate_vals"]:
-        moderate = "\t" + moderate
-        _report_to_file(moderate, report_file)
+        _report_to_file(f"- {moderate}", report_file)
 
-    if val:
-        _report_to_file("✅ Final validation", report_file)
-    else:
-        _report_to_file("❌ No final calibration!", report_file)
+    _report_to_file(
+        "\n" + ("- ✅ Final validation" if val else "- ❌ No final validation!"),
+        report_file,
+    )
 
 
 def check_metadata(
@@ -310,25 +309,25 @@ def check_metadata(
     report(
         "Number of calibrations",
         num_calibrations,
-        constants.ACCEPTABLE_NUM_CALIBRATIONS,
+        settings.ACCEPTABLE_NUM_CALIBRATIONS,
     )
 
     validation_scores_avg = validations["accuracy_avg"].cast(pl.Float32).to_list()
 
     num_validations = len(validations)
     report(
-        "Number of validations", num_validations, constants.ACCEPTABLE_NUM_CALIBRATIONS
+        "Number of validations", num_validations, settings.ACCEPTABLE_NUM_CALIBRATIONS
     )
     report(
         "AVG validation scores",
-        validation_scores_avg,
-        constants.ACCEPTABLE_AVG_VALIDATION_SCORES,
+        [round(score, 4) for score in validation_scores_avg],
+        settings.ACCEPTABLE_AVG_VALIDATION_SCORES,
     )
     validation_scores_max = validations["accuracy_max"].cast(pl.Float32).to_list()
     report(
         "MAX validation scores",
-        validation_scores_max,
-        constants.TRACKED_EYE,
+        [round(score, 4) for score in validation_scores_max],
+        settings.TRACKED_EYE,
     )
 
     # this has been excluded in pm, but as we have the accuracy values this is enough...
@@ -336,7 +335,7 @@ def check_metadata(
     # report("Validation errors", validation_errors, config.ACCEPTABLE_VALIDATION_ERRORS)
 
     tracked_eye = metadata["tracked_eye"]
-    report("tracked_eye", tracked_eye, constants.TRACKED_EYE)
+    report("tracked_eye", tracked_eye, settings.TRACKED_EYE)
 
     validation_eye = validations["eye"].to_list()
 
@@ -348,26 +347,26 @@ def check_metadata(
     data_loss_ratio = metadata["data_loss_ratio"]
     report(
         "Data loss ratio",
-        data_loss_ratio,
-        constants.ACCEPTABLE_DATA_LOSS_RATIOS,
+        round(data_loss_ratio, 3),
+        settings.ACCEPTABLE_DATA_LOSS_RATIOS,
         percentage=True,
     )
     data_loss_ratio_blinks = metadata["data_loss_ratio_blinks"]
     report(
         "Data loss ratio due to blinks",
-        data_loss_ratio_blinks,
-        constants.ACCEPTABLE_DATA_LOSS_RATIOS,
+        round(data_loss_ratio_blinks, 3),
+        settings.ACCEPTABLE_DATA_LOSS_RATIOS,
         percentage=True,
     )
     total_recording_duration = metadata["total_recording_duration_ms"] / 60000
     report(
         "Total recording duration",
-        total_recording_duration,
-        constants.ACCEPTABLE_RECORDING_DURATIONS,
+        round(total_recording_duration, 2),
+        settings.ACCEPTABLE_RECORDING_DURATIONS,
     )
     sampling_rate = metadata["sampling_rate"]
     report(
         "Sampling rate",
         sampling_rate,
-        constants.EXPECTED_SAMPLING_RATE_HZ,
+        settings.EXPECTED_SAMPLING_RATE_HZ,
     )

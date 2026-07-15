@@ -18,7 +18,7 @@ about the psychometric tests is provided.
     - [WikiVocab](#wikivocab_test)
 - [Calculating the Psychometric Tests](#calculating_psychometric_tests)
     - [Preparing the Data](#preparing_data)
-    - [Running the Calculations](#running_calculations)
+    - [Running the Calculations](#running_calculations_psychometric)
 
 (data_collection)=
 
@@ -35,17 +35,19 @@ repository. Find details about it in the project's `README.md`.
 The psychometric tests in the MultiplEYE battery are carefully selected to provide a comprehensive
 assessment of cognitive abilities relevant to language processing and eye-tracking research.
 Each test targets specific cognitive domains while maintaining cross-linguistic validity
-and experimental efficiency. _(confirm)_
+and experimental efficiency.
 
 (lewandowsky_wmc_battery_test)=
 
 ### Lewandowsky WMC Battery
 
 Working Memory Capacity (WMC) is a fundamental cognitive construct that represents the amount of
-information that can be held in mind and simultaneously processed. WMC is correlated with
-general intelligence (g-factor), language comprehension, and reading ability. _(confirm)_ The
-Lewandowsky WMC
-battery provides a comprehensive assessment through four complementary tasks:
+information that can be temporarily stored and manipulated to support higher-level cognitive
+processes
+(such as text comprehension). WMC is correlated with
+general intelligence (g-factor), language comprehension, and reading ability {cite:p}`Daneman1980`.
+The Lewandowsky WMC battery assesses two working memory domains (verbal/numerical and spatial)
+through four complementary tasks:
 
 - **Memory Update (MU)**: Participants continuously update a running memory store with new
   information while discarding old items. This task measures the ability to dynamically manipulate
@@ -110,13 +112,16 @@ consistent with the maximum attainable score in the current version.
 
 Rapid Automatized Naming is a classic measure of processing speed and automaticity in
 cognitive retrieval. Originally developed to predict reading ability, RAN assesses the efficiency
-with which participants can access and articulate well-learned information. The task requires
-participants to name a series of familiar items (typically digits or letters) as quickly as
-possible. RAN performance is strongly predictive of reading fluency across languages and is
-considered a marker of the automaticity of cognitive processes _(citation?)_.
+with which participants can access and articulate phonological word forms corresponding to visually
+presented stimuli. The task is described as a "microcosm" of reading as it involves sequential
+shifts of visual attention, lexical access, and articulatory planning {cite:p}`WolfBowers1999`.
+The task requires participants to name a series of familiar items (typically digits or letters) as
+quickly as possible. RAN performance is strongly predictive of reading fluency across languages and
+is
+considered a marker of the automaticity of cognitive processes {cite:p}`Denckla1976`.
 
 For our data, there are two trials per session.
-Both trials consist of _(...)_ _(confirm)_.
+Both trials consist of a $5 \times 10$ digit matrix.
 The results are the times each of the two trials took to complete.
 
 **Returned Results**:
@@ -129,11 +134,11 @@ The results are the times each of the two trials took to complete.
 ### Stroop Test
 
 The Stroop test is one of the most widely used measures of cognitive control and inhibitory
-functioning. It demonstrates the phenomenon of interference---when automatic processing conflicts
-with task demands. In the color-word Stroop, participants must inhibit the automatic tendency to
-read words while naming the ink color. The difference in performance between congruent (word matches
-color) and incongruent (word conflicts with color) trials provides a sensitive measure of inhibitory
-control {cite:p}`Stroop1935`.
+functioning. It demonstrates the phenomenon of interference---when automatic processing (reading)
+conflicts with task demands (color naming). In the color-word Stroop, participants must inhibit
+the automatic tendency to read words while naming the font color. The difference in performance
+between congruent (word matches color) and incongruent (word conflicts with color) trials provides
+a sensitive measure of inhibitory control {cite:p}`Stroop1935`.
 
 **Mathematical Formulas**:
 
@@ -211,9 +216,9 @@ $$\mathrm{RTEffect}_{\mathrm{sec}} = \mathrm{RT}_{\mathrm{incongruent}} - \mathr
 
 The PLAB test assesses language learning aptitude through a battery of tasks that measure
 different components of language ability. Unlike the other cognitive tests, PLAB specifically
-targets abilities relevant to second language acquisition, including auditory discrimination, memory
-for foreign language sounds, and grammatical pattern recognition. This makes it particularly
-valuable for research on multilingualism and language learning {cite:p}`Pimsleur2004`.
+targets metalinguistic awareness and the ability to consciously infer and apply grammatical rules
+and generalizations. This makes it particularly valuable for research on multilingualism and
+language learning {cite:p}`Pimsleur2004`.
 
 **Returned Results**:
 
@@ -230,9 +235,12 @@ valuable for research on multilingualism and language learning {cite:p}`Pimsleur
 
 WikiVocab is a modern vocabulary assessment that uses items drawn from Wikipedia corpora across
 multiple languages. It provides a cross-linguistically valid measure of vocabulary breadth by
-including both real words and carefully constructed pseudo-words. The balanced scoring approach
-(averaging performance on real and pseudo-words) makes it comparable across languages with different
-writing systems and vocabulary structures {cite:p}`vanRijn2023`.
+including both real words and carefully constructed pseudo-words. Vocabulary breadth is
+operationalized as the number of words for which a person has at least partial knowledge.
+The balanced scoring approach (averaging performance on real and pseudo-words) helps control for
+individual response tendencies, such as a bias towards accepting or rejecting items, and makes it
+comparable across languages with different writing systems and vocabulary structures {cite:p}
+`vanRijn2023`.
 
 - Large, representative item pools from Wikipedia
 - Balanced scoring controls for response biases
@@ -314,17 +322,13 @@ data/MultiplEYE_SQ_CH_Zurich_1_2025/psychometric-tests-sessions/
 │   ├── WikiVocab
 │   │   ├── SQCH1_008_PT2_2025-09-13_15-26-53.csv
 │   │   └── images
-│   └── psychometric_details_008_SQ_CH_1_PT2.csv (detail output for session)
+│   └── psychometric_details_008_SQ_CH_1_PT2.csv
 ```
 
-The `psychometric_details_008_SQ_CH_1_PT2.csv` is written as an output of the psychometric tests
-with all detailled measures for the session.
-Furthermore, an overview of all sessions will be written to
-`data/{data_collection_id}/{data_collection_id}_overview.yaml`
-
 If it happens that the data is structured first by the test folder and then by session folder,
-the data can be restructured using the `preprocessing.scripts.restructure_psycho_tests:main`
-script.
+`prepare_language_folder` and the preflight check will detect this and restructure the data
+automatically.
+The `restructure_psycho_tests` CLI tool can still be used as a fallback.
 This can be invoked like this:
 
 ```bash
@@ -371,25 +375,40 @@ console.
 The following calculation has been constructed to handle this case,
 only calculating the results of tests with existing data.
 
-(running_calculations)=
+(running_calculations_psychometric)=
 
 ### Running the Calculations
 
-The psychometric test calculations are performed by the `preprocess_psychometric_tests()` function,
-which processes each test separately and combines the results into overview and detailed output
-files.
+The psychometric test calculations are performed as part of the main preprocessing pipeline
+(via `run_preprocessing`, gated by `RUN_PSYCHOMETRIC_TESTS`), or standalone via the
+`preprocess_psychometric_tests()` function.
+Both process each test separately and combine the results into overview and detailed output files.
+
+#### Output Location
+
+All psychometric test results are written to
+`preprocessed_data/{data_collection_id}/psychometric_tests/`.
 
 #### Overview vs. Detailed Output
 
-The pipeline generates two types of output for each participant:
+The pipeline generates two types of output:
 
-- **Overview file** (`{data_collection_id}_overview.yaml`): Contains primary metrics as per
-  the original paper outputs.
-- **Detailed file** (`psychometric_details_{session_id}.csv`): Contains more detailed values.
+- **Overview file** (`psychometric_overview_{data_collection_id}.csv`): Contains one row per
+  session with primary metrics as per the original paper outputs.
+- **Merged overview file** (`psychometric_overview_{data_collection_id}_merged.csv`): Contains one
+  row per participant, merging disjoint PT sessions (e.g. PT1 with PT2).
+- **Detailed file** (`psychometric_details_{session_id}.csv`): Per-session CSV with all detailed
+  values, written to a subfolder named after the session.
 
 #### Command Line Usage
 
-The tests can be calculated with the following command:
+The tests can be calculated as part of the full pipeline:
+
+```bash
+run_preprocessing --config_path path/to/your_config.yaml
+```
+
+Or standalone:
 
 ```bash
 preprocess_psychometric_tests

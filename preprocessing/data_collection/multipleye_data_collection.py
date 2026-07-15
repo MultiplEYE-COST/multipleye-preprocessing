@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import shutil
 
 import subprocess
 import warnings
@@ -16,15 +17,13 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
-from ..constants import (
-    FIXATION,
-    START_RECORDING_REGEX,
-    STOP_RECORDING_REGEX,
-    EYETRACKER_NAMES,
-    MESSAGE_REGEX,
-    STIMULUS_NAME_MAPPING,
-)
+from ..models.sid import Sid
+from ..models.dcn import Dcn
+from ..config import settings
+from ..utils.data_path_utils import _ci_resolve
 from ..utils.conversion import convert_to_time_str
+from ..utils.data_collection_utils import _report_to_file
+from ..utils.logging import get_logger
 from ..checks.et_quality_checks import (
     check_comprehension_question_answers,
     check_metadata,
@@ -39,15 +38,7 @@ from ..checks.formal_experiment_checks import (
 from ..data_collection.session import Session
 from ..data_collection.stimulus import LabConfig, Stimulus
 from ..plotting.plot import plot_gaze, plot_main_sequence
-from ..psychometric_tests.preprocess_psychometric_tests import (
-    preprocess_plab,
-    preprocess_ran,
-    preprocess_stroop,
-    preprocess_flanker,
-    preprocess_wikivocab,
-    preprocess_lwmc,
-)
-from ..utils.fix_pq_data import remap_wrong_pq_values
+from ..utils.fix_questionnaire_data import remap_wrong_pq_values
 from preprocessing.scripts.prepare_language_folder import (
     extract_stimulus_version_number_from_asc,
 )
@@ -69,6 +60,7 @@ def eyelink(method):
 class MultipleyeDataCollection:
     participant_data_path: Path | str | None
     crashed_session_ids: list[str] = []
+    skipped_session_ids: list[str] = []
     num_sessions = 1
     overview = {}
 
@@ -102,6 +94,7 @@ class MultipleyeDataCollection:
         **kwargs,
     ):
         self.sessions: dict[str, Session] = {}
+        self.skipped_session_ids: list[str] = []
         # TODO: in theory this can be multiple languages for the stimuli..
         self.language = stimulus_language
         self.country = country
@@ -112,7 +105,7 @@ class MultipleyeDataCollection:
         self.reports_dir = kwargs.get("output_dir", "")
         self.pilot_folder = kwargs.get("pilot_folder", "")
 
-        for short_name, long_name in EYETRACKER_NAMES.items():
+        for short_name, long_name in settings.EYETRACKER_NAMES.items():
             if eye_tracker in long_name:
                 self.eye_tracker = short_name
                 self.eye_tracker_name = long_name
@@ -122,7 +115,7 @@ class MultipleyeDataCollection:
             raise ValueError(
                 f"Eye tracker {eye_tracker} not yet supported. "
                 f"Supported eye trackers are: "
-                f"{np.array([val for k, val in EYETRACKER_NAMES.items()]).flatten()}"
+                f"{np.array([val for k, val in settings.EYETRACKER_NAMES.items()]).flatten()}"
             )
         self.config_file = config_file
         self.stimulus_dir = stimulus_dir
@@ -134,8 +127,12 @@ class MultipleyeDataCollection:
         self.psychometric_tests = kwargs.get("psychometric_tests", [])
         self.excluded_sessions = excluded_sessions
         self.included_sessions = included_sessions
+        self.logger = get_logger()
 
-        open(self.data_root.parent / "preprocessing_logs.txt", "w").close()
+        self.logger.info(
+            f"MultipleyeDataCollection initialized. data_root: {self.data_root}"
+        )
+        self.logger.info(f"Main config loaded from {self.config_file}")
 
         if not self.reports_dir:
             self.reports_dir = self.data_root.parent / "quality_reports"
@@ -144,14 +141,23 @@ class MultipleyeDataCollection:
         self.add_recorded_sessions(self.data_root, self.session_folder_regex)
 
         if len(self.sessions) == 0:
-            raise ValueError(
-                f"No sessions found in {self.data_root}. "
-                f"Please check the session_folder_regex and the data_root."
-            )
+            msg = f"No sessions found in {self.data_root}. "
+            if self.included_sessions:
+                msg += (
+                    f"Check if 'include_sessions' {self.included_sessions} is correct. "
+                )
+            if self.excluded_sessions:
+                msg += (
+                    f"Check if 'exclude_sessions' {self.excluded_sessions} "
+                    "is filtering all available data. "
+                )
+
+            msg += "Please check the session_folder_regex and the data_root."
+            raise ValueError(msg)
 
         # load stimulus order versions to know what stimulus randomization was used for
         # each participant
-        stim_order_versions = (
+        stim_order_versions = _ci_resolve(
             self.stimulus_dir / "config" / f"stimulus_order_versions_"
             f"{self.language}_{self.country}_{self.lab_number}.csv"
         )
@@ -175,7 +181,7 @@ class MultipleyeDataCollection:
         if not self.overview:
             self.overview = self.create_dataset_overview()
 
-        return "\n".join("{}\t{}".format(k, v) for k, v in self.overview.items())
+        return "\n".join(f"{k}\t{v}" for k, v in self.overview.items())
 
     # TODO: check these chatgpt functions :D
     def __iter__(self):
@@ -213,47 +219,43 @@ class MultipleyeDataCollection:
         self.data_root = data_root
         self.session_folder_regex = session_folder_regex
 
-        if not session_file_suffix:
+        found_sessions = []
+
+        if not session_file_suffix and self.eye_tracker == "eyelink":
             # TODO: add configs for each eye tracker such that we don't always have to loop through all eye trackers
             #  but can write generic code. E.g. self.eye_tracker.session_file_regex
-            if self.eye_tracker == "eyelink":
-                session_file_suffix = r".edf"
+            session_file_suffix = r".edf"
 
         # get a list of all folders in the data folder
         if session_folder_regex:
-            items = os.scandir(self.data_root)
+            items = list(os.scandir(self.data_root))
             pilots = []
             if self.include_pilots:
-                pilots = os.scandir(self.data_root / self.pilot_folder)
-                pilots = list(pilots)
-                items = list(items) + pilots
+                pilots = list(os.scandir(self.data_root / self.pilot_folder))
+                items = items + pilots
 
             for item in items:
                 if item.is_dir():
                     if re.match(session_folder_regex, item.name, re.IGNORECASE):
-                        if (
-                            (
-                                self.excluded_sessions
-                                and item.name not in self.excluded_sessions
-                            )
-                            or (
-                                self.included_sessions
-                                and item.name in self.included_sessions
-                            )
-                            or (
-                                not self.excluded_sessions
-                                and not self.included_sessions
-                            )
-                        ):
+                        found_sessions.append(item.name)
+                        # Determine if the session should be included based on filters
+                        keep = True
+                        if self.included_sessions:
+                            keep = item.name in self.included_sessions
+                        elif self.excluded_sessions:
+                            keep = item.name not in self.excluded_sessions
+
+                        if keep:
                             session_file = list(
                                 Path(item.path).glob("*" + session_file_suffix)
                             )
 
                             if len(session_file) == 0:
-                                raise ValueError(
-                                    f"No files found in folder {item.name} that match "
-                                    f"the pattern {session_file_suffix}"
+                                self.logger.warning(
+                                    f"No EDF file found for {item.name}, skipping."
                                 )
+                                self.skipped_session_ids.append(item.name)
+                                continue
 
                             elif len(session_file) > 1:
                                 raise ValueError(
@@ -278,29 +280,96 @@ class MultipleyeDataCollection:
                             self.sessions[item.name] = ses
 
                     else:
-                        print(
-                            f"Folder {item.name} does not match the regex pattern "
-                            f"{session_folder_regex}. Not considered as session."
-                        )
+                        if item.name not in settings.IGNORED_SESSION_FOLDERS:
+                            self.logger.warning(
+                                f"Folder in eye-tracking-sessions '{item.name}' does not match the eye-tracking session regex pattern "
+                                f"{session_folder_regex}. Not considered an eye-tracking session."
+                            )
+
+        if not found_sessions:
+            raise ValueError(
+                f"No sessions found (or none matching the ex-/inclusion criteria) in data folder {self.data_root}"
+            )
+
+        unique_sessions = set(found_sessions)
+
+        if len(unique_sessions) != len(found_sessions):
+            raise ValueError(
+                "Session identifiers are not unique. PLease check if one identifier has been used twice. "
+                "For example for a pilot session AND a core session."
+                "Should that be the case, please contact the multipleye team."
+            )
+
+        if self.included_sessions:
+            missing_included = set(self.included_sessions) - unique_sessions
+            if missing_included:
+                self.logger.warning(
+                    f"The following sessions were specified in 'include_sessions' but "
+                    f"were not found in the data folder: {sorted(list(missing_included))}"
+                )
+
+        if self.excluded_sessions:
+            missing_excluded = set(self.excluded_sessions) - unique_sessions
+            if missing_excluded:
+                self.logger.warning(
+                    f"The following sessions were specified in 'exclude_sessions' but "
+                    f"were not found in the data folder: {sorted(list(missing_excluded))}"
+                )
 
     @eyelink
     def convert_edf_to_asc(self) -> None:
         if not self.sessions:
             raise ValueError("No sessions added. Please add sessions first.")
 
-        # TODO: make sure that edf2asc is installed on the computer
-        for session in tqdm(self.sessions, desc="Converting EDF to ASC"):
-            path = Path(self.sessions[session].session_file_path)
+        self.logger.info(
+            f"Starting EDF to ASC conversion for {len(self.sessions)} sessions."
+        )
 
-            if not path.with_suffix(".asc").exists():
-                subprocess.run(["edf2asc", path])
+        # Check if edf2asc is installed
+        if shutil.which("edf2asc") is None:
+            raise RuntimeError(
+                "The 'edf2asc' binary was not found on your system. "
+                "Please make sure it is installed and added to your PATH. "
+                "You can download the EyeLink Developers Kit from the SR Research support forum."
+            )
 
-                asc_path = path.with_suffix(".asc")
-                self.sessions[session].asc_path = asc_path
+        for session_identifier, session in tqdm(
+            self.sessions.items(), desc="Converting EDF to ASC"
+        ):
+            edf_path = Path(session.session_file_path)
+
+            output_asc_folder = (
+                settings.OUTPUT_DIR / settings.ASC_FOLDER / session_identifier
+            )
+            output_asc_path = output_asc_folder / f"{session_identifier}.asc"
+
+            if output_asc_path.exists() and not settings.FORCE_RECONVERT_ASC:
+                self.logger.debug(
+                    f"ASC already exists in output folder for {session_identifier}. Skipping conversion."
+                )
+                session.asc_path = output_asc_path
+                continue
+
+            # Run conversion if ASC doesn't exist in output folder or force is enabled
+            self.logger.debug(f"Converting EDF to ASC for {session_identifier}")
+            subprocess.run(
+                ["edf2asc", "-y", edf_path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+            local_asc_path = edf_path.with_suffix(".asc")
+            if local_asc_path.exists():
+                self.logger.debug(f"Copying {local_asc_path} to {output_asc_path}")
+                output_asc_folder.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(local_asc_path, output_asc_path)
+                session.asc_path = output_asc_path
             else:
-                asc_path = path.with_suffix(".asc")
-                self.sessions[session].asc_path = asc_path
-                # print(f'ASC file already exists for {session}.')
+                self.logger.error(
+                    f"Failed to convert EDF to ASC for {session_identifier}"
+                )
+
+        self.logger.info("EDF to ASC conversion completed.")
 
     @staticmethod
     def load_lab_config(
@@ -345,57 +414,46 @@ class MultipleyeDataCollection:
         MultipleyeDataCollection object
         """
 
-        if excluded_sessions is None:
-            excluded_sessions = []
-        elif included_sessions is None:
-            included_sessions = []
-        else:
+        excluded_sessions = excluded_sessions or []
+        included_sessions = included_sessions or []
+
+        if excluded_sessions and included_sessions:
             raise ValueError(
-                "Either excluded_sessions or included_sessions can be provided, not both."
+                "Both 'included_sessions' and 'excluded_sessions' are provided and not empty. "
+                "The pipeline only supports using one type of filter at a time to avoid ambiguity. "
+                "Please check your configuration and ensure that either 'include_sessions' is used "
+                "to process only specific sessions, or 'exclude_sessions' is used to skip specific sessions, "
+                "but not both."
             )
         data_dir = Path(data_dir)
 
         data_folder_name = data_dir.name
-        _, stimulus_language, country, city, lab_number, year = data_folder_name.split(
-            "_"
-        )
-        if not data_folder_name.startswith("MultiplEYE"):
+
+        try:
+            dcn = Dcn(data_folder_name)
+        except (ValueError, TypeError) as e:
             raise ValueError(
-                f"Data collection name {data_folder_name} does not start with "
-                f"'MultiplEYE'. "
-                f"Please check the folder name."
-            )
-        if not year.isdigit() or len(year) != 4:
-            raise ValueError(
-                f"Year {year} of the data collection name is not a valid year. "
-                f"It should be a 4 digit number."
-            )
-        if not lab_number.isdigit() or len(lab_number) != 1:
-            raise ValueError(
-                f"Lab number {lab_number} of the data collection name is not a "
-                f"valid lab number. It should be a 1 digit number."
-            )
-        if len(country) != 2 or not country.isalpha():
-            raise ValueError(
-                f"Country {country} of the data collection name is not a "
-                f"valid country code. It should be a 2 letter code."
-            )
-        if len(city) < 2 or not city.isalpha():
-            raise ValueError(
-                f"City {city} of the data collection name is not a valid city name. "
-                f"It should be a string with at least 2 letters."
-            )
-        if not stimulus_language.isalpha() or len(stimulus_language) != 2:
-            raise ValueError(
-                f"Stimulus language {stimulus_language} of the data collection name is "
-                f"not a valid language code. It should be a 2 letter code."
-            )
+                f"Invalid data collection name: {data_folder_name}. {e}"
+            ) from e
+
+        stimulus_language = dcn.lang
+        country = dcn.country
+        city = dcn.city
+        lab_number = dcn.lab
+        year = dcn.year
 
         session_folder_regex = (
-            r"\d\d\d" + f"_{stimulus_language}_{country}_{lab_number}" + r"_ET\d"
+            r"\d\d\d"
+            + f"_{stimulus_language}_{country}_{lab_number}"
+            + r"_ET\d(?:_.*)?"
         )
 
-        stimulus_folder_path = data_dir / f"stimuli_{data_folder_name}"
+        stimulus_folder_path = (
+            settings.OUTPUT_DIR / f"stimuli_{data_folder_name}"
+        ).resolve()
+        if not stimulus_folder_path.exists():
+            stimulus_folder_path = (data_dir / f"stimuli_{data_folder_name}").resolve()
+
         config_file = (
             stimulus_folder_path
             / "config"
@@ -472,10 +530,12 @@ class MultipleyeDataCollection:
         if not output_dir:
             output_dir = self.reports_dir
 
-        session_results = output_dir / session_name / "sanity_checks"
+        session_results = (
+            Path(output_dir) / settings.SANITY_CHECKS_FOLDER / session_name
+        )
         os.makedirs(session_results, exist_ok=True)
 
-        report_file_path = session_results / f"{session_name}_{self.city}_report.txt"
+        report_file_path = session_results / f"{session_name}_{self.city}_report.md"
         self.sessions[session_name].sanity_report_path = report_file_path
 
         if not report_file_path.exists() or overwrite:
@@ -484,14 +544,17 @@ class MultipleyeDataCollection:
             messages = self.sessions[session_name].messages
 
             if not messages:
-                self._write_to_logfile(
-                    f"No messages found in asc file of {session_name}."
-                )
+                self.logger.warning(f"No messages found in asc file of {session_name}.")
 
             stimuli = self.sessions[session_name].stimuli
 
+            _report_to_file(
+                f"# Sanity Check: {session_name} — {self.city}\n",
+                report_file_path,
+            )
+            _report_to_file("## Metadata", report_file_path)
+
             with open(report_file_path, "a+", encoding="utf-8") as report_file:
-                # set report object
                 report = partial(report_meta, report_file=report_file)
                 check_metadata(
                     self.sessions[session_name].pm_gaze_metadata,
@@ -500,11 +563,16 @@ class MultipleyeDataCollection:
                     report,
                 )
 
+            _report_to_file("## Logfile", report_file_path)
             self._check_logfiles(stimuli, session_name)
+            _report_to_file("## Gaze Frame", report_file_path)
             self._check_stimuli_gaze_frame(gaze, stimuli, session_name)
+            _report_to_file("## ASC Messages", report_file_path)
             self._check_asc_messages(stimuli, messages, session_name)
+            _report_to_file("## Validation & Calibration", report_file_path)
             self._check_asc_validation(session_name)
             self._load_psychometric_tests(session_name)
+            _report_to_file("## Comprehension Answers", report_file_path)
             self._extract_question_answers(stimuli, session_name)
             fix_report = self._check_avg_fix_durations(gaze)
 
@@ -512,6 +580,9 @@ class MultipleyeDataCollection:
                 session_results / f"fixation_statistics_per_page_{session_name}.tsv",
                 separator="\t",
             )
+
+            legend = "\n---\n\n**Legend:** ✅ Pass | ❌ Fail | ⚠️ Warning\n"
+            _report_to_file(legend, report_file_path)
 
             if plotting:
                 self._create_plots(
@@ -525,7 +596,7 @@ class MultipleyeDataCollection:
         :return:
         """
         if not session:
-            sessions = [key for key in self.sessions.keys()]
+            sessions = [key for key in self.sessions]
             return sessions
         elif session not in self.sessions:
             raise KeyError(f"Session {session} not found in {self.data_root}.")
@@ -572,6 +643,10 @@ class MultipleyeDataCollection:
             "Number of eye-tracking (ET) sessions per participant": self.num_sessions,
         }
 
+        # Add warnings to overview
+        if hasattr(logging, "_captured_warnings") and logging._captured_warnings:
+            overview["Warnings"] = list(set(logging._captured_warnings))
+
         with open(overview_path, "w", encoding="utf8") as f:
             yaml.dump(overview, f)
 
@@ -583,7 +658,13 @@ class MultipleyeDataCollection:
         if not path:
             overview_path = self.data_root.parent / f"{session_idf}_overview.yaml"
         else:
-            overview_path = path / session_idf / f"{session_idf}_overview.yaml"
+            overview_path = (
+                Path(path)
+                / settings.METADATA_FOLDER
+                / session_idf
+                / f"{session_idf}_overview.yaml"
+            )
+            overview_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(overview_path, "w", encoding="utf8") as f:
             yaml.dump(sess.create_overview(), f)
@@ -597,17 +678,20 @@ class MultipleyeDataCollection:
 
         for session in (pbar := tqdm(self.sessions.keys(), total=len(self.sessions))):
             pbar.set_description(f"Preparing session {session}")
-            p_id = session.split("_")[0]
+            try:
+                p_id = Sid(session).pid
+            except (ValueError, TypeError):
+                p_id = session.split("_")[0] if "_" in session else session
 
-            if "start_after_trial" in session:
-                if p_id not in self.crashed_session_ids:
-                    self.crashed_session_ids.append(p_id)
-                    self._write_to_logfile(
-                        f"Session {session} started after a trial. Only the completed stimuli will be considered."
-                    )
+            if "start_after_trial" in session and p_id not in self.crashed_session_ids:
+                self.crashed_session_ids.append(p_id)
+                self.logger.warning(
+                    f"Session {session} started after a trial. Only the completed stimuli will be considered."
+                )
 
             (
                 self.sessions[session].completed_stimuli_ids,
+                self.sessions[session].completed_stimuli_names,
                 self.sessions[session].stimuli_trial_mapping,
             ) = self._load_session_completed_stimuli(session)
             self.sessions[session].messages = self._parse_asc(session)
@@ -629,12 +713,15 @@ class MultipleyeDataCollection:
             if (
                 self.sessions[session].stimulus_order_ids
                 != self.sessions[session].completed_stimuli_ids
-            ):
-                if p_id not in self.crashed_session_ids:
-                    self._write_to_logfile(
-                        f"Stimulus order and completed stimuli do not match for "
-                        f"session {session}. Please check the files carefully."
-                    )
+            ) and p_id not in self.crashed_session_ids:
+                msg = (
+                    f"Stimulus order and completed stimuli do not match for "
+                    f"session {session}. Please check the files carefully."
+                )
+                self.logger.warning(msg)
+                if not hasattr(logging, "_captured_warnings"):
+                    logging._captured_warnings = []  # type: ignore
+                logging._captured_warnings.append(msg)  # type: ignore
 
             self.sessions[session].stimuli = self._load_session_stimuli(
                 self.stimulus_dir,
@@ -671,7 +758,7 @@ class MultipleyeDataCollection:
         if stimulus_names is None:
             stimulus_names = [
                 name
-                for name, num in STIMULUS_NAME_MAPPING.items()
+                for name, num in settings.STIMULUS_NAME_MAPPING.items()
                 if num in self.sessions[session_identifier].completed_stimuli_ids
             ]
 
@@ -714,8 +801,8 @@ class MultipleyeDataCollection:
             f"Logfile path {general_logfile} does not exist."
         )
 
-        regex = r"(STIMULUS_ORDER_VERSION_)(?P<order_version>\d+)"
-        with open(general_logfile, "r", encoding="utf-8") as f:
+        regex = settings.LOGFILE_ORDER_VERSION_REGEX
+        with open(general_logfile, encoding="utf-8") as f:
             text = f.read()
         match = re.search(regex, text)
 
@@ -760,14 +847,16 @@ class MultipleyeDataCollection:
             )
         return logfile
 
-    def _load_session_completed_stimuli(self, session_identifier):
+    def _load_session_completed_stimuli(
+        self, session_identifier
+    ) -> tuple[list, list, dict]:
         session_path = self.sessions[session_identifier].session_folder_path
         logfile_folder = Path(f"{session_path}/logfiles")
         completed_stim_path = logfile_folder / "completed_stimuli.csv"
 
         completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
 
-        p_id = session_identifier.split("_")[0]
+        p_id = Sid(session_identifier).pid
 
         # load trial to stimulus mapping
         trial_ids = completed_stimuli["trial_id"].to_list()
@@ -795,24 +884,30 @@ class MultipleyeDataCollection:
         if completed_stimuli["completed"].cast(pl.Utf8).str.contains("restart").any():
             if p_id not in self.crashed_session_ids:
                 self.crashed_session_ids.append(p_id)
-                self._write_to_logfile(
+                self.logger.warning(
                     f"Session {session_identifier} has been restarted. Only the completed stimuli will be considered."
                 )
             # delete the last row in the csv if it contains 'restart' in the completed column
             completed_stimuli = completed_stimuli[:-1]
 
         completed_stimuli = completed_stimuli.cast({"completed": pl.Int8})
-        completed_stimuli = completed_stimuli.filter(
+        completed_stimuli_ids = completed_stimuli.filter(
             completed_stimuli["completed"] == 1
         )["stimulus_id"].to_list()
+        # get completed stimuli completes names, i.e. name + id
+        completed_stimulus_names = completed_stimuli["stimulus_name"].to_list()
+        completed_stimulus_names = [
+            str(name) + "_" + str(stim_id)
+            for name, stim_id in zip(completed_stimulus_names, completed_stimuli_ids)
+        ]
 
-        return completed_stimuli, stimuli_trial_mapping
+        return completed_stimuli_ids, completed_stimulus_names, stimuli_trial_mapping
 
     def _load_session_stimulus_order(
         self, session_identifier, logfile_order_version: int
     ) -> list[int]:
         # if the session crashed, only load the stimuli that were actually completed in that session
-        p_id = session_identifier.split("_")[0]
+        p_id = Sid(session_identifier).pid
         incomplete_order = []
         if p_id in self.crashed_session_ids:
             incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
@@ -821,29 +916,41 @@ class MultipleyeDataCollection:
         stim_order_version = self.stim_order_versions[
             self.stim_order_versions["participant_id"] == int(p_id)
         ]
-        if len(stim_order_version) == 0:
-            self._write_to_logfile(
+
+        if stim_order_version.empty:
+            self.logger.warning(
                 f"Participant ID {p_id} not found in stimulus order versions. Please check the "
                 f"participant IDs in the stimulus order versions file. It is possible that the team did not "
                 f"upload the correct stimulus version from the experiment folder. Extracting version "
-                f"from asc file"
+                f"from asc file."
             )
             version = extract_stimulus_version_number_from_asc(
                 self.sessions[session_identifier].asc_path
             )
 
+            version = int(version)
+
             if version == logfile_order_version:
-                self._write_to_logfile(
-                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                    f"extracted from the asc file ({version}) for participant ID {p_id}. Using the "
-                    f"version from the logfile."
-                )
+                # Try to look up the stimulus order by version number instead
+                # of participant ID, since the PID wasn't found in the CSV.
                 stim_order_version = self.stim_order_versions[
                     self.stim_order_versions["version_number"] == version
                 ]
 
+                if stim_order_version.empty:
+                    raise ValueError(
+                        f"Stimulus order version {version} extracted from the ASC file "
+                        f"cannot be found in the stimulus order versions CSV. "
+                        f"The team should upload the correct stimulus folder."
+                    )
+
+                self.logger.warning(
+                    "Using the stimulus order version from the ASC file. "
+                    "The team should still upload the correct stimulus folder!"
+                )
+
             else:
-                self._write_to_logfile(
+                self.logger.warning(
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
                     f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
                     f"Please check the files "
@@ -853,7 +960,7 @@ class MultipleyeDataCollection:
         if len(stim_order_version) == 1:
             version = stim_order_version["version_number"].values[0]
             if logfile_order_version != version:
-                self._write_to_logfile(
+                self.logger.warning(
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
                     f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the "
                     f"version from the logfile."
@@ -894,7 +1001,7 @@ class MultipleyeDataCollection:
         else:
             raise ValueError(
                 f"More than one or no entry found for participant ID {p_id} in stimulus order versions. "
-                f"Please check the stimulus order versions file for duplicates."
+                f"Please add the used stimulus folder from the experiment. Or check the stimulus order versions file for missing IDs or duplicates."
             )
 
     def _parse_asc(self, session_identifier: str):
@@ -914,7 +1021,6 @@ class MultipleyeDataCollection:
             "transition_screen",
             "final_validation",
             "show_final_screen",
-            "optional_break_screen",
             "fixation_trigger:skipped_by_experimenter",
             "fixation_trigger:experimenter_calibration_triggered",
             "recalibration",
@@ -959,9 +1065,9 @@ class MultipleyeDataCollection:
         os.makedirs(result_folder, exist_ok=True)
         in_break = False
 
-        with open(asc_file, "r", encoding="utf-8") as f:
+        with open(asc_file, encoding="utf-8") as f:
             for line in f.readlines():
-                if match := MESSAGE_REGEX.match(line):
+                if match := settings.MESSAGE_REGEX.match(line):
                     messages.append(match.groupdict())
                     msg = match.groupdict()["message"]
                     ts = match.groupdict()["timestamp"]
@@ -994,7 +1100,7 @@ class MultipleyeDataCollection:
                     elif msg.split()[0] == "obligatory_break_duration:":
                         breaks["duration_ms"].append(msg.split()[1])
 
-                if match := START_RECORDING_REGEX.match(line):
+                if match := settings.START_RECORDING_REGEX.match(line):
                     reading_times["start_ts"].append(match.groupdict()["timestamp"])
                     reading_times["start_msg"].append(match.groupdict()["type"])
 
@@ -1011,7 +1117,7 @@ class MultipleyeDataCollection:
 
                     reading_times["pages"].append(match.groupdict()["page"])
                     reading_times["status"].append("reading time")
-                elif match := STOP_RECORDING_REGEX.match(line):
+                elif match := settings.STOP_RECORDING_REGEX.match(line):
                     reading_times["stop_ts"].append(match.groupdict()["timestamp"])
                     reading_times["stop_msg"].append(match.groupdict()["type"])
 
@@ -1034,7 +1140,7 @@ class MultipleyeDataCollection:
                     index=False,
                 )
             else:
-                self._write_to_logfile(
+                self.logger.warning(
                     f"Session {session_identifier} did not finish a break properly, "
                     f"missing end message."
                 )
@@ -1094,18 +1200,26 @@ class MultipleyeDataCollection:
             reading_times["pages"].append(page)
             reading_times["status"].append("time before pages and breaks")
 
-        df = pd.DataFrame(
-            {
-                "start_ts": reading_times["start_ts"],
-                "stop_ts": reading_times["stop_ts"],
-                "trial": reading_times["trials"],
-                "stimulus": reading_times["stimulus_name"],
-                "page": reading_times["pages"],
-                "type": reading_times["status"],
-                "duration_ms": reading_times["duration_ms"],
-                "duration-hh:mm:ss": reading_times["duration_str"],
-            }
-        )
+        try:
+            df = pd.DataFrame(
+                {
+                    "start_ts": reading_times["start_ts"],
+                    "stop_ts": reading_times["stop_ts"],
+                    "trial": reading_times["trials"],
+                    "stimulus": reading_times["stimulus_name"],
+                    "page": reading_times["pages"],
+                    "type": reading_times["status"],
+                    "duration_ms": reading_times["duration_ms"],
+                    "duration-hh:mm:ss": reading_times["duration_str"],
+                }
+            )
+        except ValueError:
+            raise ValueError(
+                f"The reading times could not be computed properly for {session_identifier}. Please check 1) if the completed "
+                "stimulus file is alright (i.e. completed should be 1 for all, no missing values, etc.), "
+                "2) if anything happened during the session (crash or "
+                "technical errors, e.g. check the end of the asc file if it looks normal), 3) contact the support team."
+            )
 
         df.to_csv(
             result_folder / f"times_per_page_{session_identifier}.tsv",
@@ -1221,7 +1335,7 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier. eg "005_ET_EE_1_ET1"
         """
 
-        p_id = session_identifier.split("_")[0]
+        p_id = Sid(session_identifier).pid
         check_messages(
             messages,
             stimuli,
@@ -1253,7 +1367,7 @@ class MultipleyeDataCollection:
 
         # for each gaze and page compute the average fixation duration
         fixation_durations_page_avg = (
-            gaze.events.frame.filter(pl.col("name") == FIXATION)
+            gaze.events.frame.filter(pl.col("name") == settings.FIXATION)
             .group_by(gaze.trial_columns)
             .agg(
                 [
@@ -1270,41 +1384,41 @@ class MultipleyeDataCollection:
         return fixation_durations_page_avg
 
     def _load_psychometric_tests(self, session_identifier: str):
+        # Match the eye-tracking session to a psychometric test folder
+        # We use Sid.equals_soft to handle prefix variations (e.g., ET1 matching PT1 or PT2)
+        try:
+            et_sid = Sid(session_identifier)
+        except (ValueError, TypeError):
+            et_sid = None
+
         if self.psychometric_tests:
-            for test in self.psychometric_tests:
-                test_path = (
-                    self.data_root.parent
-                    / "psychometric-tests-sessions"
-                    / session_identifier
+            pt_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            found_path = None
+
+            if pt_dir.exists() and et_sid:
+                # Iterate through folders in psychometric-tests-sessions
+                for potential_dir in pt_dir.iterdir():
+                    if potential_dir.is_dir():
+                        try:
+                            folder_sid = Sid(potential_dir.name)
+                            if et_sid.equals_soft(folder_sid):
+                                found_path = potential_dir
+                                break
+                        except (ValueError, TypeError):
+                            continue
+
+            if found_path:
+                self.sessions[
+                    session_identifier
+                ].psychometric_tests_session = found_path.name
+            else:
+                self.logger.warning(
+                    f"No psychometric tests session folder for {session_identifier} could be found. Please check."
                 )
-                if not test_path.exists():
-                    self._write_to_logfile(
-                        f"Psychometric test path {test_path} does not exist for session {session_identifier}."
-                    )
-                else:  # TODO: just use preprocess_all_sessions(), this calculates all tests if possible
-                    if test == "PLAB":
-                        preprocess_plab(path=test_path)
-                    elif test == "RAN":
-                        preprocess_ran(path=test_path)
-                    elif test == "Stroop":
-                        preprocess_stroop(path=test_path)
-                    elif test == "Flanker":
-                        preprocess_flanker(path=test_path)
-                    elif test == "WikiVocab":
-                        preprocess_wikivocab(path=test_path)
-                    elif test == "LWMC":
-                        preprocess_lwmc(path=test_path)
-                    else:
-                        self._write_to_logfile(
-                            f"Psychometric test {test} not recognized. "
-                            f"Please check the psychometric tests configuration in the lab configuration yaml file."
-                        )
 
     def _extract_question_answers(
         self, stimuli: list[Stimulus], session_identifier: str
     ) -> None:
-        # TODO: Jana
-
         check_comprehension_question_answers(
             self.sessions[session_identifier].logfile,
             stimuli,
@@ -1331,45 +1445,23 @@ class MultipleyeDataCollection:
             pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))
         ):
             pbar.set_description(f"Parsing participant data {session}")
-            notes = ""
-            folder = Path(self.sessions[session].session_folder_path)
-            try:
-                participant_id, country, lang, lab, session_id = session.split("_")
-            except ValueError:
-                if "start_after_trial_" in session:
-                    logging.warning(f"Session {session} has been restarted.")
-                    (
-                        participant_id,
-                        country,
-                        lang,
-                        lab,
-                        session_id,
-                        _,
-                        _,
-                        _,
-                        trial,
-                    ) = session.split("_")
-                    notes = f"Session has been restarted after trial {trial}."
-                elif "full_restart" in session:
-                    logging.warning(f"Session {session} has been fully restarted.")
-                    (
-                        participant_id,
-                        country,
-                        lang,
-                        lab,
-                        session_id,
-                        _,
-                        _,
-                    ) = session.split("_")
-                    notes = "Session has been fully restarted."
-                else:
-                    raise ValueError(
-                        f"Session {session} does not match the expected format."
-                    )
 
-            pq_file = folder / f"{participant_id}_{country}_{lang}_{lab}_pq_data.json"
+            try:
+                sid = Sid(session)
+                participant_id = sid.pid
+                session_id = sid.session
+                notes = sid.notes
+            except (ValueError, TypeError):
+                logging.warning(
+                    f"Session {session} does not match the expected format."
+                )
+                continue
+
+            folder = Path(self.sessions[session].session_folder_path)
+
+            pq_file = folder / f"{sid.base_id}_pq_data.json"
             if pq_file.exists():
-                with open(pq_file, "r", encoding="utf-8") as f:
+                with open(pq_file, encoding="utf-8") as f:
                     data = json.load(f)
 
                 # due to a bug in an earlier version of the experiment, some of the participant data has been lost,
@@ -1406,14 +1498,9 @@ class MultipleyeDataCollection:
 
             participant_data.to_csv(self.participant_data_path, index=False)
 
-    def _write_to_logfile(self, message: str) -> None:
-        log_file = self.data_root.parent / "preprocessing_logs.txt"
-        with open(log_file, "a", encoding="utf-8") as logs:
-            logs.write(message + "\n")
-
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    settings.setup_logging()
     data_collection_folder = "MultiplEYE_ET_EE_Tartu_1_2025"
 
     this_repo = Path().resolve().parent

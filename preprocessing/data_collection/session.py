@@ -5,6 +5,7 @@ import polars as pl
 
 from ..data_collection.stimulus import Stimulus, LabConfig
 from ..data_collection.trial import Trial
+from ..models import Sid
 
 
 @dataclass
@@ -27,6 +28,7 @@ class Session:
     randomization_version: int = field(default="unknown", init=False)
     stimulus_folder_name: str = field(default="unknown", init=False)
     completed_stimuli_ids: list[int] = field(default="unknown", init=False)
+    completed_stimuli_names: list[str] = field(default="unknown", init=False)
     question_order: dict[str, list[str]] = field(default="unknown", init=False)
     stimulus_order_ids: list[int] = field(default="unknown", init=False)
     messages: list[dict[str, str]] = field(default="unknown", init=False)
@@ -50,6 +52,7 @@ class Session:
     avg_comprehension_score: float = field(default="unknown", init=False)
     avg_calibration_error: float = field(default="unknown", init=False)
     num_calibrations: int = field(default="unknown", init=False)
+    num_validations: int = field(default="unknown", init=False)
     avg_validation_error: float = field(default="unknown", init=False)
 
     # sanity report
@@ -59,9 +62,25 @@ class Session:
     pm_gaze_path: Path = field(default="unknown", init=False)
     pm_gaze_metadata: dict = field(default="unknown", init=False)
 
+    # psychometric tests
+    psychometric_tests_session: str = field(default="unknown", init=False)
+
+    # data formats
+    raw_data: bool = field(default=False, init=False)
+    fixations: bool = field(default=False, init=False)
+    saccades: bool = field(default=False, init=False)
+    reading_measures: bool = field(default=False, init=False)
+    answers: bool = field(default=False, init=False)
+
     trials = list[Trial]
 
+    @property
+    def sid(self) -> "Sid":
+        return Sid(self.session_identifier)
+
     def create_overview(self):
+        self._create_stats()
+
         dict_repr = {
             "participant_id": self.participant_id,
             "session_identifier": self.session_identifier,
@@ -80,10 +99,20 @@ class Session:
             "avg_comprehension_score": self.avg_comprehension_score,
             "avg_calibration_error": self.avg_calibration_error,
             "num_calibrations": self.num_calibrations,
+            "num_validations": self.num_validations,
             "avg_validation_error": self.avg_validation_error,
             "data_loss_ratio": self.pm_gaze_metadata["data_loss_ratio"],
             "Mount_configuration": self.pm_gaze_metadata["mount_configuration"],
             "Pupil_data_type": self.pm_gaze_metadata["pupil_data_type"],
+            "Raw_data": self.raw_data,
+            "Fixations": self.fixations,
+            "Saccades": self.saccades,
+            "Reading_measures": self.reading_measures,
+            "Answers": self.answers,
         }
 
         return dict_repr
+
+    def _create_stats(self):
+        self.num_calibrations = len(self.calibrations)
+        self.num_validations = len(self.validations)

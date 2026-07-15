@@ -110,7 +110,7 @@ This should show the program's version and usage information.
 
 (running_pipelines)=
 
-## Running the Pipelines
+## Running the Pipeline
 
 The process described below is also documented in a step-by-step notebook. This notebook breaks up
 the
@@ -118,27 +118,16 @@ pipeline into the smaller steps. And you can go through them one by one.
 
 ```{tip}
 Go through the [step-by-step notebook](https://github.com/MultiplEYE-COST/multipleye-preprocessing/blob/main/preprocessing.ipynb).
-You can also open the same file locally at `preprocessing.ipynb` in the repo root.
+You can also open the same file locally at `preprocessing.ipynb` in the repo root. Note that the notebook is currently configured to only preprocess one session.
 ```
 
-After installation, the pipelines can be executed directly from the command line as they are
+After installation, the pipeline can be executed directly from the command line as they are
 registered as entry points in `pyproject.toml`.
 If this is your first time with the pipeline, or you are unsure if you have the right data and
-formats, please read into the more detailled {ref}`reference_guide` chapter.
+formats, please read into the more detailed {ref}`reference_guide` chapter.
 
 To run a pipeline you wil have to fill in the relevant information in the
-`multipleye_settings_preprocessing.yaml` file.
-
-Currently, there is one pipeline available which has been moved to `preprocessing.scripts`
-and should be called by its registered name. The main pipelines require the config file path as an
-argument. However,
-the default config file is `multipleye_settings_preprocessing.yaml`, so if you have
-updated the relevant information in that file, you can run the pipelines without providing the path
-to the config file.
-
-```{note}
-All other pipelines and scripts are under development and should not be used yet.
-```
+`multipleye_settings_preprocessing.yaml` file. Please find more information on the config file: {ref}`configuration_guide`
 
 ### Download your MultiplEYE data
 
@@ -160,11 +149,11 @@ To run the MultiplEye preprocessing pipeline (if you used `uv` for installation 
 environment):
 
 ```bash
-run_multipleye_preprocessing
+run_preprocessing
 ```
 
 You can always check the available options for each script by using the `--help` flag:
 
 ```bash
-run_multipleye_preprocessing --help
+run_preprocessing --help
 ```
