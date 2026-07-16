@@ -21,6 +21,7 @@ preprocessing
 technical_architecture
 pipeline_stages
 reading_measures
+sanity_check_report
 psychometric_tests
 
 ```

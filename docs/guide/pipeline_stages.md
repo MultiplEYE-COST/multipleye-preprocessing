@@ -212,6 +212,7 @@ help spot problematic sessions visually.
 
 Session overviews and a dataset overview YAML are written to the metadata folder. The
 checks live in `checks/et_quality_checks.py` and `checks/formal_experiment_checks.py`.
+See {ref}`sanity_check_report` for a complete description of every field in the report output.
 
 (preprocessing_step_12)=
 
