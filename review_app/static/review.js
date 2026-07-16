@@ -205,15 +205,34 @@
     var info = document.createElement("div");
     info.id = "lightbox-info";
     info.style.cssText =
-      "position:absolute;top:0;left:0;right:0;background:rgba(0,0,0,0.6);color:#fff;font-size:0.9rem;padding:8px 16px;text-align:center;line-height:1.4";
+      "position:absolute;top:0;left:0;right:0;background:rgba(0,0,0,0.6);color:#fff;font-size:1.1rem;padding:10px 16px;text-align:center;line-height:1.5";
     info.textContent = "";
     div.appendChild(info);
     var navHint = document.createElement("div");
     navHint.id = "lightbox-navhint";
     navHint.style.cssText =
-      "position:absolute;bottom:1.5rem;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.4);font-size:0.75rem";
-    navHint.textContent = "\u2190 \u2192 or h/l to navigate  \u00B7 Esc to close";
+      "position:absolute;bottom:1.5rem;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.5);font-size:0.9rem;white-space:nowrap";
+    navHint.textContent = "\u2190 \u2192 arrow keys or h/l  \u00B7 Esc to close";
     div.appendChild(navHint);
+    function makeNavArrow(dir) {
+      var a = document.createElement("div");
+      a.textContent = dir === "left" ? "\u2039" : "\u203A";
+      a.style.cssText =
+        "position:absolute;top:50%;" + (dir === "left" ? "left:0.5rem" : "right:0.5rem") +
+        ";transform:translateY(-50%);font-size:4rem;color:#fff;cursor:pointer;opacity:0.3;user-select:none;line-height:1";
+      a.onmouseenter = function () { a.style.opacity = "0.7"; };
+      a.onmouseleave = function () { a.style.opacity = "0.3"; };
+      a.onclick = function (e) {
+        e.stopPropagation();
+        var i = (div._idx || 0) + (dir === "left" ? -1 : 1);
+        if (i < 0) i = currentPlots.length - 1;
+        if (i >= currentPlots.length) i = 0;
+        showPlot(i);
+      };
+      return a;
+    }
+    div.appendChild(makeNavArrow("left"));
+    div.appendChild(makeNavArrow("right"));
     var closeBtn = document.createElement("div");
     closeBtn.textContent = "\u00D7";
     closeBtn.style.cssText =
