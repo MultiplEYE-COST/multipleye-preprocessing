@@ -121,7 +121,7 @@ line is a bullet prefixed with `✅` if the value passes, or blank if it does no
   issues.
 
 - **Sampling rate:** Measured sampling frequency of the eye-tracker hardware. Expected 1000 Hz
-  for the EyeLink 1000 Plus. [@saphjra]
+  for MultiplEYE core data collection.
 
   *Example:* `1000.0`
 
@@ -147,7 +147,6 @@ If the message is also missing in the asc file and no lost message msg is presen
 Missing pages means no gaze data for that stimulus, because the respective page was never shown to the participant.
 This indicates a serious issue with the experiment and should be reported to the experimenter immediately and has to be fixed before further data collection.
 
-[@saphjra for detailed field descriptions]
 
 ---
 
@@ -327,10 +326,12 @@ ratio.** Practice trials have 2 questions; main trials have 6. Stimulus names ar
 **Overall correct answers**: 52 out of 64 (0.81)
 ```
 
-*Acceptable:* >50% overall.
+*Acceptable:* >35% overall.
 
-*Problematic:* Below 25% suggests disengagement, as this value is even below randomly guessing. Stimuli with 0 correct answers warrant manual
-review.
+*Alarming:* 25% - 35% overall, suggest random guessing or disengagement with the task, as this is around the expected
+ accuracy for random guessing (1/64 = 0.25). Stimuli with 0 correct answers warrant manual review.
+
+*Problematic:* Below 25% suggests disengagement, as this value is even below randomly guessing.
 
 ---
 
@@ -359,8 +360,7 @@ review.
 
 **How to interpret the report holistically rather than field-by-field.** The patterns below
 help distinguish normal sessions from problematic ones. These are heuristics, not hard rules --
-revise them as domain knowledge evolves. [@saphjra for review]
-
+revise them as domain knowledge evolves.
 ### Normal session
 
 A clean session typically shows: 12-15 validations, mostly good (score <0.305), no bad
@@ -410,5 +410,3 @@ intervening calibration).
   eye-tracker switched the tracked eye mid-session. This suggests either a calibration issue of the participant,
   which was mitigated by changing the tracked eye or a mistake by the experimenter, has to be documented in any case in
   the session notes.
-
-[final paragraph, 2-3 sentences]
