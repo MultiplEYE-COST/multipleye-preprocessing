@@ -31,7 +31,7 @@
   <div class="card" style="{{ card_style }}">
     <div style="display:flex;justify-content:space-between;align-items:start">
       <strong style="font-size:0.9rem">{{ d.dcn_name }}</strong>
-      <span class="badge badge-pass">ready</span>
+      <span class="pill pill-{{ d.preflight_status }}">{{ d.preflight_status }}</span>
     </div>
     <div style="margin-top:6px;font-size:0.8rem;color:var(--text-secondary)">
       <span title="{{ lang_name(d.language) }}">{{ d.language }}</span> · {{ d.country }} · {{ d.year }}
@@ -55,14 +55,14 @@
 
 {% if raw %}
 <div style="margin-top:2rem"></div>
-<h3 style="margin-bottom:0.75rem;font-size:0.9rem;color:var(--text-secondary)">Raw data — not processed</h3>
+<h3 style="margin-bottom:0.75rem;font-size:0.9rem;color:var(--text-secondary)">Not processed</h3>
 <div class="grid grid-2">
 {% for d in raw %}
 <a href="/dcn/{{ d.dcn_name }}" style="text-decoration:none;color:inherit">
   <div class="card" style="cursor:pointer">
     <div style="display:flex;justify-content:space-between;align-items:start">
       <strong style="font-size:0.9rem">{{ d.dcn_name }}</strong>
-      <span class="badge badge-{{ d.preflight_status }}">{{ d.preflight_status }}</span>
+      <span class="pill pill-{{ d.preflight_status }}">{{ d.preflight_status }}</span>
     </div>
     <div style="margin-top:6px;font-size:0.8rem;color:var(--text-secondary)">
       <span title="{{ lang_name(d.language) }}">{{ d.language }}</span> · {{ d.country }} · {{ d.year }}

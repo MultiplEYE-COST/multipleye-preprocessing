@@ -294,8 +294,8 @@ class MultipleyeDataCollection:
 
         if len(unique_sessions) != len(found_sessions):
             raise ValueError(
-                "Session identifiers are not unique. PLease check if one identifier has been used twice. "
-                "For example for a pilot session AND a core session."
+                "Session identifiers are not unique. Please check if one identifier has been used twice. "
+                "For example for a pilot session AND a core session. "
                 "Should that be the case, please contact the multipleye team."
             )
 

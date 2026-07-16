@@ -8,7 +8,7 @@ from ..config import PREPROCESSED_DATA_DIR, RAW_DATA_DIR
 from ..models import DcnSummary, SessionSummary
 from .review import load_review
 from .session_data import read_overview, compute_checks
-from .preflight import run_preflight
+from .preflight import run_pipeline_preflight
 
 
 def _discover_dcn_names() -> set[str]:
@@ -66,10 +66,13 @@ def _build_dcn_summary(dcn: Dcn) -> DcnSummary:
         if s.is_pilot:
             n_pilots += 1
 
-    preflight_status = "pass"
-    if has_raw_data:
-        preflight = run_preflight(dcn_name)
-        preflight_status = preflight.get("status", "pass")
+    preflight_status: str = "pass"
+    preflight_detail: dict | None = None
+    if has_raw_data or is_processed:
+        result = run_pipeline_preflight(dcn_name)
+        raw_status = result.get("status", "pass")
+        preflight_status = "fail" if raw_status == "error" else raw_status
+        preflight_detail = result
 
     return DcnSummary(
         dcn_name=dcn_name,
@@ -82,6 +85,7 @@ def _build_dcn_summary(dcn: Dcn) -> DcnSummary:
         is_processed=is_processed,
         has_raw_data=has_raw_data,
         preflight_status=preflight_status,
+        preflight_detail=preflight_detail,
         n_reviewed_unreviewed=n_reviewed.get("unreviewed", 0),
         n_reviewed_accepted=n_reviewed.get("accepted", 0),
         n_reviewed_flagged=n_reviewed.get("flagged", 0),

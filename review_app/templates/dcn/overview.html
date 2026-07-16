@@ -22,14 +22,84 @@
   </div>
 </div>
 
-{% if dcn.has_raw_data and not dcn.is_processed %}
-<div class="card" style="margin-bottom:0.75rem;padding:0.75rem 1rem">
-  <div style="display:flex;align-items:center;gap:8px;font-size:0.85rem">
-    <span>Preflight:</span>
-    <span class="badge badge-{{ dcn.preflight_status }}">{{ dcn.preflight_status }}</span>
-    <span style="color:var(--text-secondary);font-size:0.8rem">Raw data found — run preprocessing to review sessions.</span>
+{% set pf = dcn.preflight_detail %}
+{% if dcn.is_processed %}
+  {# ---- Processed DCN: collapsed, subtle preflight card ---- #}
+  {% if pf %}
+  <details class="card" style="margin-bottom:0.75rem;padding:0;border-left:3px solid var(--border)">
+    <summary style="cursor:pointer;padding:0.6rem 1rem;display:flex;align-items:center;gap:8px;font-size:0.85rem;user-select:none">
+      <span style="font-weight:600;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-secondary)">Preflight</span>
+      <span class="pill pill-{{ dcn.preflight_status }}">{{ dcn.preflight_status }}</span>
+      <span style="color:var(--text-secondary);font-size:0.78rem">
+        {{ pf.n_errors }} err · {{ pf.n_sessions }} session{% if pf.n_sessions != 1 %}s{% endif %} · {{ pf.run_at[:10] if pf.run_at else "" }}
+      </span>
+      <span style="margin-left:auto;font-size:0.7rem;color:var(--text-secondary)">&#9654;</span>
+    </summary>
+    <div style="padding:0 1rem 0.75rem 1rem;font-size:0.85rem;max-height:60vh;overflow-y:auto;border-top:1px solid var(--border)">
+      {% if pf.error_groups %}
+      <h4 style="margin:0.5rem 0 0.25rem;color:var(--fail)">Errors</h4>
+      {% for label, items in pf.error_groups.items() %}
+      <div style="margin-bottom:0.5rem">
+        <strong>{{ label }}</strong> ({{ items|length }})
+        {% for item in items %}
+        <div style="padding:0.1rem 0 0.1rem 1rem;font-family:monospace;font-size:0.78rem;color:var(--text-secondary)">{{ item }}</div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+      {% endif %}
+      {% if pf.stderr %}
+      <h4 style="margin:0.5rem 0 0.25rem;color:var(--warn)">Warnings</h4>
+      <pre style="font-size:0.78rem;color:var(--text-secondary);white-space:pre-wrap;max-height:200px;overflow-y:auto;background:var(--bg);padding:0.5rem;border-radius:4px;margin:0 0 0.5rem">{{ pf.stderr }}</pre>
+      {% endif %}
+      <button class="btn btn-sm" onclick="rerunPreflight('{{ dcn.dcn_name }}')" style="margin-top:0.25rem">
+        <i class="fa-solid fa-rotate" style="margin-right:4px"></i>Re-run
+      </button>
+    </div>
+  </details>
+  {% endif %}
+
+{% else %}
+  {# ---- Unprocessed DCN: expanded, prominent preflight card ---- #}
+  {% if pf %}
+  <details class="card" style="margin-bottom:0.75rem;padding:0;border-left:3px solid var(--warn)" open>
+    <summary style="cursor:pointer;padding:0.75rem 1rem;display:flex;align-items:center;gap:8px;font-size:0.85rem;user-select:none">
+      <span style="font-weight:600">Preflight</span>
+      <span class="pill pill-{{ dcn.preflight_status }}">{{ dcn.preflight_status }}</span>
+      <span style="color:var(--text-secondary);font-size:0.8rem">
+        {{ pf.n_errors }} error{% if pf.n_errors != 1 %}s{% endif %}
+        {% if pf.n_sessions %} &middot; {{ pf.n_sessions }} session{% if pf.n_sessions != 1 %}s{% endif %}{% endif %}
+        &middot; {{ pf.run_at[:10] if pf.run_at else "" }}
+      </span>
+      <span style="margin-left:auto;font-size:0.7rem;color:var(--text-secondary)">&#9660;</span>
+    </summary>
+    <div style="padding:0 1rem 0.75rem 1rem;font-size:0.85rem;max-height:60vh;overflow-y:auto;border-top:1px solid var(--border)">
+      {% if pf.error_groups %}
+      <h4 style="margin:0.5rem 0 0.25rem;color:var(--fail)">Errors</h4>
+      {% for label, items in pf.error_groups.items() %}
+      <div style="margin-bottom:0.5rem">
+        <strong>{{ label }}</strong> ({{ items|length }})
+        {% for item in items %}
+        <div style="padding:0.1rem 0 0.1rem 1rem;font-family:monospace;font-size:0.78rem;color:var(--text-secondary)">{{ item }}</div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+      {% endif %}
+      {% if pf.stderr %}
+      <h4 style="margin:0.5rem 0 0.25rem;color:var(--warn)">Warnings</h4>
+      <pre style="font-size:0.78rem;color:var(--text-secondary);white-space:pre-wrap;max-height:200px;overflow-y:auto;background:var(--bg);padding:0.5rem;border-radius:4px;margin:0 0 0.5rem">{{ pf.stderr }}</pre>
+      {% endif %}
+      <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.5rem">Run preprocessing to review sessions and create output data.</p>
+      <button class="btn btn-sm" onclick="rerunPreflight('{{ dcn.dcn_name }}')" style="margin-top:0.25rem">
+        <i class="fa-solid fa-rotate" style="margin-right:4px"></i>Re-run
+      </button>
+    </div>
+  </details>
+  {% else %}
+  <div class="card" style="margin-bottom:0.75rem;padding:0.75rem 1rem;font-size:0.85rem;display:flex;align-items:center;gap:8px;border-left:3px solid var(--warn)">
+    <span style="font-weight:600">Preflight</span>
+    <button class="btn btn-sm" onclick="rerunPreflight('{{ dcn.dcn_name }}')" style="margin-left:auto">Run preflight</button>
   </div>
-</div>
+  {% endif %}
 {% endif %}
 
 {% set total = dcn.n_sessions %}
@@ -115,5 +185,19 @@ document.querySelectorAll('.tab-link').forEach(function(link) {
     document.getElementById('tab-' + tab).style.display = '';
   });
 });
+
+function rerunPreflight(dcnName) {
+  var btn = event.target;
+  if (btn.tagName !== "BUTTON") btn = btn.closest("button");
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:4px"></i>Running\u2026';
+  fetch('/api/dcn/' + encodeURIComponent(dcnName) + '/preflight/rerun', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function() { window.location.reload(); })
+    .catch(function() {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-rotate" style="margin-right:4px"></i>Failed \u2014 try again';
+    });
+}
 </script>
 {% endblock %}
