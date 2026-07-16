@@ -59,6 +59,30 @@ app.mount(
 def _startup() -> None:
     PREPROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+    import asyncio
+
+    def _run_preflight_for_all_dcns() -> None:
+        from .config import RAW_DATA_DIR
+        from .services.preflight import run_pipeline_preflight
+        from preprocessing.models import Dcn
+
+        if not RAW_DATA_DIR.exists():
+            return
+        for entry in sorted(RAW_DATA_DIR.iterdir()):
+            if not entry.is_dir():
+                continue
+            try:
+                Dcn(entry.name)
+            except (ValueError, TypeError):
+                continue
+            try:
+                run_pipeline_preflight(entry.name)
+            except Exception as exc:
+                print(f"[startup] preflight failed for {entry.name}: {exc}")
+
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, _run_preflight_for_all_dcns)
+
 
 def _pick_port(preferred: int = 8765) -> int:
     """Return the first free port starting from *preferred*."""

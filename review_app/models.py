@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 ReviewStatus = Literal["unreviewed", "accepted", "flagged", "excluded"]
@@ -72,6 +72,13 @@ class DcnSummary(BaseModel):
     is_processed: bool = False
     has_raw_data: bool = False
     preflight_status: CheckStatus = "pass"
+    preflight_detail: dict | None = None
+
+    @field_validator("preflight_status", mode="before")
+    @classmethod
+    def coerce_preflight_status(cls, v: str) -> str:
+        return v if v in ("pass", "warn", "fail") else "fail"
+
     n_reviewed_unreviewed: int = 0
     n_reviewed_accepted: int = 0
     n_reviewed_flagged: int = 0

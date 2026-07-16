@@ -148,6 +148,15 @@ async def open_dcn_folder(dcn_name: str, which: str):
     return {"opened": str(folder.resolve())}
 
 
+@router.post("/{dcn_name}/preflight/rerun")
+async def rerun_preflight(dcn_name: str):
+    from ..services.preflight import invalidate_cache, run_pipeline_preflight
+
+    invalidate_cache(dcn_name)
+    result = run_pipeline_preflight(dcn_name, force=True)
+    return JSONResponse(result)
+
+
 @page_router.get("/dcn/{dcn_name}")
 async def dcn_page(request: Request, dcn_name: str):
     dcn = get_dcn(dcn_name)
