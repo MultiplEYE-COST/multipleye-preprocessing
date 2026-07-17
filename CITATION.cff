@@ -16,5 +16,5 @@ authors:
 - family-names: "J{\"a}ger"
   given-names: "Lena A."
 title: "The MultiplEYE preprocessing pipeline"
-version: 2026.07.11
+version: 2026.07.17
 url: "https://github.com/MultiplEYE-COST/multipleye-preprocessing/"
