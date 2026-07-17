@@ -1,4 +1,8 @@
-"""Read and write review annotations to per-session YAML files."""
+"""Read and write review annotations to a single per-DCN YAML file.
+
+Uses atomic write (tempfile -> os.replace) to prevent file corruption.
+Reviews are stored keyed by SID in ``review_data/<DCN>/reviews.yaml``.
+"""
 
 import yaml
 import os
@@ -6,40 +10,40 @@ import tempfile
 from datetime import datetime, timezone
 
 from ..models import ReviewAnnotation
-from ..config import review_file_path
+from ..config import reviews_file_path
 
 
 REVIEW_STATUSES = {"unreviewed", "accepted", "flagged", "excluded"}
 
 
+def _load_all_reviews(dcn_name: str) -> dict[str, dict]:
+    path = reviews_file_path(dcn_name)
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        data = yaml.load(f, Loader=yaml.FullLoader)
+    return data if isinstance(data, dict) else {}
+
+
 def load_review(dcn_name: str, sid: str) -> ReviewAnnotation:
-    """Load the review annotation for a session.
+    """Load the review annotation for a session from the per-DCN reviews file.
 
     :param dcn_name: Data collection name.
     :param sid: Session identifier.
-    :returns: ReviewAnnotation (defaults to unreviewed if file not found).
+    :returns: ReviewAnnotation (defaults to unreviewed if file or entry not found).
     """
-    path = review_file_path(dcn_name, sid)
-    if not path.exists():
-        return ReviewAnnotation()
-
-    with open(path) as f:
-        data = yaml.load(f, Loader=yaml.FullLoader)
-
-    if not data:
-        return ReviewAnnotation()
-
-    status = data.get("status", "unreviewed")
+    all_reviews = _load_all_reviews(dcn_name)
+    entry = all_reviews.get(sid, {})
+    status = entry.get("status", "unreviewed")
     if status not in REVIEW_STATUSES:
         status = "unreviewed"
-
     return ReviewAnnotation(
         status=status,
-        reviewer=data.get("reviewer", ""),
-        comment=data.get("comment", ""),
-        reviewed_at=data.get("reviewed_at"),
-        type_of_issue=data.get("type_of_issue", ""),
-        needs_reprocessing=data.get("needs_reprocessing", False),
+        reviewer=entry.get("reviewer", ""),
+        comment=entry.get("comment", ""),
+        reviewed_at=entry.get("reviewed_at"),
+        type_of_issue=entry.get("type_of_issue", ""),
+        needs_reprocessing=entry.get("needs_reprocessing", False),
     )
 
 
@@ -60,9 +64,9 @@ def save_review(
     type_of_issue: str = "",
     needs_reprocessing: bool = False,
 ) -> ReviewAnnotation:
-    """Save a review annotation to the per-session YAML file.
+    """Save a review annotation to the per-DCN reviews file.
 
-    Uses atomic write (tempfile → os.replace) to prevent corruption.
+    Uses atomic write (tempfile -> os.replace) to prevent corruption.
 
     :param dcn_name: Data collection name.
     :param sid: Session identifier.
@@ -95,10 +99,11 @@ def save_review(
         needs_reprocessing=needs_reprocessing,
     )
 
-    path = review_file_path(dcn_name, sid)
+    path = reviews_file_path(dcn_name)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    data = {
+    all_reviews = _load_all_reviews(dcn_name)
+    all_reviews[sid] = {
         "status": annotation.status,
         "reviewer": annotation.reviewer,
         "comment": annotation.comment,
@@ -110,7 +115,7 @@ def save_review(
     fd, tmp_path = tempfile.mkstemp(suffix=".yaml", dir=path.parent)
     try:
         with os.fdopen(fd, "w") as f:
-            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+            yaml.dump(all_reviews, f, default_flow_style=False, sort_keys=False)
         os.replace(tmp_path, path)
     except Exception:
         os.unlink(tmp_path)

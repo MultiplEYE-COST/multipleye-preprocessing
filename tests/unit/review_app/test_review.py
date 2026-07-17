@@ -13,9 +13,7 @@ from review_app.services.review import (
 
 
 def test_load_review_missing(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "review_app.config.PREPROCESSED_DATA_DIR", Path("/tmp/nonexistent")
-    )
+    monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", Path("/tmp/nonexistent"))
     annotation = load_review("test_dcn", "test_sid")
     assert annotation.status == "unreviewed"
     assert annotation.reviewer == ""
@@ -23,7 +21,7 @@ def test_load_review_missing(monkeypatch) -> None:
 
 
 def test_save_and_load_review(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
     saved = save_review(
         dcn_name="MultiplEYE_DA_DK_Aalborg_1_2026",
@@ -46,7 +44,7 @@ def test_save_and_load_review(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_save_invalid_status(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
     import pytest
 
     with pytest.raises(ValueError, match="Invalid review status"):
@@ -56,7 +54,7 @@ def test_save_invalid_status(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_save_overwrites_previous(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
     save_review(
         "MultiplEYE_DA_DK_Aalborg_1_2026",
@@ -80,7 +78,7 @@ def test_save_overwrites_previous(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_reviewed_at_auto_set(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
     saved = save_review(
         "MultiplEYE_DA_DK_Aalborg_1_2026",
@@ -98,7 +96,7 @@ def test_review_statuses_match_plan() -> None:
 
 
 def test_save_with_type_of_issue(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
     saved = save_review(
         "MultiplEYE_DA_DK_Aalborg_1_2026",
         "001_DA_DK_1_ET1",
@@ -113,7 +111,7 @@ def test_save_with_type_of_issue(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_save_with_needs_reprocessing(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
     saved = save_review(
         "MultiplEYE_DA_DK_Aalborg_1_2026",
         "001_DA_DK_1_ET1",
@@ -128,7 +126,7 @@ def test_save_with_needs_reprocessing(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_save_with_all_new_fields(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
     saved = save_review(
         "MultiplEYE_DA_DK_Aalborg_1_2026",
         "001_DA_DK_1_ET1",
@@ -151,7 +149,7 @@ def test_save_with_all_new_fields(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_save_invalid_type_of_issue_raises(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
+    monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
     import pytest
 
     with pytest.raises(ValueError, match="Invalid issue type"):
@@ -167,17 +165,20 @@ def test_save_invalid_type_of_issue_raises(monkeypatch, tmp_path: Path) -> None:
 def test_load_old_review_without_new_fields(monkeypatch, tmp_path: Path) -> None:
     """Loading a review YAML without type_of_issue/needs_reprocessing
     should return defaults (empty string / False)."""
-    monkeypatch.setattr("review_app.config.PREPROCESSED_DATA_DIR", tmp_path)
-    path = (
-        tmp_path
-        / "MultiplEYE_DA_DK_Aalborg_1_2026"
-        / "sanity_checks"
-        / "001_DA_DK_1_ET1"
-    )
-    path.mkdir(parents=True)
-    yaml_path = path / "001_DA_DK_1_ET1_review.yaml"
-    yaml_path.write_text(
-        yaml.dump({"status": "flagged", "reviewer": "Old", "comment": "No issue field"})
+    monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
+    dcn_dir = tmp_path / "MultiplEYE_DA_DK_Aalborg_1_2026"
+    dcn_dir.mkdir(parents=True)
+    reviews_path = dcn_dir / "reviews.yaml"
+    reviews_path.write_text(
+        yaml.dump(
+            {
+                "001_DA_DK_1_ET1": {
+                    "status": "flagged",
+                    "reviewer": "Old",
+                    "comment": "No issue field",
+                }
+            }
+        )
     )
 
     loaded = load_review("MultiplEYE_DA_DK_Aalborg_1_2026", "001_DA_DK_1_ET1")

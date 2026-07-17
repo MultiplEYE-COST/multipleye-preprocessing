@@ -2,7 +2,7 @@
 
 Creates a ``MultipleyeDataCollection`` (all sessions, no filters) and runs
 the pipeline's ``run_preflight_check()``. Results are cached to
-``preprocessed_data/{dcn}/preflight_result.yaml`` so the DCN overview page
+``review_data/{dcn}/preflight_result.yaml`` so the DCN overview page
 loads instantly — the user clicks "Re-run" to refresh.
 """
 
@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 import yaml
 
-from ..config import PREPROCESSED_DATA_DIR, RAW_DATA_DIR
+from ..config import PREPROCESSED_DATA_DIR, RAW_DATA_DIR, review_path
 
 _CACHE_FILENAME = "preflight_result.yaml"
 
@@ -37,7 +37,7 @@ def run_pipeline_preflight(dcn_name: str, *, force: bool = False) -> dict:
         n_sessions   — number of sessions discovered
         run_at       — ISO-8601 timestamp
     """
-    cache_path = PREPROCESSED_DATA_DIR / dcn_name / _CACHE_FILENAME
+    cache_path = review_path(dcn_name) / _CACHE_FILENAME
     if not force and cache_path.exists():
         with open(cache_path) as f:
             return yaml.safe_load(f)
@@ -63,7 +63,7 @@ def run_pipeline_preflight(dcn_name: str, *, force: bool = False) -> dict:
 
 def invalidate_cache(dcn_name: str) -> None:
     """Remove the cached preflight result for *dcn_name*."""
-    cache_path = PREPROCESSED_DATA_DIR / dcn_name / _CACHE_FILENAME
+    cache_path = review_path(dcn_name) / _CACHE_FILENAME
     if cache_path.exists():
         cache_path.unlink()
 
