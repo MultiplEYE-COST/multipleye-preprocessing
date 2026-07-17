@@ -2,7 +2,7 @@ import json
 import random
 from pathlib import Path
 
-from ..config import dcn_path
+from ..config import dcn_path, swipe_judgments_path
 from .dcn import list_sessions, get_dcn
 from .session_data import read_overview, compute_checks
 from .thresholds import load_thresholds
@@ -10,7 +10,6 @@ from .review import load_review
 from ..config import sanity_checks_path, session_overview_path
 import pycountry
 
-JUDGMENTS_FILE = "swipe_judgments.json"
 VALID_JUDGMENTS = {"keep", "flag", "skip"}
 
 _NON_SCANPATH_KEYWORDS = frozenset(
@@ -41,7 +40,7 @@ def _country_name(code: str) -> str:
 
 
 def _judgments_path(dcn_name: str) -> Path:
-    return dcn_path(dcn_name) / JUDGMENTS_FILE
+    return swipe_judgments_path(dcn_name)
 
 
 def _parse_plot_name(stem: str) -> dict:

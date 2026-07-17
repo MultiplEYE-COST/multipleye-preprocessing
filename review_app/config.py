@@ -18,6 +18,8 @@ PREPROCESSED_DATA_DIR = Path(
 
 RAW_DATA_DIR = Path(os.environ.get("RAW_DATA_DIR", _REPO_ROOT / "data"))
 
+REVIEW_DATA_DIR = Path(os.environ.get("REVIEW_DATA_DIR", _REPO_ROOT / "review_data"))
+
 # Folder name constants (mirrors preprocessing.config.Settings defaults).
 _METADATA_FOLDER = "metadata/"
 _SANITY_CHECKS_FOLDER = "sanity_checks/"
@@ -48,8 +50,16 @@ def session_overview_path(dcn_name: str, sid: str) -> Path:
     return metadata_path(dcn_name, sid) / f"{sid}_overview.yaml"
 
 
-def review_file_path(dcn_name: str, sid: str) -> Path:
-    return sanity_checks_path(dcn_name, sid) / f"{sid}_review.yaml"
+def review_path(dcn_name: str) -> Path:
+    return REVIEW_DATA_DIR / dcn_name
+
+
+def reviews_file_path(dcn_name: str) -> Path:
+    return review_path(dcn_name) / "reviews.yaml"
+
+
+def swipe_judgments_path(dcn_name: str) -> Path:
+    return review_path(dcn_name) / "swipe_judgments.json"
 
 
 def psychometric_path(dcn_name: str) -> Path:

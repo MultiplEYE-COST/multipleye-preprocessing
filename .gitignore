@@ -168,6 +168,7 @@ multipleye_settings_preprocessing.yaml
 
 /template_and_notes/output/
 /preprocessed_data/
+/review_data/
 
 # outputs
 public/*
