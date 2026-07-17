@@ -298,15 +298,20 @@ def _check_sessions(data_collection, groups: dict[str, list[str]]) -> None:
 
         # 3. EXPERIMENT_*.txt
         experiment_logs = _ci_glob(logfiles, "EXPERIMENT_*.txt")
-        if len(experiment_logs) == 0:
+        if len(experiment_logs) != 1:
             groups.setdefault("EXPERIMENT_*.txt", []).append(sid)
 
-        # 4. GENERAL_LOGFILE_*.txt
+        # 4. DATA_LOGFILE_*.txt
+        experiment_logs = _ci_glob(logfiles, "DATA_LOGFILE_*.txt")
+        if len(experiment_logs) != 1:
+            groups.setdefault("DATA_LOGFILE_*.txt", []).append(sid)
+
+        # 5. GENERAL_LOGFILE_*.txt
         general_logs = _ci_glob(logfiles, "GENERAL_LOGFILE_*.txt")
-        if len(general_logs) == 0:
+        if len(general_logs) != 1:
             groups.setdefault("GENERAL_LOGFILE_*.txt", []).append(sid)
 
-        # 5. completed_stimuli.csv
+        # 6. completed_stimuli.csv
         _check_parseable_csv(
             logfiles / "completed_stimuli.csv",
             "completed_stimuli.csv",
@@ -315,7 +320,7 @@ def _check_sessions(data_collection, groups: dict[str, list[str]]) -> None:
             COMPLETED_STIMULI_COLS,
         )
 
-        # 6. question_order_versions.csv
+        # 7. question_order_versions.csv
         _check_parseable_csv(
             logfiles / "question_order_versions.csv",
             "question_order_versions.csv",
