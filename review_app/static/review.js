@@ -122,6 +122,8 @@
   }
 
   document.addEventListener("keydown", function (e) {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+
     /* ---------- 1-4 keyboard shortcuts (always work) ---------- */
     var statusMap = { "1": "unreviewed", "2": "accepted", "3": "flagged", "4": "excluded" };
     if (statusMap[e.key] && document.querySelector("#review-form")) {
@@ -152,8 +154,6 @@
         showPlot(0);
       }
     }
-
-    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
 
     var active = document.querySelector(".session-row.active");
     var idx = rows.indexOf(active);
