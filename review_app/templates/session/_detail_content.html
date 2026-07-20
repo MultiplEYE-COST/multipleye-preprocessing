@@ -1,0 +1,133 @@
+<div class="topbar">
+  <div>
+    <h2>{{ detail.sid }}</h2>
+    <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px">
+      {% set parts = detail.sid.split("_") %}
+      PID {{ parts[0] }} · <span title="{{ lang_name(parts[1]) }}">{{ parts[1] }}</span> · {{ parts[2] }}
+      {% if detail.is_pilot %} &middot; <span class="badge badge-warn">pilot</span>{% endif %}
+      &middot; <span class="badge badge-{{ detail.review.status }}">{{ detail.review.status }}</span>
+      {% set n_flagged = plot_judgments.values() | select('eq', 'flag') | list | length %}
+      {% set n_kept = plot_judgments.values() | select('eq', 'keep') | list | length %}
+      {% if n_flagged or n_kept %}
+      &middot; <span style="font-size:0.78rem">plots: <span style="color:var(--pass)">{{ n_kept }} kept</span>{% if n_flagged %} · <span style="color:var(--fail)">{{ n_flagged }} flagged</span>{% endif %}</span>
+      {% endif %}
+      {% if detail.review.reviewer %} &middot; reviewed by {{ detail.review.reviewer }}{% endif %}
+      {% if detail.review.reviewed_at %} &middot; {{ detail.review.reviewed_at[:10] }}{% endif %}
+      {% if detail.review.needs_reprocessing %} &middot; <span class="pill" style="background:var(--warn);color:#fff;border:none">needs reprocessing</span>{% endif %}
+      {% if detail.review.type_of_issue %} &middot; <span class="badge badge-issue">{{ detail.review.type_of_issue }}</span>{% endif %}
+    </div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;flex:1">
+      <button class="btn btn-sm" style="text-align:left"
+              hx-get="/api/dcn/{{ dcn }}/session/{{ detail.sid }}/open"
+              hx-swap="none"
+              title="Open raw session folder (asc, logs)">
+        <i class="fa-regular fa-folder-open" style="margin-right:4px"></i>Data (asc, logs)
+      </button>
+      <button class="btn btn-sm" style="text-align:left"
+              hx-get="/api/dcn/{{ dcn }}/session/{{ detail.sid }}/open-metadata"
+              hx-swap="none"
+              title="Open preprocessed metadata folder">
+        <i class="fa-regular fa-folder-open" style="margin-right:4px"></i>Metadata
+      </button>
+      <button class="btn btn-sm" style="text-align:left"
+              hx-get="/api/dcn/{{ dcn }}/session/{{ detail.sid }}/open-sanity"
+              hx-swap="none"
+              title="Open sanity checks folder">
+        <i class="fa-regular fa-folder-open" style="margin-right:4px"></i>Sanity
+      </button>
+      <button class="btn btn-sm" style="text-align:left"
+              hx-get="/api/dcn/{{ dcn }}/session/{{ detail.sid }}/open-comp-answers"
+              hx-swap="none"
+              title="Open comparative answers folder">
+        <i class="fa-regular fa-folder-open" style="margin-right:4px"></i>Comp answers
+      </button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+      <a href="/dcn/{{ dcn }}" class="btn btn-sm">&larr; back</a>
+      <a href="/dcn/{{ dcn }}/swipe?session={{ detail.sid }}" class="btn btn-sm" style="text-decoration:none;background:var(--accent);color:#fff;border-color:var(--accent);text-align:center" title="Swipe review starting from this session">
+        <i class="fa-solid fa-arrows-left-right" style="margin-right:4px"></i>Swipe
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="row row-cols-2">
+  <!-- LEFT: Review decision + Plots -->
+  <div>
+    <div class="card">
+      <h3 style="margin-bottom:0.75rem">Review Decision</h3>
+      <div id="review-form">
+        {% include "session/_review_form.html" %}
+      </div>
+    </div>
+
+    {% if plot_comments %}
+    <div class="card" style="margin-top:1rem">
+      <h3 style="margin-bottom:0.75rem">Plot Comments</h3>
+      {% for pname, comment in plot_comments.items() %}
+      <div style="font-size:0.82rem;margin-bottom:0.5rem;padding:0.35rem 0.5rem;background:var(--bg);border-radius:6px">
+        <strong style="font-size:0.75rem;color:var(--text-secondary)">{{ pname }}</strong><br>
+        {{ comment }}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if detail.plots_available %}
+    <div class="card" style="margin-top:1rem">
+      <h3 style="margin-bottom:0.75rem">Gaze Plots</h3>
+      <div class="plot-grid">
+      {% include "session/_plot_grid.html" %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- RIGHT: Flagged checks + All checks -->
+  <div>
+    <div class="card">
+      <h3 style="margin-bottom:0.75rem">Flagged Checks</h3>
+      {% set flagged = detail.checks | selectattr("status", "ne", "pass") | list %}
+      {% if flagged %}
+      <table>
+        <thead><tr><th>Check</th><th>Value</th><th>Threshold</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for c in flagged %}
+        <tr>
+          <td>{{ c.label }}</td>
+          <td>{{ c.value }}</td>
+          <td>{{ c.threshold }}</td>
+          <td><span class="badge badge-{{ c.status }}">{{ c.status }}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:var(--text-secondary)">No checks flagged for this session.</p>
+      {% endif %}
+    </div>
+
+    <div class="card" style="margin-top:1rem">
+      <h3 style="margin-bottom:0.75rem">All Checks</h3>
+      {% if detail.checks %}
+      <table>
+        <thead><tr><th>Check</th><th>Value</th><th>Threshold</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for c in detail.checks %}
+        <tr>
+          <td>{{ c.label }}</td>
+          <td>{{ c.value }}</td>
+          <td>{{ c.threshold if c.threshold else "—" }}</td>
+          <td><span class="badge badge-{{ c.status }}">{{ c.status }}</span></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:var(--text-secondary)">No check data available.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>

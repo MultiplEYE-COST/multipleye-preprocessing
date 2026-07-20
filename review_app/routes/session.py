@@ -1,5 +1,6 @@
 """Session-level routes — detail page, review save."""
 
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
@@ -7,7 +8,7 @@ from ..templating import render
 from ..services.session_data import read_overview, build_session_detail
 from ..services.thresholds import load_thresholds
 from ..services.review import load_review, save_review
-from ..services.swipe import load_judgments, _NON_SCANPATH_KEYWORDS
+from ..services.swipe import load_plot_judgments_dict, load_plot_comments_dict, _NON_SCANPATH_KEYWORDS, list_plot_data
 
 
 router = APIRouter()
@@ -20,6 +21,9 @@ async def session_page(
     sid: str,
 ):
     from ..config import session_overview_path, sanity_checks_path
+    from ..services.dcn import list_sessions
+
+    sessions = list_sessions(dcn)
 
     ov = read_overview(session_overview_path(dcn, sid))
     if ov is None:
@@ -30,69 +34,64 @@ async def session_page(
     review = load_review(dcn, sid)
     detail = build_session_detail(ov, review, thresholds, dcn, sid)
 
-    plots_dir = sanity_checks_path(dcn, sid) / f"{sid}_plots"
-    plots: list[dict] = []
-    if plots_dir.exists():
-        plot_files = sorted(
-            plots_dir.glob("*.png"),
-            key=lambda p: ("0" if p.stem == "main_sequence" else "1", p.stem),
-        )
-        for png in plot_files:
-            relative = png.relative_to(
-                sanity_checks_path(dcn, sid).parent.parent.parent
-            )
-            url = f"/files/{relative}"
-            name = png.stem
-            if name == "main_sequence":
-                plots.append(
-                    {
-                        "url": url,
-                        "stimulus": "Main Sequence",
-                        "page": "",
-                        "activity": "",
-                    }
-                )
-                continue
-            parts = name.split("_")
-            activity = ""
-            page = ""
-            if len(parts) >= 2:
-                last = parts[-1]
-                if last.startswith("q") and last[1:].isdigit():
-                    page = f"question {last[1:]}"
-                    stimulus = "_".join(parts[:-1])
-                elif last.isdigit():
-                    page = f"page {last}"
-                    stimulus = "_".join(parts[:-1])
-                else:
-                    stimulus = "_".join(parts[:-2]) if len(parts) >= 3 else name
-                    activity = parts[-1]
-            else:
-                stimulus = name
-            if page.startswith("question"):
-                continue
-            stimulus_parts = stimulus.lower().split("_")
-            if any(kw in stimulus_parts for kw in _NON_SCANPATH_KEYWORDS):
-                continue
-            plots.append(
-                {
-                    "url": url,
-                    "stimulus": stimulus,
-                    "page": page,
-                    "activity": activity,
-                }
-            )
-
-    swipe_judgments = load_judgments(dcn)
-    swipe_judgment = swipe_judgments.get(sid)
+    plots = list_plot_data(dcn, sid)
+    plot_judgments = load_plot_judgments_dict(dcn, sid)
+    plot_comments = load_plot_comments_dict(dcn, sid)
+    for p in plots:
+        p["judgment"] = plot_judgments.get(p["name"])
+        p["comment"] = plot_comments.get(p["name"], "")
 
     html = render(
         "session/detail.html",
         request=request,
         detail=detail,
         dcn=dcn,
+        sessions=sessions,
         plots=plots,
-        swipe_judgment=swipe_judgment,
+        plot_judgments=plot_judgments,
+        plot_comments=plot_comments,
+        now="",
+        review_action="loaded",
+    )
+    return HTMLResponse(html)
+
+
+@router.get("/dcn/{dcn}/session/{sid}/content")
+async def session_content_partial(
+    request: Request,
+    dcn: str,
+    sid: str,
+):
+    """Return just the session content HTML (no base template)."""
+    from ..config import session_overview_path
+    from ..services.dcn import list_sessions
+    from ..services.swipe import load_plot_judgments_dict, load_plot_comments_dict, list_plot_data
+
+    sessions = list_sessions(dcn)
+
+    ov = read_overview(session_overview_path(dcn, sid))
+    if ov is None:
+        raise HTTPException(status_code=404, detail=f"Session '{sid}' not found in DCN '{dcn}'")
+    thresholds = load_thresholds(dcn)
+    review = load_review(dcn, sid)
+    detail = build_session_detail(ov, review, thresholds, dcn, sid)
+
+    plots = list_plot_data(dcn, sid)
+    plot_judgments = load_plot_judgments_dict(dcn, sid)
+    plot_comments = load_plot_comments_dict(dcn, sid)
+    for p in plots:
+        p["judgment"] = plot_judgments.get(p["name"])
+        p["comment"] = plot_comments.get(p["name"], "")
+
+    html = render(
+        "session/_detail_content.html",
+        request=request,
+        detail=detail,
+        dcn=dcn,
+        sessions=sessions,
+        plots=plots,
+        plot_judgments=plot_judgments,
+        plot_comments=plot_comments,
         now="",
         review_action="loaded",
     )
@@ -122,30 +121,70 @@ async def session_detail(
     return detail.model_dump()
 
 
-@api_router.get("/{sid}/open")
-async def session_open_folder(
-    dcn: str,
-    sid: str,
-):
-    """Open the session's data folder in the OS file manager."""
+def _open_folder(folder: Path):
+    """Open a folder in the OS file manager."""
     import subprocess
     import sys
-    from ..config import RAW_DATA_DIR
 
-    folder = RAW_DATA_DIR / dcn / "eye-tracking-sessions" / sid
     if not folder.exists():
         raise HTTPException(
-            status_code=404, detail=f"Session folder not found: {folder}"
+            status_code=404, detail=f"Folder not found: {folder}"
         )
-
     if sys.platform == "darwin":
         subprocess.Popen(["open", str(folder.resolve())])
     elif sys.platform == "linux":
         subprocess.Popen(["xdg-open", str(folder.resolve())])
     elif sys.platform == "win32":
         subprocess.Popen(["explorer", str(folder.resolve())])
-
     return {"opened": str(folder.resolve())}
+
+
+@api_router.get("/{sid}/open")
+async def session_open_folder(
+    dcn: str,
+    sid: str,
+):
+    """Open the raw session data folder (asc, logs) in the OS file manager."""
+    from ..config import RAW_DATA_DIR
+
+    folder = RAW_DATA_DIR / dcn / "eye-tracking-sessions" / sid
+    return _open_folder(folder)
+
+
+@api_router.get("/{sid}/open-metadata")
+async def session_open_metadata(
+    dcn: str,
+    sid: str,
+):
+    """Open the preprocessed metadata folder in the OS file manager."""
+    from ..config import metadata_path
+
+    folder = metadata_path(dcn, sid)
+    return _open_folder(folder)
+
+
+@api_router.get("/{sid}/open-sanity")
+async def session_open_sanity(
+    dcn: str,
+    sid: str,
+):
+    """Open the sanity checks folder in the OS file manager."""
+    from ..config import sanity_checks_path
+
+    folder = sanity_checks_path(dcn, sid)
+    return _open_folder(folder)
+
+
+@api_router.get("/{sid}/open-comp-answers")
+async def session_open_comp_answers(
+    dcn: str,
+    sid: str,
+):
+    """Open the comparative answers folder in the OS file manager."""
+    from ..config import dcn_path
+
+    folder = dcn_path(dcn) / "comp_answers" / sid
+    return _open_folder(folder)
 
 
 @api_router.post("/{sid}/review")

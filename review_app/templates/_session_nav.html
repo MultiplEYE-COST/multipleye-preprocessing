@@ -1,0 +1,215 @@
+<style>
+.session-nav{display:flex;flex-direction:column;height:100%}
+.session-nav-header{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-secondary);margin-bottom:0.25rem;padding:0 0.25rem;flex-shrink:0}
+.session-nav-list{flex:1;overflow-y:auto;min-height:0}
+.session-nav-item{display:flex;align-items:center;gap:4px;padding:3px 6px;border-radius:4px;cursor:pointer;font-size:0.78rem;color:var(--text-secondary);transition:background 0.15s}
+.session-nav-item:hover{background:var(--bg);color:var(--text)}
+.session-nav-item.active{background:var(--accent);color:#fff}
+.session-nav-item.active .dot-fill{background:#fff}
+.session-nav-sid{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.session-nav-item .flag-dots{display:inline-flex;align-items:center;gap:2px;flex-shrink:0}
+.session-nav-item .dot{font-size:0.7rem;line-height:1}
+.session-nav-item .dot-fail{color:var(--fail)}
+.session-nav-item .dot-warn{color:var(--warn)}
+.session-nav-item .dot-count{font-size:0.65rem;font-weight:600;color:var(--text-secondary)}
+</style>
+<div id="session-nav" class="session-nav">
+  <div class="session-nav-header">Sessions</div>
+  <div class="session-nav-list" id="session-nav-list">
+    {% for s in sessions %}
+    {% set sid = s.sid %}
+    {% set n_fail = s.n_fail_flags|default(s.n_flags|default(0)) %}
+    {% set n_warn = s.n_warn_flags|default(0) %}
+    <div class="session-nav-item"
+         data-sid="{{ sid }}"
+         data-href="/dcn/{{ dcn }}/session/{{ sid }}">
+      <span class="session-nav-sid" title="{{ sid }}">{{ sid|truncate(18, True, '', 0) }}</span>
+      {% if n_fail > 0 %}
+      <span class="flag-dots" title="{{ n_fail }} fail flag{{ 's' if n_fail != 1 }}">
+        <span class="dot dot-fail">●</span>
+      </span>
+      {% elif n_warn > 0 %}
+      <span class="flag-dots" title="{{ n_warn }} warn flag{{ 's' if n_warn != 1 }}">
+        <span class="dot dot-warn">●</span>
+      </span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+<script nonce="">
+(function(){
+  var list = document.getElementById("session-nav-list");
+  if(!list) return;
+
+  /* ---- dynamic mask gradient on scroll ---- */
+  function updateMask(){
+    if(list.scrollHeight <= list.clientHeight){
+      list.style.maskImage = "none";
+      list.style.webkitMaskImage = "none";
+      return;
+    }
+    var st = list.scrollTop;
+    var maxST = list.scrollHeight - list.clientHeight;
+    var topFade = st > 0;
+    var bottomFade = st < maxST;
+    var stops = [];
+    if(topFade){ stops.push("transparent 0","#000 12px"); }
+    else { stops.push("#000 0"); }
+    if(bottomFade){ stops.push("#000 calc(100% - 12px)","transparent 100%"); }
+    else { stops.push("#000 100%"); }
+    var grad = "linear-gradient(to bottom, "+stops.join(", ")+")";
+    list.style.maskImage = grad;
+    list.style.webkitMaskImage = grad;
+  }
+  updateMask();
+  list.addEventListener("scroll", updateMask);
+  var ro = new ResizeObserver(updateMask);
+  ro.observe(list);
+
+  /* ---- auto-save comment on blur ---- */
+  function attachCommentBlur(){
+    var ta = document.querySelector('#review-form textarea[name="comment"]');
+    if(!ta || ta.dataset._blurAttached) return;
+    ta.dataset._blurAttached = "1";
+    ta.dataset.original = ta.value;
+    ta.addEventListener("blur", function(){
+      if(this.value !== this.dataset.original) saveReviewComment().then(function(){
+        var t = document.querySelector('#review-form textarea[name="comment"]');
+        if(t) t.dataset.original = t.value;
+      });
+    });
+  }
+  attachCommentBlur();
+
+  /* ---- find items, mark active by URL ---- */
+  var items = Array.from(list.querySelectorAll(".session-nav-item"));
+  var urlSid = (window.location.pathname.match(/\/session\/([^/]+)/)||[])[1];
+  var activeIdx = -1;
+
+  items.forEach(function(item, i){
+    /* mark active by URL match */
+    if(urlSid && item.dataset.sid === urlSid){
+      item.classList.add("active");
+      activeIdx = i;
+    }
+
+    /* click handler */
+    item.addEventListener("click", function(e){
+      if(window._swipeGoToSession){
+        window._swipeGoToSession(item.dataset.sid);
+      } else if(item.dataset.href){
+        e.preventDefault();
+        loadContent(item, i);
+      }
+    });
+  });
+
+  /* ---- save review comment before navigating ---- */
+  function saveReviewComment(){
+    var textarea = document.querySelector('#review-form textarea[name="comment"]');
+    if(!textarea) return Promise.resolve();
+    /* check if modified — compare to original value (set on load) */
+    if(textarea.dataset.original !== undefined && textarea.value === textarea.dataset.original) return Promise.resolve();
+    var sid = (window.location.pathname.match(/\/session\/([^/]+)/)||[])[1];
+    var dcn = (window.location.pathname.match(/\/dcn\/([^/]+)/)||[])[1];
+    if(!sid || !dcn) return Promise.resolve();
+    var curStatus = "unreviewed";
+    var statusBtn = document.querySelector("#review-form .btn-status.active");
+    if(statusBtn) curStatus = statusBtn.textContent.trim().split(" ")[0];
+    var url = "/api/dcn/" + encodeURIComponent(dcn) + "/session/" + encodeURIComponent(sid) +
+              "/review?comment=" + encodeURIComponent(textarea.value) +
+              "&status=" + encodeURIComponent(curStatus) +
+              "&reviewer=" + encodeURIComponent(window.getReviewer ? window.getReviewer() : "");
+    return fetch(url, {method:"POST"}).then(function(r){ return r.text(); }).catch(function(){});
+  }
+
+  /* ---- load session content via fetch+swap ---- */
+  function loadContent(item, idx){
+    var href = item.dataset.href;
+    var contentUrl = href + "/content";
+    saveReviewComment().then(function(){ 
+      fetch(contentUrl)
+        .then(function(r){ return r.text(); })
+        .then(function(html){
+          var content = document.getElementById("session-content");
+          if(content){
+            content.innerHTML = html;
+            if(typeof htmx !== "undefined") htmx.process(content);
+            history.pushState(null, "", href);
+            document.title = "MultiplEYE Data Review — " + item.dataset.sid;
+          /* bring focus to content area so keyboard shortcuts work */
+          content.setAttribute("tabindex", "-1");
+          content.style.outline = "none";
+          content.focus({preventScroll:true});
+            /* store original comment value for change detection */
+            var ta = document.querySelector('#review-form textarea[name="comment"]');
+            if(ta) ta.dataset.original = ta.value;
+          } else {
+            window.location.href = href;
+          }
+        })
+        .catch(function(){
+          window.location.href = href;
+        });
+    });
+    /* update active immediately */
+    items.forEach(function(el){ el.classList.remove("active"); });
+    item.classList.add("active");
+    if(idx !== undefined) activeIdx = idx;
+  }
+
+  /* ---- keyboard: up/down arrows ---- */
+  function setActive(idx){
+    if(idx < 0 || idx >= items.length) return;
+    items.forEach(function(el){ el.classList.remove("active"); });
+    items[idx].classList.add("active");
+    items[idx].scrollIntoView({block:"nearest",behavior:"smooth"});
+    activeIdx = idx;
+  }
+
+  function navToActive(){
+    if(activeIdx < 0 || activeIdx >= items.length) return;
+    var item = items[activeIdx];
+    if(window._swipeGoToSession){
+      window._swipeGoToSession(item.dataset.sid);
+    } else if(item.dataset.href){
+      loadContent(item);
+    }
+  }
+
+  function navigateTo(idx){
+    if(idx < 0 || idx >= items.length) return;
+    setActive(idx);
+    navToActive();
+  }
+
+  /* ---- handle browser back/forward ---- */
+  window.addEventListener("popstate", function(){
+    var sid = (window.location.pathname.match(/\/session\/([^/]+)/)||[])[1];
+    if(!sid) return;
+    var item = items.find(function(el){ return el.dataset.sid === sid; });
+    if(item) loadContent(item);
+  });
+
+  document.addEventListener("keydown", function(e){
+    /* only when session nav is visible */
+    if(list.offsetParent === null) return;
+    if(e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    /* on swipe page, its own handler manages arrows + active class */
+    if(window._swipeGoToSession) return;
+
+    if(e.key === "ArrowDown"){
+      e.preventDefault();
+      var next = activeIdx < 0 ? 0 : Math.min(activeIdx + 1, items.length - 1);
+      navigateTo(next);
+    } else if(e.key === "ArrowUp"){
+      e.preventDefault();
+      var prev = activeIdx < 0 ? items.length - 1 : Math.max(activeIdx - 1, 0);
+      navigateTo(prev);
+    } else if(e.key === "Enter"){
+      if(activeIdx >= 0){ e.preventDefault(); navToActive(); }
+    }
+  });
+})();
+</script>
