@@ -2,12 +2,24 @@
   "use strict";
 
   /* ---------- theme ---------- */
+  function _syncThemeLink(mode) {
+    var link = document.querySelector('a[onclick*="toggleTheme"]');
+    if (!link) return;
+    if (mode === "dark") {
+      link.innerHTML = '<i class="fa-regular fa-sun" style="margin-right:6px;width:16px"></i>Light mode';
+    } else {
+      link.innerHTML = '<i class="fa-regular fa-moon" style="margin-right:6px;width:16px"></i>Dark mode';
+    }
+  }
+  _syncThemeLink(document.documentElement.getAttribute("data-theme") || "light");
+
   window.toggleTheme = function () {
     var html = document.documentElement;
     var cur = html.getAttribute("data-theme") || "light";
     var next = cur === "dark" ? "light" : "dark";
     html.setAttribute("data-theme", next);
     localStorage.setItem("review_theme", next);
+    _syncThemeLink(next);
   };
 
   /* ---------- reviewer cookie ---------- */

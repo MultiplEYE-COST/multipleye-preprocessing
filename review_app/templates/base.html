@@ -96,9 +96,9 @@ tr:hover{background:var(--bg)}
       <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px">Data Review</div>
     </div>
 
-    <div style="border-bottom:1px solid var(--border);padding-bottom:0.75rem;margin-bottom:0.75rem;flex-shrink:0">
-      <a href="https://github.com/MultiplEYE-COST/multipleye-preprocessing" target="_blank" rel="noopener" style="font-size:0.85rem;margin-bottom:0.4rem"><i class="fa-brands fa-square-github" style="margin-right:6px;width:16px"></i>GitHub</a>
-      <a href="https://multipleye-cost.github.io/multipleye-preprocessing/" target="_blank" rel="noopener" style="font-size:0.85rem"><i class="fa-solid fa-book" style="margin-right:6px;width:16px"></i>Docs</a>
+    <div style="border-bottom:1px solid var(--border);padding-bottom:0.75rem;margin-bottom:0.75rem;flex-shrink:0;display:flex;gap:12px">
+      <a href="https://github.com/MultiplEYE-COST/multipleye-preprocessing" target="_blank" rel="noopener" style="font-size:0.85rem"><i class="fa-brands fa-square-github" style="margin-right:4px;width:16px"></i>GitHub</a>
+      <a href="https://multipleye-cost.github.io/multipleye-preprocessing/" target="_blank" rel="noopener" style="font-size:0.85rem"><i class="fa-solid fa-book" style="margin-right:4px;width:16px"></i>Docs</a>
     </div>
 
     <div id="nav-dcns" style="flex:1;min-height:0;overflow:hidden">{% block sidebar_center %}{% endblock %}</div>
@@ -125,59 +125,36 @@ tr:hover{background:var(--bg)}
 <!-- Keyboard shortcut help modal -->
 <div id="kbd-help" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9998;align-items:center;justify-content:center" onclick="if(event.target===this)closeKbdHelp()">
   <div style="background:var(--bg-card);border-radius:8px;padding:1.25rem;max-width:520px;margin:2rem auto;border:1px solid var(--border)">
-    <h3 style="margin-bottom:0.75rem">Keyboard Shortcuts</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 1rem;font-size:0.8rem">
-      <div><span class="kbd">&darr;</span><span style="margin-left:6px">Next session</span></div>
-      <div style="color:var(--text-secondary)">session list</div>
-      <div><span class="kbd">&uarr;</span><span style="margin-left:6px">Prev session</span></div>
-      <div style="color:var(--text-secondary)">session list</div>
-      <div><span class="kbd">Enter</span><span style="margin-left:6px">Open session</span></div>
-      <div style="color:var(--text-secondary)">session list</div>
+    <h3 style="margin-bottom:0.5rem">Keyboard Shortcuts</h3>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 1rem;font-size:0.8rem">
+      <div style="grid-column:span 2;font-weight:600;color:var(--text-secondary);font-size:0.75rem;margin-top:4px">Session list</div>
+      <div><span class="kbd">&uarr;</span>&thinsp;<span class="kbd">&darr;</span><span style="margin-left:6px">Navigate</span></div>
+      <div><span class="kbd">Enter</span><span style="margin-left:6px">Open</span></div>
+      <div style="grid-column:span 2;font-weight:600;color:var(--text-secondary);font-size:0.75rem;margin-top:4px">Detail page</div>
       <div><span class="kbd">1</span><span style="margin-left:6px">Unreviewed</span></div>
-      <div style="color:var(--text-secondary)">detail</div>
       <div><span class="kbd">2</span><span style="margin-left:6px">Accepted</span></div>
-      <div style="color:var(--text-secondary)">detail</div>
       <div><span class="kbd">3</span><span style="margin-left:6px">Flagged</span></div>
-      <div style="color:var(--text-secondary)">detail</div>
       <div><span class="kbd">4</span><span style="margin-left:6px">Excluded</span></div>
-      <div style="color:var(--text-secondary)">detail</div>
-      <div><span class="kbd">7</span><span style="margin-left:6px">Issue: Cal-/Validation</span></div>
-      <div style="color:var(--text-secondary)">detail (flagged+)</div>
-      <div><span class="kbd">8</span><span style="margin-left:6px">Issue: Data loss</span></div>
-      <div style="color:var(--text-secondary)">detail (flagged+)</div>
-      <div><span class="kbd">9</span><span style="margin-left:6px">Issue: Incomplete</span></div>
-      <div style="color:var(--text-secondary)">detail (flagged+)</div>
-      <div><span class="kbd">0</span><span style="margin-left:6px">Issue: See comment</span></div>
-      <div style="color:var(--text-secondary)">detail (flagged+)</div>
+      <div><span class="kbd">7</span><span style="margin-left:6px">Cal-/Validation</span></div>
+      <div><span class="kbd">8</span><span style="margin-left:6px">Data loss</span></div>
+      <div><span class="kbd">9</span><span style="margin-left:6px">Incomplete</span></div>
+      <div><span class="kbd">0</span><span style="margin-left:6px">See comment</span></div>
       <div><span class="kbd">p</span><span style="margin-left:6px">Open first plot</span></div>
-      <div style="color:var(--text-secondary)">detail</div>
-      <div><span class="kbd">&larr;</span><span style="margin-left:6px">Prev plot</span></div>
-      <div style="color:var(--text-secondary)">lightbox</div>
-      <div><span class="kbd">&rarr;</span><span style="margin-left:6px">Next plot</span></div>
-      <div style="color:var(--text-secondary)">lightbox</div>
+      <div><span class="kbd">C</span><span style="margin-left:6px">Focus comment</span></div>
       <div><span class="kbd">Ctrl+Enter</span><span style="margin-left:6px">Save comment</span></div>
-      <div style="color:var(--text-secondary)">detail</div>
-      <div style="margin-top:6px;grid-column:span 2;font-weight:600;font-size:0.82rem;border-top:1px solid var(--border);padding-top:6px">Swipe mode</div>
-      <div><span class="kbd">A</span><span style="margin-left:6px">Flag plot</span></div>
-      <div style="color:var(--text-secondary)">swipe</div>
-      <div><span class="kbd">D</span><span style="margin-left:6px">Keep plot</span></div>
-      <div style="color:var(--text-secondary)">swipe</div>
-      <div><span class="kbd">S</span><span style="margin-left:6px">Skip plot</span></div>
-      <div style="color:var(--text-secondary)">swipe</div>
+      <div style="grid-column:span 2;font-weight:600;color:var(--text-secondary);font-size:0.75rem;margin-top:4px">Lightbox</div>
+      <div><span class="kbd">&larr;</span>&thinsp;<span class="kbd">&rarr;</span><span style="margin-left:6px">Navigate plots</span></div>
+      <div><span class="kbd">Esc</span><span style="margin-left:6px">Close</span></div>
+      <div style="grid-column:span 2;font-weight:600;color:var(--text-secondary);font-size:0.75rem;margin-top:4px">Swipe mode</div>
+      <div><span class="kbd">A</span>&thinsp;<span class="kbd">D</span>&thinsp;<span class="kbd">S</span><span style="margin-left:6px">Flag / Keep / Skip</span></div>
       <div><span class="kbd">W</span><span style="margin-left:6px">Undo</span></div>
-      <div style="color:var(--text-secondary)">swipe</div>
-      <div><span class="kbd">&uarr;</span><span style="margin-left:6px">Prev session</span></div>
-      <div style="color:var(--text-secondary)">swipe</div>
-      <div><span class="kbd">&darr;</span><span style="margin-left:6px">Next session</span></div>
-      <div style="color:var(--text-secondary)">swipe</div>
+      <div><span class="kbd">C</span><span style="margin-left:6px">Focus comment</span></div>
       <div><span class="kbd">Ctrl+Enter</span><span style="margin-left:6px">Save comment</span></div>
-      <div style="color:var(--text-secondary)">swipe</div>
+      <div><span class="kbd">&uarr;</span>&thinsp;<span class="kbd">&darr;</span><span style="margin-left:6px">Navigate sessions</span></div>
+      <div style="grid-column:span 2;font-weight:600;color:var(--text-secondary);font-size:0.75rem;margin-top:4px">Anywhere</div>
       <div><span class="kbd">?</span><span style="margin-left:6px">Toggle help</span></div>
-      <div style="color:var(--text-secondary)">anywhere</div>
-      <div><span class="kbd">Esc</span><span style="margin-left:6px">Close help / lightbox</span></div>
-      <div style="color:var(--text-secondary)">anywhere</div>
+      <div><span class="kbd">Esc</span><span style="margin-left:6px">Close help</span></div>
     </div>
-    <div style="margin-top:0.75rem;font-size:0.8rem;color:var(--text-secondary);text-align:center">Press <span class="kbd">?</span> anytime to open this help.</div>
   </div>
 </div>
 <script>
