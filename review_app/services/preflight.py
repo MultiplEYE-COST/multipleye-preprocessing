@@ -87,6 +87,7 @@ def _do_run(dcn_name: str) -> dict:
             "run_at": _now_iso(),
         }
 
+    extra_errors: dict[str, list[str]] = {}
     try:
         dc = MultipleyeDataCollection.create_from_data_folder(
             data_dir,
@@ -94,6 +95,37 @@ def _do_run(dcn_name: str) -> dict:
             excluded_sessions=[],
             included_sessions=[],
         )
+    except ValueError as exc:
+        msg = str(exc)
+        extra_errors["Data collection init"] = [msg]
+        if "not unique" in msg:
+            # Duplicate session IDs between core and pilot folders.
+            # Retry without pilots so other preflight checks can still run.
+            try:
+                dc = MultipleyeDataCollection.create_from_data_folder(
+                    data_dir,
+                    include_pilots=False,
+                    excluded_sessions=[],
+                    included_sessions=[],
+                )
+            except Exception:
+                return {
+                    "status": "error",
+                    "error_groups": extra_errors,
+                    "stderr": "",
+                    "n_errors": 1,
+                    "n_sessions": 0,
+                    "run_at": _now_iso(),
+                }
+        else:
+            return {
+                "status": "error",
+                "error_groups": extra_errors,
+                "stderr": "",
+                "n_errors": 1,
+                "n_sessions": 0,
+                "run_at": _now_iso(),
+            }
     except Exception as exc:
         return {
             "status": "error",
@@ -124,6 +156,12 @@ def _do_run(dcn_name: str) -> dict:
     stderr_text = buf.getvalue().strip()
     if not errors and stderr_text:
         status = "warn"
+
+    # Merge any extra errors gathered during init (e.g. non-unique session IDs)
+    if extra_errors:
+        errors = {**extra_errors, **errors}
+        if status == "pass":
+            status = "warn"
 
     return {
         "status": status,
