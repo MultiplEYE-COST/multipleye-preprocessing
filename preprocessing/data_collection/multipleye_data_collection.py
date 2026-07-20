@@ -268,6 +268,15 @@ class MultipleyeDataCollection:
 
                             is_pilot = self.include_pilots and (item in pilots)
 
+                            # When a core and pilot session share the same identifier,
+                            # keep the core one (added first) and skip the pilot duplicate.
+                            if is_pilot and item.name in self.sessions:
+                                self.logger.warning(
+                                    f"Skipping pilot session '{item.name}' — "
+                                    f"a core session with the same identifier already exists."
+                                )
+                                continue
+
                             ses = Session(
                                 participant_id=int(item.name.split("_")[0]),
                                 session_identifier=item.name,
@@ -294,10 +303,22 @@ class MultipleyeDataCollection:
         unique_sessions = set(found_sessions)
 
         if len(unique_sessions) != len(found_sessions):
-            raise ValueError(
-                "Session identifiers are not unique. Please check if one identifier has been used twice. "
-                "For example for a pilot session AND a core session. "
-                "Should that be the case, please contact the multipleye team."
+            # Duplicate names (e.g. pilot + core sharing the same identifier).
+            # Keep the first occurrence (core) and skip pilot duplicates.
+            seen = set()
+            deduped = []
+            skipped = []
+            for name in found_sessions:
+                if name not in seen:
+                    seen.add(name)
+                    deduped.append(name)
+                else:
+                    skipped.append(name)
+            found_sessions[:] = deduped
+            self.logger.warning(
+                f"Removed duplicate session identifiers: {', '.join(skipped)}. "
+                "Pilot sessions with the same name as core sessions were skipped. "
+                "Check your pilot_sessions folder to resolve naming conflicts."
             )
 
         if self.included_sessions:
