@@ -151,8 +151,14 @@
       if (plots.length > 0 && document.getElementById("lightbox").style.display === "none") {
         e.preventDefault();
         currentPlots = Array.from(plots).map(function (el) { return el.src; });
-        showPlot(0);
+        window.showPlot(0);
       }
+    }
+
+    /* ---------- 'c' focuses comment field (not with Ctrl/Cmd) ---------- */
+    if ((e.key === "c" || e.key === "C") && !e.ctrlKey && !e.metaKey) {
+      var ta = document.querySelector('#review-form textarea[name="comment"]');
+      if (ta) { e.preventDefault(); ta.focus(); }
     }
 
     var active = document.querySelector(".session-row.active");
@@ -227,7 +233,7 @@
         var i = (div._idx || 0) + (dir === "left" ? -1 : 1);
         if (i < 0) i = currentPlots.length - 1;
         if (i >= currentPlots.length) i = 0;
-        showPlot(i);
+        window.showPlot(i);
       };
       return a;
     }
@@ -246,7 +252,9 @@
   var lightboxImg = document.getElementById("lightbox-img");
   var currentPlots = [];
 
-  function showPlot(idx) {
+  window.showPlot = function (idx) {
+    if (idx < 0 || idx >= currentPlots.length) return;
+    currentPlots = Array.from(document.querySelectorAll(".plot-thumb")).map(function (el) { return el.src; });
     if (idx < 0 || idx >= currentPlots.length) return;
     var thumb = document.querySelectorAll(".plot-thumb")[idx];
     lightboxImg.src = currentPlots[idx];
@@ -263,12 +271,19 @@
     }
   }
 
+  window.openPlotByName = function (name) {
+    var thumbs = document.querySelectorAll(".plot-thumb");
+    var idx = Array.from(thumbs).findIndex(function (t) { return t.dataset.name === name; });
+    currentPlots = Array.from(thumbs).map(function (el) { return el.src; });
+    if (idx >= 0) window.showPlot(idx);
+  };
+
   document.addEventListener("click", function (e) {
     var thumb = e.target.closest(".plot-thumb");
     if (!thumb) return;
     currentPlots = Array.from(document.querySelectorAll(".plot-thumb")).map(function (el) { return el.src; });
     var idx = currentPlots.indexOf(thumb.src);
-    showPlot(idx >= 0 ? idx : 0);
+    window.showPlot(idx >= 0 ? idx : 0);
   });
 
   document.addEventListener("keydown", function (e) {
@@ -277,12 +292,12 @@
     if (e.key === "ArrowRight" && currentPlots.length > 0) {
       var i = (lightbox._idx || 0) + 1;
       if (i >= currentPlots.length) i = 0;
-      showPlot(i); e.preventDefault();
+      window.showPlot(i); e.preventDefault();
     }
     if (e.key === "ArrowLeft" && currentPlots.length > 0) {
       var i = (lightbox._idx || 0) - 1;
       if (i < 0) i = currentPlots.length - 1;
-      showPlot(i); e.preventDefault();
+      window.showPlot(i); e.preventDefault();
     }
   });
 
@@ -350,6 +365,7 @@
   document.addEventListener("keydown", function (e) {
     if (e.target.tagName === "TEXTAREA" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
+      e.target.blur();
       var submitBtn = e.target.closest("form").querySelector('button[type="submit"]');
       if (submitBtn) submitBtn.click();
     }

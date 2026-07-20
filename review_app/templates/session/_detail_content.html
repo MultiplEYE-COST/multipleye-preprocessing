@@ -66,10 +66,22 @@
     {% if plot_comments %}
     <div class="card" style="margin-top:1rem">
       <h3 style="margin-bottom:0.75rem">Plot Comments</h3>
+      {% set dot_colors = {"keep": "#22c55e", "flag": "#ef4444", "skip": "var(--text-secondary)"} %}
+      {% set dot_glows = {"keep": "0 0 3px rgba(34,197,94,0.5)", "flag": "0 0 3px rgba(239,68,68,0.5)"} %}
       {% for pname, comment in plot_comments.items() %}
-      <div style="font-size:0.82rem;margin-bottom:0.5rem;padding:0.35rem 0.5rem;background:var(--bg);border-radius:6px">
-        <strong style="font-size:0.75rem;color:var(--text-secondary)">{{ pname }}</strong><br>
-        {{ comment }}
+      {% set jdg = plot_judgments.get(pname, '') %}
+      {% set dot_c = dot_colors.get(jdg, "var(--text-secondary)") %}
+      {% set dot_g = dot_glows.get(jdg, "none") %}
+      {% set d = plots | selectattr("name", "equalto", pname) | first %}
+      <div style="font-size:0.82rem;margin-bottom:0.5rem;padding:0.35rem 0.5rem;background:var(--bg);border-radius:6px;display:flex;align-items:start;gap:6px">
+        <span style="color:{{ dot_c }};font-size:0.95rem;line-height:1;flex-shrink:0;margin-top:1px;text-shadow:{{ dot_g }}">●</span>
+        <div style="flex:1;min-width:0">
+          <strong style="font-size:0.75rem;cursor:pointer;color:var(--accent);text-decoration:underline;text-decoration-style:dotted" onclick="window.openPlotByName('{{ pname }}')" title="Open plot in viewer">{{ pname }}</strong><br>
+          {{ comment }}
+        </div>
+        {% if d %}
+        <img class="plot-thumb" src="{{ d.url }}" style="width:60px;height:40px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer;flex-shrink:0;margin-top:2px" loading="lazy" data-name="{{ pname }}" title="Open plot" onclick="window.openPlotByName('{{ pname }}')">
+        {% endif %}
       </div>
       {% endfor %}
     </div>
