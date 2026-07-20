@@ -90,20 +90,10 @@
 {% endblock %}
 
 {% block content %}
-<div class="swipe-nav-links">
-  <a href="/dcn/{{ dcn.dcn_name }}" class="btn">&larr; back to {{ dcn.dcn_name }}</a>
-</div>
-
-<h2 style="margin-bottom:1rem">Swipe <span style="font-size:0.85rem;color:var(--text-secondary)">— per-plot gaze review</span></h2>
-
 <div class="swipe-layout">
   <div class="swipe-card-wrapper">
+    <h2 style="margin-bottom:0.75rem">Swipe <span style="font-size:0.85rem;color:var(--text-secondary)">— per-plot gaze review</span></h2>
     <div class="session-card" id="session-card" style="display:none">
-      <div class="session-card-header">
-        <h2 id="session-sid"></h2>
-        <span class="subtitle" id="session-subtitle"></span>
-        <span id="session-badges" style="display:flex;gap:4px"></span>
-      </div>
       <div class="session-body-row">
         <div class="session-nav-side">
           <button id="btn-prev-session" onclick="window._prevSession()" title="Previous session (↑)">↑</button>
@@ -112,6 +102,11 @@
         <div class="session-card-body" id="session-body">
           <!-- plot card dynamically inserted here -->
         </div>
+      </div>
+      <div class="session-card-header" style="border-bottom:none;border-top:1px solid var(--border)">
+        <h2 id="session-sid"></h2>
+        <span class="subtitle" id="session-subtitle"></span>
+        <span id="session-badges" style="display:flex;gap:4px"></span>
       </div>
       <div id="session-flagged" class="session-flagged" style="display:none"></div>
     </div>
@@ -123,6 +118,7 @@
   </div>
 
   <div class="swipe-sidebar" id="swipe-sidebar">
+    <a href="/dcn/{{ dcn.dcn_name }}" class="btn" style="display:block;text-align:center;margin-bottom:0.75rem">&larr; back to {{ dcn.dcn_name }}</a>
     <div class="swipe-stats" id="swipe-stats">
       <h3>Progress</h3>
       <div class="stat-group">
@@ -142,10 +138,20 @@
     </div>
     <div class="swipe-kbd-hint">
       <div style="margin-bottom:4px"><strong>Judge</strong></div>
-      <kbd>A</kbd> Flag &middot; <kbd>D</kbd> Keep &middot; <kbd>S</kbd> Skip &middot; <kbd>W</kbd> Undo<br>
-      <kbd>C</kbd> Focus comment<br>
+      <div style="display:flex;flex-wrap:wrap;gap:2px 6px">
+        <span style="white-space:nowrap"><kbd>A</kbd> Flag</span>
+        <span style="white-space:nowrap"><kbd>D</kbd> Keep</span>
+        <span style="white-space:nowrap"><kbd>S</kbd> Skip</span>
+        <span style="white-space:nowrap"><kbd>W</kbd> Undo</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:2px 6px;margin-top:2px">
+        <span style="white-space:nowrap"><kbd>C</kbd> Focus comment</span>
+      </div>
       <div style="margin-top:4px"><strong>Sessions</strong></div>
-      <kbd>&uarr;</kbd> Prev &middot; <kbd>&darr;</kbd> Next
+      <div style="display:flex;flex-wrap:wrap;gap:2px 6px">
+        <span style="white-space:nowrap"><kbd>&uarr;</kbd> Prev</span>
+        <span style="white-space:nowrap"><kbd>&darr;</kbd> Next</span>
+      </div>
     </div>
   </div>
 </div>
