@@ -64,7 +64,8 @@
 .session-flagged{padding:0.35rem 1.25rem;font-size:0.78rem;display:flex;flex-wrap:wrap;gap:4px 12px;background:var(--bg);border-top:1px solid var(--border)}
 
 /* ---- right sidebar stats ---- */
-.swipe-sidebar{width:200px;flex-shrink:0;position:sticky;top:80px}
+.swipe-sidebar{width:200px;flex-shrink:0;position:sticky;top:80px;display:flex;flex-direction:column;align-items:flex-end}
+.swipe-sidebar .swipe-stats,.swipe-sidebar .swipe-kbd-hint{width:100%}
 .swipe-stats{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.85rem;font-size:0.82rem}
 .swipe-stats h3{margin:0 0 0.5rem;font-size:0.88rem}
 .swipe-stats .progress-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin:6px 0}
@@ -122,7 +123,7 @@
   </div>
 
   <div class="swipe-sidebar" id="swipe-sidebar">
-    <a href="/dcn/{{ dcn.dcn_name }}" class="btn" style="display:block;text-align:center;margin-bottom:0.75rem">&larr; back to {{ dcn.dcn_name }}</a>
+    <a href="/dcn/{{ dcn.dcn_name }}" class="btn" style="flex-shrink:0;white-space:nowrap;width:fit-content;margin-bottom:0.75rem">&larr; back to {{ dcn.dcn_name }}</a>
     <div class="swipe-stats" id="swipe-stats">
       <h3>Progress</h3>
       <div class="stat-group">
