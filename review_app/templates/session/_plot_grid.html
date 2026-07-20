@@ -1,6 +1,24 @@
-{% for p in plots %}
+{% for p in plots if p.judgment == 'flag' %}
 <div style="text-align:center;position:relative">
-  <img class="plot-thumb" src="{{ p.url }}" style="width:150px;height:100px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer" draggable="true" loading="lazy" data-stimulus="{{ p.stimulus }}" data-page="{{ p.page }}" data-activity="{{ p.activity }}">
+  <img class="plot-thumb" src="{{ p.url }}" style="width:150px;height:100px;object-fit:cover;border-radius:4px;border:1px solid var(--fail);cursor:pointer" draggable="true" loading="lazy" data-stimulus="{{ p.stimulus }}" data-page="{{ p.page }}" data-activity="{{ p.activity }}">
+  <span style="position:absolute;top:2px;right:2px;color:#ef4444;font-size:1.1rem;text-shadow:0 0 3px rgba(239,68,68,0.5);line-height:1">●</span>
+  <div class="plot-label" style="color:var(--fail)">{{ p.stimulus }} {{ p.page }}</div>
+  {% if p.comment %}<div style="font-size:0.7rem;color:var(--text-secondary);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ p.comment }}">{{ p.comment }}</div>{% endif %}
+</div>
+{% endfor %}
+{% for p in plots if p.judgment == 'keep' %}
+<div style="text-align:center;position:relative">
+  <img class="plot-thumb" src="{{ p.url }}" style="width:150px;height:100px;object-fit:cover;border-radius:4px;border:1px solid var(--pass);cursor:pointer" draggable="true" loading="lazy" data-stimulus="{{ p.stimulus }}" data-page="{{ p.page }}" data-activity="{{ p.activity }}">
+  <span style="position:absolute;top:2px;right:2px;color:#22c55e;font-size:1.1rem;text-shadow:0 0 3px rgba(34,197,94,0.5);line-height:1">●</span>
+  <div class="plot-label" style="color:var(--pass)">{{ p.stimulus }} {{ p.page }}</div>
+  {% if p.comment %}<div style="font-size:0.7rem;color:var(--text-secondary);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ p.comment }}">{{ p.comment }}</div>{% endif %}
+</div>
+{% endfor %}
+{% for p in plots if not p.judgment or p.judgment == 'skip' %}
+<div style="text-align:center;position:relative">
+  <img class="plot-thumb" src="{{ p.url }}" style="width:150px;height:100px;object-fit:cover;border-radius:4px;border:1px solid var(--border);cursor:pointer{% if p.judgment == 'skip' %};opacity:0.5{% endif %}" draggable="true" loading="lazy" data-stimulus="{{ p.stimulus }}" data-page="{{ p.page }}" data-activity="{{ p.activity }}">
   <div class="plot-label">{{ p.stimulus }} {{ p.page }}</div>
+  {% if p.judgment == 'skip' %}<span style="position:absolute;top:2px;right:2px;color:var(--text-secondary);font-size:0.6rem;background:var(--bg-card);padding:0 4px;border-radius:3px;line-height:1.4">skipped</span>{% endif %}
+  {% if p.comment %}<div style="font-size:0.7rem;color:var(--text-secondary);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="{{ p.comment }}">{{ p.comment }}</div>{% endif %}
 </div>
 {% endfor %}

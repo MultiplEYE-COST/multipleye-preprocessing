@@ -28,7 +28,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 .layout{min-height:100vh}
-.sidebar{position:fixed;top:0;left:0;width:240px;height:100vh;background:var(--bg-card);border-right:1px solid var(--border);padding:1.25rem;overflow-y:auto;z-index:100}
+.sidebar{position:fixed;top:0;left:0;width:240px;height:100vh;background:var(--bg-card);border-right:1px solid var(--border);padding:1.25rem;display:flex;flex-direction:column;overflow:hidden;z-index:100}
 .sidebar h1{font-size:1.1rem;margin-bottom:1.5rem}
 .sidebar a{display:block;padding:0.4rem 0;color:var(--text);font-size:0.9rem}
 .sidebar a:hover{color:var(--accent);text-decoration:none}
@@ -90,19 +90,19 @@ tr:hover{background:var(--bg)}
 </head>
 <body>
 <div class="layout">
-  <nav class="sidebar" style="display:flex;flex-direction:column">
-    <div style="text-align:center;margin-bottom:1.25rem">
+  <nav class="sidebar">
+    <div style="text-align:center;margin-bottom:1.25rem;flex-shrink:0">
       <a href="/"><img src="/static/images/logo.png" alt="MultiplEYE" style="width:100%;max-width:140px;height:auto;display:block;margin:0 auto"></a>
       <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px">Data Review</div>
     </div>
 
-    <div style="border-bottom:1px solid var(--border);padding-bottom:0.75rem;margin-bottom:0.75rem">
+    <div style="border-bottom:1px solid var(--border);padding-bottom:0.75rem;margin-bottom:0.75rem;flex-shrink:0">
       <a href="https://github.com/MultiplEYE-COST/multipleye-preprocessing" target="_blank" rel="noopener" style="font-size:0.85rem;margin-bottom:0.4rem"><i class="fa-brands fa-square-github" style="margin-right:6px;width:16px"></i>GitHub</a>
       <a href="https://multipleye-cost.github.io/multipleye-preprocessing/" target="_blank" rel="noopener" style="font-size:0.85rem"><i class="fa-solid fa-book" style="margin-right:6px;width:16px"></i>Docs</a>
     </div>
 
-    <div id="nav-dcns"></div>
-    <div style="margin-top:auto;padding-top:1rem">
+    <div id="nav-dcns" style="flex:1;min-height:0;overflow:hidden">{% block sidebar_center %}{% endblock %}</div>
+    <div style="margin-top:auto;padding-top:1rem;flex-shrink:0">
       <div id="reviewer-display" style="font-size:0.85rem;margin-bottom:0.75rem;cursor:pointer;padding:4px 0;border-bottom:1px solid var(--border);padding-bottom:0.75rem;display:none" onclick="promptReviewer();return false" title="Click to change reviewer">
         <i class="fa-regular fa-user" style="margin-right:6px;width:16px"></i>
         <span id="reviewer-name"></span>
@@ -127,9 +127,9 @@ tr:hover{background:var(--bg)}
   <div style="background:var(--bg-card);border-radius:8px;padding:1.25rem;max-width:520px;margin:2rem auto;border:1px solid var(--border)">
     <h3 style="margin-bottom:0.75rem">Keyboard Shortcuts</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 1rem;font-size:0.8rem">
-      <div><span class="kbd">j</span><span style="margin:0 4px;color:var(--text-secondary)">/</span><span class="kbd">&darr;</span><span style="margin-left:6px">Next session</span></div>
+      <div><span class="kbd">&darr;</span><span style="margin-left:6px">Next session</span></div>
       <div style="color:var(--text-secondary)">session list</div>
-      <div><span class="kbd">k</span><span style="margin:0 4px;color:var(--text-secondary)">/</span><span class="kbd">&uarr;</span><span style="margin-left:6px">Prev session</span></div>
+      <div><span class="kbd">&uarr;</span><span style="margin-left:6px">Prev session</span></div>
       <div style="color:var(--text-secondary)">session list</div>
       <div><span class="kbd">Enter</span><span style="margin-left:6px">Open session</span></div>
       <div style="color:var(--text-secondary)">session list</div>
@@ -151,12 +151,27 @@ tr:hover{background:var(--bg)}
       <div style="color:var(--text-secondary)">detail (flagged+)</div>
       <div><span class="kbd">p</span><span style="margin-left:6px">Open first plot</span></div>
       <div style="color:var(--text-secondary)">detail</div>
-      <div><span class="kbd">&larr;</span><span style="margin:0 4px;color:var(--text-secondary)">/</span><span class="kbd">h</span><span style="margin-left:6px">Prev plot</span></div>
+      <div><span class="kbd">&larr;</span><span style="margin-left:6px">Prev plot</span></div>
       <div style="color:var(--text-secondary)">lightbox</div>
-      <div><span class="kbd">&rarr;</span><span style="margin:0 4px;color:var(--text-secondary)">/</span><span class="kbd">l</span><span style="margin-left:6px">Next plot</span></div>
+      <div><span class="kbd">&rarr;</span><span style="margin-left:6px">Next plot</span></div>
       <div style="color:var(--text-secondary)">lightbox</div>
       <div><span class="kbd">Ctrl+Enter</span><span style="margin-left:6px">Save comment</span></div>
       <div style="color:var(--text-secondary)">detail</div>
+      <div style="margin-top:6px;grid-column:span 2;font-weight:600;font-size:0.82rem;border-top:1px solid var(--border);padding-top:6px">Swipe mode</div>
+      <div><span class="kbd">A</span><span style="margin-left:6px">Flag plot</span></div>
+      <div style="color:var(--text-secondary)">swipe</div>
+      <div><span class="kbd">D</span><span style="margin-left:6px">Keep plot</span></div>
+      <div style="color:var(--text-secondary)">swipe</div>
+      <div><span class="kbd">S</span><span style="margin-left:6px">Skip plot</span></div>
+      <div style="color:var(--text-secondary)">swipe</div>
+      <div><span class="kbd">W</span><span style="margin-left:6px">Undo</span></div>
+      <div style="color:var(--text-secondary)">swipe</div>
+      <div><span class="kbd">&uarr;</span><span style="margin-left:6px">Prev session</span></div>
+      <div style="color:var(--text-secondary)">swipe</div>
+      <div><span class="kbd">&darr;</span><span style="margin-left:6px">Next session</span></div>
+      <div style="color:var(--text-secondary)">swipe</div>
+      <div><span class="kbd">Ctrl+Enter</span><span style="margin-left:6px">Save comment</span></div>
+      <div style="color:var(--text-secondary)">swipe</div>
       <div><span class="kbd">?</span><span style="margin-left:6px">Toggle help</span></div>
       <div style="color:var(--text-secondary)">anywhere</div>
       <div><span class="kbd">Esc</span><span style="margin-left:6px">Close help / lightbox</span></div>
@@ -176,5 +191,6 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){closeKbdHelp();var lb=document.getElementById('lightbox');if(lb)lb.style.display='none'}
 });
 </script>
+{% block scripts %}{% endblock %}
 </body>
 </html>

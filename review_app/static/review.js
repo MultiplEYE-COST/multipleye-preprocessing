@@ -158,7 +158,7 @@
     var active = document.querySelector(".session-row.active");
     var idx = rows.indexOf(active);
 
-    if (e.key === "j" || e.key === "ArrowDown") {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       var next = idx < rows.length - 1 ? idx + 1 : 0;
       if (rows[next]) {
@@ -166,7 +166,7 @@
         setActiveRow(next);
       }
     }
-    if (e.key === "k" || e.key === "ArrowUp") {
+    if (e.key === "ArrowUp") {
       e.preventDefault();
       var prev = idx > 0 ? idx - 1 : rows.length - 1;
       if (rows[prev]) {
@@ -212,7 +212,7 @@
     navHint.id = "lightbox-navhint";
     navHint.style.cssText =
       "position:absolute;bottom:1.5rem;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.5);font-size:0.9rem;white-space:nowrap";
-    navHint.textContent = "\u2190 \u2192 arrow keys or h/l  \u00B7 Esc to close";
+    navHint.textContent = "\u2190 \u2192 arrow keys  \u00B7 Esc to close";
     div.appendChild(navHint);
     function makeNavArrow(dir) {
       var a = document.createElement("div");
@@ -274,12 +274,12 @@
   document.addEventListener("keydown", function (e) {
     if (lightbox.style.display === "none") return;
     if (e.key === "Escape") { lightbox.style.display = "none"; e.preventDefault(); }
-    if ((e.key === "ArrowRight" || e.key === "l") && currentPlots.length > 0) {
+    if (e.key === "ArrowRight" && currentPlots.length > 0) {
       var i = (lightbox._idx || 0) + 1;
       if (i >= currentPlots.length) i = 0;
       showPlot(i); e.preventDefault();
     }
-    if ((e.key === "ArrowLeft" || e.key === "h") && currentPlots.length > 0) {
+    if (e.key === "ArrowLeft" && currentPlots.length > 0) {
       var i = (lightbox._idx || 0) - 1;
       if (i < 0) i = currentPlots.length - 1;
       showPlot(i); e.preventDefault();

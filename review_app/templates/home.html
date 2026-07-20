@@ -40,11 +40,12 @@
       <span style="white-space:nowrap">{{ d.n_sessions }} sessions{% if d.n_pilots %} ({{ d.n_pilots }} pilots){% endif %}</span>
     </div>
     {% if d.n_sessions > 0 %}
-    <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">
+    <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">
       <span class="badge badge-unreviewed">{{ d.n_reviewed_unreviewed }} unreviewed</span>
       <span class="badge badge-pass">{{ d.n_reviewed_accepted }} ok</span>
       <span class="badge badge-fail">{{ d.n_reviewed_flagged }} flagged</span>
       <span class="badge badge-warn">{{ d.n_reviewed_excluded }} excluded</span>
+      {% if d.dcn_type %}<span class="pill" style="margin-left:auto;background:var(--border);color:var(--text-secondary)">{{ d.dcn_type }}</span>{% endif %}
     </div>
     {% endif %}
   </div>

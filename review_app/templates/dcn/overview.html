@@ -132,15 +132,15 @@
       <th>Type</th>
       <th>Trials</th>
       <th data-sort="flags">Flags</th>
-      <th>Review</th>
+      <th data-sort="review">Review</th>
       <th>Comment</th>
-      <th>Reviewer</th>
+      <th data-sort="reviewer">Reviewer</th>
     </tr></thead>
     <tbody>
     {% for s in sessions %}
     <tr class="session-row" data-href="/dcn/{{ dcn.dcn_name }}/session/{{ s.sid }}" style="cursor:pointer">
       <td class="sid" data-sid="{{ s.sid }}">{{ s.sid }}</td>
-      <td data-pid="{{ s.pid }}">{{ s.pid }}</td>
+      <td data-pid="{{ s.pid }}">{{ "%03d" % s.pid }}</td>
       <td>{% if s.is_pilot %}<span class="badge badge-warn">pilot{% else %}<span class="badge badge-pass">exp{% endif %}</span></td>
       <td>{% if s.num_completed_trials is not none %}{{ s.num_completed_trials }}/12{% else %}—{% endif %}</td>
       <td data-flags="{{ s.n_flags }}">
@@ -148,9 +148,9 @@
         {% if s.n_warn_flags %}<span class="badge badge-warn">{{ s.n_warn_flags }}{% endif %}
         {% if s.n_flags == 0 %}<span class="badge badge-pass">0{% endif %}
       </td>
-      <td>{% set bc = {"unreviewed": "badge-unreviewed", "accepted": "badge-pass", "flagged": "badge-fail", "excluded": "badge-warn"} %}<span class="badge {{ bc[s.review_status] }}">{{ s.review_status }}</span>{% if s.needs_reprocessing %}<span style="margin-left:4px;font-size:0.7rem;color:var(--warn)" title="Needs reprocessing">↻</span>{% endif %}</td>
+      <td data-review="{{ s.review_status }}">{% set bc = {"unreviewed": "badge-unreviewed", "accepted": "badge-pass", "flagged": "badge-fail", "excluded": "badge-warn"} %}<span class="badge {{ bc[s.review_status] }}">{{ s.review_status }}</span>{% if s.needs_reprocessing %}<span style="margin-left:4px;font-size:0.7rem;color:var(--warn)" title="Needs reprocessing">↻</span>{% endif %}</td>
       <td class="comment">{{ s.comment_preview }}</td>
-      <td>{{ s.reviewer }}</td>
+      <td data-reviewer="{{ s.reviewer }}">{{ s.reviewer }}</td>
     </tr>
     {% endfor %}
     </tbody>

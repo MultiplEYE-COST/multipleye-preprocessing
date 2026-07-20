@@ -59,7 +59,7 @@ def reviews_file_path(dcn_name: str) -> Path:
 
 
 def swipe_judgments_path(dcn_name: str) -> Path:
-    return review_path(dcn_name) / "swipe_judgments.json"
+    return review_path(dcn_name) / "swipe_judgments.yaml"
 
 
 def psychometric_path(dcn_name: str) -> Path:

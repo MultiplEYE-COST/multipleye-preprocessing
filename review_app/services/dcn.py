@@ -48,9 +48,18 @@ def get_dcn(dcn_name: str) -> DcnSummary | None:
 
 def _build_dcn_summary(dcn: Dcn) -> DcnSummary:
     dcn_name = str(dcn)
+    from ..config import dataset_overview_path
+
     meta_dir = PREPROCESSED_DATA_DIR / dcn_name / "metadata"
     is_processed = meta_dir.exists() and any(meta_dir.iterdir())
     has_raw_data = (RAW_DATA_DIR / dcn_name).exists()
+
+    dcn_type = ""
+    ov_path = dataset_overview_path(dcn_name)
+    if ov_path.exists():
+        with open(ov_path) as f:
+            dcn_overview = yaml.safe_load(f) or {}
+        dcn_type = dcn_overview.get("Dataset_type", "")
 
     sessions = list_sessions(dcn_name) if is_processed else []
 
@@ -76,6 +85,7 @@ def _build_dcn_summary(dcn: Dcn) -> DcnSummary:
 
     return DcnSummary(
         dcn_name=dcn_name,
+        dcn_type=dcn_type,
         language=dcn.lang,
         country=dcn.country,
         city=dcn.city,

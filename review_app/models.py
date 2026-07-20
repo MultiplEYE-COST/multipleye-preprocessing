@@ -63,6 +63,7 @@ class SessionDetail(BaseModel):
 
 class DcnSummary(BaseModel):
     dcn_name: str
+    dcn_type: str = ""
     language: str = ""
     country: str = ""
     city: str = ""
