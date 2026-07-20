@@ -180,6 +180,11 @@ def run_preprocessing(config_path: str | None = None):
 
                 if settings.RUN_FIXATION_DETECTION:
                     preprocessing.detect_fixations(gaze)
+
+                    if settings.RUN_FIXATION_CORRECTION:
+                        pbar.set_description(f"Correcting fixations {sess.sid}:")
+                        preprocessing.correct_fixations(gaze, sess)
+
                 if settings.RUN_SACCADE_DETECTION:
                     preprocessing.detect_saccades(gaze)
 

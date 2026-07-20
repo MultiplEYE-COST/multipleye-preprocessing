@@ -4,6 +4,7 @@ from .metrics.calculate import calculate_reading_measures
 from .signals.preprocess import preprocess_gaze
 from .events.properties import compute_event_properties
 from .events.detect import detect_fixations, detect_saccades
+from .events.fixation_correction import correct_fixations
 from .mapping.aoi import map_fixations_to_aois
 from .io.save import (
     save_raw_data,
@@ -50,4 +51,5 @@ __all__ = [
     "parse_answers_from_logfile",
     "collect_session_answers",
     "run_preflight_check",
+    "correct_fixations",
 ]

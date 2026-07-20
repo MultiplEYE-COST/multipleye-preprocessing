@@ -1,6 +1,9 @@
 import preprocessing.events.drift_algorithms as da
 import numpy as np
 import polars as pl
+import pymovements as pm
+
+from ..config import settings
 
 
 def _filter_gaze_events(
@@ -51,14 +54,17 @@ def _get_lines_of_text_form_aois(aois: pl.DataFrame) -> list:
         list: The line positions of the text
     """
 
-    heights = list(set(aois["height"]))
-    # Throws error when there are different heights, because then we cannot calculate the center of the line positions
-    if len(heights) > 1:
-        raise ValueError(
-            "Different heights for AOIs, cannot calculate line positions reliably"
+    return (
+        aois.filter(pl.col("line_idx").is_not_null())
+        .group_by("line_idx")
+        .agg(
+            (pl.col("top_left_y") + pl.col("height") / 2)
+            .mean()
+            .alias("line_center")
         )
-    height = heights[0]
-    return [line + height / 2 for line in sorted(set(aois["top_left_y"]))]
+        .sort("line_idx")["line_center"]
+        .to_list()
+    )
 
 
 def create_corrected_fixations_locations(
@@ -173,3 +179,45 @@ def remove_previous_fixation_corrections(
         ~pl.col("name").str.contains(f"fixation_corrected_{algorithm}")
     )
     return gaze_events
+
+
+def correct_fixations(
+    gaze: pm.Gaze,
+    sess,
+    algorithm: str = "chain",
+) -> None:
+    """Correct fixation locations for vertical line drift.
+
+    Runs the specified drift-correction algorithm (default ``"chain"``) on the
+    detected fixations in ``gaze.events`` and replaces the original
+    ``fixation`` events with the corrected ones. This ensures that downstream
+    AOI mapping and reading measures operate on the corrected locations.
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        Gaze object with detected fixations in ``gaze.events``.
+    sess : Session
+        Session object providing ``stimuli`` and page AOI information.
+    algorithm : str, optional
+        Drift-correction algorithm to use. Default is ``"chain"``.
+    """
+    if gaze.events is None or gaze.events.frame is None or gaze.events.frame.is_empty():
+        return
+
+    remove_previous_fixation_corrections(gaze.events, algorithm)
+    add_corrected_fixations(sess, gaze.events, algorithm, verbose=1)
+
+    corrected_name = f"fixation_corrected_{algorithm}"
+    corrected = (
+        gaze.events.frame.filter(pl.col("name") == corrected_name)
+        .with_columns(pl.lit(settings.FIXATION).alias("name"))
+    )
+
+    if corrected.is_empty():
+        return
+
+    other_events = gaze.events.frame.filter(
+        (pl.col("name") != settings.FIXATION) & (pl.col("name") != corrected_name)
+    )
+    gaze.events.frame = pl.concat([other_events, corrected], how="vertical")
