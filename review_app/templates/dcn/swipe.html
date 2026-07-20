@@ -138,13 +138,12 @@
       <div class="stat-group">
         <div class="stat-group-title">Sessions</div>
         <div class="stat-row"><span style="color:var(--pass)">✓ Done</span><span class="val complete" id="stat-complete">{{ stats.sessions_complete }} / {{ stats.total_sessions }}</span></div>
-        <div class="stat-row"><span style="color:var(--warn)">▶ Skipped</span><span class="val skipped" id="stat-skipped">{{ stats.sessions_skipped }}</span></div>
       </div>
     </div>
     <div class="swipe-kbd-hint">
       <div style="margin-bottom:4px"><strong>Judge</strong></div>
-      <kbd>A</kbd> Flag &middot; <kbd>D</kbd> Keep &middot; <kbd>S</kbd> Skip<br>
-      <kbd>W</kbd> Undo<br>
+      <kbd>A</kbd> Flag &middot; <kbd>D</kbd> Keep &middot; <kbd>S</kbd> Skip &middot; <kbd>W</kbd> Undo<br>
+      <kbd>C</kbd> Focus comment<br>
       <div style="margin-top:4px"><strong>Sessions</strong></div>
       <kbd>&uarr;</kbd> Prev &middot; <kbd>&darr;</kbd> Next
     </div>
@@ -186,7 +185,11 @@ var animating = false;
 var sessionAnimating = false;
 var _currentPlotJudgment = null;
 var _showSkipBtn = true;
+var _skipJudged = false;
+var _lastFastJudge = 0;
 function _dismissSkipBtn(){ _showSkipBtn = false; }
+function _dismissSkipJudged(){ _skipJudged = false; }
+
 
 sessions.forEach(function(s){ plotIdx[s.sid] = 0; });
 
@@ -212,7 +215,6 @@ function updateStats(st){
   if(e("stat-flag"))e("stat-flag").textContent=st.flag;
   if(e("stat-skip"))e("stat-skip").textContent=st.skip;
   if(e("stat-complete"))e("stat-complete").textContent=st.sessions_complete+" / "+st.total_sessions;
-  if(e("stat-skipped"))e("stat-skipped").textContent=st.sessions_skipped;
   if(e("progress-fill"))e("progress-fill").style.width=st.progress_pct+"%";
 }
 
@@ -288,11 +290,35 @@ function renderSession(){
   /* update URL for shareable link */
   updateUrlSid(s.sid);
 
-  /* preload adjacent plots */
-  preloadPlots(s, pi);
+  /* preload adjacent plots (skip when spamming) */
+  if(!animating) preloadPlots(s, pi);
 }
 
 var imgEl = null, captionEl = null;
+
+/* fast path: update image/caption/border without replacing body innerHTML */
+function _fastRenderPlot(s, pi){
+  var plots = s.plots || [];
+  var p = plots[pi];
+  if(!p) return;
+  var pc = document.getElementById("plot-card");
+  if(!pc){ renderPlot(s, pi); return; }
+  var img = document.getElementById("plot-img");
+  var cap = document.getElementById("plot-caption");
+  if(img) img.src = p.url;
+  if(cap){
+    var parts = [];
+    if(plots.length > 1) parts.push('<span class="plot-counter">'+(pi+1)+'/'+plots.length+'</span>');
+    parts.push(p.stimulus);
+    if(p.page) parts.push(p.page);
+    if(p.activity) parts.push(p.activity);
+    cap.innerHTML = parts.join(" \u2014 ");
+  }
+  pc.className = "plot-card";
+  if(p.judgment === "keep") pc.classList.add("plot-judged-keep");
+  else if(p.judgment === "flag") pc.classList.add("plot-judged-flag");
+  _currentPlotJudgment = p.judgment;
+}
 
 function renderPlot(s, pi){
   var plots = s.plots || [];
@@ -395,9 +421,25 @@ function _commentApi(sid, plot, comment){
 }
 
 /* ---- judgment flow ---- */
+function _getNextUnjudgedIdx(s, current, wrap){
+  for(var n = 1; n < s.plots.length; n++){
+    var tryIdx = (current + n) % s.plots.length;
+    var j = s.plots[tryIdx].judgment;
+    if(!j || j === "skip") return tryIdx;
+  }
+  return wrap ? -1 : -1;
+}
 function _nextPlotInSession(){
   var s = sessions[idx];
   if(!s||!s.plots||!s.plots.length) return false;
+  if(_skipJudged){
+    var next = _getNextUnjudgedIdx(s, plotIdx[s.sid]||0, false);
+    if(next >= 0){ plotIdx[s.sid] = next; return true; }
+    /* all plots judged in this session — move on */
+    _skipJudged = false;
+    setTimeout(function(){ _nextSession(); }, 200);
+    return false;
+  }
   plotIdx[s.sid] = (plotIdx[s.sid]||0) + 1;
   if(plotIdx[s.sid] >= s.plots.length){
     setTimeout(function(){ _nextSession(); }, 200);
@@ -408,25 +450,48 @@ function _nextPlotInSession(){
 
 window._judge = function(judgment){
   _dismissSkipBtn();
-  if(animating || sessionAnimating || idx >= sessions.length) return;
+  if(sessionAnimating || idx >= sessions.length) return;
   var s = sessions[idx];
   if(!s) return;
   var pi = plotIdx[s.sid] || 0;
   var p = s.plots[pi];
   if(!p) return;
 
-  history.push({sid:s.sid, plot:p.name, judgment:p.judgment});
-
   s.plots[pi].judgment = judgment;
   _judgeApi(s.sid, p.name, judgment);
 
-  var dir = judgment === "keep" ? "right" : judgment === "flag" ? "left" : "down";
-  _animatePlot(dir, function(){
-    if(_nextPlotInSession()){
+  /* fast path during spam: skip animation, history, full render */
+  if(animating){
+    var now = Date.now();
+    if(now - _lastFastJudge < 60) return; /* throttle: let backend keep up */
+    _lastFastJudge = now;
+    if(_skipJudged){
+      var next = _getNextUnjudgedIdx(s, pi, false);
+      if(next >= 0){ plotIdx[s.sid] = next; _fastRenderPlot(s, next); return; }
+      _skipJudged = false;
+      idx++;
+      if(idx >= sessions.length){ card.style.display="none"; noMore.style.display=""; return; }
+      renderSession();
+      return;
+    }
+    plotIdx[s.sid] = (plotIdx[s.sid]||0) + 1;
+    if(plotIdx[s.sid] >= s.plots.length){
+      plotIdx[s.sid] = 0;
+      idx++;
+      if(idx >= sessions.length){ card.style.display="none"; noMore.style.display=""; return; }
       renderSession();
     } else {
-      renderSession();
+      _fastRenderPlot(s, plotIdx[s.sid]);
     }
+    return;
+  }
+
+  history.push({sid:s.sid, plot:p.name, judgment:p.judgment});
+
+  var dir = judgment === "keep" ? "right" : judgment === "flag" ? "left" : "down";
+  _animatePlot(dir, function(){
+    if(_nextPlotInSession()){ renderSession(); }
+    else { renderSession(); }
   });
 };
 
@@ -465,14 +530,10 @@ window._nextPlot = function(){
 
 window._nextUnjudged = function(){
   _dismissSkipBtn();
+  _skipJudged = true;
   var s = sessions[idx];
   if(!s||!s.plots||!s.plots.length) return;
-  var current = plotIdx[s.sid] || 0;
-  var target = -1;
-  for(var n = 1; n <= s.plots.length; n++){
-    var tryIdx = (current + n) % s.plots.length;
-    if(!s.plots[tryIdx].judgment){ target = tryIdx; break; }
-  }
+  var target = _getNextUnjudgedIdx(s, plotIdx[s.sid]||0, true);
   if(target >= 0){
     _animatePlot("down", function(){
       plotIdx[s.sid] = target;
@@ -483,7 +544,7 @@ window._nextUnjudged = function(){
 
 /* ---- session navigation ---- */
 window._goToSession = function(sid){
-  _dismissSkipBtn();
+  _dismissSkipBtn(); _dismissSkipJudged();
   if(sessionAnimating) return;
   var ni = sessions.findIndex(function(s){ return s.sid === sid; });
   if(ni === -1 || ni === idx) return;
@@ -493,8 +554,9 @@ window._goToSession = function(sid){
 };
 
 window._prevSession = function(){
-  _dismissSkipBtn();
-  if(sessionAnimating || idx <= 0) return;
+  _dismissSkipBtn(); _dismissSkipJudged();
+  if(idx <= 0) return;
+  if(sessionAnimating){ idx--; renderSession(); return; }
   _animateSession("down", "up", function(){
     idx--;
     plotIdx[sessions[idx].sid] = plotIdx[sessions[idx].sid] || 0;
@@ -502,10 +564,15 @@ window._prevSession = function(){
   });
 };
 window._nextSession = function(){
-  _dismissSkipBtn();
-  if(sessionAnimating) return;
+  _dismissSkipBtn(); _dismissSkipJudged();
   if(idx >= sessions.length - 1){
     idx = sessions.length;
+    renderSession();
+    return;
+  }
+  if(sessionAnimating){
+    idx++;
+    plotIdx[sessions[idx].sid] = plotIdx[sessions[idx].sid] || 0;
     renderSession();
     return;
   }
@@ -520,7 +587,7 @@ window._nextSession = function(){
 /* ---- animations ---- */
 function _animatePlot(dir, cb){
   var pc = document.getElementById("plot-card");
-  if(!pc){ if(cb) cb(); return; }
+  if(!pc || animating){ if(cb) cb(); return; }
   animating = true;
   pc.classList.add("plot-"+dir);
   setTimeout(function(){
@@ -530,6 +597,7 @@ function _animatePlot(dir, cb){
 }
 
 function _animateSession(exitDir, enterDir, cb){
+  if(sessionAnimating){ if(cb) cb(); return; }
   sessionAnimating = true;
   card.classList.add("session-"+exitDir);
   setTimeout(function(){
@@ -577,6 +645,7 @@ document.addEventListener("keydown", function(e){
   else if(e.key === "d" || e.key === "D"){ e.preventDefault(); window._judge("keep"); }
   else if(e.key === "s" || e.key === "S"){ e.preventDefault(); window._judge("skip"); }
   else if(e.key === "w" || e.key === "W"){ e.preventDefault(); window._undo(); }
+  else if((e.key === "c" || e.key === "C") && !e.ctrlKey && !e.metaKey){ e.preventDefault(); var ci = document.getElementById("comment-input"); if(ci) ci.focus(); }
   else if(e.key === "ArrowUp"){ e.preventDefault(); window._prevSession(); }
   else if(e.key === "ArrowDown"){ e.preventDefault(); window._nextSession(); }
 });
