@@ -3,7 +3,6 @@
 import yaml
 import os
 import tempfile
-from pathlib import Path
 
 from ..config import dcn_path, swipe_judgments_path
 from .dcn import list_sessions, get_dcn
@@ -45,6 +44,7 @@ def _country_name(code: str) -> str:
 # ---------------------------------------------------------------------------
 # File I/O (nested YAML: {sid: {plots: {name: judgment, ...}, comments: {name: str, ...}}})
 # ---------------------------------------------------------------------------
+
 
 def load_judgments(dcn_name: str) -> dict:
     """Load all swipe judgments for a DCN.
@@ -111,6 +111,7 @@ def save_plot_comment(dcn_name: str, sid: str, plot_name: str, comment: str) -> 
 # Plot enumeration (now includes main_sequence)
 # ---------------------------------------------------------------------------
 
+
 def _parse_plot_name(stem: str) -> dict:
     """Extract stimulus, page, and activity from a plot filename stem."""
     if stem == "main_sequence":
@@ -171,18 +172,35 @@ def list_plot_data(dcn_name: str, sid: str) -> list[dict]:
 # Swipe queue — all sessions with their plots, natural order, no shuffle
 # ---------------------------------------------------------------------------
 
+
 def _compute_stats(data: dict, all_sessions: list, enriched_sessions: list) -> dict:
     total_plots = sum(s["n_plots"] for s in enriched_sessions)
-    plots_judged = sum(1 for s in enriched_sessions for p in s["plots"] if p.get("judgment"))
-    keep = sum(1 for s in enriched_sessions for p in s["plots"] if p.get("judgment") == "keep")
-    flag = sum(1 for s in enriched_sessions for p in s["plots"] if p.get("judgment") == "flag")
-    skip = sum(1 for s in enriched_sessions for p in s["plots"] if p.get("judgment") == "skip")
+    plots_judged = sum(
+        1 for s in enriched_sessions for p in s["plots"] if p.get("judgment")
+    )
+    keep = sum(
+        1 for s in enriched_sessions for p in s["plots"] if p.get("judgment") == "keep"
+    )
+    flag = sum(
+        1 for s in enriched_sessions for p in s["plots"] if p.get("judgment") == "flag"
+    )
+    skip = sum(
+        1 for s in enriched_sessions for p in s["plots"] if p.get("judgment") == "skip"
+    )
     sessions_complete = sum(
-        1 for s in enriched_sessions
+        1
+        for s in enriched_sessions
         if s["n_plots"] > 0 and all(p.get("judgment") for p in s["plots"])
     )
     sessions_judged = {sid for sid, entry in data.items() if entry.get("plots")}
-    sessions_skipped = len([s for s in enriched_sessions if s["sid"] in sessions_judged and not all(p.get("judgment") for p in s["plots"])])
+    sessions_skipped = len(
+        [
+            s
+            for s in enriched_sessions
+            if s["sid"] in sessions_judged
+            and not all(p.get("judgment") for p in s["plots"])
+        ]
+    )
     return {
         "plots_judged": plots_judged,
         "total_plots": total_plots,
@@ -192,7 +210,9 @@ def _compute_stats(data: dict, all_sessions: list, enriched_sessions: list) -> d
         "sessions_complete": sessions_complete,
         "sessions_skipped": sessions_skipped,
         "total_sessions": len(all_sessions),
-        "progress_pct": round(plots_judged / total_plots * 100, 1) if total_plots else 0,
+        "progress_pct": round(plots_judged / total_plots * 100, 1)
+        if total_plots
+        else 0,
     }
 
 
@@ -302,13 +322,16 @@ def swipe_stats(dcn_name: str) -> dict:
         "sessions_complete": sessions_complete,
         "sessions_skipped": sessions_skipped,
         "total_sessions": len(sessions),
-        "progress_pct": round(plots_judged / total_plots * 100, 1) if total_plots else 0,
+        "progress_pct": round(plots_judged / total_plots * 100, 1)
+        if total_plots
+        else 0,
     }
 
 
 # ---------------------------------------------------------------------------
 # Legacy support — wrapped from routes/session.py that reads per-session judgments
 # ---------------------------------------------------------------------------
+
 
 def load_session_judgment(dcn_name: str, sid: str) -> str | None:
     """Load a single session's plot judgments. Returns None if none."""

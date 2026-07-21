@@ -8,7 +8,11 @@ from ..templating import render
 from ..services.session_data import read_overview, build_session_detail
 from ..services.thresholds import load_thresholds
 from ..services.review import load_review, save_review
-from ..services.swipe import load_plot_judgments_dict, load_plot_comments_dict, _NON_SCANPATH_KEYWORDS, list_plot_data
+from ..services.swipe import (
+    load_plot_judgments_dict,
+    load_plot_comments_dict,
+    list_plot_data,
+)
 
 
 router = APIRouter()
@@ -20,7 +24,7 @@ async def session_page(
     dcn: str,
     sid: str,
 ):
-    from ..config import session_overview_path, sanity_checks_path
+    from ..config import session_overview_path
     from ..services.dcn import list_sessions
 
     sessions = list_sessions(dcn)
@@ -65,13 +69,19 @@ async def session_content_partial(
     """Return just the session content HTML (no base template)."""
     from ..config import session_overview_path
     from ..services.dcn import list_sessions
-    from ..services.swipe import load_plot_judgments_dict, load_plot_comments_dict, list_plot_data
+    from ..services.swipe import (
+        load_plot_judgments_dict,
+        load_plot_comments_dict,
+        list_plot_data,
+    )
 
     sessions = list_sessions(dcn)
 
     ov = read_overview(session_overview_path(dcn, sid))
     if ov is None:
-        raise HTTPException(status_code=404, detail=f"Session '{sid}' not found in DCN '{dcn}'")
+        raise HTTPException(
+            status_code=404, detail=f"Session '{sid}' not found in DCN '{dcn}'"
+        )
     thresholds = load_thresholds(dcn)
     review = load_review(dcn, sid)
     detail = build_session_detail(ov, review, thresholds, dcn, sid)
@@ -127,9 +137,7 @@ def _open_folder(folder: Path):
     import sys
 
     if not folder.exists():
-        raise HTTPException(
-            status_code=404, detail=f"Folder not found: {folder}"
-        )
+        raise HTTPException(status_code=404, detail=f"Folder not found: {folder}")
     if sys.platform == "darwin":
         subprocess.Popen(["open", str(folder.resolve())])
     elif sys.platform == "linux":
