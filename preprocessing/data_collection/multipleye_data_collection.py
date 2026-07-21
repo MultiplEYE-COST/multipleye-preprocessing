@@ -104,6 +104,7 @@ class MultipleyeDataCollection:
         self.include_pilots = kwargs.get("include_pilots", False)
         self.reports_dir = kwargs.get("output_dir", "")
         self.pilot_folder = kwargs.get("pilot_folder", "")
+        self.enlarge_aois = kwargs.get("enlarge_aois", True)
 
         for short_name, long_name in settings.EYETRACKER_NAMES.items():
             if eye_tracker in long_name:
@@ -400,6 +401,7 @@ class MultipleyeDataCollection:
         include_pilots: bool = False,
         excluded_sessions: list[str] | None = None,
         included_sessions: list[str] | None = None,
+        enlarge_aois: bool = True,
     ) -> "MultipleyeDataCollection":
         """
         :param data_dir: str  path to the data folder
@@ -502,6 +504,7 @@ class MultipleyeDataCollection:
             ps_tests_path=ps_tests_path,
             included_sessions=included_sessions,
             excluded_sessions=excluded_sessions,
+            enlarge_aois=enlarge_aois,
         )
 
     def create_sanity_check_report(
@@ -782,6 +785,7 @@ class MultipleyeDataCollection:
                 stimulus_name,
                 stimulus_order_version,
                 trial_id[0],
+                enlarge_aois=self.enlarge_aois,
             )
             stimuli.append(stimulus)
 

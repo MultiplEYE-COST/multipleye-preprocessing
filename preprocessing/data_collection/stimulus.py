@@ -108,6 +108,7 @@ class Stimulus:
         stimulus_name: str,
         question_version: int,
         trial: str,
+        enlarge_aois: bool = True,
     ) -> "Stimulus":
         # assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
         stimulus_df_path = _ci_resolve(
@@ -166,7 +167,8 @@ class Stimulus:
         )
 
         aois_df = pl.read_csv(aoi_path)
-        aois_df = enlarge_aois(aois_df)
+        if enlarge_aois:
+            aois_df = enlarge_aois(aois_df)
 
         text_stimulus = TextStimulus(
             aois_df,

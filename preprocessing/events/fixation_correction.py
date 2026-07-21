@@ -114,7 +114,7 @@ def _add_corrected_fixations_to_events(
 
     for i, event in enumerate(original_events.iter_rows(named=True)):
         new_event = event.copy()
-        new_event["location"] = corrected_fixations[i]
+        new_event["location"] = corrected_fixations[i].tolist()
         new_event["name"] = f"fixation_corrected_{algorithm}"
         events_destination = events_destination.vstack(pl.DataFrame([new_event]))
     return events_destination
