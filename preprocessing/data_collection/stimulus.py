@@ -12,7 +12,7 @@ from pymovements.stimulus import TextStimulus
 
 from ..config import settings
 from ..utils.data_path_utils import _ci_resolve
-from ..mapping.aoi import enlarge_aois
+from ..mapping.aoi import enlarge_aois as _enlarge_aois
 from ..utils.logging import get_logger
 
 logger = get_logger()
@@ -168,7 +168,7 @@ class Stimulus:
 
         aois_df = pl.read_csv(aoi_path)
         if enlarge_aois:
-            aois_df = enlarge_aois(aois_df)
+            aois_df = _enlarge_aois(aois_df)
 
         text_stimulus = TextStimulus(
             aois_df,
