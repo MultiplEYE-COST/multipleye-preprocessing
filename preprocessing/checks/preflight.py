@@ -77,6 +77,10 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
         for msg in warnings["Psychometric tests"]:
             lines.append(f"\n  {msg}")
 
+    if "Session completeness" in warnings:
+        for msg in warnings["Session completeness"]:
+            lines.append(f"\n  {msg}")
+
     print("\n".join(lines), file=sys.stderr)
 
 
@@ -102,6 +106,7 @@ def run_preflight_check(data_collection) -> None:
     _check_skipped_sessions(data_collection, errors)
     _check_sessions(data_collection, errors)
     _check_stimulus_order_coverage(data_collection, errors)
+    _check_session_completeness(data_collection, warnings)
 
     pt_warnings: list[str] = []
     _check_psychometric_tests(data_collection, pt_warnings)
@@ -422,6 +427,56 @@ def _check_stimulus_order_coverage(
         groups.setdefault("Stimulus order versions coverage", []).append(
             f"{entry} — duplicate entries in stimulus_order_versions CSV"
         )
+
+
+def _check_session_completeness(
+    data_collection,
+    warnings: dict[str, list[str]],
+) -> None:
+    """Check that every participant has all expected sessions.
+
+    Groups sessions by base_id (participant + language + country + lab)
+    and detects the expected number of sessions from the data pattern.
+    Participants with fewer sessions than the maximum observed for any
+    participant are reported as warnings.
+
+    Non-pilot sessions only; sessions with non-parseable SIDs are skipped.
+    """
+    from ..models.sid import Sid
+
+    base_sessions: dict[str, set[int]] = {}
+    for session in data_collection.sessions.values():
+        if getattr(session, "is_pilot", False):
+            continue
+        try:
+            sid = Sid(session.session_identifier)
+        except (ValueError, TypeError):
+            continue
+        base_sessions.setdefault(sid.base_id, set()).add(sid.session_id)
+
+    if not base_sessions:
+        return
+
+    max_sessions = max(len(v) for v in base_sessions.values())
+    if max_sessions <= 1:
+        return
+
+    total_participants = len(base_sessions)
+    complete = sum(1 for v in base_sessions.values() if len(v) == max_sessions)
+    incomplete = [
+        f"{base_id} (has session(s): {sorted(session_ids)}, "
+        f"missing: ET{','.join(str(s) for s in sorted(set(range(1, max_sessions + 1)) - session_ids))})"
+        for base_id, session_ids in sorted(base_sessions.items())
+        if len(session_ids) < max_sessions
+    ]
+
+    msg = (
+        f"Session completeness: {complete}/{total_participants} participants "
+        f"have all {max_sessions} expected ET sessions."
+    )
+    warnings.setdefault("Session completeness", []).append(msg)
+    if incomplete:
+        warnings["Session completeness"].extend(incomplete)
 
 
 def _format_message(groups: dict[str, list[str]]) -> str:

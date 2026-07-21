@@ -57,6 +57,52 @@ def eyelink(method):
     return wrapper
 
 
+def _compute_session_completeness(data_collection) -> dict:
+    """Compute session completeness stats grouped by participant base ID.
+
+    Returns a dict with keys ``expected_sessions_per_participant``,
+    ``total_participants``, ``complete_participants``, and
+    ``incomplete_participants`` (a list of base IDs with missing sessions).
+    Non-pilot sessions only; sessions with non-parseable SIDs are skipped.
+    """
+    base_sessions: dict[str, set[int]] = {}
+    for session in data_collection.sessions.values():
+        if getattr(session, "is_pilot", False):
+            continue
+        try:
+            sid = Sid(session.session_identifier)
+        except (ValueError, TypeError):
+            continue
+        base_sessions.setdefault(sid.base_id, set()).add(sid.session_id)
+
+    if not base_sessions:
+        return {
+            "expected_sessions_per_participant": 0,
+            "total_participants": 0,
+            "complete_participants": 0,
+        }
+
+    max_sessions = max(len(v) for v in base_sessions.values())
+    total = len(base_sessions)
+    complete = sum(1 for v in base_sessions.values() if len(v) == max_sessions)
+
+    result: dict = {
+        "expected_sessions_per_participant": max_sessions,
+        "total_participants": total,
+        "complete_participants": complete,
+    }
+
+    incomplete = sorted(
+        base_id
+        for base_id, session_ids in base_sessions.items()
+        if len(session_ids) < max_sessions
+    )
+    if incomplete:
+        result["incomplete_participants"] = incomplete
+
+    return result
+
+
 class MultipleyeDataCollection:
     participant_data_path: Path | str | None
     crashed_session_ids: list[str] = []
@@ -652,6 +698,8 @@ class MultipleyeDataCollection:
             [session for session in self.sessions if self.sessions[session].is_pilot]
         )
 
+        session_completeness = _compute_session_completeness(self)
+
         # TODO: add more, check metadata scheme, add stats like num read pages, total reading time etc.
         overview = {
             "Title": self.data_collection_name,
@@ -662,6 +710,7 @@ class MultipleyeDataCollection:
             "Country": self.country,
             "Year": self.year,
             "Number of eye-tracking (ET) sessions per participant": self.num_sessions,
+            "Session_completeness": session_completeness,
         }
 
         # Add warnings to overview
