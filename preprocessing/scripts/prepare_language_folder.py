@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..mapping.aoi_preprocessing import rename_aoi_columns, add_custom_aois
 from ..models.dcn import Dcn
 from ..utils.data_path_utils import check_data_collection_exists
 from ..utils.logging import get_logger
@@ -208,10 +209,17 @@ def prepare_language_folder(data_collection_name: str | None = None):
         aoi_files = list(destination_aoi_path.glob("*.csv"))
 
     if len(aoi_files) == 24:
-        logger.info("Applying AOI fixes (remapping space and repairing labels)...")
+        logger.info(
+            "Applying AOI fixes (remapping space, repairing labels, renaming header)..."
+        )
         for aoi_file in aoi_files:
             remap_space_to_following_word(aoi_file)
             repair_word_labels(aoi_file)
+            rename_aoi_columns(aoi_file)
+
+            if settings.CUSTOM_UOAS:
+                logger.info("Adding custom units of analysis (aois)")
+                add_custom_aois(aoi_file, settings.LANGUAGE)
 
         # Create a marker file to indicate that these files have been fixed
         (destination_aoi_path / ".fixed").touch()
