@@ -25,11 +25,11 @@
          data-href="/dcn/{{ dcn }}/session/{{ sid }}">
       <span class="session-nav-sid" title="{{ sid }}">{{ sid|truncate(18, True, '', 0) }}</span>
       {% if n_fail > 0 %}
-      <span class="flag-dots" title="{{ n_fail }} fail flag{{ 's' if n_fail != 1 }}">
+      <span class="flag-dots" title="{{ n_fail }} failed check{{ 's' if n_fail != 1 }}">
         <span class="dot dot-fail">●</span>
       </span>
       {% elif n_warn > 0 %}
-      <span class="flag-dots" title="{{ n_warn }} warn flag{{ 's' if n_warn != 1 }}">
+      <span class="flag-dots" title="{{ n_warn }} warn check{{ 's' if n_warn != 1 }}">
         <span class="dot dot-warn">●</span>
       </span>
       {% endif %}
@@ -128,7 +128,7 @@
   function loadContent(item, idx){
     var href = item.dataset.href;
     var contentUrl = href + "/content";
-    saveReviewComment().then(function(){ 
+    saveReviewComment().then(function(){
       fetch(contentUrl)
         .then(function(r){ return r.text(); })
         .then(function(html){
