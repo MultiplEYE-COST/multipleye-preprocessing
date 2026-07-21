@@ -60,7 +60,7 @@
 .plot-card .comment-section textarea{width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:0.8rem;resize:none;height:2.2rem;font-family:inherit;transition:height 0.2s}
 .plot-card .comment-section textarea:focus{height:3.6rem;outline:none;border-color:var(--accent)}
 
-/* ---- session flagged checks ---- */
+/* ---- session failed checks ---- */
 .session-flagged{padding:0.35rem 1.25rem;font-size:0.78rem;display:flex;flex-wrap:wrap;gap:4px 12px;background:var(--bg);border-top:1px solid var(--border)}
 
 /* ---- right sidebar stats ---- */
@@ -97,7 +97,7 @@
 {% block content %}
 <div class="swipe-layout">
   <div class="swipe-card-wrapper">
-    <h2 style="margin-bottom:0.75rem">Swipe <span style="font-size:0.85rem;color:var(--text-secondary)">— per-plot gaze review</span></h2>
+    <h2 style="margin-bottom:0.75rem">Swipe <span style="font-size:0.85rem;color:var(--text-secondary)">per-plot gaze review</span></h2>
     <div class="session-card" id="session-card" style="display:none">
       <div class="session-body-row">
         <div class="session-nav-side">
@@ -268,7 +268,7 @@ function renderSession(){
   if(s.needs_reprocessing) bh += '<span class="pill" style="background:#eab308;color:#fff;border:none;font-size:0.72rem">reprocess</span>';
   badges.innerHTML = bh;
 
-  /* flagged checks below body */
+  /* failed checks below body */
   var fc = document.getElementById("session-flagged");
   if(fc){
     if(s.flagged_checks && s.flagged_checks.length){
