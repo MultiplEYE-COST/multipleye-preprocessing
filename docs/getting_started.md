@@ -112,6 +112,54 @@ This should show the program's version and usage information.
 
 ## Running the Pipeline
 
+### Download your MultiplEYE data
+
+```{attention}
+The steps below require that you have access to a protected folder where the MultiplEYE data for one data collection is stored.
+You have only been granted access to this folder if you are part of the data collection for this language.
+```
+
+1. Download the data folder from the online repository. Download the content of the entire folder.
+   When you download it from SwitchDrive, it will automatically create a .tar file.
+2. Add the folder to the `data/` folder in this repo. Its name should be the name of the data
+   collection, e.g. `MultiplEYE_ZH_CH_Zurich_1_2025`.
+3. Extract the .tar file in the `data/` folder.
+4. Please make sure that the extracted folder has the same structure as the folder online.
+
+### Configuration
+
+The MultiplEYE preprocessing pipeline uses a central configuration system to manage all parameters,
+ensuring reproducible and consistent data processing. Before you start processing your data, you need to set up this configuration.
+
+When you run the pipeline for the first time in a new directory, it will create a template called `multipleye_settings_preprocessing.yaml` for you.
+
+```bash
+uv run run_preprocessing
+```
+
+After it stops, open this file and configure the following parameters:
+
+- `DATA_COLLECTION_NAME`: **(Required)** A unique identifier for your collection.
+    - Format: `MultiplEYE_[LANG]_[COUNTRY]_[CITY]_[LAB_NO]_[YEAR]`
+    - Example: `MultiplEYE_EN_UK_London_1_2026`
+    - **Note**: This name has been given to you by the MultiplEYE project.
+      It is used to determine data and output paths. If it doesn't match the
+      required 6-part format, the pipeline might fail to resolve certain paths.
+- `OVERWRITE`: `true` to reprocess existing data, `false` (default) to skip already processed
+  sessions.
+- `EXPERIMENT_TYPE`: `MultiplEYE` (default) or `MeRID`.
+- `INCLUDE_SESSIONS` / `EXCLUDE_SESSIONS`: Optional lists to filter which sessions are processed.
+- `INCLUDE_PILOTS`: `true` to include data from pilot folders (default: `false`).
+- `EXPECTED_SAMPLING_RATE_HZ`: The sampling rate of your eye tracker (default: `1000`).
+
+**Do not change** any of the parameters marked for internal usage, as they ensure consistency across the MultiplEYE project.
+
+Please find additional information on the configuration here: {ref}`configuration_guide`
+
+### Preprocess your data
+
+If it is your first time with the pipeline
+
 The process described below is also documented in a step-by-step notebook. This notebook breaks up
 the
 pipeline into the smaller steps. And you can go through them one by one.
@@ -128,22 +176,6 @@ formats, please read into the more detailed {ref}`reference_guide` chapter.
 
 To run a pipeline you wil have to fill in the relevant information in the
 `multipleye_settings_preprocessing.yaml` file. Please find more information on the config file: {ref}`configuration_guide`
-
-### Download your MultiplEYE data
-
-```{attention}
-The steps below require that you have access to a protected folder where the MultiplEYE data for one data collection is stored.
-You have only been granted access to this folder if you are part of the data collection for this language.
-```
-
-1. Download the data folder from the online repository. Download the content of the entire folder.
-   When you download it from SwitchDrive, it will automatically create a .tar file.
-2. Add the folder to the `data/` folder in this repo. Its name should be the name of the data
-   collection, e.g. `MultiplEYE_ZH_CH_Zurich_1_2025`.
-3. Extract the .tar file in the `data/` folder.
-4. Please make sure that the extracted folder has the same structure as the folder online.
-
-### Preprocess your data
 
 To run the MultiplEye preprocessing pipeline (if you used `uv` for installation and activated the
 environment):
