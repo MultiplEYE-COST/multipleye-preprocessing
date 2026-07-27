@@ -466,6 +466,12 @@ class Settings:
         #: Acceptable range (min, max) for maximum validation accuracy scores.
         self.ACCEPTABLE_MAX_VALIDATION_SCORES = (0.0, 1.5)
 
+        #: Single validation classification — scores below this are GOOD.
+        self.SINGLE_VALIDATION_GOOD_MAX = 0.305
+
+        #: Single validation classification — scores below this are MODERATE (≥ GOOD_MAX, < this is MODERATE).
+        self.SINGLE_VALIDATION_MODERATE_MAX = 0.45
+
         #: Mapping from YAML config flags to folder names for psychometric tests.
         self.PSYCHOMETRIC_TEST_MAPPING = {
             "plab": "PLAB",
@@ -489,6 +495,10 @@ class Settings:
 
         #: Expected minimum number of experimental trials.
         self.ACCEPTABLE_NUM_TRIALS = 10
+
+        #: Minimum number of completed trials before a session is considered complete.
+        #: MultiplEYE full session = 12, MeRID split = 6, crash = <6.
+        self.ACCEPTABLE_NUM_COMPLETED_TRIALS = 6
 
         #: Column name for the activity identifier.
         self.ACTIVITY_COL = "activity"
@@ -521,6 +531,26 @@ class Settings:
 
         #: Event name for saccades.
         self.SACCADE = "saccade"
+
+        # --- PSYCHOMETRIC TEST THRESHOLDS ---
+
+        #: Minimum reaction time for WikiVocab in seconds.
+        self.PSYM_WIKIVOCAB_MIN_RT = 0.2
+
+        #: Maximum reaction time for WikiVocab in seconds.
+        self.PSYM_WIKIVOCAB_MAX_RT = float("inf")
+
+        #: Minimum reaction time for Stroop in seconds.
+        self.PSYM_STROOP_MIN_RT = 0.2
+
+        #: Maximum reaction time for Stroop in seconds.
+        self.PSYM_STROOP_MAX_RT = float("inf")
+
+        #: Minimum reaction time for Flanker in seconds.
+        self.PSYM_FLANKER_MIN_RT = 0.0
+
+        #: Maximum reaction time for Flanker in seconds.
+        self.PSYM_FLANKER_MAX_RT = float("inf")
 
         # --- REGULAR EXPRESSIONS ---
 

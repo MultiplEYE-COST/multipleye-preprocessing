@@ -300,6 +300,10 @@ def _check_sessions(data_collection, groups: dict[str, list[str]]) -> None:
         experiment_logs = _ci_glob(logfiles, "EXPERIMENT_*.txt")
         if len(experiment_logs) != 1:
             groups.setdefault("EXPERIMENT_*.txt", []).append(sid)
+        elif len(experiment_logs) > 1:
+            groups.setdefault("Multiple EXPERIMENT_*.txt logfiles", []).append(
+                f"{sid} ({len(experiment_logs)} files)"
+            )
 
         # 4. DATA_LOGFILE_*.txt
         experiment_logs = _ci_glob(logfiles, "DATA_LOGFILE_*.txt")
@@ -464,6 +468,7 @@ def _format_message(groups: dict[str, list[str]]) -> str:
         "EDF data file",
         "Logfiles folder",
         "EXPERIMENT_*.txt",
+        "Multiple EXPERIMENT_*.txt logfiles",
         "GENERAL_LOGFILE_*.txt",
         "completed_stimuli.csv",
         "question_order_versions.csv",
@@ -481,6 +486,7 @@ def _format_message(groups: dict[str, list[str]]) -> str:
         "EDF data file",
         "Logfiles folder",
         "EXPERIMENT_*.txt",
+        "Multiple EXPERIMENT_*.txt logfiles",
         "GENERAL_LOGFILE_*.txt",
         "completed_stimuli.csv",
         "question_order_versions.csv",

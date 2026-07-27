@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "MultiplEYE-preprocessing"
-version = "2026.07.11"
+version = "2026.07.21"
 description = "Pipeline for Multipleye data preprocessing"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -28,8 +28,17 @@ dependencies = [
 # this can be used to get a pymovements version from the git repo, before a version releases:
 #pymovements = { git = "https://github.com/pymovements/pymovements.git", branch = "main" }
 
+[project.optional-dependencies]
+review = [
+    "fastapi>=0.139.0",
+    "uvicorn[standard]>=0.35.0",
+    "jinja2>=3.1.6",
+    "python-multipart>=0.0.32",
+    "pycountry>=24.6.1",
+]
+
 [tool.setuptools.packages.find]
-include = ["preprocessing"]
+include = ["preprocessing", "review_app"]
 
 [dependency-groups]
 dev = [{ include-group = "lint" }, { include-group = "docs" }]
@@ -54,3 +63,5 @@ prepare_language_folder = "preprocessing.scripts.prepare_language_folder:main"
 preprocess_psychometric_tests = "preprocessing.scripts.psychometric_tests:process_all_psychometric_test_sessions"
 # Pipelines
 run_preprocessing = "preprocessing.scripts.run_preprocessing:main"
+# Review web UI
+review_web = "review_app.main:run"
