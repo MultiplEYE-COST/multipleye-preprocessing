@@ -120,6 +120,7 @@ def preflight_env(tmp_path: Path):
     (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text(
         "experiment data", encoding="utf-8"
     )
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("data", encoding="utf-8")
     (logfiles / "GENERAL_LOGFILE_001.txt").write_text("general data", encoding="utf-8")
 
     _write_csv(
@@ -201,6 +202,15 @@ def preflight_env(tmp_path: Path):
             lambda env: _remove_glob(
                 env[0].sessions[env[1]].session_folder_path / "logfiles",
                 "GENERAL_LOGFILE_*.txt",
+            ),
+            1,
+        ),
+        # ---- DATA_LOGFILE_*.txt ---------------------------------------------
+        (
+            "data_logfile_missing",
+            lambda env: _remove_glob(
+                env[0].sessions[env[1]].session_folder_path / "logfiles",
+                "DATA_LOGFILE_*.txt",
             ),
             1,
         ),
@@ -445,6 +455,7 @@ def test_preflight_multiple_sessions(tmp_path: Path):
             (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text(
                 "data", encoding="utf-8"
             )
+        (logfiles / "DATA_LOGFILE_001.txt").write_text("data", encoding="utf-8")
         (logfiles / "GENERAL_LOGFILE_001.txt").write_text("data", encoding="utf-8")
         _write_csv(
             logfiles / "completed_stimuli.csv",
@@ -520,8 +531,9 @@ def test_preflight_stimulus_dir_empty_with_archive(tmp_path: Path):
     (sess_folder / "data.edf").write_text("data", encoding="utf-8")
     logfiles = sess_folder / "logfiles"
     logfiles.mkdir()
-    (logfiles / "EXPERIMENT_001.txt").write_text("data", encoding="utf-8")
-    (logfiles / "GENERAL_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "GENERAL_LOGFILE_001.txt").write_text("data", encoding="utf-8")
     _write_csv(
         logfiles / "completed_stimuli.csv",
         ["stimulus_id", "stimulus_name", "trial_id", "completed"],
@@ -878,6 +890,7 @@ def test_pt_does_not_inflate_error_count(tmp_path: Path, monkeypatch):
     logfiles = sess_folder / "logfiles"
     logfiles.mkdir()
     (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text("x")
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("x")
     (logfiles / "GENERAL_LOGFILE_001.txt").write_text("x")
     _write_csv(
         logfiles / "completed_stimuli.csv",

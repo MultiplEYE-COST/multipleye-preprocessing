@@ -302,8 +302,8 @@ def _check_sessions(data_collection, groups: dict[str, list[str]]) -> None:
             groups.setdefault("EXPERIMENT_*.txt", []).append(sid)
 
         # 4. DATA_LOGFILE_*.txt
-        experiment_logs = _ci_glob(logfiles, "DATA_LOGFILE_*.txt")
-        if len(experiment_logs) != 1:
+        data_logs = _ci_glob(logfiles, "DATA_LOGFILE_*.txt")
+        if len(data_logs) != 1:
             groups.setdefault("DATA_LOGFILE_*.txt", []).append(sid)
 
         # 5. GENERAL_LOGFILE_*.txt
