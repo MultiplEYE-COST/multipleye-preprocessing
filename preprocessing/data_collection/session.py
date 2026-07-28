@@ -6,6 +6,7 @@ import polars as pl
 from ..data_collection.stimulus import Stimulus, LabConfig
 from ..data_collection.trial import Trial
 from ..models import Sid
+from ..config import settings
 
 
 @dataclass
@@ -54,6 +55,16 @@ class Session:
     num_calibrations: int = field(default="unknown", init=False)
     num_validations: int = field(default="unknown", init=False)
     avg_validation_error: float = field(default="unknown", init=False)
+
+    # eye tracking metadata
+    tracked_eye: str = field(default="unknown", init=False)
+    tracked_eye_consistent: bool = field(default=True, init=False)
+    num_good_validations: int = field(default=0, init=False)
+    num_moderate_validations: int = field(default=0, init=False)
+    num_bad_validations: int = field(default=0, init=False)
+
+    # completed trials
+    num_completed_trials: int = field(default=0, init=False)
 
     # sanity report
     sanity_report_path: Path = field(default="unknown", init=False)
@@ -104,6 +115,14 @@ class Session:
             "data_loss_ratio": self.pm_gaze_metadata["data_loss_ratio"],
             "Mount_configuration": self.pm_gaze_metadata["mount_configuration"],
             "Pupil_data_type": self.pm_gaze_metadata["pupil_data_type"],
+            "tracked_eye": self.tracked_eye,
+            "tracked_eye_consistent": self.tracked_eye_consistent,
+            "num_good_validations": self.num_good_validations,
+            "num_moderate_validations": self.num_moderate_validations,
+            "num_bad_validations": self.num_bad_validations,
+            "num_completed_trials": len(self.stimulus_order_ids)
+            if isinstance(self.stimulus_order_ids, list)
+            else None,
             "Raw_data": self.raw_data,
             "Fixations": self.fixations,
             "Saccades": self.saccades,
@@ -116,3 +135,27 @@ class Session:
     def _create_stats(self):
         self.num_calibrations = len(self.calibrations)
         self.num_validations = len(self.validations)
+
+        self.tracked_eye = self.pm_gaze_metadata.get("tracked_eye", "unknown")
+
+        if not isinstance(self.validations, str) and not self.validations.is_empty():
+            scores = self.validations["accuracy_avg"].to_list()
+            eyes = self.validations["eye"].to_list()
+            self.num_good_validations = sum(
+                1 for s in scores if s < settings.SINGLE_VALIDATION_GOOD_MAX
+            )
+            self.num_moderate_validations = sum(
+                1
+                for s in scores
+                if settings.SINGLE_VALIDATION_GOOD_MAX
+                <= s
+                < settings.SINGLE_VALIDATION_MODERATE_MAX
+            )
+            self.num_bad_validations = sum(
+                1 for s in scores if s >= settings.SINGLE_VALIDATION_MODERATE_MAX
+            )
+
+            non_standard = [
+                e for e in eyes if e and e[0].lower() != self.tracked_eye.lower()
+            ]
+            self.tracked_eye_consistent = len(non_standard) == 0

@@ -351,9 +351,14 @@ class LabConfig:
         else:
             sampling_frequency_hz = settings.EXPECTED_SAMPLING_RATE_HZ
 
-        tests = list(json_config.get("Psychometric_tests", []).keys())
-
-        tests.remove("Are_tests_conducted")
+        psychometric_tests = json_config.get("Psychometric_tests", {})
+        if not isinstance(psychometric_tests, dict):
+            raise ValueError(
+                f"'Psychometric_tests' in lab configuration JSON must be an object (dict), "
+                f"got {type(psychometric_tests).__name__}. "
+                f"Check file: {json_config_path}"
+            )
+        tests = [k for k in psychometric_tests if k != "Are_tests_conducted"]
 
         return cls(
             screen_resolution=config.RESOLUTION,

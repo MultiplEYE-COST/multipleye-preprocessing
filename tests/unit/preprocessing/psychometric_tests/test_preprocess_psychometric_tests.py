@@ -60,11 +60,20 @@ def test__reaction_time_accuracy_errors(rt_values, correctness_values, error_mes
 
 
 @pytest.mark.parametrize(
-    "rt_values, correctness_values, correct_only, expected_rt_mean_sec, expected_acc, expected_num",
+    "rt_values, correctness_values, correct_only, expected_rt_mean_sec, expected_acc, expected_num, min_rt, max_rt",
     [
-        ([100, 200, 300], [1, 0, 1], False, 200.0, 2 / 3, 3),
-        ([None, 100, 200, 300], [None, 1, 0, 1], False, 200.0, 2 / 3, 3),
-        ([math.nan, 100, 200, 300], [math.nan, 1, 0, 1], False, 200.0, 2 / 3, 3),
+        ([100, 200, 300], [1, 0, 1], False, 200.0, 2 / 3, 3, None, None),
+        ([None, 100, 200, 300], [None, 1, 0, 1], False, 200.0, 2 / 3, 3, None, None),
+        (
+            [math.nan, 100, 200, 300],
+            [math.nan, 1, 0, 1],
+            False,
+            200.0,
+            2 / 3,
+            3,
+            None,
+            None,
+        ),
         (
             [float("nan"), 100, 200, 300],
             [float("nan"), 1, 0, 1],
@@ -72,6 +81,8 @@ def test__reaction_time_accuracy_errors(rt_values, correctness_values, error_mes
             200.0,
             2 / 3,
             3,
+            None,
+            None,
         ),
         (
             [float64("nan"), 100, 200, 300],
@@ -80,6 +91,8 @@ def test__reaction_time_accuracy_errors(rt_values, correctness_values, error_mes
             200.0,
             2 / 3,
             3,
+            None,
+            None,
         ),
         (
             [100, 200, 300, float64("nan")],
@@ -88,13 +101,23 @@ def test__reaction_time_accuracy_errors(rt_values, correctness_values, error_mes
             200.0,
             2 / 3,
             3,
+            None,
+            None,
         ),
-        ([100, 200, 300], [1, 0, 1], True, 200.0, 2 / 3, 3),
-        ([100, 200, 300], [True, False, True], False, 200.0, 2 / 3, 3),
-        ([100, 200, 300], [True, True, False], False, 200.0, 2 / 3, 3),
-        ([100, 200, 300], [True, True, False], True, 150.0, 2 / 3, 3),
-        ([1], [True], False, 1, 1, 1),
-        ([1, 2, 3, 4, 5], [True, True, True, True, True], False, 3, 1, 5),
+        ([100, 200, 300], [1, 0, 1], True, 200.0, 2 / 3, 3, None, None),
+        ([100, 200, 300], [True, False, True], False, 200.0, 2 / 3, 3, None, None),
+        ([100, 200, 300], [True, True, False], False, 200.0, 2 / 3, 3, None, None),
+        ([100, 200, 300], [True, True, False], True, 150.0, 2 / 3, 3, None, None),
+        ([1], [True], False, 1, 1, 1, None, None),
+        ([1, 2, 3, 4, 5], [True, True, True, True, True], False, 3, 1, 5, None, None),
+        # Test min_rt filtering (affects all)
+        ([0.1, 0.2, 0.3], [1, 0, 1], False, 0.25, 0.5, 2, 0.2, None),
+        ([0.1, 0.2, 0.3], [1, 1, 1], True, 0.25, 1.0, 2, 0.2, None),
+        # Test max_rt filtering (affects all)
+        ([0.1, 0.2, 0.3], [1, 0, 1], False, 0.15, 0.5, 2, None, 0.2),
+        ([0.1, 0.2, 0.3], [1, 1, 1], True, 0.15, 1.0, 2, None, 0.2),
+        # Both min and max
+        ([0.1, 0.2, 0.3], [1, 0, 1], False, 0.2, 0.0, 1, 0.2, 0.2),
     ],
 )
 def test__reaction_time_accuracy(
@@ -104,11 +127,13 @@ def test__reaction_time_accuracy(
     expected_rt_mean_sec,
     expected_acc,
     expected_num,
+    min_rt,
+    max_rt,
 ):
     df = pd.DataFrame({"rt": rt_values, "correctness": correctness_values})
 
     rt_mean, acc, num = _reaction_time_accuracy(
-        df, "rt", "correctness", correct_only=correct_only
+        df, "rt", "correctness", correct_only=correct_only, min_rt=min_rt, max_rt=max_rt
     )
 
     if math.isnan(expected_rt_mean_sec):
@@ -402,6 +427,9 @@ def test_preprocess_stroop_basic(tmp_path: Path, make_text_file, rows, expected)
     body = "".join(f"{s},{rt},{corr}\n" for s, rt, corr in rows)
     make_text_file(folder / "stroop.csv", header=header, body=body)
 
+    # Use a small min_rt to ensure we can test filtering
+    settings.PSYM_STROOP_MIN_RT = 0.0
+
     res = preprocess_stroop(folder)
     # res is a dict with namespaced keys
     for key, exp in expected.items():
@@ -470,6 +498,8 @@ def test_preprocess_flanker_basic(tmp_path: Path, make_text_file, rows, expected
     body = "".join(f"{s},{rt},{corr}\n" for s, rt, corr in rows)
     make_text_file(folder / "flanker.csv", header=header, body=body)
 
+    settings.PSYM_FLANKER_MIN_RT = 0.0
+
     res = preprocess_flanker(folder)
     # res is a dict with namespaced keys
     for key, exp in expected.items():
@@ -516,19 +546,26 @@ def test_preprocess_flanker_errors(
 @pytest.mark.parametrize(
     "rows, expected",
     [
-        ([(100, 1), (200, 0), (300, 1)], (200.0, 2 / 3, 3)),
-        ([(1, 1)], (1.0, 1.0, 1)),
+        (
+            [(100, 1, 1), (200, 0, 2), (300, 1, 5)],
+            {
+                "PLAB_rt_mean_sec": 200.0,
+                "PLAB_accuracy": 2 / 3,
+                "PLAB_num_items": 3,
+                "PLAB_set1_accuracy": 0.5,
+                "PLAB_set2_accuracy": 1.0,
+            },
+        ),
     ],
 )
 def test_preprocess_plab_basic(tmp_path: Path, make_text_file, rows, expected):
     folder = tmp_path / "session" / "PLAB"
-    header = "rt,correctness\n"
-    body = "".join(f"{rt},{corr}\n" for rt, corr in rows)
+    header = "rt,correctness,question_id\n"
+    body = "".join(f"{rt},{corr},{qid}\n" for rt, corr, qid in rows)
     make_text_file(folder / "plab.csv", header=header, body=body)
     out = preprocess_plab(folder)
-    assert out["PLAB_rt_mean_sec"] == pytest.approx(expected[0])
-    assert out["PLAB_accuracy"] == pytest.approx(expected[1])
-    assert out["PLAB_num_items"] == expected[2]
+    for key, exp in expected.items():
+        assert out[key] == pytest.approx(exp)
 
 
 @pytest.mark.parametrize(
@@ -551,12 +588,21 @@ def test_preprocess_plab_errors(
     tmp_path: Path, make_text_file, header, body, error_msg
 ):
     folder = tmp_path / "p3" / "PLAB"
+    # Ensure header has question_id if it's missing but not part of the error test
+    if "question_id" not in header and "required columns" not in error_msg:
+        header = header.strip() + ",question_id\n"
+        body = "\n".join(
+            line.strip() + ",1" for line in body.split("\n") if line.strip()
+        )
     make_text_file(folder / "plab.csv", header=header, body=body)
     if (
         "No CSV files with the required columns" in error_msg
         or "PLAB results missing" in error_msg
     ):
         with pytest.raises(ValueError, match="PLAB results missing"):
+            preprocess_plab(folder)
+    elif "question_id" in error_msg:
+        with pytest.raises(ValueError, match="question_id"):
             preprocess_plab(folder)
     else:
         with pytest.raises(ValueError, match=error_msg):
@@ -654,6 +700,8 @@ def test_preprocess_wikivocab_basic(tmp_path: Path, make_text_file, rows, expect
     body = "".join(f"{c},{r},{rt}\n" for c, r, rt in rows)
     make_text_file(folder / "wv.csv", header=header, body=body)
 
+    settings.PSYM_WIKIVOCAB_MIN_RT = 0.0
+
     out = preprocess_wikivocab(folder)
     for key, exp in expected.items():
         val = out[key]
@@ -680,6 +728,12 @@ def test_preprocess_wikivocab_basic(tmp_path: Path, make_text_file, rows, expect
             "1,1,fast\n",
             "Reaction time column contains non-numeric values",
         ),
+        # Invalid correct_answer values
+        (
+            "correct_answer,real_answer,RT\n",
+            "2,1,100\n",
+            "WikiVocab 'correct_answer' contains invalid values",
+        ),
     ],
 )
 def test_preprocess_wikivocab_errors(
@@ -693,6 +747,7 @@ def test_preprocess_wikivocab_errors(
         or "NaN values found" in error_msg
         or "Required columns" in error_msg
         or "Reaction time column contains" in error_msg
+        or "WikiVocab 'correct_answer' contains invalid values" in error_msg
     ):
         # The wrapper adds more context, so we match the wrapper's prefix
         with pytest.raises(ValueError, match="WikiVocab results missing"):
@@ -708,16 +763,18 @@ def _make_wmc_csv(folder: Path, make_text_file):
         "is_practice,base_text_intertrial.started,"
         "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
         "os_key_resp_recall.corr,os_key_resp_recall.rt,"
-        "ss_key_resp_recall.corr,ss_key_resp_recall.rt\n"
+        "os_key_resp_equation.corr,"
+        "ss_key_resp_recall.corr,ss_key_resp_recall.rt,"
+        "ss_key_resp_sentence.corr\n"
     )
     body = "".join(
         [
             # Trial 1
-            "False,1,1,100,1,10,0,5\n",
-            "False,,0,200,,,1,15\n",
+            "False,1,1,100,1,10,1,0,5,1\n",
+            "False,,0,200,,,1,1,15,0\n",
             # Trial 2
-            "False,2,1,300,0,30,1,25\n",
-            "False,,1,400,,,0,35\n",
+            "False,2,1,300,0,30,0,1,25,1\n",
+            "False,,1,400,,,1,0,35,0\n",
         ]
     )
     make_text_file(folder / "wmc.csv", header=header, body=body)
@@ -743,8 +800,10 @@ def test_preprocess_lwmc_basic(tmp_path: Path, make_text_file):
     assert out["LWMC_MU_time_sec"] == pytest.approx(250.0)
     assert out["LWMC_OS_score"] == pytest.approx(0.5)
     assert out["LWMC_OS_time_sec"] == pytest.approx(20.0)
+    assert out["LWMC_OS_processingTask_score"] == pytest.approx(0.75)
     assert out["LWMC_SS_score"] == pytest.approx(0.5)
     assert out["LWMC_SS_time_sec"] == pytest.approx(20.0)
+    assert out["LWMC_SentS_processingTask_score"] == pytest.approx(0.5)
     assert out["LWMC_SSTM_score"] == pytest.approx(0.5)
     assert out["LWMC_Total_score_mean"] == pytest.approx((0.75 + 0.5 + 0.5 + 0.5) / 4)
 
@@ -760,9 +819,11 @@ def test_preprocess_lwmc_basic(tmp_path: Path, make_text_file):
                     "is_practice,base_text_intertrial.started,"
                     "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
                     "os_key_resp_recall.corr,os_key_resp_recall.rt,"
-                    "ss_key_resp_recall.corr,ss_key_resp_recall.rt\n"
+                    "os_key_resp_equation.corr,"
+                    "ss_key_resp_recall.corr,ss_key_resp_recall.rt,"
+                    "ss_key_resp_sentence.corr\n"
                 ),
-                body="""True,1,1,100,1,10,1,5\nTrue,,1,100,1,10,1,5\n""",
+                body="""True,1,1,100,1,10,1,1,5,1\nTrue,,1,100,1,10,1,1,5,1\n""",
             ),
             "No non-practice trials found",
         ),
@@ -803,9 +864,11 @@ def test_preprocess_lwmc_basic(tmp_path: Path, make_text_file):
                     "is_practice,base_text_intertrial.started,"
                     "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
                     "os_key_resp_recall.corr,os_key_resp_recall.rt,"
-                    "ss_key_resp_recall.corr,ss_key_resp_recall.rt\n"
+                    "os_key_resp_equation.corr,"
+                    "ss_key_resp_recall.corr,ss_key_resp_recall.rt,"
+                    "ss_key_resp_sentence.corr\n"
                 ),
-                body=("False,1,,100,1,10,1,5\nFalse,,,200,,,1,15\n"),
+                body=("False,1,,100,1,10,1,1,5,1\nFalse,,,200,,,1,1,15,1\n"),
             ),
             "No valid MU trials found",
         ),

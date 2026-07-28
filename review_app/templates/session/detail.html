@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}MultiplEYE Data Review — {{ detail.sid }}{% endblock %}
+
+{% block sidebar_center %}
+{% include "_session_nav.html" %}
+{% endblock %}
+
+{% block content %}
+<div id="session-content">
+{% include "session/_detail_content.html" %}
+</div>
+{% endblock %}

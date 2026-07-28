@@ -532,6 +532,24 @@ def test_preflight_multiple_sessions(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
+def test_preflight_duplicate_experiment_log_message(preflight_env):
+    """Multiple EXPERIMENT_*.txt files produce a descriptive message."""
+    dc, sid = preflight_env
+    logfiles = dc.sessions[sid].session_folder_path / "logfiles"
+    (logfiles / "EXPERIMENT_LOGFILE_002.txt").write_text(
+        "duplicate experiment log", encoding="utf-8"
+    )
+
+    with pytest.raises(PreflightError) as exc_info:
+        run_preflight_check(dc)
+
+    msg = str(exc_info.value)
+    assert "Multiple EXPERIMENT_*.txt logfiles" in msg
+    assert sid in msg
+    assert "2 files" in msg
+    assert exc_info.value.num_errors == 1
+
+
 def test_preflight_stimulus_dir_empty_message(preflight_env):
     """Empty stimulus directory produces a descriptive message."""
     dc, _ = preflight_env
