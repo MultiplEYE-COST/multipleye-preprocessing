@@ -120,7 +120,7 @@ def preflight_env(tmp_path: Path):
     (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text(
         "experiment data", encoding="utf-8"
     )
-    (logfiles / "DATA_LOGFILE_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("logfile data", encoding="utf-8")
     (logfiles / "GENERAL_LOGFILE_001.txt").write_text("general data", encoding="utf-8")
 
     _write_csv(
