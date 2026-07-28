@@ -214,6 +214,33 @@ def preflight_env(tmp_path: Path):
             ),
             1,
         ),
+        (
+            "general_log_duplicate",
+            lambda env: (
+                env[0].sessions[env[1]].session_folder_path
+                / "logfiles"
+                / "GENERAL_LOGFILE_002.txt"
+            ).write_text("duplicate general log", encoding="utf-8"),
+            1,
+        ),
+        # ---- DATA_LOGFILE_*.txt ---------------------------------------------
+        (
+            "data_logfile_missing",
+            lambda env: _remove_glob(
+                env[0].sessions[env[1]].session_folder_path / "logfiles",
+                "DATA_LOGFILE_*.txt",
+            ),
+            1,
+        ),
+        (
+            "data_logfile_duplicate",
+            lambda env: (
+                env[0].sessions[env[1]].session_folder_path
+                / "logfiles"
+                / "DATA_LOGFILE_002.txt"
+            ).write_text("duplicate data log", encoding="utf-8"),
+            1,
+        ),
         # ---- completed_stimuli.csv -----------------------------------------
         (
             "completed_stimuli_missing",
@@ -455,6 +482,7 @@ def test_preflight_multiple_sessions(tmp_path: Path):
             (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text(
                 "data", encoding="utf-8"
             )
+        (logfiles / "DATA_LOGFILE_001.txt").write_text("data", encoding="utf-8")
         (logfiles / "GENERAL_LOGFILE_001.txt").write_text("data", encoding="utf-8")
         _write_csv(
             logfiles / "completed_stimuli.csv",
@@ -548,8 +576,9 @@ def test_preflight_stimulus_dir_empty_with_archive(tmp_path: Path):
     (sess_folder / "data.edf").write_text("data", encoding="utf-8")
     logfiles = sess_folder / "logfiles"
     logfiles.mkdir()
-    (logfiles / "EXPERIMENT_001.txt").write_text("data", encoding="utf-8")
-    (logfiles / "GENERAL_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "GENERAL_LOGFILE_001.txt").write_text("data", encoding="utf-8")
     _write_csv(
         logfiles / "completed_stimuli.csv",
         ["stimulus_id", "stimulus_name", "trial_id", "completed"],
