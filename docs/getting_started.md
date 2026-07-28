@@ -158,24 +158,11 @@ Please find additional information on the configuration here: {ref}`configuratio
 
 ### Preprocess your data
 
-If it is your first time with the pipeline
+If it is your first time with the pipeline, you can explore the pipeline step-by-step by processing one session with the [step-by-step Jupyter notebook](https://github.com/MultiplEYE-COST/multipleye-preprocessing/blob/main/preprocessing.ipynb). You can also open the same file locally at `preprocessing.ipynb` in the repo root.
 
-The process described below is also documented in a step-by-step notebook. This notebook breaks up
-the
-pipeline into the smaller steps. And you can go through them one by one.
 
-```{tip}
-Go through the [step-by-step notebook](https://github.com/MultiplEYE-COST/multipleye-preprocessing/blob/main/preprocessing.ipynb).
-You can also open the same file locally at `preprocessing.ipynb` in the repo root. Note that the notebook is currently configured to only preprocess one session.
-```
-
-After installation, the pipeline can be executed directly from the command line as they are
-registered as entry points in `pyproject.toml`.
-If this is your first time with the pipeline, or you are unsure if you have the right data and
-formats, please read into the more detailed {ref}`reference_guide` chapter.
-
-To run a pipeline you wil have to fill in the relevant information in the
-`multipleye_settings_preprocessing.yaml` file. Please find more information on the config file: {ref}`configuration_guide`
+To process several sessions at once, the pipeline can be executed directly from the command line.
+For more detailed information on required data and formats and all the steps of the pipeline please read into the more detailed {ref}`reference_guide` chapter.
 
 To run the MultiplEye preprocessing pipeline (if you used `uv` for installation and activated the
 environment):
