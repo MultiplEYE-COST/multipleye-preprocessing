@@ -298,18 +298,30 @@ def _check_sessions(data_collection, groups: dict[str, list[str]]) -> None:
 
         # 3. EXPERIMENT_*.txt
         experiment_logs = _ci_glob(logfiles, "EXPERIMENT_*.txt")
-        if len(experiment_logs) != 1:
+        if len(experiment_logs) == 0:
             groups.setdefault("EXPERIMENT_*.txt", []).append(sid)
+        elif len(experiment_logs) > 1:
+            groups.setdefault("Multiple EXPERIMENT_*.txt logfiles", []).append(
+                f"{sid} ({len(experiment_logs)} files)"
+            )
 
         # 4. DATA_LOGFILE_*.txt
         data_logs = _ci_glob(logfiles, "DATA_LOGFILE_*.txt")
-        if len(data_logs) != 1:
+        if len(data_logs) == 0:
             groups.setdefault("DATA_LOGFILE_*.txt", []).append(sid)
+        elif len(data_logs) > 1:
+            groups.setdefault("Multiple DATA_LOGFILE_*.txt logfiles", []).append(
+                f"{sid} ({len(data_logs)} files)"
+            )
 
         # 5. GENERAL_LOGFILE_*.txt
         general_logs = _ci_glob(logfiles, "GENERAL_LOGFILE_*.txt")
-        if len(general_logs) != 1:
+        if len(general_logs) == 0:
             groups.setdefault("GENERAL_LOGFILE_*.txt", []).append(sid)
+        elif len(general_logs) > 1:
+            groups.setdefault("Multiple GENERAL_LOGFILE_*.txt logfiles", []).append(
+                f"{sid} ({len(general_logs)} files)"
+            )
 
         # 6. completed_stimuli.csv
         _check_parseable_csv(
@@ -464,7 +476,11 @@ def _format_message(groups: dict[str, list[str]]) -> str:
         "EDF data file",
         "Logfiles folder",
         "EXPERIMENT_*.txt",
+        "Multiple EXPERIMENT_*.txt logfiles",
+        "DATA_LOGFILE_*.txt",
+        "Multiple DATA_LOGFILE_*.txt logfiles",
         "GENERAL_LOGFILE_*.txt",
+        "Multiple GENERAL_LOGFILE_*.txt logfiles",
         "completed_stimuli.csv",
         "question_order_versions.csv",
         "Stimulus order versions coverage",
@@ -481,7 +497,11 @@ def _format_message(groups: dict[str, list[str]]) -> str:
         "EDF data file",
         "Logfiles folder",
         "EXPERIMENT_*.txt",
+        "Multiple EXPERIMENT_*.txt logfiles",
+        "DATA_LOGFILE_*.txt",
+        "Multiple DATA_LOGFILE_*.txt logfiles",
         "GENERAL_LOGFILE_*.txt",
+        "Multiple GENERAL_LOGFILE_*.txt logfiles",
         "completed_stimuli.csv",
         "question_order_versions.csv",
         "Stimulus order versions coverage",

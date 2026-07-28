@@ -196,6 +196,15 @@ def preflight_env(tmp_path: Path):
             ),
             1,
         ),
+        (
+            "experiment_log_duplicate",
+            lambda env: (
+                env[0].sessions[env[1]].session_folder_path
+                / "logfiles"
+                / "EXPERIMENT_LOGFILE_002.txt"
+            ).write_text("duplicate experiment log", encoding="utf-8"),
+            1,
+        ),
         # ---- GENERAL_LOGFILE_*.txt -----------------------------------------
         (
             "general_log_missing",
@@ -205,6 +214,15 @@ def preflight_env(tmp_path: Path):
             ),
             1,
         ),
+        (
+            "general_log_duplicate",
+            lambda env: (
+                env[0].sessions[env[1]].session_folder_path
+                / "logfiles"
+                / "GENERAL_LOGFILE_002.txt"
+            ).write_text("duplicate general log", encoding="utf-8"),
+            1,
+        ),
         # ---- DATA_LOGFILE_*.txt ---------------------------------------------
         (
             "data_logfile_missing",
@@ -212,6 +230,15 @@ def preflight_env(tmp_path: Path):
                 env[0].sessions[env[1]].session_folder_path / "logfiles",
                 "DATA_LOGFILE_*.txt",
             ),
+            1,
+        ),
+        (
+            "data_logfile_duplicate",
+            lambda env: (
+                env[0].sessions[env[1]].session_folder_path
+                / "logfiles"
+                / "DATA_LOGFILE_002.txt"
+            ).write_text("duplicate data log", encoding="utf-8"),
             1,
         ),
         # ---- completed_stimuli.csv -----------------------------------------
