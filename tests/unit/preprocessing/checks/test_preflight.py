@@ -120,6 +120,7 @@ def preflight_env(tmp_path: Path):
     (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text(
         "experiment data", encoding="utf-8"
     )
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("logfile data", encoding="utf-8")
     (logfiles / "GENERAL_LOGFILE_001.txt").write_text("general data", encoding="utf-8")
 
     _write_csv(
@@ -905,6 +906,7 @@ def test_pt_does_not_inflate_error_count(tmp_path: Path, monkeypatch):
     logfiles = sess_folder / "logfiles"
     logfiles.mkdir()
     (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text("x")
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("x")
     (logfiles / "GENERAL_LOGFILE_001.txt").write_text("x")
     _write_csv(
         logfiles / "completed_stimuli.csv",
