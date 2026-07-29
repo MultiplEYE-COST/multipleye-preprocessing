@@ -24,9 +24,9 @@ dependencies = [
     "sphinxcontrib-mermaid>=2.0.2",
 ]
 
-#[tool.uv.sources]
+[tool.uv.sources]
 # this can be used to get a pymovements version from the git repo, before a version releases:
-#pymovements = { git = "https://github.com/pymovements/pymovements.git", branch = "main" }
+pymovements = { git = "https://github.com/pymovements/pymovements.git", branch = "tutorial/reading-measures" }
 
 [project.optional-dependencies]
 review = [
