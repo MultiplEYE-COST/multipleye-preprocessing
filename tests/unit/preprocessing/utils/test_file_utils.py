@@ -31,6 +31,7 @@ class TestToWinLongPath:
             "/home/user/my documents/file.txt",
         ],
     )
+    @patch("os.name", "posix")
     def test_unix_returns_absolute_path_without_prefix(self, path_str):
         result = _to_win_long_path(Path(path_str))
         assert result == os.path.abspath(path_str)
@@ -43,6 +44,7 @@ class TestToWinLongPath:
             "another/./docs/../file.txt",
         ],
     )
+    @patch("os.name", "posix")
     def test_unix_resolves_relative_to_absolute(self, path_str):
         result = _to_win_long_path(Path(path_str))
         assert result == os.path.abspath(path_str)
