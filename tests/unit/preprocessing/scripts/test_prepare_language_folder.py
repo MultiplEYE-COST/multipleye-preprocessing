@@ -1,6 +1,9 @@
 import pytest
 import pandas as pd
-from preprocessing.scripts.prepare_language_folder import prepare_language_folder
+from preprocessing.scripts.prepare_language_folder import (
+    prepare_language_folder,
+    _get_version_folder_suffixes,
+)
 from preprocessing import settings
 from preprocessing.models.dcn import Dcn
 from preprocessing.data_collection.multipleye_data_collection import (
@@ -267,3 +270,83 @@ def test_prepare_language_folder_no_pt_data(
 
     # Should not raise
     prepare_language_folder(data_collection_name)
+
+
+@pytest.mark.parametrize(
+    "default_version, pid_map, expected",
+    [
+        (None, {}, [None]),
+        (None, {"v2": ["008"]}, [None, "v2"]),
+        (None, {"v2": ["008"], "v3": ["011"]}, [None, "v2", "v3"]),
+        ("v1", {"v2": ["008"]}, ["v1", "v2"]),
+        ("v2", {}, ["v2"]),
+    ],
+)
+def test_get_version_folder_suffixes(monkeypatch, default_version, pid_map, expected):
+    """Version suffixes follow from the config: default plus mapped versions."""
+    monkeypatch.setattr(settings, "STIMULUS_VERSIONS_DEFAULT_VERSION", default_version)
+    monkeypatch.setattr(settings, "STIMULUS_VERSIONS_PID_MAP", pid_map)
+    assert _get_version_folder_suffixes() == expected
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_prepare_language_folder_multiple_versions(
+    mock_data_collection_factory, data_collection_name, monkeypatch
+):
+    """prepare_language_folder prepares both the default and versioned folders."""
+    tmp_path, data_collection_name, aoi_dir = mock_data_collection_factory(
+        data_collection_name
+    )
+    setup_stimulus_assets(tmp_path, data_collection_name, aoi_dir)
+
+    # Create a second stimulus folder with its own AOIs (versioned)
+    dcn = Dcn(data_collection_name)
+    stimuli_dir = aoi_dir.parent
+    v2_stimuli_dir = stimuli_dir.parent / f"stimuli_{data_collection_name}_v2"
+    v2_stimuli_dir.mkdir(exist_ok=True)
+    (v2_stimuli_dir / "config").mkdir(exist_ok=True)
+    v2_aoi_dir = (
+        v2_stimuli_dir
+        / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
+    )
+    v2_aoi_dir.mkdir(exist_ok=True)
+    for i in range(1, 13):
+        aoi_file = v2_aoi_dir / f"test_{i}_aoi.csv"
+        df = pd.DataFrame(
+            {
+                "page": ["page_1", "question_1"],
+                "word": ["word1", "qword1"],
+                "char": ["w", "q"],
+                "word_idx": [0, 0],
+                "word_idx_in_line": [0, 0],
+                "line_idx": [0, 0],
+                "char_idx_in_line": [0, 0],
+                "top_left_x": [0, 0],
+                "top_left_y": [0, 100],
+                "width": [10, 10],
+                "height": [20, 20],
+            }
+        )
+        df.to_csv(aoi_file, index=False)
+
+    # Configure two versions
+    monkeypatch.setattr(settings, "STIMULUS_VERSIONS_DEFAULT_VERSION", None)
+    monkeypatch.setattr(settings, "STIMULUS_VERSIONS_PID_MAP", {"v2": ["008"]})
+
+    # Run preparation
+    prepare_language_folder(data_collection_name)
+
+    # Verify both preprocessed folders were created with 24 files each
+    for folder_name in [
+        f"stimuli_{data_collection_name}",
+        f"stimuli_{data_collection_name}_v2",
+    ]:
+        preprocessed_stim_dir = (
+            tmp_path / "preprocessed_data" / data_collection_name / folder_name
+        )
+        preprocessed_aoi_dir = preprocessed_stim_dir / (
+            f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
+        )
+        assert preprocessed_aoi_dir.exists()
+        assert len(list(preprocessed_aoi_dir.glob("*.csv"))) == 24
+        assert (preprocessed_aoi_dir / ".fixed").exists()

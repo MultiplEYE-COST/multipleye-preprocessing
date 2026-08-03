@@ -76,6 +76,15 @@ class Settings:
         return None
 
     @property
+    def STIMULUS_PID_VERSION_MAP(self) -> dict[str, str]:
+        """Derived: participant ID -> version suffix (e.g. 'v2') for lookup."""
+        result: dict[str, str] = {}
+        for version, pids in self.STIMULUS_VERSIONS_PID_MAP.items():
+            for pid in pids:
+                result[str(pid)] = version
+        return result
+
+    @property
     def LANGUAGE(self) -> str:
         """The language code from the data collection name."""
         if "LANGUAGE" in self.__dict__:
@@ -325,6 +334,14 @@ class Settings:
 
         #: List of session identifiers to explicitly include. If not empty, only these are processed.
         self.INCLUDE_SESSIONS: list[str] = []
+
+        #: Folder suffix of the default stimulus version (e.g. "v2"). None means
+        #: the suffix-less folder (``stimuli_<dcn>``) is the default.
+        self.STIMULUS_VERSIONS_DEFAULT_VERSION: str | None = None
+
+        #: Mapping from stimulus version suffix (e.g. "v2") to the list of
+        #: participant IDs that used that version.
+        self.STIMULUS_VERSIONS_PID_MAP: dict[str, list[str]] = {}
 
         #: Default log level for the package/Python.
         self.LOG_LEVEL: str = "INFO"
@@ -809,12 +826,20 @@ class Settings:
             self.update(user_configs)
 
         self._validate()
+        self.validate_stimulus_versions()
         self._loaded = True
 
     def update(self, config_dict: dict[str, Any]) -> None:
         """Update settings from a dictionary."""
         for key, value in config_dict.items():
             upper_key = key.upper()
+
+            # Unpack the nested stimulus_versions block into its flat settings.
+            if upper_key == "STIMULUS_VERSIONS" and isinstance(value, dict):
+                self.STIMULUS_VERSIONS_DEFAULT_VERSION = value.get("default_version")
+                self.STIMULUS_VERSIONS_PID_MAP = value.get("versions", {}) or {}
+                continue
+
             if upper_key in self.__dict__:
                 setattr(self, upper_key, value)
             else:
@@ -831,6 +856,27 @@ class Settings:
         if not val:
             # We don't raise here if we are just loading, as we might be loading the template
             return
+
+    def validate_stimulus_versions(self) -> None:
+        """Validate the stimulus version configuration.
+
+        Raises
+        ------
+        ValueError
+            If a participant ID appears in more than one version bucket.
+        """
+        pid_map = self.STIMULUS_VERSIONS_PID_MAP or {}
+        seen: dict[str, str] = {}
+        for version, pids in pid_map.items():
+            for pid in pids:
+                pid = str(pid)
+                if pid in seen:
+                    raise ValueError(
+                        f"Participant ID '{pid}' is mapped to multiple stimulus "
+                        f"versions: '{seen[pid]}' and '{version}'. A participant "
+                        "cannot have sessions in different stimulus versions."
+                    )
+                seen[pid] = version
 
     def setup_logging(self, log_file: str | Path | None = None) -> None:
         """Configure logging with separate levels for console and file.

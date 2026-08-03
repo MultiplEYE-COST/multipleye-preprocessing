@@ -43,6 +43,27 @@ plot_aoi_overlay: true
 # Whether to copy AOI images overlay to the output directory.
 copy_aoi_images_overlay: false
 
+# ----------------------- Stimulus Content Versions -----------------------
+# Only needed if your lab used MULTIPLE stimulus folders, e.g. after
+# correcting spelling/grammar errors in the stimuli mid-collection.
+# The pipeline then uses a per-version stimulus folder instead of a single
+# suffix-less folder (``stimuli_<dcn>/``).
+#
+# The block is active by default (inert with an empty ``versions`` list).
+# Only configure the ``versions`` map below when required.
+stimulus_versions:
+  # Folder suffix of the default version. null = suffix-less folder
+  # ``stimuli_<dcn>/`` (or an explicit string like "v2").
+  default_version: null
+
+  # Version suffix -> list of participant IDs that used that version.
+  # Only list participants who used a NON-default version.
+  # IMPORTANT: A participant must NOT appear in more than one version bucket.
+  versions:
+    # v2:  # folder ``stimuli_<dcn>_v2/``
+    #   - "008"
+    #   - "010"
+
 # ----------------------- Internal Usage -----------------------
 
 # --- LOGGING ---

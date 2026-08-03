@@ -102,6 +102,7 @@ def run_preflight_check(data_collection) -> None:
     _check_skipped_sessions(data_collection, errors)
     _check_sessions(data_collection, errors)
     _check_stimulus_order_coverage(data_collection, errors)
+    _check_stimulus_versions(data_collection, errors)
 
     pt_warnings: list[str] = []
     _check_psychometric_tests(data_collection, pt_warnings)
@@ -437,6 +438,82 @@ def _check_stimulus_order_coverage(
         )
 
 
+def _check_stimulus_versions(
+    data_collection,
+    groups: dict[str, list[str]],
+) -> None:
+    """Check configured stimulus content version folders exist and cover sessions.
+
+    Only active when ``stimulus_versions`` is configured.  Verifies that every
+    versioned stimulus folder (``stimuli_<dcn>_<suffix>``) exists next to the
+    default folder, that each contains its ``stimulus_order_versions_*.csv``, and
+    that every session PID assigned to a version is present in that version's CSV.
+    """
+    from ..config import settings
+    from ..models.sid import Sid
+
+    pid_map = settings.STIMULUS_VERSIONS_PID_MAP or {}
+    if not pid_map:
+        return
+
+    # Resolve the *source* stimulus dir (same logic as _check_shared_files).
+    dcn_name = getattr(data_collection, "data_collection_name", None)
+    if dcn_name:
+        source_stim_dir = settings.DATASET_DIR / f"stimuli_{dcn_name}"
+    else:
+        source_stim_dir = data_collection.stimulus_dir.resolve()
+
+    lang = data_collection.language
+    country = data_collection.country
+    labnum = data_collection.lab_number
+    order_csv_name = f"stimulus_order_versions_{lang}_{country}_{labnum}.csv"
+
+    pid_version = settings.STIMULUS_PID_VERSION_MAP
+    version_dirs: dict[str, Path] = {}
+    for version in pid_map:
+        version_dir = Path(f"{source_stim_dir}_{version}")
+        version_dirs[version] = version_dir
+        if not _ci_exists(version_dir):
+            groups.setdefault("Stimulus versions", []).append(
+                f"Stimulus folder for version '{version}' does not exist: {version_dir}"
+            )
+            continue
+        _require_file(
+            version_dir / "config" / order_csv_name,
+            "Stimulus versions",
+            groups,
+        )
+
+    # Every session PID mapped to a version must appear in that version's CSV.
+    for session in data_collection.sessions.values():
+        try:
+            pid = Sid(session.session_identifier).pid
+        except (ValueError, TypeError):
+            continue
+        version = pid_version.get(pid)
+        if version is None:
+            continue
+        version_dir = version_dirs.get(version)
+        csv_path = version_dir / "config" / order_csv_name
+        if not _ci_exists(csv_path):
+            continue  # already reported above
+        try:
+            df = pl.read_csv(_ci_resolve(csv_path), infer_schema_length=0)
+        except Exception:
+            continue  # already reported above
+        if "participant_id" not in df.columns:
+            continue
+        csv_pids = df.filter(pl.col("participant_id").is_not_null())[
+            "participant_id"
+        ].to_list()
+        normalized = {str(int(float(p))).zfill(3) for p in csv_pids}
+        if pid not in normalized:
+            groups.setdefault("Stimulus versions", []).append(
+                f"{session.session_identifier} (PID {pid}) — not found in "
+                f"stimulus_order_versions CSV for version '{version}'"
+            )
+
+
 def _format_message(groups: dict[str, list[str]]) -> str:
     """Transform the grouped error dict into a human-readable message."""
     n_total = sum(len(v) for v in groups.values())
@@ -484,6 +561,7 @@ def _format_message(groups: dict[str, list[str]]) -> str:
         "completed_stimuli.csv",
         "question_order_versions.csv",
         "Stimulus order versions coverage",
+        "Stimulus versions",
     ]:
         if label not in groups:
             continue

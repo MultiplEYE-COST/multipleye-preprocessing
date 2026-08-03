@@ -20,6 +20,34 @@ from ..utils.fix_multipleye_aoi_files import (
 logger = get_logger()
 
 
+def _get_version_folder_suffixes() -> list[str | None]:
+    """Return the stimulus version folder suffixes to process.
+
+    Returns which stimulus folders should be prepared, based on the configured
+    stimulus versions. ``None`` denotes the suffix-less folder
+    (``stimuli_<dcn>``), which is processed when no other default is set.
+
+    Returns
+    -------
+    list[str | None]
+        Version suffixes to process, e.g. ``[None]`` for single-folder mode,
+        ``["v1", "v2"]`` for multiple versions.
+    """
+    from preprocessing import settings
+
+    pid_map = settings.STIMULUS_VERSIONS_PID_MAP or {}
+    default_version = settings.STIMULUS_VERSIONS_DEFAULT_VERSION
+
+    if not pid_map and not default_version:
+        return [None]
+
+    suffixes: list[str | None] = [default_version] if default_version else [None]
+    for version in pid_map:
+        if version not in suffixes:
+            suffixes.append(version)
+    return suffixes
+
+
 def prepare_language_folder(data_collection_name: str | None = None):
     from preprocessing import settings
 
@@ -180,100 +208,111 @@ def prepare_language_folder(data_collection_name: str | None = None):
                     f"into '{pilot_folder}'"
                 )
 
-    stimulus_folder_path = data_folder_path / f"stimuli_{data_collection_name}"
-
-    preprocessed_stimulus_path = settings.OUTPUT_DIR / f"stimuli_{data_collection_name}"
-
-    if not stimulus_folder_path.exists():
-        logger.warning(
-            f"The stimulus folder stimuli_{data_collection_name} does not exist. Check and if necessary, ask team to upload."
-        )
-    else:
-        config_path = stimulus_folder_path / "config"
-        if not config_path.exists():
-            raise FileNotFoundError(
-                f"The stimulus config folder not found in '{stimulus_folder_path}'. "
-                "Please check and restructure or possibly unzip the stimulus folder."
-            )
-
-    # if aoi files are not yet split into questions and texts, do it here:
-    source_aoi_path = (
-        stimulus_folder_path
-        / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
-    )
-
-    destination_aoi_path = (
-        preprocessed_stimulus_path
-        / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
-    )
-
-    # Always copy stimulus assets (config, xlsx, images) before AOI checks
-    # so files stay in sync even when AOIs are already fixed.
-    _copy_stimulus_assets(
-        stimulus_folder_path,
-        preprocessed_stimulus_path,
-        eye_tracking_sessions_path,
-        dcn,
-    )
-
-    if (  # check if it already contains 24 files and the fixed marker
-        destination_aoi_path.exists()
-        and len(list(destination_aoi_path.glob("[!.]*.csv"))) == 24
-        and (destination_aoi_path / ".fixed").exists()
-    ):
-        logger.debug(
-            f"AOI files already exist, are split and fixed in {destination_aoi_path}. Skipping."
-        )
-        return
-
-    if not destination_aoi_path.exists():
-        if source_aoi_path.exists():
-            logger.debug(f"Copying AOI files to {destination_aoi_path}...")
-            _copytree(source_aoi_path, destination_aoi_path)
+    for version_suffix in _get_version_folder_suffixes():
+        if version_suffix is None:
+            folder_name = f"stimuli_{data_collection_name}"
         else:
-            logger.warning(f"Source AOI path {source_aoi_path} does not exist.")
-            return
+            folder_name = f"stimuli_{data_collection_name}_{version_suffix}"
 
-    # get all aoi files in the preprocessed folder
-    aoi_files = list(destination_aoi_path.glob("[!.]*.csv"))
-    if len(aoi_files) == 12:
-        logger.info("Splitting AOI files into text and question AOIs...")
-        for aoi_file in aoi_files:
-            aoi_df = pd.read_csv(aoi_file)
-            # split the aoi_df into two parts, one for the stimulus and one for the questions
-            aoi_df_texts = aoi_df[~aoi_df["page"].str.contains("question", na=False)]
-            aoi_df_texts.drop(
-                columns=["question_image_version"], inplace=True, errors="ignore"
+        stimulus_folder_path = data_folder_path / folder_name
+
+        preprocessed_stimulus_path = settings.OUTPUT_DIR / folder_name
+
+        if not stimulus_folder_path.exists():
+            logger.warning(
+                f"The stimulus folder {folder_name} does not exist. Check and if necessary, ask team to upload."
             )
-            aoi_df_questions = aoi_df[aoi_df["page"].str.contains("question", na=False)]
+            continue
+        else:
+            config_path = stimulus_folder_path / "config"
+            if not config_path.exists():
+                raise FileNotFoundError(
+                    f"The stimulus config folder not found in '{stimulus_folder_path}'. "
+                    "Please check and restructure or possibly unzip the stimulus folder."
+                )
 
-            aoi_df_texts.to_csv(aoi_file, sep=",", index=False, encoding="UTF-8")
-
-            question_path = destination_aoi_path / (
-                aoi_file.stem + "_questions" + aoi_file.suffix
-            )
-            aoi_df_questions.to_csv(
-                question_path, sep=",", index=False, encoding="UTF-8"
-            )
-
-        # Re-get files to include the new _questions files
-        aoi_files = list(destination_aoi_path.glob("*.csv"))
-
-    if len(aoi_files) == 24:
-        logger.info("Applying AOI fixes (remapping space and repairing labels)...")
-        for aoi_file in aoi_files:
-            remap_space_to_following_word(aoi_file)
-            repair_word_labels(aoi_file)
-
-        # Create a marker file to indicate that these files have been fixed
-        (destination_aoi_path / ".fixed").touch()
-    elif len(aoi_files) == 0:
-        logger.warning(f"No AOI files found in '{destination_aoi_path}'.")
-    else:
-        raise ValueError(
-            f"Unexpected number of AOI files ({len(aoi_files)}) found in '{destination_aoi_path}'. "
-            "Expected 12 (not split) or 24 (already split into texts and questions)."
+        # if aoi files are not yet split into questions and texts, do it here:
+        source_aoi_path = (
+            stimulus_folder_path
+            / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
         )
+
+        destination_aoi_path = (
+            preprocessed_stimulus_path
+            / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
+        )
+
+        # Always copy stimulus assets (config, xlsx, images) before AOI checks
+        # so files stay in sync even when AOIs are already fixed.
+        _copy_stimulus_assets(
+            stimulus_folder_path,
+            preprocessed_stimulus_path,
+            eye_tracking_sessions_path,
+            dcn,
+        )
+
+        if (  # check if it already contains 24 files and the fixed marker
+            destination_aoi_path.exists()
+            and len(list(destination_aoi_path.glob("[!.]*.csv"))) == 24
+            and (destination_aoi_path / ".fixed").exists()
+        ):
+            logger.debug(
+                f"AOI files already exist, are split and fixed in {destination_aoi_path}. Skipping."
+            )
+            continue
+
+        if not destination_aoi_path.exists():
+            if source_aoi_path.exists():
+                logger.debug(f"Copying AOI files to {destination_aoi_path}...")
+                _copytree(source_aoi_path, destination_aoi_path)
+            else:
+                logger.warning(f"Source AOI path {source_aoi_path} does not exist.")
+                continue
+
+        # get all aoi files in the preprocessed folder
+        aoi_files = list(destination_aoi_path.glob("[!.]*.csv"))
+        if len(aoi_files) == 12:
+            logger.info("Splitting AOI files into text and question AOIs...")
+            for aoi_file in aoi_files:
+                aoi_df = pd.read_csv(aoi_file)
+                # split the aoi_df into two parts, one for the stimulus and one for the questions
+                aoi_df_texts = aoi_df[
+                    ~aoi_df["page"].str.contains("question", na=False)
+                ]
+                aoi_df_texts.drop(
+                    columns=["question_image_version"], inplace=True, errors="ignore"
+                )
+                aoi_df_questions = aoi_df[
+                    aoi_df["page"].str.contains("question", na=False)
+                ]
+
+                aoi_df_texts.to_csv(aoi_file, sep=",", index=False, encoding="UTF-8")
+
+                question_path = destination_aoi_path / (
+                    aoi_file.stem + "_questions" + aoi_file.suffix
+                )
+                aoi_df_questions.to_csv(
+                    question_path, sep=",", index=False, encoding="UTF-8"
+                )
+
+            # Re-get files to include the new _questions files
+            aoi_files = list(destination_aoi_path.glob("*.csv"))
+
+        if len(aoi_files) == 24:
+            logger.info("Applying AOI fixes (remapping space and repairing labels)...")
+            for aoi_file in aoi_files:
+                remap_space_to_following_word(aoi_file)
+                repair_word_labels(aoi_file)
+
+            # Create a marker file to indicate that these files have been fixed
+            (destination_aoi_path / ".fixed").touch()
+        elif len(aoi_files) == 0:
+            logger.warning(f"No AOI files found in '{destination_aoi_path}'.")
+        else:
+            raise ValueError(
+                f"Unexpected number of AOI files ({len(aoi_files)}) found in '{destination_aoi_path}'. "
+                "Expected 12 (not split) or 24 (already split into texts and questions)."
+            )
 
 
 def _copy_stimulus_assets(
