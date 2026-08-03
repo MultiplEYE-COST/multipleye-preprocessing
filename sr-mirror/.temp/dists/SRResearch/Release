@@ -1,0 +1,25 @@
+Origin: SR Research
+Label: SR Research repository
+Suite: stable
+Codename: SRResearch
+Date: Fri 06 Mar 2026 09:04:35 AM EST
+Architectures:  amd64
+Components: main
+Description: SR Research repository
+Date: Fri, 06 Mar 2026 14:04:36 +0000
+MD5Sum:
+ bc010eb4f65d07e598c268204f99f329            24368 main/binary-amd64/Packages
+ e03de7f2bbec00394323670b1a924265             4845 main/binary-amd64/Packages.gz
+ 5e78bba09ffa2e18124f980cf6773eec              138 main/binary-amd64/Release
+SHA1:
+ 62237772b3963481997e7f79d706dfbd5b6e05e1            24368 main/binary-amd64/Packages
+ c62ceed08aadac9e0c595613d01c64f1d62ee719             4845 main/binary-amd64/Packages.gz
+ 8eb668412d6260077bc29d1ef0c51a986d694263              138 main/binary-amd64/Release
+SHA256:
+ e7ba2fbe13122b343a3fdfcee13d681e8cfc4318c83391f11fa1a32971a3210f            24368 main/binary-amd64/Packages
+ 4f63d2235cf53a3a341945c80e0323d50a42112f310dc9060d851d0fd3b8e120             4845 main/binary-amd64/Packages.gz
+ 1e2f92e48c0078ec588d516d6138dd5c359ead093d3c2cbc6add3efcab2249d1              138 main/binary-amd64/Release
+SHA512:
+ 3080af668353c7b1e638bcf9565a3059f67f5e5cb03ae15157462780105568962508260e1d30578f17ecbf39dfb214aa74453d6b70eddaa4dda10f573ebe4022            24368 main/binary-amd64/Packages
+ 9abc704fe7a97e604cf823590fa3c592907aca0f924af24d9c1f3c624255585fdb73d44b69e30dabac7afb4a86fe811a39146282367c86b7ec84725f4858d958             4845 main/binary-amd64/Packages.gz
+ c028712cab83b9c287ae4955257f12a5d40137c055fd3dca4a13983b2bebbdb4ad9a7c3997ec27338103d8866de2378259b2990210c554fcc40888e55a477440              138 main/binary-amd64/Release

@@ -1,0 +1,507 @@
+Package: aksusbd
+Version: 10.21-1
+Architecture: amd64
+Maintainer: Gemalto <support@safenet-inc.com>
+Installed-Size: 4096
+Filename: dists/SRResearch/main/binary-amd64/dv64/aksusbd_10.21-1_amd64.deb
+Size: 18193628
+MD5sum: 5b4b30ab3f7d9f555dbe646f14fa1963
+SHA1: 35bd46ce6b813550f9a99940962450abe0a1aab5
+SHA256: f1cddd6ab12e979de9a61ea849ff30f58b7166adb39a0cc234012ccc9909b02b
+Section: non-free/misc
+Priority: extra
+Description: Sentinel LDK daemon
+ Sentinel LDK runtime supporting Sentinel, Sentinel HL, HASP 4, and Hardlock keys.
+
+Package: eyelink-addapptomenu
+Source: addapplicationtomenu
+Version: 2.1.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 12
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/apptomenu_2.1.1197.0_amd64.deb
+Size: 10240
+MD5sum: 06c6bc9f2d763997f2ada0095c6fde19
+SHA1: 4eeb79ecbaf3d662efa07daa18ef023b2feadf4f
+SHA256: 4b96eb9d4bdcfe8a1a0cac6144895d05c9d774e9313cbbefa3d0e38bfd3858e1
+Section: addapplicationtomenu
+Priority: optional
+Description: addapplicationtomenu: install eyelink applications to menu.
+
+Package: eyelink-dataviewer
+Source: dataviewer
+Version: 4.5.25
+Architecture: amd64
+Maintainer: SR-Research<support@sr-research.com>
+Installed-Size: 347400
+Depends: aksusbd(>= 8.15), libgcc1, libc6, libstdc++6,libglu1-mesa,libgl1-mesa-dev, libcurl4, libfreeimage3
+Conflicts: eyelink-dataviewer-3, eyelink-dataviewer-2, sr-eyelink-dataviewer
+Replaces: eyelink-dataviewer-3, eyelink-dataviewer-2, sr-eyelink-dataviewer
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/dv64/dataviewer4.5.25.deb
+Size: 145128722
+MD5sum: 288f450073d2c36edef00a64f18eb57d
+SHA1: 46ccc61de27d592e69f6a0110eccf69d433f75e6
+SHA256: 704e28802234b50db8a69fde88983d47a0c4bc24369e41f8719ef31a15553008
+Section: dataviewer
+Priority: optional
+Multi-Arch: foreign
+Description: The EyeLink Data Viewer (4.5.25) is an intuitive tool that is intended for viewing, filtering, and outputting EyeLink I, II, and 1000 data. The Data Viewer supports EDF files recorded by EyeLink I, II, and 1000. The EyeLink Data Viewer can be downloaded and used in a limited evaluation version. A USB key licensed for the EyeLink Data Viewer is required to run the software in full mode.
+
+Package: eyelink-dataviewer-video-support
+Source: eyelink-dataviewer-video-support
+Version: 4.5.25
+Architecture: amd64
+Maintainer: SR-Research<support@sr-research.com>
+Depends: eyelink-dv-video-support3 | eyelink-dv-video-support4 |eyelink-dv-video-support-compat4
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/dv64/eyelink-dataviewer-video-support-4.5.25-x86_64.deb
+Size: 816
+MD5sum: f8d42ee7f6fc12109eead955c13e5f3a
+SHA1: a2ae8f0106d90625b13b1245ae6feadde2d00dde
+SHA256: b7b131d0cf9b6a4b510e277bd9df8da04a3e431f6d7f77b8b86de5e1a7ef7205
+Section: dataviewer
+Priority: optional
+Multi-Arch: foreign
+Description: Provides video loading and saving support for EyeLink Data Viewer (4.5.25).
+
+Package: eyelink-display-software
+Source: eyelink-display-software
+Version: 2.1.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 40912
+Depends: eyelink-edfapi(>=4.2), eyelink-edf2asc(>=4.2), eyelink-edfconverter(>=4.2), eyelinkcore(>=2.1.1197.0), eyelinkcoregraphics(>=2.1.1197.0),eyelinkcoregraphics-sdl2(>=2.1.1197.0), eyelink-sdl1-examples(>=2.1.1197.0),eyelink-matlab-examples(>=2.1.1197.0),eyelink-sdl2-examples(>=2.1.1197.0),eyelink-pylink(>=2.1.1197.0), eyelink-addapptomenu(>=2.1.1197.0)
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/eyelink-display-software_2.1.1197.0_amd64.deb
+Size: 810
+MD5sum: 26576e65b46771fa608dccb3c04da36f
+SHA1: c7e87688c8e8963f26a245aaaee155797e577fae
+SHA256: ad115206628bb3d52ca9bdde9cad278bc25edba7606e147330c9bc440d110499
+Section: eyelink-display-software
+Priority: optional
+Description: eyelink-display-software: install eyelink display softwares which include edfapi library, edf2asc, edfconverter, eyelinkcore library, eyelinkcoregraphics library,pylink library  and eyelinkcapisamples.
+
+Package: eyelink-dv-video-support-compat4
+Source: eyelink-dv-video-support-compat4
+Version: 4.5.25
+Architecture: amd64
+Maintainer: SR-Research<support@sr-research.com>
+Installed-Size: 63156
+Depends: eyelink-dataviewer(>=4.5.25), libbs2b0, liblilv-0-0, librubberband2, libmysofa1, libflite1, libass9, libvidstab1.1
+Conflicts: eyelink-dv-video-support4
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/dv64/eyelink-dv-video-support-compat4-4.5.25-x86_64.deb
+Size: 19526952
+MD5sum: a21b23c8c4d0c508a18d026ce9821a79
+SHA1: c96e4d7d1430a2d2136509976792ef8a36e0edde
+SHA256: 82fa60cbcbc19ab1de90a681a6b2fb0fb4a9f5d0dc54874f523670d5fb9d4777
+Section: dataviewer
+Priority: optional
+Multi-Arch: foreign
+Description: Provides video loading and saving support for EyeLink Data Viewer (4.5.25).  This provides it own ffmpeg packages due to discontinued support for ffmpeg 4 on Ubuntu 24.04.
+
+Package: eyelink-dv-video-support3
+Source: eyelink-dv-video-support3
+Version: 4.5.25
+Architecture: amd64
+Maintainer: SR-Research<support@sr-research.com>
+Installed-Size: 2032
+Depends: eyelink-dataviewer(>=4.5.25),libavdevice57,libavformat57,libavutil55,libavcodec57,libswscale4
+Conflicts: eyelink-dv-video-support-compat4
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/dv64/eyelink-dv-video-support3-4.5.25-x86_64.deb
+Size: 340692
+MD5sum: c325bedff5c21b378e8ac70aadd154ef
+SHA1: d12636cc7b02d60132b7b8461af929707bf5264d
+SHA256: 2d4f5d13487f74695df61fe9ad3ce7f5d80e89ebfb2a568262eabc04a38d5244
+Section: dataviewer
+Priority: optional
+Multi-Arch: foreign
+Description: Provides video loading and saving support for EyeLink Data Viewer (4.5.25).
+
+Package: eyelink-dv-video-support4
+Source: eyelink-dv-video-support4
+Version: 4.5.25
+Architecture: amd64
+Maintainer: SR-Research<support@sr-research.com>
+Installed-Size: 2032
+Depends: eyelink-dataviewer(>=4.5.25),libavdevice58,libavformat58,libavutil56,libavcodec58,libswscale5
+Conflicts: eyelink-dv-video-support-compat4
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/dv64/eyelink-dv-video-support4-4.5.25-x86_64.deb
+Size: 341008
+MD5sum: aa457743243ce5d713721a0d1fd6d480
+SHA1: 08e884b817fbb8ef4a731da021bc2a929eb70c2c
+SHA256: 9ccd8fef103bd5e24c5a0b8e731b9d1e3cba053dfa8187b2d861bc10c9cf3677
+Section: dataviewer
+Priority: optional
+Multi-Arch: foreign
+Description: Provides video loading and saving support for EyeLink Data Viewer (4.5.25).
+
+Package: eyelink-edf2asc
+Source: eyelink-edf2asc
+Version: 4.2.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 76
+Depends: eyelink-edfapi
+Conflicts: edf2asc
+Breaks: edf2asc
+Replaces: edf2asc
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/edf2asc_4.2.1197.0_amd64.deb
+Size: 231176
+MD5sum: 86f5f8c473f17a42e98a8efce967ce95
+SHA1: c4203e3b396735788431de66c624d471603e3bc1
+SHA256: c95fc3b63ccabd08e678269a9fe3d0d609e74d87a975865c463bfeab7a8ee1df
+Section: edfapi
+Priority: optional
+Description: edf2asc : command line utility for converting EDF files to ASCII files.
+
+Package: eyelink-edfapi
+Source: eyelink-edfapi
+Version: 4.2.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 4708
+Depends: libgcc1, libc6, libstdc++6
+Breaks: edfapi
+Replaces: edfapi
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/edfapi_4.2.1197.0_amd64.deb
+Size: 794446
+MD5sum: 3fede81575fa085124f54b5fd6ce2905
+SHA1: e54f377e626966b6be0e05f73ee9ee81f6db00ee
+SHA256: e741237ef5f7186e00363daad212002c559c69f61ab57056dcb6a4de5165c74a
+Section: edfapi
+Priority: optional
+Description: edfapi library: Shared libraries.
+ Files are intalled: /usr/share/EyeLink/edfapi/EDF_Access_API.
+ /usr/include/EyeLink.
+
+Package: eyelink-edfconverter
+Source: edfconverter
+Version: 4.2.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 84356
+Depends: libgcc1, libc6, eyelink-edfapi(>=4.2), libstdc++6, libgl1,libc6,libgif7,libjpeg8,libpng16-16,libx11-6,libxext6
+Conflicts: edfconverter
+Breaks: edfconverter(<=4.3.0.43255)
+Replaces: edfconverter(<=4.3.0.43255)
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/eyelink-edfconverter_4.2.1197.0_amd64.deb
+Size: 20327184
+MD5sum: a40bf0bb4c60e3eb215df39ff85c0446
+SHA1: 4eb05db78f9eaf6873b9e149bebc6c4a966af71a
+SHA256: 9c0b030a52b5f61d5e54eb6def0ce4b9503272d7c7e7d9dddf6bc8d65b1562cd
+Section: edfconverter
+Priority: optional
+Description: edfconverter : GUI utility for converting EDF files to ASCII files.
+ Files are installed: /usr/bin/EdfConverter.
+
+Package: eyelink-fonts
+Source: eyelink-fonts
+Version: 2.1.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 2664
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/eyelink-fonts_2.1.1197.0_amd64.deb
+Size: 1061008
+MD5sum: 59004d4827f213f62610629ac7f2db44
+SHA1: 833300ee3abab3284be78cbb091348a93022425b
+SHA256: 32155b970edd1f407d65ad454941253017b85cdae4ce222a2f313abc0bf6ebe8
+Section: eyelink-fonts
+Priority: optional
+Description: Provides fonts used by eyelink_core_graphics and eyelink_core_graphics_sdl2. Files are installed to
+ /usr
+ /usr/share
+ /usr/share/fonts
+ /usr/share/fonts/truetype
+ /usr/share/fonts/truetype/EyeLink
+ /usr/share/fonts/truetype/EyeLink/Roboto_Mono
+ /usr/share/fonts/truetype/EyeLink/Roboto_Mono/static
+ /usr/share/fonts/truetype/EyeLink/Open_Sans
+
+Package: eyelink-matlab-examples
+Source: eyelink-matlab-examples
+Version: 2.1.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 116
+Depends: eyelinkcore(>=2.1.1197.0), eyelinkcoregraphics(>=2.1.1197.0)
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/eyelink-matlab-examples_2.1.1197.0_amd64.deb
+Size: 58358
+MD5sum: 2d3d79852dd3d5100c5a4dbec8110f74
+SHA1: 4957691e2705e21df98ea3f29f808ae564d2b7f4
+SHA256: 6aaf1a197dae003ef8d2fb497d5c8b1396231d947c7878ceb224f8a70642b987
+Section: eyelink-matlab-examples
+Priority: optional
+Description: EyeLink examples for Matlab/Psychtoolbox. Files are installed to:
+ /usr
+ /usr/share
+ /usr/share/EyeLink
+ /usr/share/EyeLink/SampleExperiments
+ /usr/share/EyeLink/SampleExperiments/MATLAB Psychtoolbox
+
+Package: eyelink-pylink
+Source: eyelink-pylink
+Version: 2.1.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 19020
+Depends: eyelinkcore(>=2.1.1197.0)
+Breaks: pylink(<=1.11)
+Replaces: pylink(<=1.11)
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/eyelink-pylink_2.1.1197.0_amd64.deb
+Size: 4614816
+MD5sum: d50c4be563b51473842094e91f378787
+SHA1: 2e07ce935d5e596514bda346cf0c7956fd58efa8
+SHA256: 723f09c0a8e94dceccbf7fe8de8bda18e16393dcc28d7b174346a9b7698ba246
+Section: eyelink-pylink
+Priority: optional
+Description: EyeLink examples to run on python. Includes pylink for various python versions and examples for various graphics environments. Files are installed to:
+ /usr
+ /usr/share
+ /usr/share/EyeLink
+ /usr/share/EyeLink/SampleExperiments
+ /usr/share/EyeLink/SampleExperiments/Python
+ /usr/share/EyeLink/SampleExperiments/Python/wheels
+ /usr/share/EyeLink/SampleExperiments/Python/examples
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Pygame_examples
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Pygame_examples/GC_window
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Pygame_examples/GC_window/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Pygame_examples/saccade
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Pygame_examples/MRI_demo
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Pygame_examples/MRI_demo/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Pygame_examples/fixationWindow_fastSamples
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Pygame_examples/fixationWindow_fastSamples/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Pygame_examples/picture
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Pygame_examples/picture/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Pygame_examples/pursuit
+ /usr/share/EyeLink/SampleExperiments/Python/examples/linkSample
+ /usr/share/EyeLink/SampleExperiments/Python/examples/linkEvent
+ /usr/share/EyeLink/SampleExperiments/Python/examples/OpenSesame
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/GC_window
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/GC_window/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/GC_window/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/saccade
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/saccade/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/MRI_demo
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/MRI_demo/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/MRI_demo/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/fixationWindow_fastSamples
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/fixationWindow_fastSamples/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/fixationWindow_fastSamples/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/picture
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/picture/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/picture/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/video
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/video/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/video/videos
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/pursuit
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Coder/pursuit/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkVideo_Builder
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkVideo_Builder/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkVideo_Builder/videos
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkVideo_Builder/data
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkPicture_Builder
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkPicture_Builder/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkPicture_Builder/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkPicture_Builder/data
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkMRIdemo_Builder
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkMRIdemo_Builder/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkMRIdemo_Builder/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkMRIdemo_Builder/data
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkFixationWindowFastSamples_Builder
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkFixationWindowFastSamples_Builder/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkFixationWindowFastSamples_Builder/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkFixationWindowFastSamples_Builder/data
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkPursuit_Builder
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkPursuit_Builder/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkPursuit_Builder/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkPursuit_Builder/data
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkGCWindow_Builder
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkGCWindow_Builder/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkGCWindow_Builder/images
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkGCWindow_Builder/data
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkSaccade_Builder
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkSaccade_Builder/results
+ /usr/share/EyeLink/SampleExperiments/Python/examples/Psychopy_examples/Builder/EyeLinkSaccade_Builder/data
+ /usr/share/EyeLink/SampleExperiments/Python/64
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.6
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.6/pylink
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.9
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.9/pylink
+ /usr/share/EyeLink/SampleExperiments/Python/64/2.7
+ /usr/share/EyeLink/SampleExperiments/Python/64/2.7/pylink
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.12
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.12/pylink
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.10
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.10/pylink
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.11
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.11/pylink
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.8
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.8/pylink
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.7
+ /usr/share/EyeLink/SampleExperiments/Python/64/3.7/pylink
+
+Package: eyelink-sdl1-examples
+Source: eyelink-sdl1-examples
+Version: 2.1.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 6476
+Depends: eyelinkcore(>=2.1.1197.0), eyelinkcoregraphics(>=2.1.1197.0)
+Breaks: eyelinkcapisamples(<=1.11)
+Replaces: eyelinkcapisamples(<=1.11)
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/eyelink-sdl1-examples_2.1.1197.0_amd64.deb
+Size: 1798056
+MD5sum: dad6f494ac83038222245f20aebe04be
+SHA1: 7cf58ad5ed9bccbfda0180ee0b41991dd089c4c9
+SHA256: ed91e97c11b7730a882f7c5ca4b0ada494ddd7eb91295ce391135673fafdb695
+Section: eyelink-sdl1-examples
+Priority: optional
+Description: EyeLink examples with SDL1.2 graphics environment, support libraries, and documentation. Files are installed to:
+ /usr
+ /usr/bin
+ /usr/share
+ /usr/share/EyeLink
+ /usr/share/EyeLink/SampleExperiments
+ /usr/share/EyeLink/SampleExperiments/sdl
+ /usr/share/EyeLink/SampleExperiments/sdl/gcwindow
+ /usr/share/EyeLink/SampleExperiments/sdl/gcwindow/images
+ /usr/share/EyeLink/SampleExperiments/sdl/control
+ /usr/share/EyeLink/SampleExperiments/sdl/comm_listener
+ /usr/share/EyeLink/SampleExperiments/sdl/broadcast
+ /usr/share/EyeLink/SampleExperiments/sdl/comm_simple
+ /usr/share/EyeLink/SampleExperiments/sdl/simpleExample
+ /usr/share/EyeLink/SampleExperiments/sdl/eyedata
+ /usr/share/EyeLink/SampleExperiments/sdl/eyedata/images
+ /usr/share/EyeLink/SampleExperiments/sdl/shared
+ /usr/share/EyeLink/SampleExperiments/sdl/shared/Fonts
+ /usr/share/EyeLink/SampleExperiments/sdl/shared/Fonts/Roboto_Mono
+ /usr/share/EyeLink/SampleExperiments/sdl/shared/Fonts/Roboto_Mono/static
+ /usr/share/EyeLink/SampleExperiments/sdl/shared/Fonts/Open_Sans
+ /usr/share/EyeLink/SampleExperiments/sdl/dynamic
+ /usr/share/EyeLink/SampleExperiments/sdl/picture
+ /usr/share/EyeLink/SampleExperiments/sdl/picture/images
+ /usr/share/EyeLink/SampleExperiments/sdl/Extension
+ /usr/share/EyeLink/SampleExperiments/sdl/Extension/sdl_coregraphics
+ /usr/share/EyeLink/SampleExperiments/sdl/Extension/sdl_util
+ /usr/share/EyeLink/SampleExperiments/sdl/text
+ /usr/share/EyeLink/SampleExperiments/sdl/simple
+
+Package: eyelink-sdl2-examples
+Source: eyelink-sdl2-examples
+Version: 2.1.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 3440
+Depends: eyelinkcore(>=2.1.1197.0), eyelinkcoregraphics-sdl2(=2.1.1197.0)
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/eyelink-sdl2-examples_2.1.1197.0_amd64.deb
+Size: 1488988
+MD5sum: 9a7132459d806840273770645b6fd265
+SHA1: 69ae5a4b7917cf8a0f3b83767257c32f70806226
+SHA256: 3cbe655460626b3661ea4187ceefa134cae147573a59865250b76df4f7394eeb
+Section: eyelink-sdl2-examples
+Priority: optional
+Description: EyeLink examples with SDL2 graphics environment, support libraries, and documentation. Files are installed to:
+ /usr
+ /usr/share
+ /usr/share/EyeLink
+ /usr/share/EyeLink/SampleExperiments
+ /usr/share/EyeLink/SampleExperiments/sdl2
+ /usr/share/EyeLink/SampleExperiments/sdl2/shared
+ /usr/share/EyeLink/SampleExperiments/sdl2/shared/Fonts
+ /usr/share/EyeLink/SampleExperiments/sdl2/shared/Fonts/Roboto_Mono
+ /usr/share/EyeLink/SampleExperiments/sdl2/shared/Fonts/Roboto_Mono/static
+ /usr/share/EyeLink/SampleExperiments/sdl2/shared/Fonts/Open_Sans
+ /usr/share/EyeLink/SampleExperiments/sdl2/picture
+ /usr/share/EyeLink/SampleExperiments/sdl2/picture/images
+ /usr/share/EyeLink/SampleExperiments/sdl2/Extension
+ /usr/share/EyeLink/SampleExperiments/sdl2/Extension/sdl2_util
+ /usr/share/EyeLink/SampleExperiments/sdl2/text
+ /usr/share/EyeLink/SampleExperiments/sdl2/simple
+ /usr/share/EyeLink/SampleExperiments/sdl2/en.lproj
+
+Package: eyelinkcore
+Source: eyelinkcore
+Version: 2.1.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 21256
+Depends: libc6
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/eyelinkcore_2.1.1197.0_amd64.deb
+Size: 11180498
+MD5sum: fd6168c90e433bf89cb131dd18d010a7
+SHA1: a2ee4e8c3a27182d02898f7d0d18da030a5aea6d
+SHA256: 6abcc8443df2d77501f5cec2986b78b9ff153cb675a79e63d122bdae9dfa47c3
+Section: eyelinkcore
+Priority: optional
+Description: eyelinkcore shared libraries, headers and documentation.  Files are installed to:
+ /usr
+ /usr/lib
+ /usr/lib/x86_64-linux-gnu
+ /usr/share
+ /usr/share/EyeLink
+ /usr/share/EyeLink/UserManuals
+ /usr/share/EyeLink/UserManuals/EyeLinkProgrammersGuide-html
+ /usr/include
+ /usr/include/EyeLink
+
+Package: eyelinkcoregraphics
+Source: eyelinkcoregraphics
+Version: 2.1.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 712
+Depends: eyelinkcore(>=2.1.1197.0), libc6, libsdl1.2-dev, libsdl-ttf2.0-dev, libsdl-gfx1.2-dev, libsdl-mixer1.2-dev, libsdl-image1.2-dev, libsdl-gfx1.2-5, eyelink-fonts(=2.1.1197.0)
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/eyelinkcoregraphics_2.1.1197.0_amd64.deb
+Size: 144342
+MD5sum: 6a113981f872d7ea28eac9ecf04f50d3
+SHA1: cd75b96b5efb654d24ef333a104415719766cd23
+SHA256: c7b00d29b841c16dd4d8b0688b4c4d5ec1a2073dff38c82d212c8a2d4cba0a91
+Section: eyelinkcoregraphics
+Priority: optional
+Description: eyelinkcoregraphics shared libraries, headers and documentation.  Files are installed to:
+ /usr
+ /usr/lib
+ /usr/lib/x86_64-linux-gnu
+ /usr/include
+ /usr/include/EyeLink
+
+Package: eyelinkcoregraphics-sdl2
+Source: eyelinkcoregraphics-sdl2
+Version: 2.1.1197.0
+Architecture: amd64
+Maintainer: SR-Research
+Installed-Size: 824
+Depends: eyelinkcore(>=2.1.1197.0), eyelink-fonts(=2.1.1197.0), libc6, libsdl2-dev, libsdl2-gfx-dev, libsdl2-ttf-dev, libsdl2-image-dev, libsdl2-mixer-dev
+Provides: no
+Filename: dists/SRResearch/main/binary-amd64/api64/linuxDisplaySoftwareRelease/deb/eyelinkcoregraphics-sdl2_2.1.1197.0_amd64.deb
+Size: 159474
+MD5sum: 49d483c66568d0a9ac9a906e66124c5b
+SHA1: 29074d6a07b12f51dae0497342f42eea7e390357
+SHA256: 350c70f78e435d0615395894fbb43d50d387dd9eeb566d181f1d2ef46da5bde8
+Section: eyelinkcoregraphics_sdl2
+Priority: optional
+Description: eyelinkcoregraphics-sdl2 shared libraries, headers and documentation.  Files are installed to:
+ /usr
+ /usr/lib
+ /usr/lib/x86_64-linux-gnu
+ /usr/include
+ /usr/include/EyeLink
+
