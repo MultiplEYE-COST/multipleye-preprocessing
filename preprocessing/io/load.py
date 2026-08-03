@@ -1,6 +1,7 @@
 """Functions for loading and processing gaze data from various formats."""
 
 import json
+import logging
 import re
 from pathlib import Path
 
@@ -9,15 +10,17 @@ import yaml
 
 import pymovements as pm
 
-from ..constants import FIXATION, SACCADE
+from ..config import settings
 from ..data_collection.stimulus import LabConfig
+from ..models.sid import Sid
 
 
 def load_gaze_data(
     asc_file: Path,
     lab_config: LabConfig,
-    session_idf: str,
+    sid: Sid,
     trial_cols: list[str] = None,
+    messages: bool | list[str] = False,
 ) -> pm.Gaze:
     """Load sample gaze data from an ASC file.
 
@@ -33,10 +36,14 @@ def load_gaze_data(
         Configuration object containing details about the lab environment,
         including screen resolution, screen size (in cm),
         and the eye-tracking device's sampling rate.
-    session_idf : str
-        Identifier for the session the gaze data corresponds to.
+    sid : Sid
+        The session identifier.
     trial_cols : list of str, optional
         List of columns to be associated with trial-level metadata. Default is None.
+    messages : bool or list of str, optional
+        Whether to extract messages from the ASC file. If True, all messages are extracted.
+        If a list of strings is provided, only messages matching the patterns are extracted.
+        Default is False.
 
     Returns
     -------
@@ -46,93 +53,44 @@ def load_gaze_data(
         and experimental details.
     """
 
-    gaze = pm.gaze.from_asc(
-        asc_file,
-        # TODO: move patterns form here to config, pm dataset definition?
-        patterns=[
-            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_stimulus_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_(?P<page>.+)",
-            r"start_recording_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<page>familiarity_rating_screen_\d+|subject_difficulty_screen)",
-            {"pattern": r"stop_recording_", "column": "trial", "value": None},
-            {"pattern": r"stop_recording_", "column": "page", "value": None},
-            {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+(\.0)?_page_\d+",
-                "column": "activity",
-                "value": "reading",
-            },
-            {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_stimulus_[^_]+_[^_]+_\d+(\.0)?_question_\d+",
-                "column": "activity",
-                "value": "question",
-            },
-            {
-                "pattern": r"start_recording_(?:PRACTICE_)?trial_\d+_(familiarity_rating_screen_\d+|subject_difficulty_screen)",
-                "column": "activity",
-                "value": "rating",
-            },
-            {"pattern": r"stop_recording_", "column": "activity", "value": None},
-            {
-                "pattern": r"start_recording_PRACTICE_trial_",
-                "column": "practice",
-                "value": True,
-            },
-            {
-                "pattern": r"start_recording_trial_",
-                "column": "practice",
-                "value": False,
-            },
-            {"pattern": r"stop_recording_", "column": "practice", "value": None},
-        ],
-        trial_columns=trial_cols,
-        add_columns={"session": session_idf},
-    )
-
-    # Filter out data outside of trials
-    # TODO: Also report time spent outside of trials
-    gaze.frame = gaze.frame.filter(
-        pl.col("trial").is_not_null() & pl.col("page").is_not_null()
-    )
-
-    # Initialize experiment config from lab config. Sampling rate is automatically inferred in from_asc, but we use
-    # the one from the final metadata form to perform a sanity check. for pilot data, the value will not be handed
-    # to the exp. Atm we need to set the experiment only after parsing gaze because there is a bug / feat which
-    # needs to be solved first: https://github.com/pymovements/pymovements/issues/1286
+    # Initialize experiment config from lab config. Although sampling rate and resolution are automatically inferred
+    # in from_asc(), the function will emit a warning in case the parsed values do not match the experiment specification.
+    # This way we perform a sanity check for the experiment configuration.
     experiment = pm.Experiment(
         screen_width_px=lab_config.image_resolution[0],
         screen_height_px=lab_config.image_resolution[1],
         screen_width_cm=lab_config.image_size_cm[0],
         screen_height_cm=lab_config.image_size_cm[1],
         distance_cm=lab_config.screen_distance_cm,
+        sampling_rate=lab_config.sampling_frequency_hz,
     )
 
-    if lab_config.sampling_frequency_hz is not None:
-        experiment.sampling_rate = lab_config.sampling_frequency_hz
+    if messages is None:
+        messages = False
 
-    else:
-        experiment.sampling_rate = gaze._metadata["sampling_rate"]
+    gaze = pm.gaze.from_asc(
+        asc_file,
+        patterns=settings.GAZE_PATTERNS,
+        trial_columns=trial_cols,
+        add_columns={"session": str(sid)},
+        experiment=experiment,
+        messages=messages,
+    )
 
-    gaze.experiment = experiment
+    # Filter out data outside of trials
+    # TODO: Also report time spent outside of trials
+    gaze.samples = gaze.samples.filter(
+        pl.col("trial").is_not_null() & pl.col("page").is_not_null()
+    )
 
     return gaze
 
 
-DEFAULT_EVENT_PROPERTIES = {
-    FIXATION: [
-        ("location", {"position_column": "pixel"}),
-        ("dispersion", {}),
-    ],
-    SACCADE: [
-        ("amplitude", {}),
-        ("peak_velocity", {}),
-        ("dispersion", {}),
-    ],
-}
-
-
 def load_trial_level_raw_data(
-    data_folder: Path,
+    sid: Sid,
     trial_columns: list[str],
-    file_pattern: str = "*_raw_data.csv",
-    metadata_path: Path = None,
+    file_pattern: str | None = None,
+    load_metadata: bool = False,
 ) -> pm.Gaze:
     """Load trial-level raw data from multiple CSV files and construct a gaze object.
 
@@ -140,15 +98,15 @@ def load_trial_level_raw_data(
 
     Parameters
     ----------
-    data_folder : Path
-        The directory where the raw data CSV files are stored.
+    sid : Sid
+        The session identifier.
     trial_columns : list of str
         Column names that uniquely identify a trial within the data.
     file_pattern : str, optional
-        The file search pattern for raw data CSV files. Defaults to '*_raw_data.csv'.
-    metadata_path : Path, optional
-        The folder containing metadata files (`gaze_metadata.json`, `experiment.yaml`,
-        `validations.tsv`, `calibrations.tsv`) used to enrich the gaze object.
+        The file search pattern for raw data CSV files. Defaults to None, which uses settings.RAW_DATA_FILE_GLOB.
+    load_metadata : bool, optional
+        Whether to load metadata files (`gaze_metadata.json`, `experiment.yaml`,
+        `validations.tsv`, `calibrations.tsv`) to enrich the gaze object.
 
     Returns
     -------
@@ -156,7 +114,11 @@ def load_trial_level_raw_data(
         A gaze object containing the trial-level aggregated gaze data along with
         any associated metadata, validations, calibrations, and experiment settings, if provided.
     """
-    regex_name = r".+_(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
+    data_folder = sid.raw_data_dir
+    if file_pattern is None:
+        file_pattern = settings.RAW_DATA_FILE_GLOB
+
+    regex_name = settings.RAW_DATA_FILENAME_REGEX
 
     initial_df = pl.DataFrame()
 
@@ -179,27 +141,34 @@ def load_trial_level_raw_data(
 
         initial_df = initial_df.vstack(trial_df)
 
+    if initial_df.is_empty():
+        raise ValueError(
+            f"No raw data files found in {data_folder} with pattern {file_pattern}"
+        )
+
     gaze = pm.Gaze(
         initial_df,
         trial_columns=trial_columns,
         pixel_columns=["pixel_x", "pixel_y"],
     )
 
-    if metadata_path:
-        with open(metadata_path / "gaze_metadata.json", "r", encoding="utf8") as f:
+    if load_metadata:
+        metadata_path = sid.metadata_dir
+
+        with open(metadata_path / "gaze_metadata.json", encoding="utf8") as f:
             metadata = json.load(f)
 
         gaze._metadata = metadata
 
-        with open(metadata_path / "experiment.yaml", "r") as f:
+        with open(metadata_path / "experiment.yaml") as f:
             exp = yaml.safe_load(f)
 
-        with open(metadata_path / "validations.tsv", "r", encoding="utf8") as f:
+        with open(metadata_path / "validations.tsv", encoding="utf8") as f:
             validations_df = pl.read_csv(f, separator="\t")
 
         gaze.validations = validations_df
 
-        with open(metadata_path / "calibrations.tsv", "r", encoding="utf8") as f:
+        with open(metadata_path / "calibrations.tsv", encoding="utf8") as f:
             calibrations_df = pl.read_csv(f, separator="\t")
 
         gaze.calibrations = calibrations_df
@@ -213,9 +182,9 @@ def load_trial_level_raw_data(
 
 def load_trial_level_events_data(
     gaze: pm.Gaze,
-    data_folder: Path,
+    sid: Sid,
     event_type: str,
-    file_pattern: str = "*_fixation",
+    file_pattern: str | None = None,
 ) -> pm.Gaze:
     """Load and processes trial-level event data for a given type.
 
@@ -228,33 +197,43 @@ def load_trial_level_events_data(
     ----------
     gaze : pm.Gaze
         An object containing gaze data and associated event information.
-    data_folder : Path
-        The path to the folder containing trial-level event data files in CSV format.
+    sid : Sid
+        The session identifier.
     event_type : str
         The type of event to load, must be one of the keys in `DEFAULT_EVENT_PROPERTIES`.
     file_pattern : str, optional
-        A pattern for matching CSV file names to extract relevant groups, by default '*_fixation'.
+        A pattern for matching CSV file names to extract relevant groups.
+        If None, defaults to settings.EVENT_DATA_FILE_GLOB formatted with event_type.
 
     Returns
     -------
     pm.Gaze
         The updated gaze object with the loaded and integrated event data.
     """
-    if event_type not in DEFAULT_EVENT_PROPERTIES.keys():
+    if event_type == "fixation":
+        data_folder = sid.fixations_dir
+    elif event_type == "saccade":
+        data_folder = sid.saccades_dir
+    else:
         raise ValueError(
-            f"event_type must be {DEFAULT_EVENT_PROPERTIES.keys()}, got {event_type}"
+            f"event_type must be {list(settings.EVENT_PROPERTIES.keys())}, got {event_type}"
         )
 
+    if file_pattern is None:
+        file_pattern = settings.EVENT_DATA_FILENAME_REGEX.format(event_type=event_type)
+
     all_events = pl.DataFrame()
-    for file in data_folder.glob("*.csv"):
+    for file in data_folder.glob(
+        settings.EVENT_DATA_FILE_GLOB.format(event_type=event_type)
+    ):
         trial_df = pl.read_csv(file)
 
         match = re.match(file_pattern, file.name)
         # go over groups in the name regex and add them as columns
         if match is None:
-            print(file.name)
+            logging.info(f"Skipping file {file} for event loading")
         else:
-            for group_name in match.groupdict().keys():
+            for group_name in match.groupdict():
                 if group_name not in trial_df.columns:
                     trial_df = trial_df.with_columns(
                         pl.lit(match.group(group_name)).alias(group_name)
@@ -299,3 +278,44 @@ def load_trial_level_events_data(
     )
 
     return gaze
+
+
+def load_reading_measures(
+    sid: Sid,
+    file_pattern: str = r".+?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv",
+) -> pl.DataFrame:
+    """Load reading measures from CSV files.
+
+    Parameters
+    ----------
+    sid : Sid
+        The session identifier.
+    file_pattern : str, optional
+        Regex pattern to extract trial and stimulus from filenames.
+
+    Returns
+    -------
+    pl.DataFrame
+        A DataFrame containing the concatenated reading measures data.
+    """
+    data_folder = sid.reading_measures_dir
+    # Use glob to find all csv files first, as Path.glob() does not support regex
+    files = [f for f in data_folder.glob("*.csv") if re.match(file_pattern, f.name)]
+
+    if len(files) == 0:
+        raise ValueError(f"No files found in {data_folder} with pattern {file_pattern}")
+
+    all_trials = []
+
+    for file in files:
+        df = pl.read_csv(file)
+        # get trial and stimulus from file name
+        match = re.match(file_pattern, file.name)
+        trial_df = df.with_columns(
+            pl.lit(match.group("trial")).alias("trial"),
+            pl.lit(match.group("stimulus")).alias("stimulus"),
+        )
+
+        all_trials.append(trial_df)
+
+    return pl.concat(all_trials)

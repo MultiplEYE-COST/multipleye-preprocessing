@@ -4,18 +4,28 @@ import argparse
 import shutil
 from pathlib import Path
 
-from preprocessing.constants import (
-    PSYM_PARTICIPANT_CONFIGS,
-    PSYCHOMETRIC_TESTS_DIR,
-    PSYM_CORE_DATA,
-)
+import yaml
+
+from preprocessing.models.sid import Sid
+from preprocessing.utils import get_logger, validate_psychometric_data
+from preprocessing.utils.file_utils import _copytree
+
+logger = get_logger()
 
 
 def fix_psycho_tests_structure(
-    config_folder: Path = PSYM_PARTICIPANT_CONFIGS,
-    data_folder: Path = PSYM_CORE_DATA,
-    out_folder: Path = PSYCHOMETRIC_TESTS_DIR,
+    config_folder: Path | None = None,
+    data_folder: Path | None = None,
+    out_folder: Path | None = None,
 ):
+    from preprocessing import settings
+
+    if config_folder is None:
+        config_folder = settings.PSYM_PARTICIPANT_CONFIGS
+    if data_folder is None:
+        data_folder = settings.PSYM_CORE_DATA
+    if out_folder is None:
+        out_folder = settings.PSYCHOMETRIC_TESTS_DIR
     """
     Restructures psychometric tests data into per-participant folders.
 
@@ -64,7 +74,16 @@ def fix_psycho_tests_structure(
 
     # Check that the folders exist
     if not config_folder.exists():
-        raise FileNotFoundError(f"config_folder does not exist: {config_folder}")
+        msg = f"config_folder does not exist: {config_folder}"
+        # try to look for zip files in the parent directory
+        # (psychometric-tests-sessions/ instead of psychometric-tests-sessions/core_data/...)
+        zip_search_path = config_folder.parent.parent
+        if zip_search_path.exists():
+            zip_files = list(zip_search_path.glob("*.zip"))
+            if zip_files:
+                zip_names = [f.name for f in zip_files]
+                msg += f"\nFound zip files in {zip_search_path}: {zip_names}. Find out if these zips include the desired data and unzip them."
+        raise FileNotFoundError(msg)
     if not data_folder.exists():
         raise FileNotFoundError(f"data_folder does not exist: {data_folder}")
 
@@ -73,60 +92,78 @@ def fix_psycho_tests_structure(
         out_folder.mkdir(parents=True)
 
     # Find config files
-    config_files = config_folder.glob("*.yaml")
+    config_files = list(config_folder.glob("*.yaml"))
     # Check there is at least one config file
     if not config_files:
         raise ValueError(f"No configuration files ('*.yaml') found in {config_folder}.")
 
-    # Find test folders
-    tests = data_folder.glob("*")
-    # filter hidden directories and possibly the config folder from the test folders
-    all_tests = [
-        folder.stem
-        for folder in tests
-        if not folder.stem.startswith(".") and config_folder != folder
-    ]
-
-    participant_ids = {}
-
-    # Loop over participants
     for config_file in config_files:
         # Check if there is a corresponding data file
         name = config_file.stem
-        p_id = name.split("_")[0]  # Participant id
 
-        if name.endswith("S1"):
-            name = name.replace("S1", "PT1")
-        elif name.endswith("S2"):
-            name = name.replace("S2", "PT2")
+        with open(config_file) as f:
+            try:
+                yaml.safe_load(f)
+            except yaml.YAMLError as exc:
+                logger.error(f"Error reading configuration file {config_file}: {exc}")
+                continue
 
-        if p_id not in participant_ids:
-            participant_ids[p_id] = []
+        # Normalize name for the output folder (always use PT prefix)
+        try:
+            config_sid = Sid(name)
+            target_sid = Sid(
+                pid=config_sid.pid,
+                lang=config_sid.lang,
+                country=config_sid.country,
+                lab=config_sid.lab,
+                session=config_sid.session.replace("S", "PT")
+                if config_sid.session.startswith("S")
+                else config_sid.session,
+                postfix=config_sid.postfix,
+            )
+            target_name = str(target_sid)
+        except (ValueError, TypeError):
+            target_name = name
 
-        session_folder = out_folder / name
+        session_folder = out_folder / target_name
         session_folder.mkdir(parents=True, exist_ok=True)
 
-        for test in all_tests:
-            old_path = data_folder / test / name
-            # find participant folder in old path and move to new session folder in a subfolder
+        # Use Sid for robust matching of source data
+        try:
+            config_sid = Sid(name)
+        except (ValueError, TypeError):
+            config_sid = None
+
+        for folder_name in settings.PSYCHOMETRIC_TEST_MAPPING.values():
+            # Try exact match first
+            old_path = data_folder / folder_name / name
+
+            # If not found and it's a valid SID, try soft matching
+            if not old_path.exists() and config_sid:
+                test_type_dir = data_folder / folder_name
+                if test_type_dir.exists():
+                    for potential_dir in test_type_dir.iterdir():
+                        if potential_dir.is_dir():
+                            try:
+                                folder_sid = Sid(potential_dir.name)
+                                if config_sid.equals_soft(folder_sid):
+                                    old_path = potential_dir
+                                    break
+                            except (ValueError, TypeError):
+                                continue
+
+            # We copy if data actually exists
             if old_path.exists():
-                participant_ids[p_id].append(test)
-                new_participant_path = session_folder / test
-                new_participant_path.mkdir(parents=True, exist_ok=True)
-                shutil.copytree(old_path, new_participant_path, dirs_exist_ok=True)
+                new_test_path = session_folder / folder_name
+                new_test_path.mkdir(parents=True, exist_ok=True)
+                _copytree(old_path, new_test_path, dirs_exist_ok=True)
 
         # copy the config file to the new session folder
         new_config_path = session_folder / config_file.name
         shutil.copy(config_file, new_config_path)
 
-    # make sure all participant ids have all tests
-    for p_id, tests in participant_ids.items():
-        if len(tests) != len(all_tests):
-            # get the missing tests
-            missing_tests = [test for test in all_tests if test not in tests]
-            print(f"Participant {p_id} is missing some tests: {missing_tests}")
-        # else:
-        #     print(f"Participant {p_id} has all tests.")
+    # Run validation after restructuring
+    validate_psychometric_data(config_folder, out_folder, is_restructured=True)
 
 
 def main():
@@ -137,27 +174,53 @@ def main():
         "--config_folder",
         type=str,
         help="Path to the folder containing the psychometric tests configuration files.",
-        default=PSYM_PARTICIPANT_CONFIGS,
+        default=None,
     )
     parser.add_argument(
         "--data_folder",
         type=str,
         help="Path to the folder containing the data collection.",
-        default=PSYM_CORE_DATA,
+        default=None,
     )
     parser.add_argument(
         "--out_folder",
         type=str,
         help="Path to the session folder where the restructured data / user folders will be saved.",
-        default=PSYCHOMETRIC_TESTS_DIR,
+        default=None,
+    )
+    parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help="Only run sanity checks without restructuring data.",
+    )
+    parser.add_argument(
+        "--restructured",
+        action="store_true",
+        help="Run sanity checks assuming data is already restructured.",
     )
     args = parser.parse_args()
 
+    config_p = Path(args.config_folder) if args.config_folder else None
+    data_p = Path(args.data_folder) if args.data_folder else None
+    out_p = Path(args.out_folder) if args.out_folder else None
+
+    from preprocessing import settings
+
+    if config_p is None:
+        config_p = settings.PSYM_PARTICIPANT_CONFIGS
+    if data_p is None:
+        data_p = settings.PSYM_CORE_DATA
+    if out_p is None:
+        out_p = settings.PSYCHOMETRIC_TESTS_DIR
+
+    if args.check_only:
+        print(f"Running sanity check on data: {data_p} with configs: {config_p}")
+        validate_psychometric_data(config_p, data_p, is_restructured=args.restructured)
+        return
+
     print(
-        f"Restructuring psychometric tests data from \ndata_folder: {args.data_folder}\n"
-        f"to out_folder: {args.out_folder}\nwith config_folder: {args.config_folder}"
+        f"Restructuring psychometric tests data from \ndata_folder: {data_p}\n"
+        f"to out_folder: {out_p}\nwith config_folder: {config_p}"
     )
 
-    fix_psycho_tests_structure(
-        Path(args.config_folder), Path(args.data_folder), Path(args.out_folder)
-    )
+    fix_psycho_tests_structure(config_p, data_p, out_p)

@@ -8,6 +8,14 @@ from typing import Literal
 
 import polars as pl
 import pymovements as pm
+from pymovements.stimulus import TextStimulus
+
+from ..config import settings
+from ..utils.data_path_utils import _ci_resolve
+from ..mapping.aoi import enlarge_aois
+from ..utils.logging import get_logger
+
+logger = get_logger()
 
 warnings.filterwarnings(
     "ignore",
@@ -64,8 +72,11 @@ class StimulusPage:
 
 @dataclass
 class ComprehensionQuestion:
+    """A comprehension question belonging to a stimulus."""
+
     name: str
     id: str
+    snippet_no: int
     question: str
     target: str
     distractor_a: str
@@ -99,10 +110,12 @@ class Stimulus:
         trial: str,
     ) -> "Stimulus":
         # assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
-        stimulus_df_path = stimulus_dir / f"multipleye_stimuli_experiment_{lang}.xlsx"
+        stimulus_df_path = _ci_resolve(
+            stimulus_dir / f"multipleye_stimuli_experiment_{lang}.xlsx"
+        )
         assert stimulus_df_path.exists(), f"File {stimulus_df_path} does not exist"
 
-        stimulus_df = pl.read_excel(stimulus_df_path, engine="openpyxl")
+        stimulus_df = pl.read_excel(stimulus_df_path, engine="calamine")
         stimulus_row = stimulus_df.row(
             by_predicate=pl.col("stimulus_name") == stimulus_name, named=True
         )
@@ -151,8 +164,12 @@ class Stimulus:
             / f"aoi_stimuli_{lang}_{country}_{labnum}"
             / f"{stimulus_name.lower()}_{int(stimulus_id)}_aoi.csv"
         )
-        text_stimulus = pm.stimulus.text.from_file(
-            aoi_path,
+
+        aois_df = pl.read_csv(aoi_path)
+        aois_df = enlarge_aois(aois_df)
+
+        text_stimulus = TextStimulus(
+            aois_df,
             aoi_column="char",
             start_x_column="top_left_x",
             start_y_column="top_left_y",
@@ -165,7 +182,7 @@ class Stimulus:
         questions_df_path = (
             stimulus_dir / f"multipleye_comprehension_questions_{lang}.xlsx"
         )
-        questions_df = pl.read_excel(questions_df_path, engine="openpyxl")
+        questions_df = pl.read_excel(questions_df_path, engine="calamine")
         question_rows = questions_df.filter(
             pl.col("stimulus_name") == stimulus_name
         ).rows(named=True)
@@ -173,6 +190,7 @@ class Stimulus:
         for question_row in question_rows:
             question_name = question_row["item_id"]
             question_id = question_row["item_id"].split("_")[-1]
+            snippet_no = question_row["snippet_no"]
             question = question_row["question"]
             target = question_row["target"]
             distractor_a = question_row["distractor_a"]
@@ -195,6 +213,7 @@ class Stimulus:
             question = ComprehensionQuestion(
                 name=question_name,
                 id=question_id,
+                snippet_no=snippet_no,
                 question=question,
                 target=target,
                 distractor_a=distractor_a,
@@ -231,7 +250,7 @@ class Stimulus:
             )
             instruction_image_path = (
                 stimulus_dir
-                / f"participant_instructions_images_{lang}_{country}_1/{instruction_row['instruction_screen_img_name']}"
+                / f"participant_instructions_images_{lang}_{country}_{labnum}/{instruction_row['instruction_screen_img_name']}"
             )
 
             instruction = class_name(
@@ -247,12 +266,12 @@ class Stimulus:
             list_name.append(instruction)
 
         if stimulus_type == "experiment":
-            assert len(questions) == QUESTION_NUMBERS["experiment"], (
-                f"{stimulus_id} has {len(questions)} questions instead of 6"
+            assert len(questions) == settings.NUM_QUESTIONS_EXPERIMENT, (
+                f"{stimulus_id} has {len(questions)} questions instead of {settings.NUM_QUESTIONS_EXPERIMENT}"
             )
         elif stimulus_type == "practice":
-            assert len(questions) == QUESTION_NUMBERS["practice"], (
-                f"{stimulus_id} has {len(questions)} questions instead of 2"
+            assert len(questions) == settings.NUM_QUESTIONS_PRACTICE, (
+                f"{stimulus_id} has {len(questions)} questions instead of {settings.NUM_QUESTIONS_PRACTICE}"
             )
 
         stim = cls(
@@ -295,7 +314,7 @@ class LabConfig:
             root_dir=stimulus_dir / "config",
         )
         assert len(config_path) == 1, (
-            f"Found {len(config_path)} config files: {config_path}"
+            f"Found {len(config_path)} stimulus config files: {config_path}. Please check that the stimulus folder exists."
         )
         config_path = stimulus_dir / "config" / config_path[0]
 
@@ -320,6 +339,9 @@ class LabConfig:
         with open(json_config_path) as f:
             json_config = json.load(f)
 
+        logger.info(f"Lab config loaded from {config_path}")
+        logger.info(f"JSON lab config loaded from {json_config_path}")
+
         # if the final data has been collected and this is not just a sanity check
         if final_metadata_path.exists():
             with open(final_metadata_path) as f:
@@ -327,11 +349,16 @@ class LabConfig:
             sampling_frequency_hz = final_metadata_json["Default_frequency"]
 
         else:
-            sampling_frequency_hz = None
+            sampling_frequency_hz = settings.EXPECTED_SAMPLING_RATE_HZ
 
-        tests = list(json_config.get("Psychometric_tests", []).keys())
-
-        tests.remove("Are_tests_conducted")
+        psychometric_tests = json_config.get("Psychometric_tests", {})
+        if not isinstance(psychometric_tests, dict):
+            raise ValueError(
+                f"'Psychometric_tests' in lab configuration JSON must be an object (dict), "
+                f"got {type(psychometric_tests).__name__}. "
+                f"Check file: {json_config_path}"
+            )
+        tests = [k for k in psychometric_tests if k != "Are_tests_conducted"]
 
         return cls(
             screen_resolution=config.RESOLUTION,

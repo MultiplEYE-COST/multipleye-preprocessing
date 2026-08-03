@@ -24,6 +24,9 @@ proprietary EyeLink format to analysis-ready data.
 
 The pipeline processes data on a session level and consists of several key steps including EDF to
 ASC conversion, data parsing, gaze event detection, AOI mapping, and reading measures calculation.
+After all sessions are processed, psychometric tests are calculated (if enabled and data is
+available).
+For more information about the available reading measures, see {ref}`reading_measures`.
 For detailed technical specifications of each step, including file formats and quality control
 procedures, please refer to the {ref}`technical_architecture` section.
 
@@ -37,11 +40,14 @@ structure specification, see the {ref}`multiplEYE_data_structure` section.
 ### Running the Preprocessing
 
 ```bash
-# Run full preprocessing pipeline
-run_multipleye_preprocessing <data_collection_name>
+# A. Run full preprocessing pipeline (uses default config file)
+run_preprocessing
 
-# Run with uv
-uv run run_multipleye_preprocessing <data_collection_name>
+# B. Or specify a custom config file
+run_preprocessing --config_path path/to/your_config.yaml
+
+# C. Or directly run with uv
+uv run run_preprocessing
 ```
 
 ### Output Files

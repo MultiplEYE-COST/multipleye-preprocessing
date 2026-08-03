@@ -1,0 +1,95 @@
+name: Automated CalVer Release
+
+on:
+  schedule:
+    - cron: '0 23 * * *'  # Run nightly at 23:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'MultiplEYE-COST'
+    permissions:
+      contents: write
+      actions: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Get Today's Date
+        id: date
+        run: echo "today=$(date +'%Y.%m.%d')" >> $GITHUB_OUTPUT
+
+      - name: Check if Tag Exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ steps.date.outputs.today }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for Changes Since Last Release
+        id: check_changes
+        run: |
+          last_commit_msg=$(git log -1 --pretty=%s)
+          echo "Last commit message: $last_commit_msg"
+          if [[ "$last_commit_msg" == "chore: bump version to"* ]]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes since last version bump. Skipping release."
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected since last version bump."
+          fi
+
+      - name: Skip if Release Already Exists or No Changes
+        if: steps.check_tag.outputs.exists == 'true' || steps.check_changes.outputs.has_changes == 'false'
+        run: |
+          echo "Skipping release: Tag exists (${{ steps.check_tag.outputs.exists }}) or No changes (${{ steps.check_changes.outputs.has_changes }})."
+
+      - name: Update Version Files
+        if: steps.check_tag.outputs.exists == 'false' && steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          python preprocessing/scripts/sync_version.py --set-version ${{ steps.date.outputs.today }}
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}
+          git add .
+          if ! git diff --cached --exit-code; then
+            git commit -m "chore: bump version to ${{ steps.date.outputs.today }}"
+            git push origin main
+          fi
+
+      - name: Trigger documentation rebuild
+        if: steps.check_tag.outputs.exists == 'false' && steps.check_changes.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'docs.yml',
+              ref: 'main',
+            });
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false' && steps.check_changes.outputs.has_changes == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ steps.date.outputs.today }}
+          name: Release ${{ steps.date.outputs.today }}
+          generate_release_notes: true
+          body: |
+            Automated CalVer release for ${{ steps.date.outputs.today }}.

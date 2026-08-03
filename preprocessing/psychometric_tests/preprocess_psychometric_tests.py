@@ -23,40 +23,80 @@ from pathlib import Path
 from pandas import read_csv, DataFrame
 import pandas as pd
 
-from ..constants import (
-    PSYM_LWMC_DIR,
-    PSYM_RAN_DIR,
-    PSYM_STROOP_FLANKER_DIR,
-    PSYM_PLAB_DIR,
-    PSYM_WIKIVOCAB_DIR,
-)
-from ..constants import PSYCHOMETRIC_TESTS_DIR
-from ..utils import pid_from_session
+from ..config import settings
+from ..models.sid import Sid
+from ..utils import validate_psychometric_data
 
 
-def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) -> Path:
-    """Preprocess all sessions and write two types of outputs:
+def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
+    """
+    Preprocess all sessions and write overview and detailed results.
 
-    1) Overview CSV (one row per session) saved directly under the
-       psychometric-tests-sessions folder. The filename is descriptive and
-       includes the study/session tag (e.g. "SQ_CH_1_PT2"). The overview
-       contains only the requested summary metrics:
+    This function performs the following steps:
+    1. Validates the psychometric data structure.
+    2. Iterates through each session folder.
+    3. Extracts session information (PID, session part, postfix).
+    4. Preprocesses each individual test (LWMC, RAN, Stroop, Flanker, WikiVocab, PLAB).
+    5. Aggregates results into an overview row per session.
+    6. Writes a detailed CSV for each session to the output directory.
+    7. Writes a comprehensive overview CSV for all sessions to the output directory.
+
+    Two types of outputs are generated:
+
+    1. **Overview CSV** (one row per session) saved to
+       ``OUTPUT_DIR / PSYCHOMETRIC_TESTS_FOLDER``.
+       The filename includes the data collection name.
+       The overview contains only the requested summary metrics:
        - LWMC: scores only (no times)
        - Stroop & Flanker: AccuracyEffect and TREffect only
        - WikiVocab: rt_mean, accuracy, incorrect_correct_score
        - RAN: Reaction time for two trials
-       - PLAB: RT mean and accuracy
+       - PLAB: RT mean and accuracy (overall and split for sets 1 and 2)
 
-    2) Per-session detailed CSV placed in each session folder with all
-       available detailed metrics in a readable, wide format (namespaced
-       columns). For example, grouped RT/accuracy for Stroop/Flanker are stored
-       as columns like ``Stroop_congruent_rt_mean``.
+    2. **Per-session detailed CSV** saved to
+       ``OUTPUT_DIR / PSYCHOMETRIC_TESTS_FOLDER / {session_name}``
+       with all available detailed metrics in a readable, wide format
+       (namespaced columns). For example, grouped RT/accuracy for
+       Stroop/Flanker are stored as columns like ``Stroop_congruent_rt_mean``.
 
-    Notes:
+    Parameters
+    ----------
+    test_session_folder : Path | None
+        Path to the folder containing restructured psychometric test sessions.
+        If None, it uses the default directory from settings.
+
+    Returns
+    -------
+    Path
+        The path to the generated overview CSV file.
+
+    Notes
+    -----
     - All computations are performed once per session and then split into
       overview vs. detailed outputs.
-    - Returns the path to the written overview CSV.
     """
+    if test_session_folder is None:
+        test_session_folder = settings.PSYCHOMETRIC_TESTS_DIR
+
+    output_dir = settings.OUTPUT_DIR / settings.PSYCHOMETRIC_TESTS_FOLDER
+
+    if not test_session_folder.exists() or not any(
+        _is_valid_folder(p) for p in test_session_folder.iterdir()
+    ):
+        from ..utils.logging import get_logger
+
+        get_logger(__name__).info(
+            "No psychometric test session folders found. Skipping."
+        )
+        return output_dir
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Run sanity check before processing
+    validate_psychometric_data(
+        settings.PSYM_PARTICIPANT_CONFIGS, test_session_folder, is_restructured=True
+    )
+
     # Collect session folders
     session_folders = test_session_folder.iterdir()
     session_folders = [p for p in session_folders if _is_valid_folder(p)]
@@ -65,9 +105,41 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
     overview_rows: list[dict] = []
 
     for session in session_folders:
-        pid = pid_from_session(session)
+        try:
+            folder_sid = Sid(session.name)
+            pid = folder_sid.pid
+            session_part = folder_sid.session
+            session_id_extended = str(folder_sid)
+            postfix = folder_sid.postfix
+            notes = folder_sid.notes
+        except (ValueError, TypeError):
+            # Fallback for non-standard folders if absolutely necessary
+            folder_sid = None
+            pid = session.name[:3] if len(session.name) >= 3 else session.name
+            session_part = ""
+            session_id_extended = session.name
+            postfix = ""
+            notes = ""
+
+        # Find the original config file inside the session folder to ensure correct metadata.
+        # In restructured folders, there should be exactly one .yaml file.
+        config_files = list(session.glob("*.yaml"))
+        if config_files and folder_sid:
+            try:
+                config_sid = Sid(config_files[0].stem)
+                if folder_sid.equals_soft(config_sid):
+                    # Prefer metadata from the original config if they soft-match
+                    pid = config_sid.pid
+                    session_part = config_sid.session
+                    session_id_extended = str(config_sid)
+                    postfix = config_sid.postfix
+                    notes = config_sid.notes
+            except (ValueError, TypeError):
+                pass
+
         # Initialise an overview row with participant and per-test Done flags (0/1)
         overview_row: dict = {
+            "session_id": session_id_extended,
             "participant_id": pid,
             "LWMC_Done": 0,
             "RAN_Done": 0,
@@ -75,39 +147,46 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
             "Flanker_Done": 0,
             "WikiVocab_Done": 0,
             "PLAB_Done": 0,
+            "notes": notes,
         }
 
         # Detailed row: single CSV per participant with namespaced, readable columns
         detailed_row: dict = {
             "participant_id": pid,
+            "session": session_part,
+            "session_id": session_id_extended,
+            "postfix": postfix,
+            "notes": notes,
         }
 
         # LWMC
-        lwmc_dir = session / PSYM_LWMC_DIR
+        lwmc_dir = session / settings.PSYM_LWMC_DIR
         if lwmc_dir.exists():
             try:
                 res_lwmc = preprocess_lwmc(lwmc_dir)  # dict
                 # detailed: all LWMC metrics
                 detailed_row.update(res_lwmc)
-                # overview: LWMC scores only
+                # overview: selected scores and processing tasks
                 for k in [
                     "LWMC_MU_score",
                     "LWMC_OS_score",
                     "LWMC_SS_score",
                     "LWMC_SSTM_score",
                     "LWMC_Total_score_mean",
+                    "LWMC_OS_processingTask_score",
+                    "LWMC_SentS_processingTask_score",
                 ]:
                     if k in res_lwmc:
                         overview_row[k] = res_lwmc[k]
                 overview_row["LWMC_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process LWMC test for {session.stem}: {str(err)}",
+                    f"[{session.name}] LWMC test skipped: {str(err)}",
                     category=UserWarning,
                 )
 
         # RAN
-        ran_dir = session / PSYM_RAN_DIR
+        ran_dir = session / settings.PSYM_RAN_DIR
         if ran_dir.exists():
             try:
                 res_ran = preprocess_ran(ran_dir)
@@ -118,12 +197,12 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
                 overview_row["RAN_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process RAN test for {session.stem}: {str(err)}",
+                    f"[{session.name}] RAN test skipped: {str(err)}",
                     category=UserWarning,
                 )
 
         # Stroop & Flanker
-        sf_dir = session / PSYM_STROOP_FLANKER_DIR
+        sf_dir = session / settings.PSYM_STROOP_FLANKER_DIR
         if sf_dir.exists():
             try:
                 res_stroop = preprocess_stroop(sf_dir)  # DataFrame
@@ -132,6 +211,12 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
                     - res_stroop["Stroop_congruent_accuracy"],
                     "StroopRTEffect_sec": res_stroop["Stroop_incongruent_rt_mean_sec"]
                     - res_stroop["Stroop_congruent_rt_mean_sec"],
+                    "Stroop_incongruent_correct_rt_mean_sec": res_stroop[
+                        "Stroop_incongruent_correct_rt_mean_sec"
+                    ],
+                    "Stroop_congruent_correct_rt_mean_sec": res_stroop[
+                        "Stroop_congruent_correct_rt_mean_sec"
+                    ],
                 }
                 # overview: only effects
                 overview_row.update(stroop_effects)
@@ -141,7 +226,7 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
                 overview_row["Stroop_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process Stroop test for {session.stem}: {str(err)}",
+                    f"[{session.name}] Stroop test skipped: {str(err)}",
                     category=UserWarning,
                 )
             try:
@@ -153,6 +238,12 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
                         "Flanker_incongruent_rt_mean_sec"
                     ]
                     - res_flanker["Flanker_congruent_rt_mean_sec"],
+                    "Flanker_incongruent_correct_rt_mean_sec": res_flanker[
+                        "Flanker_incongruent_correct_rt_mean_sec"
+                    ],
+                    "Flanker_congruent_correct_rt_mean_sec": res_flanker[
+                        "Flanker_congruent_correct_rt_mean_sec"
+                    ],
                 }
                 # overview: only effects
                 overview_row.update(flanker_effects)
@@ -162,18 +253,12 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
                 overview_row["Flanker_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process Flanker test for {session.stem}: {str(err)}",
-                    category=UserWarning,
-                )
-                overview_row["Flanker_Done"] = 1
-            except ValueError as err:
-                warnings.warn(
-                    f"Failed to process Flanker test for {session.stem}: {str(err)}",
+                    f"[{session.name}] Flanker test skipped: {str(err)}",
                     category=UserWarning,
                 )
 
         # WikiVocab (tuple[rt_mean, accuracy])
-        wv_dir = session / PSYM_WIKIVOCAB_DIR
+        wv_dir = session / settings.PSYM_WIKIVOCAB_DIR
         if wv_dir.exists():
             try:
                 res_wv = preprocess_wikivocab(wv_dir)
@@ -185,49 +270,59 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
                     "WikiVocab_rt_mean_sec",
                     "WikiVocab_accuracy",
                     "WikiVocab_incorrect_correct_score",
+                    "WikiVocab_correct_words_rt_mean_sec",
+                    "WikiVocab_correct_pseudowords_rt_mean_sec",
                 ]:
                     overview_row[key] = res_wv[key]
                 overview_row["WikiVocab_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process WikiVocab test for {session.stem}: {str(err)}",
+                    f"[{session.name}] WikiVocab test skipped: {str(err)}",
                     category=UserWarning,
                 )
 
         # PLAB (tuple[rt_mean, accuracy])
-        plab_dir = session / PSYM_PLAB_DIR
+        plab_dir = session / settings.PSYM_PLAB_DIR
         if plab_dir.exists():
             try:
                 res_plab = preprocess_plab(plab_dir)
                 detailed_row.update(res_plab)
                 overview_row["PLAB_rt_mean_sec"] = res_plab["PLAB_rt_mean_sec"]
                 overview_row["PLAB_accuracy"] = res_plab["PLAB_accuracy"]
+                overview_row["PLAB_set1_accuracy"] = res_plab["PLAB_set1_accuracy"]
+                overview_row["PLAB_set2_accuracy"] = res_plab["PLAB_set2_accuracy"]
+                overview_row["PLAB_set1_rt_mean_sec"] = res_plab[
+                    "PLAB_set1_rt_mean_sec"
+                ]
+                overview_row["PLAB_set2_rt_mean_sec"] = res_plab[
+                    "PLAB_set2_rt_mean_sec"
+                ]
                 overview_row["PLAB_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"Failed to process PLAB test for {session.stem}: {str(err)}",
+                    f"[{session.name}] PLAB test skipped: {str(err)}",
                     category=UserWarning,
                 )
 
-        # Write per-session detailed CSV inside the session folder
+        # Write per-session detailed CSV to the output directory
         try:
-            detailed_path = session / f"psychometric_details_{session.stem}.csv"
+            detailed_out = output_dir / session.name
+            detailed_out.mkdir(parents=True, exist_ok=True)
+            detailed_path = detailed_out / f"psychometric_details_{session.name}.csv"
             pd.DataFrame([detailed_row]).to_csv(detailed_path, index=False)
         except Exception as exc:
             warnings.warn(
-                f"Failed to write detailed CSV for {session.stem}: {exc}",
+                f"Failed to write detailed CSV for {session.name}: {exc}",
                 category=UserWarning,
             )
 
         overview_rows.append(overview_row)
 
-    # Write overview CSV (wide format) directly into psychometric-tests-sessions folder
-    out_path = (
-        test_session_folder
-        / f"psychometric_overview_{test_session_folder.parent.stem}.csv"
-    )
+    # Write overview CSV (wide format) to the output directory
+    out_path = output_dir / f"psychometric_overview_{settings.DATA_COLLECTION_NAME}.csv"
     df = pd.DataFrame(overview_rows)
-    # Ensure columns order: participant_id, then flags, then the rest
+    # Ensure columns order: session_id, participant_id, then flags, then notes, then the rest
+    session_cols = ["session_id"]
     flag_cols = [
         "LWMC_Done",
         "RAN_Done",
@@ -239,11 +334,150 @@ def preprocess_all_sessions(test_session_folder: Path = PSYCHOMETRIC_TESTS_DIR) 
     for col in flag_cols:
         if col not in df.columns:
             df[col] = 0
-    remaining = [c for c in df.columns if c not in (["participant_id"] + flag_cols)]
-    df = df[["participant_id"] + flag_cols + remaining]
+
+    # Identify non-fixed columns
+    fixed = session_cols + ["participant_id"] + flag_cols + ["notes"]
+    remaining = [c for c in df.columns if c not in fixed]
+
+    # Filter out columns that might not exist in df
+    final_cols = [c for c in fixed if c in df.columns] + remaining
+    df = df[final_cols]
     df.to_csv(out_path, index=False)
 
-    print(f"Wrote overview: {out_path}")
+    from ..utils.logging import get_logger
+
+    get_logger(__name__).info(f"Wrote overview: {out_path}")
+
+    merged_path = create_merged_psychometric_overview(out_path)
+    get_logger(__name__).info(f"Wrote merged overview: {merged_path}")
+
+    return out_path
+
+
+def create_merged_psychometric_overview(overview_path: Path) -> Path:
+    """
+    Creates a merged version of the psychometric overview CSV.
+
+    Rows for the same participant are merged if their tests are disjoint
+    (e.g., PT1 has RAN and PT2 has LWMC). If tests overlap, they are not
+    merged and a warning is issued.
+
+    Parameters
+    ----------
+    overview_path : Path
+        Path to the original psychometric overview CSV.
+
+    Returns
+    -------
+    Path
+        Path to the generated merged overview CSV.
+    """
+    df = read_csv(overview_path, dtype={"participant_id": str})
+    if df.empty:
+        return overview_path
+
+    # Extract base session ID (without the S/PT/ET suffix)
+    def get_base_sid(sid_str):
+        try:
+            # Reconstruct SID without the session part
+            return Sid(sid_str).base_id
+        except Exception:
+            # Fallback: remove trailing _PTn or _Sn or _ETn
+            return re.sub(r"_(S|PT|ET)\d+$", "", str(sid_str))
+
+    import re
+
+    df["base_session_id"] = df["session_id"].apply(get_base_sid)
+
+    done_cols = [c for c in df.columns if c.endswith("_Done")]
+
+    merged_rows = []
+    # Group by base_session_id and participant_id
+    for (base_sid, pid), group in df.groupby(["base_session_id", "participant_id"]):
+        if len(group) == 1:
+            row = group.iloc[0].to_dict()
+            row["original_sessions"] = row["session_id"]
+            row["session_id"] = base_sid
+            merged_rows.append(row)
+            continue
+
+        # Check for overlapping tests
+        can_merge = True
+        for col in done_cols:
+            if group[col].sum() > 1:
+                can_merge = False
+                from ..utils.logging import get_logger
+
+                get_logger(__name__).warning(
+                    f"Cannot merge sessions for participant {pid} ({base_sid}): "
+                    f"overlapping results for {col}."
+                )
+                break
+
+        if can_merge:
+            # Merge disjoint rows
+            merged_row = group.iloc[0].copy()
+            merged_row["session_id"] = base_sid
+            merged_row["original_sessions"] = ", ".join(
+                group["session_id"].astype(str).tolist()
+            )
+
+            # For all columns that are not IDs or Done flags, take the non-null/non-zero value
+            # Actually, most result columns should be disjoint if _Done flags are disjoint.
+            for col in df.columns:
+                if col in [
+                    "session_id",
+                    "participant_id",
+                    "base_session_id",
+                    "notes",
+                    "original_sessions",
+                ]:
+                    continue
+
+                # If it's a _Done col, sum it.
+                if col in done_cols:
+                    merged_row[col] = group[col].sum()
+                else:
+                    # Find non-NA values in the group for this column
+                    valid_values = group[col].dropna()
+                    if not valid_values.empty:
+                        merged_row[col] = valid_values.iloc[0]
+                    else:
+                        merged_row[col] = nan
+
+            # Merge notes
+            all_notes = [
+                str(n).strip() for n in group["notes"].dropna() if str(n).strip()
+            ]
+            merged_row["notes"] = "; ".join(dict.fromkeys(all_notes))
+
+            merged_rows.append(merged_row.to_dict())
+        else:
+            # Keep separate
+            for _, row in group.iterrows():
+                r = row.to_dict()
+                r["original_sessions"] = r["session_id"]
+                r["session_id"] = (
+                    base_sid  # Or keep original? User said '015_HR_hr_1' in first column
+                )
+                merged_rows.append(r)
+
+    merged_df = DataFrame(merged_rows)
+
+    # Reorder columns
+    session_cols = ["session_id", "participant_id", "original_sessions"]
+    flag_cols = done_cols
+    fixed = session_cols + flag_cols + ["notes"]
+    remaining = [
+        c for c in merged_df.columns if c not in fixed and c != "base_session_id"
+    ]
+
+    # Filter out columns that might not exist in df
+    final_cols = [c for c in fixed if c in merged_df.columns] + remaining
+    merged_df = merged_df[final_cols]
+
+    out_path = overview_path.parent / overview_path.name.replace(".csv", "_merged.csv")
+    merged_df.to_csv(out_path, index=False)
     return out_path
 
 
@@ -251,11 +485,11 @@ def _is_valid_folder(folder: Path) -> bool:
     return folder.is_dir() and folder.stem[:3].isdigit() and folder.stem[3] == "_"
 
 
-def preprocess_stroop(stroop_flanker_dir: Path):
-    """Preprocess Stroop test CSVs and return RT and accuracy by stimulus type.
+def preprocess_stroop(stroop_flanker_dir: Path) -> dict:
+    """Preprocess Stroop test CSV data.
 
-    Extract 'stim_type', 'stroop_key.rt' and 'stroop_key.corr', then compute
-    reaction time and accuracy grouped by stimulus type.
+    Computes reaction time and accuracy grouped by stimulus type
+    (congruent, incongruent, neutral).
 
     **Stroop**: The Stroop test is a test of cognitive control that measures the ability to inhibit
     automatic responses. The test consists of three parts:
@@ -271,43 +505,96 @@ def preprocess_stroop(stroop_flanker_dir: Path):
     Parameters
     ----------
     stroop_flanker_dir : Path
-        Path to the folder containing the session's stroop and flanker data.
+        Path to the folder containing Stroop and Flanker data.
 
     Returns
     -------
     dict
-        A dictionary with keys 'Stroop_incongruent_rt_mean_sec', 'Stroop_incongruent_accuracy',
-        'Stroop_incongruent_num_items', 'Stroop_congruent_rt_mean_sec', 'Stroop_congruent_accuracy',
-        'Stroop_congruent_num_items', 'Stroop_neutral_rt_mean_sec', 'Stroop_neutral_accuracy',
-        and 'Stroop_neutral_num_items'.
+        A dictionary containing reaction times, accuracies, and item counts
+        for each condition, prefixed with 'Stroop_'.
+
+    Raises
+    ------
+    ValueError
+        If no valid results file with required columns is found.
     """
-    df = _find_one_filetype_with_columns(
-        stroop_flanker_dir,
-        ["stim_type", "stroop_key.rt", "stroop_key.corr"],
-        allow_nan=True,
-    )
+    try:
+        df = _find_one_filetype_with_columns(
+            stroop_flanker_dir,
+            ["stim_type", "stroop_key.rt", "stroop_key.corr"],
+            allow_nan=True,
+        )
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if (
+                stroop_flanker_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and stroop_flanker_dir.is_relative_to(psym_dir)
+            ):
+                display_path = str(stroop_flanker_dir.relative_to(psym_dir))
+            else:
+                display_path = stroop_flanker_dir.name
+        except (ValueError, AttributeError):
+            display_path = stroop_flanker_dir.name
+
+        import re
+
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        # Filter out common non-file strings
+        if files_checked:
+            # Only include names that look like CSVs
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"Stroop results missing or incomplete in '{display_path}'. "
+            f"The script couldn't find a valid results file with stimulus and response data. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
     result_df = _reaction_time_accuracy(
         df,
         reaction_time_col="stroop_key.rt",
         correctness_col="stroop_key.corr",
         group_by_col="stim_type",
+        min_rt=settings.PSYM_STROOP_MIN_RT,
+        max_rt=settings.PSYM_STROOP_MAX_RT,
+    )
+    # RT for correct responses only
+    result_df_acc = _reaction_time_accuracy(
+        df,
+        reaction_time_col="stroop_key.rt",
+        correctness_col="stroop_key.corr",
+        group_by_col="stim_type",
+        correct_only=True,
+        min_rt=settings.PSYM_STROOP_MIN_RT,
+        max_rt=settings.PSYM_STROOP_MAX_RT,
     )
 
     result_df.rename(columns={"rt_mean": "rt_mean_sec"}, inplace=True)
+    result_df_acc.rename(columns={"rt_mean": "correct_rt_mean_sec"}, inplace=True)
 
     result_dict = {}
     for cond in ["incongruent", "congruent", "neutral"]:
         for metric in ("rt_mean_sec", "accuracy", "num_items"):
             result_dict[f"Stroop_{cond}_{metric}"] = float(result_df.loc[cond, metric])
+        # Add correct RT mean
+        result_dict[f"Stroop_{cond}_correct_rt_mean_sec"] = float(
+            result_df_acc.loc[cond, "correct_rt_mean_sec"]
+        )
 
     return result_dict
 
 
-def preprocess_flanker(stroop_flanker_dir: Path):
-    """Preprocess Flanker test CSVs and return RT and accuracy by stimulus type.
+def preprocess_flanker(stroop_flanker_dir: Path) -> dict:
+    """Preprocess Flanker test CSV data.
 
-    Extract 'stim_type', 'flanker_key.rt' and 'flanker_key.corr', then compute
-    reaction time and accuracy grouped by stimulus type.
+    Computes reaction time and accuracy grouped by stimulus type
+    (congruent, incongruent, neutral).
 
     **Flanker**: The Flanker test is a test of cognitive control that measures the ability to
     inhibit irrelevant information.
@@ -325,48 +612,100 @@ def preprocess_flanker(stroop_flanker_dir: Path):
     Parameters
     ----------
     stroop_flanker_dir : Path
-        Path to the folder containing the session's stroop and flanker data.
+        Path to the folder containing Stroop and Flanker data.
 
     Returns
     -------
     dict
-        A dictionary with keys 'Flanker_incongruent_rt_mean', 'Flanker_incongruent_accuracy',
-        'Flanker_incongruent_num_items', 'Flanker_congruent_rt_mean', 'Flanker_congruent_accuracy',
-        and 'Flanker_congruent_num_items'.
+        A dictionary containing reaction times, accuracies, and item counts
+        for each condition, prefixed with 'Flanker_'.
+
+    Raises
+    ------
+    ValueError
+        If no valid results file with required columns is found.
     """
-    df = _find_one_filetype_with_columns(
-        stroop_flanker_dir,
-        ["stim_type", "Flanker_key.rt", "Flanker_key.corr"],
-        allow_nan=True,
-    )
+    try:
+        df = _find_one_filetype_with_columns(
+            stroop_flanker_dir,
+            ["stim_type", "Flanker_key.rt", "Flanker_key.corr"],
+            allow_nan=True,
+        )
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if (
+                stroop_flanker_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and stroop_flanker_dir.is_relative_to(psym_dir)
+            ):
+                display_path = str(stroop_flanker_dir.relative_to(psym_dir))
+            else:
+                display_path = stroop_flanker_dir.name
+        except (ValueError, AttributeError):
+            display_path = stroop_flanker_dir.name
+
+        import re
+
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        if files_checked:
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"Flanker results missing or incomplete in '{display_path}'. "
+            f"The script couldn't find a valid results file with stimulus and response data. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
     result_df = _reaction_time_accuracy(
         df,
         reaction_time_col="Flanker_key.rt",
         correctness_col="Flanker_key.corr",
         group_by_col="stim_type",
+        min_rt=settings.PSYM_FLANKER_MIN_RT,
+        max_rt=settings.PSYM_FLANKER_MAX_RT,
+    )
+    # RT for correct responses only
+    result_df_acc = _reaction_time_accuracy(
+        df,
+        reaction_time_col="Flanker_key.rt",
+        correctness_col="Flanker_key.corr",
+        group_by_col="stim_type",
+        correct_only=True,
+        min_rt=settings.PSYM_FLANKER_MIN_RT,
+        max_rt=settings.PSYM_FLANKER_MAX_RT,
     )
 
     result_df.rename(columns={"rt_mean": "rt_mean_sec"}, inplace=True)
+    result_df_acc.rename(columns={"rt_mean": "correct_rt_mean_sec"}, inplace=True)
 
     result_dict = {}
     for cond in ["incongruent", "congruent"]:
         for metric in ("rt_mean_sec", "accuracy", "num_items"):
             result_dict[f"Flanker_{cond}_{metric}"] = float(result_df.loc[cond, metric])
+        # Add correct RT mean
+        result_dict[f"Flanker_{cond}_correct_rt_mean_sec"] = float(
+            result_df_acc.loc[cond, "correct_rt_mean_sec"]
+        )
 
     return result_dict
 
 
-def preprocess_lwmc(lwmc_dir: Path):
-    """Preprocess Lewandowsky WMC battery and compute task scores.
+def preprocess_lwmc(lwmc_dir: Path) -> dict:
+    """Preprocess Lewandowsky WMC battery.
 
-    Tasks:
+    **Tasks**:
 
     - MU (Memory Update): proportion of items recalled correctly (per-trial mean, then mean over trials).
     - OS (Operation Span): mean of per-trial recall correctness (unweighted by list length).
     - SS (Sentence Span): mean of per-trial recall correctness (unweighted by list length).
     - SSTM (Spatial Short-Term Memory): overall score normalised by 240 from ``SSTM-<id>.dat``.
 
-    Implementation notes:
+    **Implementation notes**:
 
     - MU/OS/SS data are taken from the CSV export (not the .dat files).
       We compute a trial index from ``base_text_intertrial.started`` and then, for each task,
@@ -389,13 +728,22 @@ def preprocess_lwmc(lwmc_dir: Path):
     - Trial_Score_SS = sum(correct_items_in_trial) / num_items_in_trial
     - SS_score = mean(Trial_Score_SS) across all trials
     - SSTM_score = SSTM_raw_score / 240.0
-    - Total_score_mean = (MU_score + OS_score + SS_score + SSTM_score) / 4.0
+
+    Parameters
+    ----------
+    lwmc_dir : Path
+        Path to the folder containing the WMC test data.
 
     Returns
     -------
     dict
-        Dictionary with keys: 'LWMC_MU_score', 'LWMC_MU_time_sec', 'LWMC_OS_score', 'LWMC_OS_time_sec',
-        'LWMC_SS_score', 'LWMC_SS_time_sec', 'LWMC_SSTM_score', and 'LWMC_Total_score_mean'.
+        A dictionary with scores and response times for each task,
+        prefixed with 'LWMC_'.
+
+    Raises
+    ------
+    ValueError
+        If required CSV or DAT files are missing or malformed.
     """
 
     # 1) Load the single WMC CSV that contains the relevant columns
@@ -406,16 +754,52 @@ def preprocess_lwmc(lwmc_dir: Path):
         "mu_key_resp_recall.rt",  # MU columns
         "os_key_resp_recall.corr",
         "os_key_resp_recall.rt",  # OS columns
+        "os_key_resp_equation.corr",  # OS processing task
         "ss_key_resp_recall.corr",
         "ss_key_resp_recall.rt",  # SS columns
+        "ss_key_resp_sentence.corr",  # SS processing task
     ]
-    df = _find_one_filetype_with_columns(lwmc_dir, required_cols, allow_nan=True)
+    try:
+        df = _find_one_filetype_with_columns(lwmc_dir, required_cols, allow_nan=True)
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if (
+                lwmc_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and lwmc_dir.is_relative_to(psym_dir)
+            ):
+                display_path = str(lwmc_dir.relative_to(psym_dir))
+            else:
+                display_path = lwmc_dir.name
+        except (ValueError, AttributeError):
+            display_path = lwmc_dir.name
+
+        import re
+
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        if files_checked:
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"LWMC (Working Memory Capacity) results missing or incomplete in '{display_path}'. "
+            f"The script couldn't find a valid results file with recall and timing data. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
 
     # Create a trial identifier using the inter-trial text onset markers
     # Each non-NaN in base_text_intertrial.started indicates a new trial boundary.
     df["trial_id"] = df["base_text_intertrial.started"].notna().cumsum()
 
-    df = df[~df["is_practice"]].copy()  # remove all practice trials
+    mask = df["is_practice"].fillna(False)
+    if mask.dtype != bool:
+        mask = mask.astype(bool)
+    df = df[~mask].copy()
     if df.empty:
         raise ValueError("No non-practice trials found in WMC CSV")
 
@@ -451,6 +835,15 @@ def preprocess_lwmc(lwmc_dir: Path):
     ss_score, ss_time = _per_trial_mean_then_mean(
         "ss_key_resp_recall.corr", "ss_key_resp_recall.rt", "SS"
     )
+
+    # 2b) Compute processing task scores for OS and SS
+    def _compute_processing_score(col: str) -> float:
+        if col not in df.columns:
+            return nan
+        return float(df[col].mean())
+
+    os_proc_score = _compute_processing_score("os_key_resp_equation.corr")
+    ss_proc_score = _compute_processing_score("ss_key_resp_sentence.corr")
 
     # 3) SSTM from legacy .dat
     def _participant_id_from_dir(d: Path) -> str:
@@ -491,18 +884,19 @@ def preprocess_lwmc(lwmc_dir: Path):
         "LWMC_MU_time_sec": mu_time,
         "LWMC_OS_score": os_score,
         "LWMC_OS_time_sec": os_time,
+        "LWMC_OS_processingTask_score": os_proc_score,
         "LWMC_SS_score": ss_score,
         "LWMC_SS_time_sec": ss_time,
+        "LWMC_SentS_processingTask_score": ss_proc_score,
         "LWMC_SSTM_score": sstm_score,
         "LWMC_Total_score_mean": total,
     }
 
 
-def preprocess_ran(ran_dir: Path):
-    """Preprocess RAN task output and return the reaction times for practice and experimental trials.
+def preprocess_ran(ran_dir: Path) -> dict:
+    """Preprocess RAN (Rapid Automatised Naming) test CSV data.
 
-    Finds the only .csv in the folder and extracts the 'Trial' and 'Reading_Time' columns.
-    The audio files and logs are kept untouched.
+    Extracts reaction times for practice and experimental trials.
 
     **RAN task**:
     The Rapid Automatised Naming (RAN) task is a standard test of the speed and efficiency of naming digits.
@@ -514,22 +908,51 @@ def preprocess_ran(ran_dir: Path):
     Parameters
     ----------
     ran_dir : Path
-        Path to the folder containing the participants' RAN data.
+        Path to the folder containing RAN test data.
 
     Returns
     -------
     dict
-        Dictionary with keys 'RAN_practice_rt_sec' and 'RAN_experimental_rt_sec' containing the
-        reaction times.
+        A dictionary with keys 'RAN_practice_rt_sec' and 'RAN_experimental_rt_sec'.
 
     Raises
     ------
     ValueError
-        If not exactly one .csv file is found in the directory.
+        If required results file is missing or malformed.
     """
-    df = _find_one_filetype_with_columns(
-        ran_dir, ["Trial", "Reading_Time"], allow_nan=False
-    )
+    try:
+        df = _find_one_filetype_with_columns(
+            ran_dir, ["Trial", "Reading_Time"], allow_nan=False
+        )
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if (
+                ran_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and ran_dir.is_relative_to(psym_dir)
+            ):
+                display_path = str(ran_dir.relative_to(psym_dir))
+            else:
+                display_path = ran_dir.name
+        except (ValueError, AttributeError):
+            display_path = ran_dir.name
+
+        import re
+
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        if files_checked:
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"RAN (Rapid Naming) results missing or incomplete in '{display_path}'. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
 
     # Extract practice and experimental trial reaction times
     practice_rt = df[df["Trial"] == 1]["Reading_Time"]
@@ -541,11 +964,11 @@ def preprocess_ran(ran_dir: Path):
     }
 
 
-def preprocess_wikivocab(wv_dir: Path):
-    """Preprocess WikiVocab task output and compute mean RT and accuracy.
+def preprocess_wikivocab(wv_dir: Path) -> dict:
+    """Preprocess WikiVocab test CSV data.
 
-    Extract 'correct_answer', 'real_answer' and 'RT' columns, infer a 'correctness' column,
-    and return the mean reaction time and accuracy.
+    Computes mean reaction time, overall accuracy, and balanced accuracy
+    score based on LexTALE scoring.
 
     **WikiVocab**:
     The WikiVocab test is a generative vocabulary test for online research based on the Wikipedia corpus.
@@ -562,29 +985,100 @@ def preprocess_wikivocab(wv_dir: Path):
     - Pseudo word accuracy = correct_pseudo_words / num_pseudo_words
     - Balanced score = (real_word_accuracy + pseudo_word_accuracy) / 2
       (Equivalent to LexTALE scoring: https://www.lextale.com/scoring.html)
+    - Reaction times are filtered by a minimum threshold (default 200ms).
 
     Parameters
     ----------
     wv_dir : Path
-        Path to the folder containing the participants' Wikivocab data.
+        Path to the folder containing WikiVocab test data.
 
     Returns
     -------
     dict
-        Dictionary containing:
+        A dictionary with reaction times, accuracies, and balanced scores,
+        prefixed with 'WikiVocab_'.
 
-        - WikiVocab_rt_mean_sec: Mean reaction time
-        - WikiVocab_accuracy: Overall accuracy
-        - WikiVocab_num_pseudo_words: Number of pseudo words
-        - WikiVocab_num_real_words: Number of real words
-        - WikiVocab_incorrect_correct_score: Balanced accuracy score (averaged % correct)
-          https://www.lextale.com/scoring.html
-        - WikiVocab_pseudo_correct: Fraction of correct pseudo words
-        - WikiVocab_real_correct: Fraction of correct real words
+    Raises
+    ------
+    ValueError
+        If required results file is missing or malformed.
     """
-    df = _find_one_filetype_with_columns(
-        wv_dir, ["correct_answer", "real_answer", "RT"], allow_nan=False
-    )
+    try:
+        df = _find_one_filetype_with_columns(
+            wv_dir, ["correct_answer", "real_answer", "RT"], allow_nan=False
+        )
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if (
+                wv_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and wv_dir.is_relative_to(psym_dir)
+            ):
+                display_path = str(wv_dir.relative_to(psym_dir))
+            else:
+                display_path = wv_dir.name
+        except (ValueError, AttributeError):
+            display_path = wv_dir.name
+
+        import re
+
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        if files_checked:
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"WikiVocab results missing or incomplete in '{display_path}'. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
+
+    try:
+        # Validate correct_answer values
+        if not df["correct_answer"].isin([0, 1]).all():
+            invalid_vals = df.loc[
+                ~df["correct_answer"].isin([0, 1]), "correct_answer"
+            ].unique()
+            raise ValueError(
+                f"WikiVocab 'correct_answer' contains invalid values: {invalid_vals}. "
+                "Expected 0 (pseudoword) or 1 (real word)."
+            )
+
+        # Validate RT values are numeric before filtering
+        if not pd.api.types.is_numeric_dtype(df["RT"]):
+            raise ValueError("Reaction time column contains non-numeric values.")
+
+        # Filter by RT thresholds if provided
+        df = df.copy()
+        df = df[
+            (df["RT"] >= settings.PSYM_WIKIVOCAB_MIN_RT)
+            & (df["RT"] <= settings.PSYM_WIKIVOCAB_MAX_RT)
+        ]
+    except ValueError as err:
+        # Re-use the same error wrapping logic for consistent reporting
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if (
+                wv_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and wv_dir.is_relative_to(psym_dir)
+            ):
+                display_path = str(wv_dir.relative_to(psym_dir))
+            else:
+                display_path = wv_dir.name
+        except (ValueError, AttributeError):
+            display_path = wv_dir.name
+
+        raise ValueError(
+            f"WikiVocab results missing or incomplete in '{display_path}'. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly. "
+            f"\nDetail: {err}"
+        ) from err
+
     df["correctness"] = df["correct_answer"] == df["real_answer"]
 
     # Calculate additional metrics
@@ -606,9 +1100,85 @@ def preprocess_wikivocab(wv_dir: Path):
     # Calculate incorrect_correct score
     incorrect_correct = (real_correct + pseudo_correct) / 2
 
-    rt_acc = _reaction_time_accuracy(
-        df, reaction_time_col="RT", correctness_col="correctness"
-    )
+    # Ratio of items
+    ratio_items = num_real / num_pseudo if num_pseudo > 0 else nan
+
+    try:
+        # Overall RT and accuracy
+        rt_acc = _reaction_time_accuracy(
+            df,
+            reaction_time_col="RT",
+            correctness_col="correctness",
+            min_rt=settings.PSYM_WIKIVOCAB_MIN_RT,
+            max_rt=settings.PSYM_WIKIVOCAB_MAX_RT,
+        )
+
+        # Correct RT for all items
+        rt_acc_all = _reaction_time_accuracy(
+            df,
+            reaction_time_col="RT",
+            correctness_col="correctness",
+            correct_only=True,
+            min_rt=settings.PSYM_WIKIVOCAB_MIN_RT,
+            max_rt=settings.PSYM_WIKIVOCAB_MAX_RT,
+        )
+
+        # Correct RT for real words
+        df_words = df[df["correct_answer"] == 1]
+        if not df_words.empty:
+            rt_acc_words = _reaction_time_accuracy(
+                df_words,
+                reaction_time_col="RT",
+                correctness_col="correctness",
+                correct_only=True,
+                min_rt=settings.PSYM_WIKIVOCAB_MIN_RT,
+                max_rt=settings.PSYM_WIKIVOCAB_MAX_RT,
+            )
+        else:
+            rt_acc_words = (nan, nan, 0)
+
+        # Correct RT for pseudowords
+        df_pseudo = df[df["correct_answer"] == 0]
+        if not df_pseudo.empty:
+            rt_acc_pseudo = _reaction_time_accuracy(
+                df_pseudo,
+                reaction_time_col="RT",
+                correctness_col="correctness",
+                correct_only=True,
+                min_rt=settings.PSYM_WIKIVOCAB_MIN_RT,
+                max_rt=settings.PSYM_WIKIVOCAB_MAX_RT,
+            )
+        else:
+            rt_acc_pseudo = (nan, nan, 0)
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if (
+                wv_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and wv_dir.is_relative_to(psym_dir)
+            ):
+                display_path = str(wv_dir.relative_to(psym_dir))
+            else:
+                display_path = wv_dir.name
+        except (ValueError, AttributeError):
+            display_path = wv_dir.name
+
+        import re
+
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        if files_checked:
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"WikiVocab results missing or incomplete in '{display_path}'. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
 
     return {
         "WikiVocab_rt_mean_sec": rt_acc[0],
@@ -616,16 +1186,21 @@ def preprocess_wikivocab(wv_dir: Path):
         "WikiVocab_num_items": rt_acc[2],
         "WikiVocab_num_pseudo_words": num_pseudo,
         "WikiVocab_num_real_words": num_real,
+        "WikiVocab_ratio_items": ratio_items,
         "WikiVocab_incorrect_correct_score": incorrect_correct,
         "WikiVocab_pseudo_correct": pseudo_correct,
         "WikiVocab_real_correct": real_correct,
+        "WikiVocab_correct_all_rt_mean_sec": rt_acc_all[0],
+        "WikiVocab_correct_words_rt_mean_sec": rt_acc_words[0],
+        "WikiVocab_correct_pseudowords_rt_mean_sec": rt_acc_pseudo[0],
     }
 
 
-def preprocess_plab(plab_dir: Path):
-    """Preprocess PLAB task output and compute mean RT and overall accuracy.
+def preprocess_plab(plab_dir: Path) -> dict:
+    """Preprocess PLAB (Pimsleur Language Aptitude Battery) test CSV data.
 
-    Extract the 'correctness' and 'rt' column to calculate the mean and accuracy.
+    Computes mean reaction time and overall accuracy, as well as split accuracy
+    and reaction time for items 1-4 and 5-15.
 
     **PLAB test**: The PLAB test is Pimsleur Language Aptitude Battery test.
     It is a test of language aptitude that is designed to measure an individual's ability to learn
@@ -635,29 +1210,99 @@ def preprocess_plab(plab_dir: Path):
     Pimsleur Language Aptitude Battery: PLAB : Manual.
     Second Language Testing Foundation, North Bethesda, 2004 edition, 2004.
 
-    **Calculation**: Mean RT and overall accuracy across all PLAB trials.
+    **Calculation**: Mean RT and overall accuracy across all PLAB trials, and
+    for two specific sets of items (1-4 and 5-15).
 
     Parameters
     ----------
     plab_dir : Path
-        Path to the folder containing the participants' PLAB data.
+        Path to the folder containing PLAB test data.
 
     Returns
     -------
     dict
-        Dictionary with keys 'PLAB_rt_mean_sec', 'PLAB_accuracy', and 'PLAB_num_items'.
+        A dictionary with 'PLAB_rt_mean_sec', 'PLAB_accuracy', 'PLAB_num_items',
+        and split metrics for sets 1 and 2.
 
+    Raises
+    ------
+    ValueError
+        If required results file is missing or malformed.
     """
-    df = _find_one_filetype_with_columns(
-        plab_dir, ["rt", "correctness"], allow_nan=True
-    )
+    try:
+        df = _find_one_filetype_with_columns(
+            plab_dir, ["rt", "correctness", "question_id"], allow_nan=True
+        )
+    except ValueError as err:
+        # Determine display path for the outer error message
+        try:
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if (
+                plab_dir.is_absolute()
+                and psym_dir.is_absolute()
+                and plab_dir.is_relative_to(psym_dir)
+            ):
+                display_path = str(plab_dir.relative_to(psym_dir))
+            else:
+                display_path = plab_dir.name
+        except (ValueError, AttributeError):
+            display_path = plab_dir.name
+
+        import re
+
+        see_also = ""
+        files_checked = re.findall(r"'([^']+)'", str(err))
+        if files_checked:
+            csv_files = [f for f in files_checked if f.endswith(".csv")]
+            if csv_files:
+                see_also = f" See '{display_path}/" + "', '".join(csv_files) + "'."
+
+        raise ValueError(
+            f"PLAB results missing or incomplete in '{display_path}'. "
+            f"Please check if the experiment was interrupted or if the data was recorded correctly.{see_also} "
+            f"\nDetail: {err}"
+        ) from err
+
     rt_mean, accuracy, num_items = _reaction_time_accuracy(
-        df, reaction_time_col="rt", correctness_col="correctness"
+        df,
+        reaction_time_col="rt",
+        correctness_col="correctness",
+        min_rt=0.0,
+        max_rt=float("inf"),
     )
+
+    # Split accuracy and RT for set 1 (items 1-4) and set 2 (items 5-15)
+    df_set1 = df[df["question_id"].isin([1, 2, 3, 4])]
+    df_set2 = df[df["question_id"].isin(range(5, 16))]
+
+    rt_set1, acc_set1, num_set1 = (nan, nan, 0)
+    if not df_set1.empty:
+        rt_set1, acc_set1, num_set1 = _reaction_time_accuracy(
+            df_set1,
+            reaction_time_col="rt",
+            correctness_col="correctness",
+            min_rt=0.0,
+            max_rt=float("inf"),
+        )
+
+    rt_set2, acc_set2, num_set2 = (nan, nan, 0)
+    if not df_set2.empty:
+        rt_set2, acc_set2, num_set2 = _reaction_time_accuracy(
+            df_set2,
+            reaction_time_col="rt",
+            correctness_col="correctness",
+            min_rt=0.0,
+            max_rt=float("inf"),
+        )
+
     return {
         "PLAB_rt_mean_sec": rt_mean,
         "PLAB_accuracy": accuracy,
         "PLAB_num_items": num_items,
+        "PLAB_set1_accuracy": acc_set1,
+        "PLAB_set2_accuracy": acc_set2,
+        "PLAB_set1_rt_mean_sec": rt_set1,
+        "PLAB_set2_rt_mean_sec": rt_set2,
     }
 
 
@@ -667,6 +1312,8 @@ def _reaction_time_accuracy(
     correctness_col: str,
     group_by_col: str | None = None,
     correct_only: bool = False,
+    min_rt: float | None = None,
+    max_rt: float | None = None,
 ) -> DataFrame | tuple[float, float, int]:
     """
     Calculate reaction time mean and accuracy, optionally grouped.
@@ -687,6 +1334,12 @@ def _reaction_time_accuracy(
         If True, compute reaction time on correct trials only. For grouped outputs,
         reaction time is averaged over correct trials per group, while accuracy is
         still computed as the mean of the correctness column per group. Default False.
+    min_rt : float, optional
+        Minimum reaction time to include. Trials with RT below this threshold
+        are excluded from all calculations (RT mean, accuracy, and num_items).
+    max_rt : float, optional
+        Maximum reaction time to include. Trials with RT above this threshold
+        are excluded from all calculations (RT mean, accuracy, and num_items).
 
     Returns
     -------
@@ -707,8 +1360,8 @@ def _reaction_time_accuracy(
     -----
     - NaN handling: rows with NaN in either reaction time or correctness are
       allowed, but their NaN positions must match to ensure paired calculations.
-    - ``correct_only`` applies only to reaction time, accuracy always uses the full
-      correctness column within each scope (grouped or ungrouped).
+    - Filtering (min_rt, max_rt): Trials outside the specified range are
+      completely removed from the dataset before any calculations.
     """
     if not all(col in df.columns for col in [reaction_time_col, correctness_col]):
         raise ValueError(
@@ -717,25 +1370,34 @@ def _reaction_time_accuracy(
     # Validate inputs once
     __validate_rt_acc_inputs(df, reaction_time_col, correctness_col)
 
+    # Filter by RT thresholds if provided
+    filtered_df = df.copy()
+    if min_rt is not None:
+        filtered_df = filtered_df[filtered_df[reaction_time_col] >= min_rt]
+    if max_rt is not None:
+        filtered_df = filtered_df[filtered_df[reaction_time_col] <= max_rt]
+
     # Grouped case: vectorised aggregations
     if group_by_col is not None:
-        if group_by_col not in df.columns:
+        if group_by_col not in filtered_df.columns:
             raise ValueError(
                 f"DataFrame must contain group_by column '{group_by_col}'."
             )
 
         # Get the grouped data
-        grouped = df.groupby(group_by_col, dropna=True)
+        grouped = filtered_df.groupby(group_by_col, dropna=True)
 
         # Accuracy per group
         acc = grouped[correctness_col].mean().rename("accuracy")
 
         # Reaction time per group (optionally only on correct trials)
         if correct_only:
-            rt_series = df[df[correctness_col] == 1]
+            rt_series = filtered_df[filtered_df[correctness_col] == 1]
             rt = rt_series.groupby(group_by_col, dropna=True)[reaction_time_col].mean()
         else:
-            rt = grouped[reaction_time_col].mean()
+            rt = filtered_df.groupby(group_by_col, dropna=True)[
+                reaction_time_col
+            ].mean()
         rt = rt.rename("rt_mean")
 
         # Number of items per group
@@ -745,11 +1407,13 @@ def _reaction_time_accuracy(
 
     # Ungrouped case
     if correct_only:
-        rt_mean = df[df[correctness_col] == 1][reaction_time_col].mean()
+        rt_mean = filtered_df[filtered_df[correctness_col] == 1][
+            reaction_time_col
+        ].mean()
     else:
-        rt_mean = df[reaction_time_col].mean()
-    accuracy = df[correctness_col].mean()
-    num_items = df[reaction_time_col].notna().sum()
+        rt_mean = filtered_df[reaction_time_col].mean()
+    accuracy = filtered_df[correctness_col].mean()
+    num_items = filtered_df[reaction_time_col].notna().sum()
 
     return rt_mean, accuracy, num_items
 
@@ -781,7 +1445,7 @@ def __validate_rt_acc_inputs(
 
 
 def _find_one_filetype_with_columns(
-    folder: Path, columns: list[str], allow_nan=False
+    folder: Path, columns: list[str], allow_nan=False, base_path: Path | None = None
 ) -> DataFrame:
     """Find a single CSV file containing specific columns and return it as DataFrame.
 
@@ -797,6 +1461,8 @@ def _find_one_filetype_with_columns(
         List of column names that must be present in the CSV.
     allow_nan : bool, optional
         If True, allows NaN values in the ``columns`` asked for. Default is False.
+    base_path : Path, optional
+        If provided, the folder path in error messages will be relative to this path.
 
     Returns
     -------
@@ -811,28 +1477,66 @@ def _find_one_filetype_with_columns(
         If NaN values are found in required columns and ``allow_nan`` is False.
     """
     csvs = list(folder.glob("*.csv"))
+
+    # Determine the folder path to show in error messages
+    try:
+        if base_path and folder.is_absolute() and base_path.is_absolute():
+            display_path = str(folder.relative_to(base_path))
+        else:
+            # Fallback: if folder is inside settings.PSYCHOMETRIC_TESTS_DIR, use that
+            psym_dir = settings.PSYCHOMETRIC_TESTS_DIR
+            if (
+                folder.is_absolute()
+                and psym_dir.is_absolute()
+                and folder.is_relative_to(psym_dir)
+            ):
+                display_path = str(folder.relative_to(psym_dir))
+            else:
+                display_path = folder.name
+    except (ValueError, AttributeError, RuntimeError):
+        display_path = folder.name
+
     if not csvs:
-        raise ValueError(f"No .csv files found in {folder}")
+        raise ValueError(f"No CSV files were found in '{display_path}'.")
 
     valid_csvs = []
+    missing_cols_info = {}
     for csv in csvs:
         # Only read the header to check columns
         try:
-            if all(col in read_csv(csv, nrows=0).columns for col in columns):
+            cols_found = read_csv(csv, nrows=0).columns
+            missing = [col for col in columns if col not in cols_found]
+            if not missing:
                 valid_csvs.append(csv)
-        except UserWarning:
+            else:
+                missing_cols_info[csv.name] = missing
+        except Exception:
             continue
 
     if not valid_csvs:
-        raise ValueError(f"No .csv files with columns {columns} found in {folder}")
-    if len(valid_csvs) > 1:
+        details = ""
+        if missing_cols_info:
+            details = "\nChecked: " + ", ".join(f"'{f}'" for f in missing_cols_info)
         raise ValueError(
-            f"Multiple .csv files with columns {columns} found in {folder}"
+            f"No CSV files with the required columns {columns} were found in '{display_path}'.{details}"
+        )
+
+    if len(valid_csvs) > 1:
+        valid_csvs_sorted = sorted([f.name for f in valid_csvs])
+        raise ValueError(
+            f"Multiple CSV files with the required columns {columns} were found in '{display_path}': "
+            f"{valid_csvs_sorted}. Please ensure only one valid results file is present."
         )
 
     df = read_csv(valid_csvs[0], usecols=columns)
-    if not allow_nan and df.isna().any().any():
+    if df.empty:
         raise ValueError(
-            f"NaN values found in required columns {columns} in {valid_csvs[0]}"
+            f"The data file '{valid_csvs[0].name}' was found but contains no data rows."
+        )
+
+    if not allow_nan and df.isna().any().any():
+        nan_cols = df.columns[df.isna().any()].tolist()
+        raise ValueError(
+            f"Required columns {nan_cols} in '{valid_csvs[0].name}' contain missing values (NaN)."
         )
     return df

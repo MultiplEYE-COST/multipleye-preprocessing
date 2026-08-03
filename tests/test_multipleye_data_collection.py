@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 
 from preprocessing.data_collection import MultipleyeDataCollection
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, MagicMock
 
 
 @pytest.mark.skip(reason="Not complete")
@@ -68,11 +68,10 @@ def data_collection():
 
 @patch("multipleye_data_collection.load_data")
 @patch("multipleye_data_collection.preprocess")
-@patch("builtins.open", new_callable=mock_open)
 @patch("pickle.dump")
 @pytest.mark.skip(reason="Not complete")
 def test_create_gaze_frame(
-    mock_pickle, mock_open_file, mock_preprocess, mock_load_data, data_collection
+    mock_pickle, mock_preprocess, mock_load_data, data_collection
 ):
     mock_gaze = MagicMock()
     mock_load_data.return_value = mock_gaze
