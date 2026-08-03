@@ -45,5 +45,4 @@ def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.Dat
             rm_all_trials.append(rm)
 
     rm_df = pl.concat(rm_all_trials)
-    rm_df = rm_df.rename({"word_index":settings.WORD_IDX_COL})
-    rm_df
+    return rm_df.rename({"word_index":settings.WORD_IDX_COL})
