@@ -51,4 +51,9 @@ def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.Dat
             rm_all_trials.append(rm)
 
     rm_df = pl.concat(rm_all_trials)
-    return rm_df.rename({"word_index": settings.WORD_IDX_COL})
+    #rename word index to original column name
+    rm_df = rm_df.rename({"word_index": settings.WORD_IDX_COL})
+
+    #adjust reading measures to original format of preprocessing pipeline
+    rm_df = rm_df.with_columns((1-pl.col("Fix")).alias("skipped"))
+    return rm_df.drop("Fix")
