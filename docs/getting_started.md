@@ -145,8 +145,7 @@ After it stops, open this file and configure the following parameters:
     - **Note**: This name has been given to you by the MultiplEYE project.
       It is used to determine data and output paths. If it doesn't match the
       required 6-part format, the pipeline might fail to resolve certain paths.
-- `OVERWRITE`: `true` to reprocess existing data, `false` (default) to skip already processed
-  sessions.
+- `OVERWRITE`: `true` to reprocess existing data, `false` (default) to only load the output of previously processed sessions instead of recalculation.
 - `EXPERIMENT_TYPE`: `MultiplEYE` (default) or `MeRID`.
 - `INCLUDE_SESSIONS` / `EXCLUDE_SESSIONS`: Optional lists to filter which sessions are processed.
 - `INCLUDE_PILOTS`: `true` to include data from pilot folders (default: `false`).
