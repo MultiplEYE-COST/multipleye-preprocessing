@@ -28,20 +28,22 @@ def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.Dat
     for stim in stimuli:
         aois = stim.text_stimulus.aois
         words_only = all_tokens_from_aois(aois, trial=stim.trial_id)
-        words_only = words_only.with_columns(pl.lit(stim.name).alias("stimulus"))
+        words_only = words_only.with_columns(pl.lit(stim.name).alias(settings.STIMULUS_COL))
         trial_idx = stim.trial_id
 
         for page in stim.pages:
             page_idx = f"page_{page.number}"
-            page_words = words_only.filter(pl.col("page")==page_idx)
-            page_fix = only_fix.filter((pl.col("trial")==trial_idx) & (pl.col("page")==page_idx))
+            page_words = words_only.filter(pl.col(settings.PAGE_COL)==page_idx)
+            page_fix = only_fix.filter((pl.col(settings.TRIAL_COL)==trial_idx) & (pl.col(settings.PAGE_COL)==page_idx))
             rm = compute_reading_measures(
                 fixations=page_fix,
                 aois = page_words,
-                word_index_column= "word_idx",
+                word_index_column= settings.WORD_IDX_COL,
                 word_column = "word"
             )
-            rm = rm.with_columns(pl.lit(trial_idx).alias("trial"), pl.lit(page_idx).alias("page"), pl.lit(stim.name).alias("stimulus"))
+            rm = rm.with_columns(pl.lit(trial_idx).alias(settings.TRIAL_COL), pl.lit(page_idx).alias(settings.PAGE_COL), pl.lit(stim.name).alias(settings.STIMULUS_COL))
             rm_all_trials.append(rm)
 
-    return pl.concat(rm_all_trials)
+    rm_df = pl.concat(rm_all_trials)
+    rm_df = rm_df.rename({"word_index":settings.WORD_IDX_COL})
+    rm_df
