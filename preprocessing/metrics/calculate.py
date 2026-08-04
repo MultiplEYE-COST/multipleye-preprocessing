@@ -12,6 +12,7 @@ from preprocessing import settings
 def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.DataFrame:
     group_columns = [settings.TRIAL_COL, settings.STIMULUS_COL, settings.PAGE_COL]
 
+    #Filter events for only fixations
     only_fix = (
         gaze.events.frame.filter(
             (pl.col("name") == settings.FIXATION)
@@ -21,6 +22,7 @@ def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.Dat
         .sort(group_columns + ["onset"])
     )
 
+    #Filter AOIs for only words
     words_only_all_trials = []
     for stim in stimuli:
             aois = stim.text_stimulus.aois
@@ -32,14 +34,15 @@ def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.Dat
 
     rm_all_trials = []
 
+    #Iterate over pages
     for (trial_idx, stim_name, page_idx), fix_df in only_fix.group_by(group_columns):
-        page_words = words_df.filter((pl.col(settings.TRIAL_COL) == trial_idx) & (pl.col(settings.STIMULUS_COL) == stim_name) & (pl.col(settings.PAGE_COL) == page_idx))
+        page_words = words_df.filter((pl.col(settings.TRIAL_COL) == trial_idx) & (pl.col(settings.PAGE_COL) == page_idx))
         rm = compute_reading_measures(
             fixations=fix_df,
             aois=page_words,
             word_index_column=settings.WORD_IDX_COL,
             #to be replaced when words change to unit of analysis
-            word_column="words",
+            word_column="word",
         )
         rm = rm.with_columns(
             pl.lit(trial_idx).alias(settings.TRIAL_COL),
@@ -54,5 +57,5 @@ def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.Dat
 
     #adjust reading measures to original format of preprocessing pipeline
     rm_df = rm_df.with_columns((1-pl.col("Fix")).alias("skipped"))
-    
+
     return rm_df.drop("Fix")
