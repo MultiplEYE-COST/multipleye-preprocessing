@@ -20,35 +20,33 @@ def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.Dat
         .with_row_count("fixation_id")
         .sort(group_columns + ["onset"])
     )
+
+    words_only_all_trials = []
+    for stim in stimuli:
+            aois = stim.text_stimulus.aois
+            words_only = all_tokens_from_aois(aois, trial=stim.trial_id)
+            words_only = words_only.with_columns(pl.lit(stim.name).alias("stimulus"))
+            words_only_all_trials.append(words_only)
+
+    words_df = pl.concat(words_only_all_trials)
+
     rm_all_trials = []
 
-    for stim in stimuli:
-        aois = stim.text_stimulus.aois
-        words_only = all_tokens_from_aois(aois, trial=stim.trial_id)
-        words_only = words_only.with_columns(
-            pl.lit(stim.name).alias(settings.STIMULUS_COL)
+    for (trial_idx, stim_name, page_idx), fix_df in only_fix.group_by(group_columns):
+        page_words = words_df.filter((pl.col(settings.TRIAL_COL) == trial_idx) & (pl.col(settings.STIMULUS_COL) == stim_name) & (pl.col(settings.PAGE_COL) == page_idx))
+        rm = compute_reading_measures(
+            fixations=fix_df,
+            aois=page_words,
+            word_index_column=settings.WORD_IDX_COL,
+            #to be replaced when words change to unit of analysis
+            word_column="words",
         )
-        trial_idx = stim.trial_id
-
-        for page in stim.pages:
-            page_idx = settings.PAGE_PREFIX + page.number
-            page_words = words_only.filter(pl.col(settings.PAGE_COL) == page_idx)
-            page_fix = only_fix.filter(
-                (pl.col(settings.TRIAL_COL) == trial_idx)
-                & (pl.col(settings.PAGE_COL) == page_idx)
-            )
-            rm = compute_reading_measures(
-                fixations=page_fix,
-                aois=page_words,
-                word_index_column=settings.WORD_IDX_COL,
-                word_column="word",
-            )
-            rm = rm.with_columns(
-                pl.lit(trial_idx).alias(settings.TRIAL_COL),
-                pl.lit(page_idx).alias(settings.PAGE_COL),
-                pl.lit(stim.name).alias(settings.STIMULUS_COL),
-            )
-            rm_all_trials.append(rm)
+        rm = rm.with_columns(
+            pl.lit(trial_idx).alias(settings.TRIAL_COL),
+            pl.lit(page_idx).alias(settings.PAGE_COL),
+            pl.lit(stim_name).alias(settings.STIMULUS_COL),
+        )
+        rm_all_trials.append(rm)
 
     rm_df = pl.concat(rm_all_trials)
     #rename word index to original column name
@@ -56,4 +54,5 @@ def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.Dat
 
     #adjust reading measures to original format of preprocessing pipeline
     rm_df = rm_df.with_columns((1-pl.col("Fix")).alias("skipped"))
+    
     return rm_df.drop("Fix")
