@@ -31,7 +31,7 @@ def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.Dat
         trial_idx = stim.trial_id
 
         for page in stim.pages:
-            page_idx = f"page_{page.number}"
+            page_idx = settings.PAGE_PREFIX + page.number
             page_words = words_only.filter(pl.col(settings.PAGE_COL) == page_idx)
             page_fix = only_fix.filter(
                 (pl.col(settings.TRIAL_COL) == trial_idx)
