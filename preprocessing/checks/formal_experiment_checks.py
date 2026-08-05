@@ -74,7 +74,7 @@ def check_all_screens_logfile(
             if f"{page.number}" not in stimulus_frame["page_number"].to_list():
                 # print(f"Missing page {stimulus.name} {page.number} in Logfile")
                 _report_to_file(
-                    f" {stimulus.name}: Missing page{page.number} in Logfile",
+                    f"- {stimulus.name}: Missing page {page.number} in Logfile",
                     report_file,
                 )
         # check if all questions are present
@@ -85,7 +85,7 @@ def check_all_screens_logfile(
             ):
                 # print(f"{stimulus.name}: Missing question_{question.id} in Logfile")
                 _report_to_file(
-                    f"{stimulus.name}: Missing question_{question.id} in Logfile",
+                    f"- {stimulus.name}: Missing question_{question.id} in Logfile",
                     report_file,
                 )
             # print(stimulus_frame["screen"])
@@ -94,7 +94,7 @@ def check_all_screens_logfile(
             if f"{rating.name}" not in stimulus_frame["page_number"].to_list():
                 # print(f"{stimulus.name}: Missing rating screen {rating.name}")
                 _report_to_file(
-                    f"{stimulus.name}: Missing rating screen {rating.name} in Logfile",
+                    f"- {stimulus.name}: Missing rating screen {rating.name} in Logfile",
                     report_file,
                 )
 
@@ -116,7 +116,9 @@ def sanity_check_gaze_frame(gaze, stimuli, report_file):
                 not in stimulus_frame[settings.PAGE_COL].to_list()
             ):
                 # print(f"Missing page {page.number}")
-                _report_to_file(f"Missing page {page.number} in asc file", report_file)
+                _report_to_file(
+                    f"- Missing page {page.number} in asc file", report_file
+                )
         # check if all questions are present
         for question in stimulus.questions:
             if (
@@ -126,7 +128,7 @@ def sanity_check_gaze_frame(gaze, stimuli, report_file):
                 not in stimulus_frame[settings.PAGE_COL].to_list()
             ):
                 _report_to_file(
-                    f"Missing {settings.QUESTION_PREFIX}{question.name} in asc file or in experiment frame",
+                    f"- Missing {settings.QUESTION_PREFIX}{question.name} in asc file or in experiment frame",
                     report_file,
                 )
             # print(stimulus_frame["screen"])
@@ -135,7 +137,7 @@ def sanity_check_gaze_frame(gaze, stimuli, report_file):
             if f"{rating.name}" not in stimulus_frame[settings.PAGE_COL].to_list():
                 # print(f"Missing instruction {rating.name}")
                 _report_to_file(
-                    f"Missing rating {rating.name} in asc file", report_file
+                    f"- Missing rating {rating.name} in asc file", report_file
                 )
 
 
@@ -254,7 +256,7 @@ def check_messages(
 
                 if current_pattern not in trial_messages_only:
                     _report_to_file(
-                        f"{current_stimulus.name}: Missing {current_pattern} Messages in ASC file",
+                        f"- {current_stimulus.name}: Missing {current_pattern} Messages in ASC file",
                         report_file,
                     )
 
@@ -353,7 +355,7 @@ def _check_one_time_screens(messages_only: list[str], report_file: Path):
 
             if not found:
                 _report_to_file(
-                    f"Missing one time screen {one_time_screen} in asc file",
+                    f"- Missing one time screen {one_time_screen} in asc file",
                     report_file,
                 )
 
@@ -380,7 +382,7 @@ def _check_question_screens(
                 )
                 if current_pattern not in messages:
                     _report_to_file(
-                        f"{current_stimulus.name}: Missing {current_pattern} Messages in ASC file",
+                        f"- {current_stimulus.name}: Missing {current_pattern} Messages in ASC file",
                         report_file,
                     )
 
@@ -431,7 +433,7 @@ def _check_validation_screen(messages, file, stimulus_name):
         # check if instead a recalibration screen was shown
         if "recalibration" not in messages:
             _report_to_file(
-                f"{stimulus_name}: Missing validation_before_stimulus and no recalibration screen in asc file. One should be there.",
+                f"- {stimulus_name}: Missing validation_before_stimulus and no recalibration screen in asc file. One should be there.",
                 file,
             )
 
@@ -441,7 +443,7 @@ def _check_validation_screen(messages, file, stimulus_name):
             for index in indices_recal:
                 # get five next messages, there should be a calibration
                 next_messages = messages[index : index + 5]
-                _report_to_file("Recalibration screen found", file)
+                _report_to_file("- Recalibration screen found", file)
                 if "!CAL " not in next_messages:
                     # check if there is a validation
                     for msg in next_messages:
@@ -450,19 +452,19 @@ def _check_validation_screen(messages, file, stimulus_name):
                             for msg in messages[index : index + 20]:
                                 if msg == "!CAL ":
                                     _report_to_file(
-                                        "Calibration screen after recalibration screen found.",
+                                        "- Calibration screen after recalibration screen found.",
                                         file,
                                     )
                                     break
                             else:
                                 _report_to_file(
-                                    "Missing calibration screen found after recalibration screen. Please check manually in the asc file.",
+                                    "- Missing calibration screen found after recalibration screen. Please check manually in the asc file.",
                                     file,
                                 )
 
                 else:
                     _report_to_file(
-                        "Calibration screen after recalibration screen found.", file
+                        "- Calibration screen after recalibration screen found.", file
                     )
 
 
@@ -470,4 +472,4 @@ def _check_rating_screens(messages, file):
     for rating in RATING_SCREENS:
         if f"{rating}" not in messages:
             # print(f"Missing instruction {instruction}")
-            _report_to_file(f"Missing rating {rating} in asc file", file)
+            _report_to_file(f"- Missing rating {rating} in asc file", file)
