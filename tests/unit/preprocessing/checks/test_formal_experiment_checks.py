@@ -123,7 +123,7 @@ def test_sanity_check_gaze_frame_report_lines_have_bullet_prefix(
     lines = report_file.read_text(encoding="utf-8").splitlines()
     assert lines, "expected report lines to be written"
     assert all(line.startswith("- ") for line in lines), lines
-    assert "- Missing page 3 in asc file" in lines
+    assert "- Lit_BrokenApril: Missing page 3 in asc file" in lines
     assert "- Missing question_q1101 in asc file or in experiment frame" in lines
     assert "- Missing rating showing_subject_difficulty_screen in asc file" in lines
 
