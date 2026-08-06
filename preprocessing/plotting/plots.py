@@ -11,6 +11,20 @@ from ..config import settings
 from ..data_collection.stimulus import Stimulus
 
 
+def create_plots(
+    gaze, plot_type: str, stimuli, session_identifier, directory, aoi=False
+):
+    plot_dir = directory / f"{session_identifier}_plots"
+    plot_dir.mkdir(exist_ok=True)
+
+    if plot_type == "main_sequence":
+        plot_main_sequence(gaze.events, plot_dir)
+
+    elif plot_type == "gaze_overlay":
+        for stimulus in stimuli:
+            plot_gaze(gaze, stimulus, plot_dir, aoi_image=aoi)
+
+
 def plot_gaze(
     gaze: pm.Gaze,
     stimulus: Stimulus,
@@ -209,3 +223,11 @@ def plot_main_sequence(events: pm.EventDataFrame, plots_dir: Path) -> None:
         events,
         savepath=plots_dir / "main_sequence.png",
     )
+
+
+def plot_time_series(events: pm.EventDataFrame, plots_dir: Path) -> None:
+    pass
+
+
+def plot_heatmap(events: pm.EventDataFrame, plots_dir: Path) -> None:
+    pass

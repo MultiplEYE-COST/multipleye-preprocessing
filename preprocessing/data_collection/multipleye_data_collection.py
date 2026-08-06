@@ -39,7 +39,6 @@ from ..data_collection.session import Session
 from ..data_collection.stimulus import LabConfig, Stimulus
 from ..models.dcn import Dcn
 from ..models.sid import Sid
-from ..plotting.plot import plot_gaze, plot_main_sequence
 from ..utils.conversion import convert_to_time_str
 from ..utils.data_collection_utils import _report_to_file
 from ..utils.data_path_utils import _ci_resolve
@@ -545,7 +544,7 @@ class MultipleyeDataCollection:
         gaze: pm.Gaze,
         session_name: str,
         output_dir: Path | str = "",
-        plotting: bool = True,
+        overwrite: bool = False,
         recalculate: bool = settings.RECALCULATE,
     ) -> None:
         """
@@ -553,7 +552,7 @@ class MultipleyeDataCollection:
         :param output_dir:
         :param gaze:
         :param session_name: Specifies which session to create the report for.
-        :param plotting: If True, all plots are also created for all the sessions.
+        :param overwrite: If True, the sanity check report is overwritten if it already exists.
         :param recalculate: If True, the sanity check report is overwritten if it already exists.
         """
 
@@ -674,15 +673,6 @@ class MultipleyeDataCollection:
 
             legend = "\n---\n\n**Legend:** ✅ Pass | ❌ Fail | ⚠️ Warning\n"
             _report_to_file(legend, report_file_path)
-
-            if plotting:
-                self._create_plots(
-                    gaze, stimuli, session_name, session_results, aoi=True
-                )
-
-        else:
-            logging.info(f"Skipping sanity check report for session {session_name}.")
-            return
 
     def _load_session_names(self, session: str | list[str] | None) -> list[str]:
         """
@@ -1940,15 +1930,6 @@ class MultipleyeDataCollection:
             stimuli,
             self.sessions[session_identifier].sanity_report_path,
         )
-
-    def _create_plots(self, gaze, stimuli, session_identifier, directory, aoi=False):
-        plot_dir = directory / f"{session_identifier}_plots"
-        plot_dir.mkdir(exist_ok=True)
-
-        plot_main_sequence(gaze.events, plot_dir)
-
-        for stimulus in stimuli:
-            plot_gaze(gaze, stimulus, plot_dir, aoi_image=aoi)
 
     def parse_participant_data(self, path: Path | str) -> None:
         """
