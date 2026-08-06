@@ -117,7 +117,8 @@ def sanity_check_gaze_frame(gaze, stimuli, report_file):
             ):
                 # print(f"Missing page {page.number}")
                 _report_to_file(
-                    f"- Missing page {page.number} in asc file", report_file
+                    f"- {stimulus.name}: Missing page {page.number} in asc file",
+                    report_file,
                 )
         # check if all questions are present
         for question in stimulus.questions:
