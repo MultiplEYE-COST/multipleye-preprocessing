@@ -92,7 +92,7 @@ def prepare_language_folder(data_collection_name: str | None = None):
                 "Please ensure the data collection is correctly structured."
             )
 
-    # che if ps tests need to be prepared because they use the old structure
+    # check if ps tests need to be prepared because they use the old structure
     config_path = (
         psychometric_tests_path
         / f"participant_configs_{dcn.lang}_{dcn.country}_{dcn.lab}"

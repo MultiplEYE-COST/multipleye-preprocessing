@@ -52,6 +52,9 @@ def add_custom_aois(aoi_file: Path, language: str) -> None:
 
     if language == "ZH":
         _add_custom_uoa_chinese(aoi_file)
+    elif language == "KL":
+        pass
+
     else:
         raise Warning(
             f"You requested adding custom units of analysis to the aoi files. Currently, your language {language} "
