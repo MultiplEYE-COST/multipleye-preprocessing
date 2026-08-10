@@ -144,15 +144,13 @@ def run_preprocessing(config_path: str | None = None):
                 num_expected_files = len(sess.completed_stimuli_ids)
 
                 try:
-                    num_fix_files = len(list(fixation_data_folder.glob("*.csv")))
-                    num_sacc_files = len(list(saccade_data_folder.glob("*.csv")))
+                    num_files = len(list(fixation_data_folder.glob("*.csv")))
                 except FileNotFoundError:
-                    num_fix_files = 0
-                    num_sacc_files = 0
+                    num_files = 0
 
-                if num_expected_files == num_fix_files and num_expected_files == num_sacc_files and not settings.RECALCULATE:
-                    #Loading events if all files exist and the recalculate flag is not active
-                    pbar.set_description(f"Loading events {sess.sid}:")
+                if num_expected_files == num_files and not settings.RECALCULATE:
+                    #Loading events if all fixation files exist and the recalculate flag is not active
+                    pbar.set_description(f"Loading fixations {sess.sid}:")
                     gaze = preprocessing.load_trial_level_events_data(
                         gaze,
                         sess.sid,
@@ -160,17 +158,10 @@ def run_preprocessing(config_path: str | None = None):
                         file_pattern=None,
                     )
 
-                    gaze = preprocessing.load_trial_level_events_data(
-                        gaze,
-                        sess.sid,
-                        event_type=settings.SACCADE,
-                        file_pattern=None,
-                    )
-
 
                 else:
-                    #If files were not complete or recalculation is active we run event detection
-                    pbar.set_description(f"Detecting events {sess.sid}:")
+                    #If files were not complete or recalculation is active we run fixation detection
+                    pbar.set_description(f"Detecting fixations {sess.sid}:")
 
                     if settings.RUN_FIXATION_DETECTION:
                         preprocessing.detect_fixations(gaze)
@@ -183,6 +174,33 @@ def run_preprocessing(config_path: str | None = None):
                             ["onset", "duration", "location_x", "location_y", "page"],
                             gaze,
                         )
+
+                    # Unnest event columns (e.g. location struct -> location_x/location_y)
+                    # so downstream code doesn't need to handle struct columns.
+                    if gaze is not None and gaze.events is not None:
+                        with contextlib.suppress(Warning):
+                            gaze.events.unnest()
+
+                try:
+                    num_files = len(list(saccade_data_folder.glob("*.csv")))
+                except FileNotFoundError:
+                    num_files = 0
+
+                if num_expected_files == num_files and not settings.RECALCULATE:
+                    #Loading events if all saccade files exist and the recalculate flag is not active
+                    pbar.set_description(f"Loading saccades {sess.sid}:")
+
+                    gaze = preprocessing.load_trial_level_events_data(
+                        gaze,
+                        sess.sid,
+                        event_type=settings.SACCADE,
+                        file_pattern=None,
+                    )
+
+
+                else:
+                    #If files were not complete or recalculation is active we run saccade detection
+                    pbar.set_description(f"Detecting saccades {sess.sid}:")
 
                     if settings.RUN_SACCADE_DETECTION:
                         preprocessing.detect_saccades(gaze)
@@ -202,7 +220,6 @@ def run_preprocessing(config_path: str | None = None):
                             ],
                             gaze,
                         )
-
 
                     # Unnest event columns (e.g. location struct -> location_x/location_y)
                     # so downstream code doesn't need to handle struct columns.
