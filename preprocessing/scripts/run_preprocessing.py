@@ -141,51 +141,40 @@ def run_preprocessing(config_path: str | None = None):
                     f"Gaze data missing for {sess.sid}. Skipping event detection."
                 )
             else:
-                if (fixation_data_folder.exists()
-                        and saccade_data_folder.exists()
-                        and not settings.RECALCULATE
-                    ):
-                        # check if the folder contains the expected number of files, if not, we will recalculate
-                        num_expected_files = len(sess.completed_stimuli_ids)
-                        num_files = len(list(fixation_data_folder.glob("*.csv")))
+                num_expected_files = len(sess.completed_stimuli_ids)
 
-                        if num_expected_files != num_files:
-                            raise ValueError(
-                                f"Fixation data cannot be loaded as the folder for session {sess.sid} does not contain the "
-                                f"expected number of files. Please check or select recalculate."
-                            )
+                try:
+                    num_fix_files = len(list(fixation_data_folder.glob("*.csv")))
+                    num_sacc_files = len(list(saccade_data_folder.glob("*.csv")))
+                except FileNotFoundError:
+                    num_fix_files = 0
+                    num_sacc_files = 0
 
-                        num_files = len(list(saccade_data_folder.glob("*.csv")))
-                        if num_expected_files != num_files:
-                            raise ValueError(
-                                f"Saccade data cannot be loaded as the folder for session {sess.sid} does not contain the "
-                                f"expected number of files. Please check or select recalculate."
-                            )
+                if num_expected_files == num_fix_files and num_expected_files == num_sacc_files and not settings.RECALCULATE:
+                    #Loading events if all files exist and the recalculate flag is not active
+                    pbar.set_description(f"Loading events {sess.sid}:")
+                    gaze = preprocessing.load_trial_level_events_data(
+                        gaze,
+                        sess.sid,
+                        event_type=settings.FIXATION,
+                        file_pattern=None,
+                    )
 
-                        pbar.set_description(f"Loading events {sess.sid}:")
-                        gaze = preprocessing.load_trial_level_events_data(
-                            gaze,
-                            sess.sid,
-                            event_type=settings.FIXATION,
-                            file_pattern=None,
-                        )
+                    gaze = preprocessing.load_trial_level_events_data(
+                        gaze,
+                        sess.sid,
+                        event_type=settings.SACCADE,
+                        file_pattern=None,
+                    )
 
-                        gaze = preprocessing.load_trial_level_events_data(
-                            gaze,
-                            sess.sid,
-                            event_type=settings.SACCADE,
-                            file_pattern=None,
-                        )
 
                 else:
+                    #If files were not complete or recalculation is active we run event detection
                     pbar.set_description(f"Detecting events {sess.sid}:")
 
                     if settings.RUN_FIXATION_DETECTION:
                         preprocessing.detect_fixations(gaze)
-                    if settings.RUN_SACCADE_DETECTION:
-                        preprocessing.detect_saccades(gaze)
 
-                    if settings.RUN_FIXATION_DETECTION:
                         preprocessing.save_events_data(
                             settings.FIXATION,
                             sess.sid,
@@ -196,6 +185,8 @@ def run_preprocessing(config_path: str | None = None):
                         )
 
                     if settings.RUN_SACCADE_DETECTION:
+                        preprocessing.detect_saccades(gaze)
+
                         preprocessing.save_events_data(
                             settings.SACCADE,
                             sess.sid,
@@ -212,11 +203,12 @@ def run_preprocessing(config_path: str | None = None):
                             gaze,
                         )
 
-                # Unnest event columns (e.g. location struct -> location_x/location_y)
-                # so downstream code doesn't need to handle struct columns.
-                if gaze is not None and gaze.events is not None:
-                    with contextlib.suppress(Warning):
-                        gaze.events.unnest()
+
+                    # Unnest event columns (e.g. location struct -> location_x/location_y)
+                    # so downstream code doesn't need to handle struct columns.
+                    if gaze is not None and gaze.events is not None:
+                        with contextlib.suppress(Warning):
+                            gaze.events.unnest()
         else:
             pbar.set_description(f"Skipping event detection {sess.sid}:")
             # Load existing if available
