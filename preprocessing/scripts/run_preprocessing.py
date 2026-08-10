@@ -85,18 +85,16 @@ def run_preprocessing(config_path: str | None = None):
 
         asc = sess.asc_path
 
-        # create or load raw data
+        # check whether the raw data was calculated before and whether it is complete
         raw_data_folder = sess.sid.raw_data_dir
-        if raw_data_folder.exists() and not settings.RECALCULATE:
-            # check if the folder contains the expected number of files, if not, we will recalculate
-            num_expected_files = len(sess.completed_stimuli_ids)
+        num_expected_files = len(sess.completed_stimuli_ids)
+        try:
             num_files = len(list(raw_data_folder.glob("*.csv")))
-            if num_expected_files != num_files:
-                raise ValueError(
-                    f"Raw data cannot be loaded as the folder for session {sess.sid} does not contain the "
-                    f"expected number of files. Please check and select recalculate."
-                )
-
+        except FileNotFoundError:
+            num_files = 0
+        
+        if num_expected_files == num_files and not settings.RECALCULATE:
+            # Loading previously extracted raw data
             pbar.set_description(f"Loading samples {sess.sid}:")
             gaze = preprocessing.load_trial_level_raw_data(
                 sess.sid,
@@ -105,6 +103,7 @@ def run_preprocessing(config_path: str | None = None):
             )
 
         else:
+            # Extract raw data from asc file
             pbar.set_description(f"Extracting samples {sess.sid}:")
             gaze = preprocessing.load_gaze_data(
                 asc_file=asc,
@@ -141,77 +140,77 @@ def run_preprocessing(config_path: str | None = None):
                 logger.warning(
                     f"Gaze data missing for {sess.sid}. Skipping event detection."
                 )
-            elif (
-                fixation_data_folder.exists()
-                and saccade_data_folder.exists()
-                and not settings.RECALCULATE
-            ):
-                # check if the folder contains the expected number of files, if not, we will recalculate
-                num_expected_files = len(sess.completed_stimuli_ids)
-                num_files = len(list(fixation_data_folder.glob("*.csv")))
-
-                if num_expected_files != num_files:
-                    raise ValueError(
-                        f"Fixation data cannot be loaded as the folder for session {sess.sid} does not contain the "
-                        f"expected number of files. Please check or select recalculate."
-                    )
-
-                num_files = len(list(saccade_data_folder.glob("*.csv")))
-                if num_expected_files != num_files:
-                    raise ValueError(
-                        f"Saccade data cannot be loaded as the folder for session {sess.sid} does not contain the "
-                        f"expected number of files. Please check or select recalculate."
-                    )
-
-                pbar.set_description(f"Loading events {sess.sid}:")
-                gaze = preprocessing.load_trial_level_events_data(
-                    gaze,
-                    sess.sid,
-                    event_type=settings.FIXATION,
-                    file_pattern=None,
-                )
-
-                gaze = preprocessing.load_trial_level_events_data(
-                    gaze,
-                    sess.sid,
-                    event_type=settings.SACCADE,
-                    file_pattern=None,
-                )
-
             else:
-                pbar.set_description(f"Detecting events {sess.sid}:")
+                if (fixation_data_folder.exists()
+                        and saccade_data_folder.exists()
+                        and not settings.RECALCULATE
+                    ):
+                        # check if the folder contains the expected number of files, if not, we will recalculate
+                        num_expected_files = len(sess.completed_stimuli_ids)
+                        num_files = len(list(fixation_data_folder.glob("*.csv")))
 
-                if settings.RUN_FIXATION_DETECTION:
-                    preprocessing.detect_fixations(gaze)
-                if settings.RUN_SACCADE_DETECTION:
-                    preprocessing.detect_saccades(gaze)
+                        if num_expected_files != num_files:
+                            raise ValueError(
+                                f"Fixation data cannot be loaded as the folder for session {sess.sid} does not contain the "
+                                f"expected number of files. Please check or select recalculate."
+                            )
 
-                if settings.RUN_FIXATION_DETECTION:
-                    preprocessing.save_events_data(
-                        settings.FIXATION,
-                        sess.sid,
-                        "trial",
-                        ["trial", "stimulus"],
-                        ["onset", "duration", "location_x", "location_y", "page"],
-                        gaze,
-                    )
+                        num_files = len(list(saccade_data_folder.glob("*.csv")))
+                        if num_expected_files != num_files:
+                            raise ValueError(
+                                f"Saccade data cannot be loaded as the folder for session {sess.sid} does not contain the "
+                                f"expected number of files. Please check or select recalculate."
+                            )
 
-                if settings.RUN_SACCADE_DETECTION:
-                    preprocessing.save_events_data(
-                        settings.SACCADE,
-                        sess.sid,
-                        "trial",
-                        ["trial", "stimulus"],
-                        [
-                            "onset",
-                            "duration",
-                            "amplitude",
-                            "peak_velocity",
-                            "dispersion",
-                            "page",
-                        ],
-                        gaze,
-                    )
+                        pbar.set_description(f"Loading events {sess.sid}:")
+                        gaze = preprocessing.load_trial_level_events_data(
+                            gaze,
+                            sess.sid,
+                            event_type=settings.FIXATION,
+                            file_pattern=None,
+                        )
+
+                        gaze = preprocessing.load_trial_level_events_data(
+                            gaze,
+                            sess.sid,
+                            event_type=settings.SACCADE,
+                            file_pattern=None,
+                        )
+
+                else:
+                    pbar.set_description(f"Detecting events {sess.sid}:")
+
+                    if settings.RUN_FIXATION_DETECTION:
+                        preprocessing.detect_fixations(gaze)
+                    if settings.RUN_SACCADE_DETECTION:
+                        preprocessing.detect_saccades(gaze)
+
+                    if settings.RUN_FIXATION_DETECTION:
+                        preprocessing.save_events_data(
+                            settings.FIXATION,
+                            sess.sid,
+                            "trial",
+                            ["trial", "stimulus"],
+                            ["onset", "duration", "location_x", "location_y", "page"],
+                            gaze,
+                        )
+
+                    if settings.RUN_SACCADE_DETECTION:
+                        preprocessing.save_events_data(
+                            settings.SACCADE,
+                            sess.sid,
+                            "trial",
+                            ["trial", "stimulus"],
+                            [
+                                "onset",
+                                "duration",
+                                "amplitude",
+                                "peak_velocity",
+                                "dispersion",
+                                "page",
+                            ],
+                            gaze,
+                        )
 
                 # Unnest event columns (e.g. location struct -> location_x/location_y)
                 # so downstream code doesn't need to handle struct columns.
