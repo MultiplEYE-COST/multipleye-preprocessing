@@ -314,11 +314,11 @@ class Settings:
         #:
         self.EXPERIMENT_TYPE: str = ""
 
-        # Defines whether written files will be overwritten, if they already exist.
+        # Defines whether written files will be recalculated, if they already exist.
         # If False, preprocessed sessions will be skipped and not reprocessed.
-        # If only some files for a session exist, the user has to select overwrite once
+        # If only some files for a session exist, the user has to select recalculate once
         # to avoid having files stemming from different versions.
-        self.OVERWRITE = False
+        self.RECALCULATE = True
 
         #: List of session identifiers to explicitly exclude from processing.
         self.EXCLUDE_SESSIONS: list[str] = []
