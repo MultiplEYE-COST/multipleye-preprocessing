@@ -87,14 +87,14 @@ def run_preprocessing(config_path: str | None = None):
 
         # create or load raw data
         raw_data_folder = sess.sid.raw_data_dir
-        if raw_data_folder.exists() and not settings.OVERWRITE:
-            # check if the folder contains the expected number of files, if not, we will overwrite
+        if raw_data_folder.exists() and not settings.RECALCULATE:
+            # check if the folder contains the expected number of files, if not, we will recalculate
             num_expected_files = len(sess.completed_stimuli_ids)
             num_files = len(list(raw_data_folder.glob("*.csv")))
             if num_expected_files != num_files:
                 raise ValueError(
                     f"Raw data cannot be loaded as the folder for session {sess.sid} does not contain the "
-                    f"expected number of files. Please check and select overwrite."
+                    f"expected number of files. Please check and select recalculate."
                 )
 
             pbar.set_description(f"Loading samples {sess.sid}:")
@@ -144,23 +144,23 @@ def run_preprocessing(config_path: str | None = None):
             elif (
                 fixation_data_folder.exists()
                 and saccade_data_folder.exists()
-                and not settings.OVERWRITE
+                and not settings.RECALCULATE
             ):
-                # check if the folder contains the expected number of files, if not, we will overwrite
+                # check if the folder contains the expected number of files, if not, we will recalculate
                 num_expected_files = len(sess.completed_stimuli_ids)
                 num_files = len(list(fixation_data_folder.glob("*.csv")))
 
                 if num_expected_files != num_files:
                     raise ValueError(
                         f"Fixation data cannot be loaded as the folder for session {sess.sid} does not contain the "
-                        f"expected number of files. Please check or select overwrite."
+                        f"expected number of files. Please check or select recalculate."
                     )
 
                 num_files = len(list(saccade_data_folder.glob("*.csv")))
                 if num_expected_files != num_files:
                     raise ValueError(
                         f"Saccade data cannot be loaded as the folder for session {sess.sid} does not contain the "
-                        f"expected number of files. Please check or select overwrite."
+                        f"expected number of files. Please check or select recalculate."
                     )
 
                 pbar.set_description(f"Loading events {sess.sid}:")
@@ -275,14 +275,14 @@ def run_preprocessing(config_path: str | None = None):
                 logger.warning(
                     f"Gaze/Event data missing or not mapped for {sess.sid}. Skipping reading measures."
                 )
-            elif rm_folder.exists() and not settings.OVERWRITE:
-                # check if the folder contains the expected number of files, if not, we will overwrite
+            elif rm_folder.exists() and not settings.RECALCULATE:
+                # check if the folder contains the expected number of files, if not, we will recalculate
                 num_expected_files = len(sess.completed_stimuli_ids)
                 num_files = len(list(rm_folder.glob("*.csv")))
                 if num_expected_files != num_files:
                     raise ValueError(
                         f"Reading measures cannot be loaded as the folder for session {sess.sid} does not contain the "
-                        f"expected number of files. Please check and select overwrite."
+                        f"expected number of files. Please check and select recalculate."
                     )
 
                 pbar.set_description(f"Loading reading measures {sess.sid}:")
@@ -306,7 +306,7 @@ def run_preprocessing(config_path: str | None = None):
         if settings.RUN_COMPREHENSION_ANSWERS:
             answers_csv = sess.sid.answers_dir / f"{sess.sid}_answers.csv"
 
-            if answers_csv.exists() and not settings.OVERWRITE:
+            if answers_csv.exists() and not settings.RECALCULATE:
                 pbar.set_description(f"Loading comprehension answers {sess.sid}")
                 sess.answers = True
             else:
