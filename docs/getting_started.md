@@ -20,6 +20,11 @@ you can clone the [
 `MultiplEYE-COST/multipleye-preprocessing`](https://github.com/MultiplEYE-COST/multipleye-preprocessing)
 repository to your local machine.
 
+```{tip}
+If you have never worked with git nor GitHub,
+check out the [git documentatiion](https://docs.github.com/en/get-started/using-git/about-git) for a quick introduction.
+```
+
 ```bash
 git clone https://github.com/MultiplEYE-COST/multipleye-preprocessing.git
 ```
@@ -35,6 +40,10 @@ cd multipleye-preprocessing/
 To use the pipeline, we expect you to have python set up on your machine.
 Make sure to use an up-to-date python version.
 The pipeline has been developed with `3.13` and up in mind.
+
+```{tip}
+Install python: [Download python](https://www.python.org/downloads/)
+```
 
 We recommend using `uv` to set up your environment, as it will automatically install the
 dependencies
@@ -148,8 +157,8 @@ After it stops, open this file and configure the following parameters:
 - `OVERWRITE`: `true` to reprocess existing data, `false` (default) to only load the output of previously processed sessions instead of recalculation.
 - `EXPERIMENT_TYPE`: `MultiplEYE` (default) or `MeRID`.
 - `INCLUDE_SESSIONS` / `EXCLUDE_SESSIONS`: Optional lists to filter which sessions are processed.
-- `INCLUDE_PILOTS`: `true` to include data from pilot folders (default: `false`).
-- `EXPECTED_SAMPLING_RATE_HZ`: The sampling rate of your eye tracker (default: `1000`).
+- `INCLUDE_PILOTS`: `true` to process the pilot sessions as well (default: `false`).
+- `EXPECTED_SAMPLING_RATE_HZ`: The expected sampling rate used in your sessions (default: `1000`). The pipeline will check if the actual sampling rate matches this value and will raise a warning if it does not.
 
 **Do not change** any of the parameters marked for internal usage, as they ensure consistency across the MultiplEYE project.
 
@@ -157,8 +166,8 @@ Please find additional information on the configuration here: {ref}`configuratio
 
 ### Preprocess your data
 
-If it is your first time with the pipeline, you can explore the pipeline step-by-step by processing one session with the [step-by-step Jupyter notebook](https://github.com/MultiplEYE-COST/multipleye-preprocessing/blob/main/preprocessing.ipynb). You can also open the same file locally at `preprocessing.ipynb` in the repo root.
-
+If it is your first time with the pipeline, you can explore the pipeline step-by-step by processing one session with the [step-by-step Jupyter notebook](https://github.com/MultiplEYE-COST/multipleye-preprocessing/blob/main/multipleye-preprocessing.ipynb). You can
+open the same file locally at `multipleye-preprocessing.ipynb` in the repo root.
 
 To process several sessions at once, the pipeline can be executed directly from the command line.
 For more detailed information on required data and formats and all the steps of the pipeline please read into the more detailed {ref}`reference_guide` chapter.
