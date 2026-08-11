@@ -250,6 +250,19 @@ class Settings:
         self.__dict__["EVENT_DATA_FILENAME_REGEX"] = value
 
     @property
+    def SCANPATH_FILENAME_REGEX(self) -> str:
+        """Regex to extract info from scanpath data filenames."""
+        if "SCANPATH_FILENAME_REGEX" in self.__dict__:
+            return self.__dict__["SCANPATH_FILENAME_REGEX"]
+        trial_col = self.TRIAL_COL
+        stimulus_col = self.STIMULUS_COL
+        return rf".+?(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_scanpath.csv"
+
+    @SCANPATH_FILENAME_REGEX.setter
+    def SCANPATH_FILENAME_REGEX(self, value: str) -> None:
+        self.__dict__["SCANPATH_FILENAME_REGEX"] = value
+
+    @property
     def GAZE_PATTERNS(self) -> list[Any]:
         """Patterns used by pymovements to parse ASC files."""
         if "GAZE_PATTERNS" in self.__dict__:
@@ -564,6 +577,9 @@ class Settings:
 
         #: Glob pattern for event data files.
         self.EVENT_DATA_FILE_GLOB = "*_{event_type}.csv"
+
+        #: Glob pattern for scanpath files.
+        self.SCANPATH_FILE_GLOB = "*_scanpath.csv"
 
         #: Regex to extract the stimulus order version from ASC files.
         self.STIMULUS_ORDER_VERSION_REGEX = re.compile(
