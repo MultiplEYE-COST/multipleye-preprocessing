@@ -33,6 +33,7 @@ class Session:
     question_order: dict[str, list[str]] = field(default="unknown", init=False)
     stimulus_order_ids: list[int] = field(default="unknown", init=False)
     messages: list[dict[str, str]] = field(default="unknown", init=False)
+    uncategorized_messages: list[dict[str, str]] = field(default="unknown", init=False)
     stimuli_trial_mapping: dict[str, str] = field(default="unknown", init=False)
     stimulus_start_end_ts: dict[str, list[str]] = field(default="unknown", init=False)
 

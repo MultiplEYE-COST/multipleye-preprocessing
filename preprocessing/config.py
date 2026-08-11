@@ -193,8 +193,9 @@ class Settings:
             return self.__dict__["START_RECORDING_REGEX"]
         # Use placeholders for trial and page column names to satisfy static analysis
         pattern = (
-            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>start_recording)_"
-            rf"(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.+)"
+            r"(?P<type>start_recording)_"
+            rf"(?P<{self.TRIAL_COL}>(PRACTICE_)?trial_\d\d?)_"
+            rf"stimulus__(?P<stimulus_id>\d+)_(?P<{self.PAGE_COL}>\S*)"
         )
         return re.compile(pattern)
 
@@ -211,8 +212,10 @@ class Settings:
         if "STOP_RECORDING_REGEX" in self.__dict__:
             return self.__dict__["STOP_RECORDING_REGEX"]
         pattern = (
-            rf"MSG\s+(?P<timestamp>\d+)\s+(?P<type>stop_recording)_"
-            rf"(?P<{self.TRIAL_COL}>(?:PRACTICE_)?trial_\d\d?)_(?P<{self.PAGE_COL}>.+)"
+            r"(?P<type>stop_recording)_"
+            rf"(?P<{self.TRIAL_COL}>(PRACTICE_)?trial_\d\d?)_"
+            r"stimulus_(?P<stimulus_name>\S*?_\S*?)_"
+            rf"\d+_(?P<stimulus_id>\d+)_(?P<{self.PAGE_COL}>{self.PAGE_COL}_\d+)"
         )
         return re.compile(pattern)
 
@@ -230,7 +233,7 @@ class Settings:
             return self.__dict__["RAW_DATA_FILENAME_REGEX"]
         trial_col = self.TRIAL_COL
         stimulus_col = self.STIMULUS_COL
-        return rf".+?(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
+        return rf"[^_]+_[^_]+_[^_]+_[^_]+_[^_]+_(?P<{trial_col}>(PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
 
     @RAW_DATA_FILENAME_REGEX.setter
     def RAW_DATA_FILENAME_REGEX(self, value: str) -> None:
@@ -243,11 +246,22 @@ class Settings:
             return self.__dict__["EVENT_DATA_FILENAME_REGEX"]
         trial_col = self.TRIAL_COL
         stimulus_col = self.STIMULUS_COL
-        return rf".+?(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_{{event_type}}.csv"
+        return rf"[^_]+_[^_]+_[^_]+_[^_]+_[^_]+_(?P<{trial_col}>(PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_{{event_type}}.csv"
 
     @EVENT_DATA_FILENAME_REGEX.setter
     def EVENT_DATA_FILENAME_REGEX(self, value: str) -> None:
         self.__dict__["EVENT_DATA_FILENAME_REGEX"] = value
+
+    @property
+    def READING_MEASURES_FILENAME_REGEX(self) -> str:
+        """Regex to extract trial and stimulus info from reading measures filenames."""
+        if "READING_MEASURES_FILENAME_REGEX" in self.__dict__:
+            return self.__dict__["READING_MEASURES_FILENAME_REGEX"]
+        return r"[^_]+_[^_]+_[^_]+_[^_]+_[^_]+_(?P<trial>(PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_reading_measures.csv"
+
+    @READING_MEASURES_FILENAME_REGEX.setter
+    def READING_MEASURES_FILENAME_REGEX(self, value: str) -> None:
+        self.__dict__["READING_MEASURES_FILENAME_REGEX"] = value
 
     @property
     def GAZE_PATTERNS(self) -> list[Any]:
@@ -565,6 +579,9 @@ class Settings:
         #: Glob pattern for event data files.
         self.EVENT_DATA_FILE_GLOB = "*_{event_type}.csv"
 
+        #: Glob pattern for reading measures files.
+        self.READING_MEASURES_GLOB = "*_reading_measures.csv"
+
         #: Regex to extract the stimulus order version from ASC files.
         self.STIMULUS_ORDER_VERSION_REGEX = re.compile(
             r"MSG\s+\d+\s+stimulus_order_version:\s+(?P<version_num>\d\d?\d?)\n"
@@ -573,6 +590,43 @@ class Settings:
         #: Regex to extract stimulus order version from logfiles.
         self.LOGFILE_ORDER_VERSION_REGEX = re.compile(
             r"(STIMULUS_ORDER_VERSION_)(?P<order_version>\d+)"
+        )
+
+        multipleye_messages = {
+            "other_screens": [
+                "welcome_screen",
+                "informed_consent_screen",
+                "start_experiment",
+                "stimulus_order_version",
+                "showing_instruction_screen",
+                "camera_setup_screen",
+                "practice_text_starting_screen",
+                "transition_screen",
+                "final_validation",
+                "show_final_screen",
+                "optional_break_screen",
+                "fixation_trigger:skipped_by_experimenter",
+                "fixation_trigger:experimenter_calibration_triggered",
+                "recalibration",
+                "empty_screen",
+                "obligatory_break",
+                "optional_break",
+            ],
+            "break_msgs": [
+                "optional_break_duration",
+                "optional_break_end",
+                "optional_break",
+                "obligatory_break_duration",
+                "obligatory_break_end",
+                "obligatory_break",
+            ],
+        }
+
+        self.BREAK_REGEX = re.compile(
+            "|".join(map(re.escape, multipleye_messages["break_msgs"]))
+        )
+        self.OTHER_SCREENS_REGEX = re.compile(
+            "|".join(map(re.escape, multipleye_messages["other_screens"]))
         )
 
         # --- HARDWARE AND STIMULI MAPPINGS ---

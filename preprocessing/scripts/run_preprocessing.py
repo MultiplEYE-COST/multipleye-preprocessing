@@ -48,6 +48,7 @@ def run_preprocessing(config_path: str | None = None):
             include_pilots=settings.INCLUDE_PILOTS,
             excluded_sessions=settings.EXCLUDE_SESSIONS,
             included_sessions=settings.INCLUDE_SESSIONS,
+            output_dir=settings.OUTPUT_DIR,
         )
 
     elif settings.EXPERIMENT_TYPE == "MeRID":
@@ -133,6 +134,7 @@ def run_preprocessing(config_path: str | None = None):
         sess.pm_gaze_metadata = gaze._metadata
         sess.calibrations = gaze.calibrations
         sess.validations = gaze.validations
+        sess.messages = gaze.messages
 
         # Store measure-based data loss values (computed above and in load_gaze_data).
         sess._measure_total_data_loss_ratio = getattr(
