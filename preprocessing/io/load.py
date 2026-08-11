@@ -318,7 +318,7 @@ def load_trial_level_events_data(
 
 def load_reading_measures(
     sid: Sid,
-    file_pattern: str = r".+?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv",
+    file_pattern: str | None = None,
 ) -> pl.DataFrame:
     """Load reading measures from CSV files.
 
@@ -328,6 +328,7 @@ def load_reading_measures(
         The session identifier.
     file_pattern : str, optional
         Regex pattern to extract trial and stimulus from filenames.
+        Defaults to ``settings.READING_MEASURES_FILENAME_REGEX``.
 
     Returns
     -------
@@ -335,23 +336,24 @@ def load_reading_measures(
         A DataFrame containing the concatenated reading measures data.
     """
     data_folder = sid.reading_measures_dir
-    # Use glob to find all csv files first, as Path.glob() does not support regex
-    files = [f for f in data_folder.glob("*.csv") if re.match(file_pattern, f.name)]
-
-    if len(files) == 0:
-        raise ValueError(f"No files found in {data_folder} with pattern {file_pattern}")
+    glob_pattern = settings.READING_MEASURES_GLOB
+    regex = file_pattern or settings.READING_MEASURES_FILENAME_REGEX
 
     all_trials = []
 
-    for file in files:
+    for file in data_folder.glob(glob_pattern):
+        match = re.match(regex, file.name)
+        if not match:
+            continue
+
         df = pl.read_csv(file)
-        # get trial and stimulus from file name
-        match = re.match(file_pattern, file.name)
         trial_df = df.with_columns(
             pl.lit(match.group("trial")).alias("trial"),
             pl.lit(match.group("stimulus")).alias("stimulus"),
         )
-
         all_trials.append(trial_df)
+
+    if not all_trials:
+        raise ValueError(f"No reading measures files found in {data_folder}")
 
     return pl.concat(all_trials)

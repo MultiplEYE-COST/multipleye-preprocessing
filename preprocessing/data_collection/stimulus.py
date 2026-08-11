@@ -90,6 +90,7 @@ class ComprehensionQuestion:
 class Stimulus:
     id: int
     name: str
+    full_identifier: str
     type: Literal["experiment", "practice", "test_practice", "test_experiment"]
     pages: list[StimulusPage]
     text_stimulus: pm.stimulus.TextStimulus
@@ -277,6 +278,7 @@ class Stimulus:
         stim = cls(
             id=stimulus_id,
             name=stimulus_name,
+            full_identifier=stimulus_name + f"_{stimulus_id}",
             type=stimulus_type,
             pages=pages,
             text_stimulus=text_stimulus,
