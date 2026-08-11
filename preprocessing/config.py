@@ -195,7 +195,7 @@ class Settings:
         pattern = (
             r"(?P<type>start_recording)_"
             rf"(?P<{self.TRIAL_COL}>(PRACTICE_)?trial_\d\d?)_"
-            rf"stimulus__(?P<stimulus_id>\d+)_(?P<{self.PAGE_COL}>\S*)"
+            rf"stimulus_(?P<stimulus_name>\S+?)_(?P<stimulus_id>\d+)_(?P<{self.PAGE_COL}>\S+)"
         )
         return re.compile(pattern)
 
@@ -214,8 +214,8 @@ class Settings:
         pattern = (
             r"(?P<type>stop_recording)_"
             rf"(?P<{self.TRIAL_COL}>(PRACTICE_)?trial_\d\d?)_"
-            r"stimulus_(?P<stimulus_name>\S*?_\S*?)_"
-            rf"\d+_(?P<stimulus_id>\d+)_(?P<{self.PAGE_COL}>{self.PAGE_COL}_\d+)"
+            r"stimulus_(?P<stimulus_name>\S+?)_"
+            rf"(?P<stimulus_id>\d+)_(?P<{self.PAGE_COL}>\S+)"
         )
         return re.compile(pattern)
 
@@ -257,7 +257,7 @@ class Settings:
         """Regex to extract trial and stimulus info from reading measures filenames."""
         if "READING_MEASURES_FILENAME_REGEX" in self.__dict__:
             return self.__dict__["READING_MEASURES_FILENAME_REGEX"]
-        return r"[^_]+_[^_]+_[^_]+_[^_]+_[^_]+_(?P<trial>(PRACTICE_)?trial_\d+)_(?P<stimulus>[^_]+_[^_]+_\d+(\.0)?)_reading_measures.csv"
+        return r"[^_]+_[^_]+_[^_]+_[^_]+_[^_]+_(?P<trial>(PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv"
 
     @READING_MEASURES_FILENAME_REGEX.setter
     def READING_MEASURES_FILENAME_REGEX(self, value: str) -> None:
@@ -425,14 +425,32 @@ class Settings:
         #: Subfolder name for psychometric tests output (overview + detailed CSVs).
         self.PSYCHOMETRIC_TESTS_FOLDER = Path("psychometric_tests/")
 
-        #: Regex patterns for relevant ASC messages for comprehension questions.
+        #: Regex patterns for relevant ASC messages for comprehension questions,
+        #: reading times, breaks, and sanity checks.
         self.ANSWER_MSG_PATTERNS = [
-            r"start_recording_.*_question_\d+",
+            r"start_recording_.*",
+            r"stop_recording_.*",
+            r"(optional|obligatory)_break.*",
+            r"welcome_screen",
+            r"informed_consent_screen",
+            r"start_experiment",
+            r"stimulus_order_version",
+            r"showing_instruction_screen",
+            r"camera_setup_screen",
+            r"practice_text_starting_screen",
+            r"transition_screen",
+            r"final_validation",
+            r"show_final_screen",
+            r"optional_break_screen",
+            r"fixation_trigger:.*",
+            r"recalibration",
+            r"empty_screen",
+            r"screen_image_onset",
+            r"screen_image_offset",
             r".*_preliminary_answer_.*",
             r"question_screen_image_offset",
             r".*_final_answer_given_is_.*",
             r".*_answer_given_is_correct:.*",
-            r"stop_recording_.*_question_\d+",
         ]
 
         # --- PIPELINE STAGES ---
@@ -755,7 +773,7 @@ class Settings:
     def _apply_logging_settings(self) -> None:
         """Apply logging settings from configuration to the active logger."""
         # Use the package-level setup_logging to ensure consistent behaviour
-        from .utils.logging import setup_logging, clear_log_file
+        from .utils.logging import clear_log_file, setup_logging
 
         log_file = self.DATASET_DIR / "preprocessing_logs.txt"
         if not self.DATASET_DIR.exists():

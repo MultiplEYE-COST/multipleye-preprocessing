@@ -200,6 +200,10 @@ def load_trial_level_raw_data(
 
         gaze.experiment = exp
 
+        messages_path = metadata_path / "messages.csv"
+        if messages_path.exists():
+            gaze.messages = pl.read_csv(messages_path)
+
     return gaze
 
 

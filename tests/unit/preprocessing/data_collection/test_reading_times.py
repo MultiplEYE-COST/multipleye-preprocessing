@@ -140,25 +140,25 @@ class TestCreateEmptyRtFrame:
 
 class TestCategorizeAscMessages:
     def test_categorizes_start_recording_messages(self) -> None:
-        stim = _mock_stimulus("PopSci_MultiplEYE_1", num_pages=2)
+        stim = _mock_stimulus("PopSci_MultiplEYE", num_pages=2)
         dc = _mock_dc(
             stimuli=[stim],
-            stimuli_trial_mapping={"trial_1": "PopSci_MultiplEYE_1"},
+            stimuli_trial_mapping={"trial_1": "PopSci_MultiplEYE"},
             messages=[
                 {
-                    "message": "start_recording_trial_1_stimulus__1_page_1",
+                    "message": "start_recording_trial_1_stimulus_PopSci_MultiplEYE_1_page_1",
                     "timestamp": "1000",
                 },
                 {
-                    "message": "stop_recording_trial_1_stimulus_PopSci_MultiplEYE_1_1_page_1",
+                    "message": "stop_recording_trial_1_stimulus_PopSci_MultiplEYE_1_page_1",
                     "timestamp": "5000",
                 },
                 {
-                    "message": "start_recording_trial_1_stimulus__1_page_2",
+                    "message": "start_recording_trial_1_stimulus_PopSci_MultiplEYE_1_page_2",
                     "timestamp": "5200",
                 },
                 {
-                    "message": "stop_recording_trial_1_stimulus_PopSci_MultiplEYE_1_1_page_2",
+                    "message": "stop_recording_trial_1_stimulus_PopSci_MultiplEYE_1_page_2",
                     "timestamp": "9000",
                 },
             ],
@@ -246,7 +246,7 @@ class TestDocumentBreaks:
             {"message": "optional_break_end", "timestamp": "5000"},
         ]
         dc = _mock_dc()
-        output_dir = dc.output_dir / "test_session" / dc.reports_folder
+        output_dir = dc.output_dir / dc.reports_folder / "test_session"
         os.makedirs(output_dir, exist_ok=True)
 
         MultipleyeDataCollection._document_breaks(dc, "test_session", breaks)
@@ -264,7 +264,7 @@ class TestDocumentBreaks:
             {"message": "obligatory_break", "timestamp": "1000"},
         ]
         dc = _mock_dc()
-        output_dir = dc.output_dir / "test_session" / dc.reports_folder
+        output_dir = dc.output_dir / dc.reports_folder / "test_session"
         os.makedirs(output_dir, exist_ok=True)
 
         MultipleyeDataCollection._document_breaks(dc, "test_session", breaks)
@@ -277,7 +277,7 @@ class TestDocumentBreaks:
 
     def test_handles_empty_breaks(self) -> None:
         dc = _mock_dc()
-        output_dir = dc.output_dir / "test_session" / dc.reports_folder
+        output_dir = dc.output_dir / dc.reports_folder / "test_session"
         os.makedirs(output_dir, exist_ok=True)
 
         MultipleyeDataCollection._document_breaks(dc, "test_session", [])

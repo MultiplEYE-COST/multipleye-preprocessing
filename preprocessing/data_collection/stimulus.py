@@ -1,7 +1,7 @@
 import importlib
 import json
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from glob import glob
 from pathlib import Path
 from typing import Literal
@@ -90,7 +90,6 @@ class ComprehensionQuestion:
 class Stimulus:
     id: int
     name: str
-    full_identifier: str
     type: Literal["experiment", "practice", "test_practice", "test_experiment"]
     pages: list[StimulusPage]
     text_stimulus: pm.stimulus.TextStimulus
@@ -98,6 +97,11 @@ class Stimulus:
     instructions: list[Instruction]
     ratings: list[Rating]
     trial_id: str
+    full_identifier: str = field(default="")
+
+    def __post_init__(self):
+        if not self.full_identifier:
+            self.full_identifier = f"{self.name}_{self.id}"
 
     @classmethod
     def load(
