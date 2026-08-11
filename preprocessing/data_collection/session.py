@@ -102,14 +102,14 @@ class Session:
             "num_validations": self.num_validations,
             "avg_validation_error": self.avg_validation_error,
             "data_loss_ratio": self.pm_gaze_metadata["data_loss_ratio"],
-            "measure_data_loss_ratio": getattr(
+            "total_data_loss_ratio": getattr(
                 self,
-                "_measure_data_loss_ratio",
+                "_measure_total_data_loss_ratio",
                 None,
             ),
-            "measure_data_loss_ratio_blinks": getattr(
+            "blink_loss_ratio": getattr(
                 self,
-                "_measure_data_loss_ratio_blinks",
+                "_measure_blink_loss_ratio",
                 None,
             ),
             "Mount_configuration": self.pm_gaze_metadata["mount_configuration"],

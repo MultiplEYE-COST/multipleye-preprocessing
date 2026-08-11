@@ -80,8 +80,9 @@ def load_gaze_data(
     )
 
     # Compute measure-based blink loss via measure_events_ratio.
+    # Session-level (duration-weighted), not per-trial mean.
     # Parsed events (including blinks) are available here but must be cleared
-    # before returning — they crash save_raw_data's unnest of the pixel column.
+    # before returning -- they crash save_raw_data's unnest of the pixel column.
     sr = gaze.experiment.sampling_rate or float(
         gaze._metadata.get("sampling_rate", 1000.0),
     )
@@ -89,15 +90,7 @@ def load_gaze_data(
 
     if gaze.events is not None and not gaze.events.frame.is_empty():
         blink_expr = gaze.measure_events_ratio("blink_eyelink", sampling_rate=sr)
-        blink_result = gaze.samples.group_by(trial_cols).agg(blink_expr)
-        col_name = "event_ratio_blink_eyelink"
-        if col_name in blink_result.columns:
-            vals = (
-                blink_result[col_name].list.first()
-                if blink_result[col_name].dtype == pl.List
-                else blink_result[col_name]
-            )
-            gaze._measure_data_loss_ratio_blinks = vals.mean()
+        gaze._measure_blink_loss_ratio = gaze.samples.select(blink_expr).item()
 
     # Clear parsed events to avoid save_raw_data crash.
     gaze.events = Events(

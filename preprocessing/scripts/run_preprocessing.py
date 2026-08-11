@@ -117,16 +117,12 @@ def run_preprocessing(config_path: str | None = None):
                 pl.col("stimulus").is_in(sess.completed_stimuli_names)
             )
 
-            # Compute per-trial total data loss via pymovements.measure.data_loss().
-            # Simple mean across trials (each trial weighted equally).
-            trial_cols = settings.TRIAL_COLS or ["trial", "stimulus"]
+            # Compute total data loss via pymovements.measure.data_loss().
+            # Session-level (duration-weighted), not per-trial mean.
             sr = gaze.experiment.sampling_rate or float(gaze._metadata["sampling_rate"])
-            gaze._measure_data_loss_ratio = (
-                gaze.samples.group_by(trial_cols)
-                .agg(pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio"))
-                .select(pl.col("data_loss_ratio").mean())
-                .item()
-            )
+            gaze._measure_total_data_loss_ratio = gaze.samples.select(
+                pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio")
+            ).item()
 
             preprocessing.save_raw_data(sess.sid, gaze)
             preprocessing.save_session_metadata(sess.sid, gaze)
@@ -135,15 +131,15 @@ def run_preprocessing(config_path: str | None = None):
         sess.calibrations = gaze.calibrations
         sess.validations = gaze.validations
 
-        # Store measure-based data loss values (computed in load_gaze_data).
-        sess._measure_data_loss_ratio = getattr(
+        # Store measure-based data loss values (computed above and in load_gaze_data).
+        sess._measure_total_data_loss_ratio = getattr(
             gaze,
-            "_measure_data_loss_ratio",
+            "_measure_total_data_loss_ratio",
             None,
         )
-        sess._measure_data_loss_ratio_blinks = getattr(
+        sess._measure_blink_loss_ratio = getattr(
             gaze,
-            "_measure_data_loss_ratio_blinks",
+            "_measure_blink_loss_ratio",
             None,
         )
 
