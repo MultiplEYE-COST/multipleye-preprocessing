@@ -41,12 +41,15 @@ def run_preprocessing(config_path: str | None = None):
             f"And check if you have filled in the correct data collection name in the settings."
         )
 
+    enlarge_aois = not settings.RUN_FIXATION_CORRECTION
+
     if settings.EXPERIMENT_TYPE == "MultiplEYE":
         data_collection = preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
             data_folder_path,
             include_pilots=settings.INCLUDE_PILOTS,
             excluded_sessions=settings.EXCLUDE_SESSIONS,
             included_sessions=settings.INCLUDE_SESSIONS,
+            enlarge_aois=enlarge_aois,
         )
 
     elif settings.EXPERIMENT_TYPE == "MeRID":
@@ -56,6 +59,7 @@ def run_preprocessing(config_path: str | None = None):
                 include_pilots=settings.INCLUDE_PILOTS,
                 excluded_sessions=settings.EXCLUDE_SESSIONS,
                 included_sessions=settings.INCLUDE_SESSIONS,
+                enlarge_aois=enlarge_aois,
             )
         )
 
@@ -183,6 +187,11 @@ def run_preprocessing(config_path: str | None = None):
 
                 if settings.RUN_FIXATION_DETECTION:
                     preprocessing.detect_fixations(gaze)
+
+                    if settings.RUN_FIXATION_CORRECTION:
+                        pbar.set_description(f"Correcting fixations {sess.sid}:")
+                        preprocessing.correct_fixations(gaze, sess)
+
                 if settings.RUN_SACCADE_DETECTION:
                     preprocessing.detect_saccades(gaze)
 

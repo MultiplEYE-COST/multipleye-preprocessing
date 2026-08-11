@@ -436,6 +436,8 @@ class Settings:
         self.RUN_SANITY_CHECKS = True
         #: Whether to process psychometric tests.
         self.RUN_PSYCHOMETRIC_TESTS = True
+        #: Whether to correct fixations for line drift.
+        self.RUN_FIXATION_CORRECTION = True
 
         #: Column name for the trial identifier.
         self.TRIAL_COL = "trial"

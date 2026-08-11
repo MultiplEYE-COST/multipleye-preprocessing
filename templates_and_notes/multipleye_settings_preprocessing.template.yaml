@@ -43,6 +43,9 @@ plot_aoi_overlay: true
 # Whether to copy AOI images overlay to the output directory.
 copy_aoi_images_overlay: false
 
+# Whether to run fixation correction.
+run_fixation_correction: true
+
 # ----------------------- Internal Usage -----------------------
 
 # --- LOGGING ---
