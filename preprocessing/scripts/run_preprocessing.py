@@ -106,6 +106,12 @@ def run_preprocessing(config_path: str | None = None):
                 load_metadata=True,
             )
 
+            if gaze is not None and gaze.messages is None and asc.exists():
+                tmp = pm.gaze.from_asc(
+                    asc, patterns=[], messages=settings.ANSWER_MSG_PATTERNS
+                )
+                gaze.messages = tmp.messages
+
         else:
             pbar.set_description(f"Extracting samples {sess.sid}:")
             gaze = preprocessing.load_gaze_data(

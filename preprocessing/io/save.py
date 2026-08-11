@@ -216,3 +216,9 @@ def save_session_metadata(sid: Sid, gaze: pm.Gaze) -> None:
 
     calibrations.write_csv(metadata_directory / "calibrations.tsv", separator="\t")
     gaze.save_calibrations(metadata_directory / "calibrations.feather")
+
+    if gaze.messages is not None and not gaze.messages.is_empty():
+        gaze.messages.write_csv(
+            metadata_directory / "messages.csv",
+            include_header=True,
+        )

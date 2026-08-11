@@ -3,7 +3,6 @@ import logging
 import os
 import re
 import shutil
-
 import subprocess
 import warnings
 from functools import partial
@@ -17,31 +16,34 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
-from ..models.sid import Sid
-from ..models.dcn import Dcn
-from ..config import settings
-from ..utils.data_path_utils import _ci_resolve
-from ..utils.conversion import convert_to_time_str
-from ..utils.data_collection_utils import _report_to_file
-from ..utils.logging import get_logger
-from ..checks.et_quality_checks import (
-    check_comprehension_question_answers,
-    check_metadata,
-    report_to_file_metadata as report_meta,
-    check_validation_requirements,
-)
-from ..checks.formal_experiment_checks import (
-    check_all_screens_logfile,
-    sanity_check_gaze_frame,
-    check_messages,
-)
-from ..data_collection.session import Session
-from ..data_collection.stimulus import LabConfig, Stimulus
-from ..plotting.plot import plot_gaze, plot_main_sequence
-from ..utils.fix_questionnaire_data import remap_wrong_pq_values
 from preprocessing.scripts.prepare_language_folder import (
     extract_stimulus_version_number_from_asc,
 )
+
+from ..checks.et_quality_checks import (
+    check_comprehension_question_answers,
+    check_metadata,
+    check_validation_requirements,
+)
+from ..checks.et_quality_checks import (
+    report_to_file_metadata as report_meta,
+)
+from ..checks.formal_experiment_checks import (
+    check_all_screens_logfile,
+    check_messages,
+    sanity_check_gaze_frame,
+)
+from ..config import settings
+from ..data_collection.session import Session
+from ..data_collection.stimulus import LabConfig, Stimulus
+from ..models.dcn import Dcn
+from ..models.sid import Sid
+from ..plotting.plot import plot_gaze, plot_main_sequence
+from ..utils.conversion import convert_to_time_str
+from ..utils.data_collection_utils import _report_to_file
+from ..utils.data_path_utils import _ci_resolve
+from ..utils.fix_questionnaire_data import remap_wrong_pq_values
+from ..utils.logging import get_logger
 
 
 def eyelink(method):
@@ -550,7 +552,9 @@ class MultipleyeDataCollection:
         if not output_dir:
             output_dir = self.output_dir
 
-        session_results = output_dir / session_name / self.reports_folder
+        session_results = (
+            Path(output_dir) / settings.SANITY_CHECKS_FOLDER / session_name
+        )
         os.makedirs(session_results, exist_ok=True)
 
         self.sessions[session_name].uncategorized_messages = self.parse_messages(
@@ -565,8 +569,13 @@ class MultipleyeDataCollection:
 
             messages = self.sessions[session_name].messages
 
-            if not messages:
-                self.logger.warning(f"No messages found in asc file of {session_name}.")
+            if isinstance(messages, pl.DataFrame):
+                messages_for_check = [
+                    {"message": row["content"], "timestamp": row["time"]}
+                    for row in messages.iter_rows(named=True)
+                ]
+            else:
+                messages_for_check = messages or []
 
             stimuli = self.sessions[session_name].stimuli
 
@@ -600,7 +609,10 @@ class MultipleyeDataCollection:
             _report_to_file("## Gaze Frame", report_file_path)
             self._check_stimuli_gaze_frame(gaze, stimuli, session_name)
             _report_to_file("## ASC Messages", report_file_path)
-            self._check_asc_messages(stimuli, messages, session_name)
+            if messages_for_check:
+                self._check_asc_messages(stimuli, messages_for_check, session_name)
+            else:
+                self.logger.warning(f"No messages found in asc file of {session_name}.")
             _report_to_file("## Validation & Calibration", report_file_path)
             self._check_asc_validation(session_name)
             self._load_psychometric_tests(session_name)
@@ -905,7 +917,6 @@ class MultipleyeDataCollection:
                     trial_ids[trial_ids.index(trial)] = f"trial_{int(trial)}"
                 except TypeError:
                     trial_ids = trial_ids
-                    pass
 
         stimulus_names = completed_stimuli["stimulus_name"].to_list()
         stimuli_trial_mapping = {
@@ -1088,44 +1099,60 @@ class MultipleyeDataCollection:
         other_screens: list[dict] = []
         uncategorized_msgs: list[dict] = []
 
-        trial_col = settings.TRIAL_COL
         page_col = settings.PAGE_COL
 
         initial_ts = 0
-        messages = self.sessions[session_identifier].messages.copy()
+        messages = self.sessions[session_identifier].messages
 
-        for msg in messages:
+        if messages is None:
+            return (
+                reading_times_df,
+                break_msg,
+                other_screens,
+                uncategorized_msgs,
+                initial_ts,
+            )
+
+        if isinstance(messages, pl.DataFrame) and messages.is_empty():
+            return (
+                reading_times_df,
+                break_msg,
+                other_screens,
+                uncategorized_msgs,
+                initial_ts,
+            )
+
+        if isinstance(messages, pl.DataFrame):
+            row_iter = messages.iter_rows(named=True)
+        else:
+            row_iter = messages.copy()
+
+        for msg in row_iter:
+            content = msg.get("content", msg.get("message", ""))
+            ts_val = msg.get("time", msg.get("timestamp", ""))
+
+            timestamp = str(ts_val)
             if not initial_ts:
-                initial_ts = msg["timestamp"]
+                initial_ts = timestamp
 
-            if settings.BREAK_REGEX.match(msg["message"]):
-                break_msg.append(msg)
-            elif settings.OTHER_SCREENS_REGEX.match(msg["message"]):
-                other_screens.append(msg)
-            elif match := settings.START_RECORDING_REGEX.match(msg["message"]):
+            if settings.BREAK_REGEX.match(content):
+                break_msg.append({"message": content, "timestamp": timestamp})
+            elif settings.OTHER_SCREENS_REGEX.match(content):
+                other_screens.append({"message": content, "timestamp": timestamp})
+            elif match := settings.START_RECORDING_REGEX.match(content):
                 event = match.groupdict()
-                event["start_ts"] = msg["timestamp"]
-                trial = event.get(trial_col, "")
-                stimulus_name = self.sessions[
-                    session_identifier
-                ].stimuli_trial_mapping.get(trial)
-                if stimulus_name:
-                    event["stimulus_name"] = stimulus_name
+                event["start_ts"] = timestamp
                 reading_times_df = reading_times_df.update(
                     pl.DataFrame(event), on=["stimulus_name", page_col], how="left"
                 )
-            elif match := settings.STOP_RECORDING_REGEX.match(msg["message"]):
+            elif match := settings.STOP_RECORDING_REGEX.match(content):
                 event = match.groupdict()
-                event["stop_ts"] = msg["timestamp"]
-                sn = event.get("stimulus_name", "")
-                sid = event.get("stimulus_id", "")
-                if sn and sid:
-                    event["stimulus_name"] = f"{sn}_{sid}"
+                event["stop_ts"] = timestamp
                 reading_times_df = reading_times_df.update(
                     pl.DataFrame(event), on=["stimulus_name", page_col], how="left"
                 )
             else:
-                uncategorized_msgs.append(msg)
+                uncategorized_msgs.append({"message": content, "timestamp": timestamp})
 
         return (
             reading_times_df,
@@ -1138,7 +1165,7 @@ class MultipleyeDataCollection:
     def _document_other_screens(
         self, session_idf: str, other_screens: list[dict]
     ) -> None:
-        result_folder = self.output_dir / session_idf / self.reports_folder
+        result_folder = self.output_dir / self.reports_folder / session_idf
         os.makedirs(result_folder, exist_ok=True)
 
         data = {
@@ -1152,7 +1179,7 @@ class MultipleyeDataCollection:
         )
 
     def _document_breaks(self, session_idf: str, breaks: list[dict]) -> None:
-        result_folder = self.output_dir / session_idf / self.reports_folder
+        result_folder = self.output_dir / self.reports_folder / session_idf
         os.makedirs(result_folder, exist_ok=True)
 
         breaks_df: dict[str, list] = {
@@ -1221,7 +1248,7 @@ class MultipleyeDataCollection:
         self._document_other_screens(session_identifier, other_screens)
         self._document_breaks(session_identifier, break_msg)
 
-        result_folder = self.output_dir / session_identifier / self.reports_folder
+        result_folder = self.output_dir / self.reports_folder / session_identifier
         os.makedirs(result_folder, exist_ok=True)
         self._document_reading_times(
             initial_ts,
@@ -1281,7 +1308,7 @@ class MultipleyeDataCollection:
         total_reading_duration_ms = 0
 
         for start, stop in zip(reading_times["start_ts"], reading_times["stop_ts"]):
-            time_ms = int(stop) - int(start)
+            time_ms = int(float(stop)) - int(float(start))
             time_str = convert_to_time_str(time_ms)
             reading_times["duration_ms"].append(time_ms)
             reading_times["duration_str"].append(time_str)
@@ -1299,7 +1326,7 @@ class MultipleyeDataCollection:
             reading_times["pages"],
             reading_times["trials"],
         ):
-            time_ms = int(start) - int(stop)
+            time_ms = int(float(start)) - int(float(stop))
             time_str = convert_to_time_str(time_ms)
             reading_times["duration_ms"].append(time_ms)
             reading_times["duration_str"].append(time_str)
