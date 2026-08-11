@@ -379,3 +379,66 @@ def test_settings_case_insensitivity(settings_obj, key, value, attr):
     settings_obj._loaded = True  # Prevent auto-loading legacy config
     settings_obj.update({key: value})
     assert getattr(settings_obj, attr) == value
+
+
+def test_stimulus_versions_defaults(settings_obj):
+    """Stimulus version settings default to single-folder mode."""
+    assert settings_obj.STIMULUS_VERSIONS_DEFAULT_VERSION is None
+    assert settings_obj.STIMULUS_VERSIONS_PID_MAP == {}
+    assert settings_obj.STIMULUS_PID_VERSION_MAP == {}
+
+
+def test_stimulus_versions_load_from_yaml(settings_obj, tmp_path):
+    """Test loading stimulus versions config from YAML."""
+    config_file = tmp_path / "test_config.yaml"
+    config_data = {
+        "data_collection_name": "ME_EN_UK_LON_LAB1_2025",
+        "stimulus_versions": {
+            "default_version": "v2",
+            "versions": {
+                "v2": ["008", "010"],
+                "v3": ["011", "012", "013"],
+            },
+        },
+    }
+    with open(config_file, "w") as f:
+        yaml.dump(config_data, f)
+
+    settings_obj.load(path=config_file)
+    assert settings_obj.STIMULUS_VERSIONS_DEFAULT_VERSION == "v2"
+    assert settings_obj.STIMULUS_VERSIONS_PID_MAP == {
+        "v2": ["008", "010"],
+        "v3": ["011", "012", "013"],
+    }
+
+
+def test_stimulus_pid_version_map_derived(settings_obj):
+    """STIMULUS_PID_VERSION_MAP flattens version->pids into pid->version."""
+    settings_obj._loaded = True
+    settings_obj.STIMULUS_VERSIONS_PID_MAP = {
+        "v2": ["008", "010"],
+        "v3": ["011"],
+    }
+    assert settings_obj.STIMULUS_PID_VERSION_MAP == {
+        "008": "v2",
+        "010": "v2",
+        "011": "v3",
+    }
+
+
+def test_stimulus_pid_version_map_empty(settings_obj):
+    """Empty version config yields an empty pid map."""
+    settings_obj._loaded = True
+    settings_obj.STIMULUS_VERSIONS_PID_MAP = {}
+    assert settings_obj.STIMULUS_PID_VERSION_MAP == {}
+
+
+def test_stimulus_versions_duplicate_pid_raises(settings_obj):
+    """A PID in multiple version buckets must raise during validation."""
+    settings_obj._loaded = True
+    settings_obj.STIMULUS_VERSIONS_PID_MAP = {
+        "v2": ["008", "010"],
+        "v3": ["008"],  # duplicate PID
+    }
+    with pytest.raises(ValueError, match="008"):
+        settings_obj.validate_stimulus_versions()

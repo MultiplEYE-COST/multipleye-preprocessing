@@ -170,6 +170,93 @@ The warning includes additional context based on the participant's YAML configur
 
 ---
 
+(errors_config)=
+
+## Configuration Errors
+
+:::{dropdown} ValueError: Participant ID '008' is mapped to multiple stimulus versions: 'v2' and 'v3'. A participant cannot have sessions in different stimulus versions.
+
+This error occurs when the same participant ID (PID) is listed under more than one version
+bucket in the `stimulus_versions` section of your configuration file
+(`multipleye_settings_preprocessing.yaml`). A single participant cannot have collected data on
+more than one stimulus content version, so this is never valid.
+
+**What to do:**
+
+- **Find the Duplicate PID:** Look at the `stimulus_versions.versions` map in your configuration
+  file and search for the participant ID mentioned in the error message. It appears in more than
+  one list.
+- **Decide on the Correct Version:** Check your lab documentation or the experimenter session
+  documentation to determine which stimulus folder that participant actually saw.
+- **Keep One Entry:** Leave the PID in exactly one version bucket and remove it from all others.
+
+:::
+
+(errors_preflight)=
+
+## Preflight Check Errors
+
+The preflight check validates all input files before the pipeline starts. When stimulus content
+versions are configured, it additionally verifies that every configured version folder exists,
+contains its `stimulus_order_versions_*.csv`, and that every session's participant ID is present
+in the version it was assigned to. Failures are reported under the **Stimulus versions** group in
+the `PreflightError` output.
+
+:::{dropdown} PreflightError: Stimulus folder for version 'v2' does not exist: /path/to/data/stimuli_MultiplEYE_EN_UK_London_1_2025_v2
+
+This error occurs when a version suffix is listed in `stimulus_versions.versions` in your
+configuration, but the corresponding stimulus folder does not exist in your data directory.
+
+The pipeline looks for a sibling of the default folder, named by appending the version suffix:
+`stimuli_<dcn>_v2/` next to `stimuli_<dcn>/`.
+
+**What to do:**
+
+- **Check the Folder Name:** Make sure the folder on disk is named exactly
+  `stimuli_<dcn>_v2` (matching the version key in your configuration).
+- **Extract Missing Data:** If the folder was never created or the archive was not extracted,
+  unzip the correct stimulus package so the folder exists alongside the default one.
+- **Remove Unused Versions:** If the version is no longer needed, delete it from the
+  `stimulus_versions.versions` map instead of leaving a dangling entry.
+
+:::
+
+:::{dropdown} PreflightError: Stimulus versions: /path/to/data/stimuli_MultiplEYE_EN_UK_London_1_2025_v2/config/stimulus_order_versions_EN_UK_1.csv
+
+This error occurs when a versioned stimulus folder exists, but its `config/` subfolder is missing
+the `stimulus_order_versions_*.csv` file. This file is required to map each participant to the
+correct stimulus order for that content version.
+
+**What to do:**
+
+- **Copy the Default CSV:** Copy the `stimulus_order_versions_*.csv` from the default stimulus
+  folder's `config/` subfolder into the version folder's `config/` subfolder.
+- **Verify the Version Numbers:** If the version uses a different stimulus order, make sure the
+  copied CSV lists the correct version number for each participant assigned to this content
+  version.
+
+:::
+
+:::{dropdown} PreflightError: 003_EN_UK_1_ET1 (PID 003) — not found in stimulus_order_versions CSV for version 'v2'
+
+This error occurs when a session's participant ID is assigned to a content version in
+`stimulus_versions.versions`, but that PID does not appear in the version folder's
+`stimulus_order_versions_*.csv`.
+
+**What to do:**
+
+- **Add the PID to the CSV:** Add a row for the participant ID (with the correct version number)
+  to the `stimulus_order_versions_*.csv` in the version folder's `config/` subfolder.
+- **Check the Assignment:** If the participant did not actually use this version, reassign them to
+  the correct version (or remove them from the map so they fall back to the default version) in
+  `stimulus_versions.versions`.
+- **Check for Typos:** Ensure the PID in the configuration exactly matches the `participant_id`
+  entries in the CSV (e.g. leading zeros are required).
+
+:::
+
+---
+
 ```{eval-rst}
 .. raw:: html
 

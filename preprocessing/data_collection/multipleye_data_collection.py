@@ -127,6 +127,7 @@ class MultipleyeDataCollection:
         self.psychometric_tests = kwargs.get("psychometric_tests", [])
         self.excluded_sessions = excluded_sessions
         self.included_sessions = included_sessions
+        self.pid_stimulus_dirs = kwargs.get("pid_stimulus_dirs", None)
         self.logger = get_logger()
 
         self.logger.info(
@@ -176,6 +177,28 @@ class MultipleyeDataCollection:
             self.stim_order_versions = stim_order_versions
 
         self.overview = self.create_dataset_overview()
+
+    def _resolve_stimulus_dir(self, session_identifier: str) -> Path:
+        """Resolve the stimulus directory for a session based on its PID.
+
+        Uses the ``pid_stimulus_dirs`` map (built from the ``stimulus_versions``
+        config) to pick the version-specific stimulus folder. Unmapped PIDs and
+        collections without a version map fall back to ``self.stimulus_dir``.
+
+        Parameters
+        ----------
+        session_identifier : str
+            The session identifier (e.g. ``"001_EN_UK_1_ET1"``).
+
+        Returns
+        -------
+        Path
+            The stimulus directory to use for this session.
+        """
+        if not self.pid_stimulus_dirs:
+            return self.stimulus_dir
+        pid = Sid(session_identifier).pid
+        return self.pid_stimulus_dirs.get(pid, self.stimulus_dir)
 
     def __repr__(self):
         if not self.overview:
@@ -504,6 +527,9 @@ class MultipleyeDataCollection:
             else data_dir / "psychometric-tests"
         )
 
+        # Build the per-PID stimulus directory map from the stimulus_versions config.
+        pid_stimulus_dirs = cls._build_pid_stimulus_dirs(data_dir, stimulus_folder_path)
+
         return cls(
             data_collection_name=data_folder_name,
             stimulus_language=stimulus_language,
@@ -523,7 +549,49 @@ class MultipleyeDataCollection:
             ps_tests_path=ps_tests_path,
             included_sessions=included_sessions,
             excluded_sessions=excluded_sessions,
+            pid_stimulus_dirs=pid_stimulus_dirs,
         )
+
+    @classmethod
+    def _build_pid_stimulus_dirs(
+        cls, data_folder_path: Path, default_stimulus_dir: Path
+    ) -> dict[str, Path] | None:
+        """Build a map from participant ID to its stimulus folder.
+
+        Reads the configured ``stimulus_versions`` and resolves each versioned
+        folder (``stimuli_<dcn>_<suffix>``) under the data folder or the default
+        stimulus dir's parent.
+
+        Parameters
+        ----------
+        data_folder_path : Path
+            The raw data collection directory (contains ``stimuli_<dcn>``).
+        default_stimulus_dir : Path
+            The resolved default stimulus directory.
+
+        Returns
+        -------
+        dict[str, Path] | None
+            Mapping from PID to stimulus directory, or ``None`` if no versions
+            are configured.
+        """
+        pid_map = settings.STIMULUS_VERSIONS_PID_MAP or {}
+        if not pid_map:
+            return None
+
+        # Look for versioned stimulus folders next to the default one.
+        base = data_folder_path
+        default_name = default_stimulus_dir.name
+
+        result: dict[str, Path] = {}
+        for version, pids in pid_map.items():
+            folder_name = f"{default_name}_{version}"
+            version_dir = base / folder_name
+            if not version_dir.exists():
+                version_dir = default_stimulus_dir.parent / folder_name
+            for pid in pids:
+                result[str(pid)] = version_dir
+        return result
 
     def create_sanity_check_report(
         self,
@@ -745,7 +813,7 @@ class MultipleyeDataCollection:
                 logging._captured_warnings.append(msg)  # type: ignore
 
             self.sessions[session].stimuli = self._load_session_stimuli(
-                self.stimulus_dir,
+                self._resolve_stimulus_dir(session),
                 self.language,
                 self.country,
                 self.lab_number,
@@ -924,6 +992,31 @@ class MultipleyeDataCollection:
 
         return completed_stimuli_ids, completed_stimulus_names, stimuli_trial_mapping
 
+    def _load_stim_order_versions(self, session_identifier: str) -> pd.DataFrame:
+        """Load the stimulus order versions CSV for a session's version folder.
+
+        Reads the ``stimulus_order_versions_*.csv`` from the stimulus directory
+        that applies to this session (resolved per PID).
+
+        Parameters
+        ----------
+        session_identifier : str
+            The session identifier.
+
+        Returns
+        -------
+        pd.DataFrame
+            The stimulus order versions with non-null participant IDs.
+        """
+        stimulus_dir = self._resolve_stimulus_dir(session_identifier)
+        path = _ci_resolve(
+            stimulus_dir
+            / "config"
+            / f"stimulus_order_versions_{self.language}_{self.country}_{self.lab_number}.csv"
+        )
+        df = pd.read_csv(path)
+        return df[df["participant_id"].notnull()]
+
     def _load_session_stimulus_order(
         self, session_identifier, logfile_order_version: int
     ) -> list[int]:
@@ -933,9 +1026,11 @@ class MultipleyeDataCollection:
         if p_id in self.crashed_session_ids:
             incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
 
+        stim_order_versions = self._load_stim_order_versions(session_identifier)
+
         # get the entry where the participant id matches
-        stim_order_version = self.stim_order_versions[
-            self.stim_order_versions["participant_id"] == int(p_id)
+        stim_order_version = stim_order_versions[
+            stim_order_versions["participant_id"] == int(p_id)
         ]
 
         if stim_order_version.empty:
@@ -954,8 +1049,8 @@ class MultipleyeDataCollection:
             if version == logfile_order_version:
                 # Try to look up the stimulus order by version number instead
                 # of participant ID, since the PID wasn't found in the CSV.
-                stim_order_version = self.stim_order_versions[
-                    self.stim_order_versions["version_number"] == version
+                stim_order_version = stim_order_versions[
+                    stim_order_versions["version_number"] == version
                 ]
 
                 if stim_order_version.empty:
