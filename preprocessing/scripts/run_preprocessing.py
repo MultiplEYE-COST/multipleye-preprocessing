@@ -10,6 +10,7 @@ import preprocessing
 from preprocessing import settings
 
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
+from preprocessing.checks.quality_thresholds import write_quality_thresholds
 import contextlib
 
 
@@ -63,6 +64,8 @@ def run_preprocessing(config_path: str | None = None):
         raise ValueError(
             f"Invalid experiment type: {settings.EXPERIMENT_TYPE}. Supported types: [MultiplEYE, MeRID]"
         )
+
+    write_quality_thresholds(settings.OUTPUT_DIR)
 
     if settings.RUN_PREFLIGHT_CHECK:
         from ..checks.preflight import run_preflight_check
@@ -386,12 +389,12 @@ def run_preprocessing(config_path: str | None = None):
                     overwrite=True,
                     output_dir=settings.OUTPUT_DIR,
                 )
-
-            data_collection.create_session_overview(
-                sess.session_identifier, path=settings.OUTPUT_DIR
-            )
         else:
             pbar.set_description(f"Skipping sanity checks {sess.sid}:")
+
+        data_collection.create_session_overview(
+            sess.session_identifier, path=settings.OUTPUT_DIR
+        )
 
     data_collection.create_dataset_overview(path=settings.OUTPUT_DIR)
     data_collection.parse_participant_data(settings.OUTPUT_DIR / "participant_data.csv")

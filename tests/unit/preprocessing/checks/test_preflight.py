@@ -120,6 +120,7 @@ def preflight_env(tmp_path: Path):
     (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text(
         "experiment data", encoding="utf-8"
     )
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("logfile data", encoding="utf-8")
     (logfiles / "GENERAL_LOGFILE_001.txt").write_text("general data", encoding="utf-8")
 
     _write_csv(
@@ -195,6 +196,15 @@ def preflight_env(tmp_path: Path):
             ),
             1,
         ),
+        (
+            "experiment_log_duplicate",
+            lambda env: (
+                env[0].sessions[env[1]].session_folder_path
+                / "logfiles"
+                / "EXPERIMENT_LOGFILE_002.txt"
+            ).write_text("duplicate experiment log", encoding="utf-8"),
+            1,
+        ),
         # ---- GENERAL_LOGFILE_*.txt -----------------------------------------
         (
             "general_log_missing",
@@ -202,6 +212,33 @@ def preflight_env(tmp_path: Path):
                 env[0].sessions[env[1]].session_folder_path / "logfiles",
                 "GENERAL_LOGFILE_*.txt",
             ),
+            1,
+        ),
+        (
+            "general_log_duplicate",
+            lambda env: (
+                env[0].sessions[env[1]].session_folder_path
+                / "logfiles"
+                / "GENERAL_LOGFILE_002.txt"
+            ).write_text("duplicate general log", encoding="utf-8"),
+            1,
+        ),
+        # ---- DATA_LOGFILE_*.txt ---------------------------------------------
+        (
+            "data_logfile_missing",
+            lambda env: _remove_glob(
+                env[0].sessions[env[1]].session_folder_path / "logfiles",
+                "DATA_LOGFILE_*.txt",
+            ),
+            1,
+        ),
+        (
+            "data_logfile_duplicate",
+            lambda env: (
+                env[0].sessions[env[1]].session_folder_path
+                / "logfiles"
+                / "DATA_LOGFILE_002.txt"
+            ).write_text("duplicate data log", encoding="utf-8"),
             1,
         ),
         # ---- completed_stimuli.csv -----------------------------------------
@@ -445,6 +482,7 @@ def test_preflight_multiple_sessions(tmp_path: Path):
             (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text(
                 "data", encoding="utf-8"
             )
+        (logfiles / "DATA_LOGFILE_001.txt").write_text("data", encoding="utf-8")
         (logfiles / "GENERAL_LOGFILE_001.txt").write_text("data", encoding="utf-8")
         _write_csv(
             logfiles / "completed_stimuli.csv",
@@ -494,6 +532,24 @@ def test_preflight_multiple_sessions(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
+def test_preflight_duplicate_experiment_log_message(preflight_env):
+    """Multiple EXPERIMENT_*.txt files produce a descriptive message."""
+    dc, sid = preflight_env
+    logfiles = dc.sessions[sid].session_folder_path / "logfiles"
+    (logfiles / "EXPERIMENT_LOGFILE_002.txt").write_text(
+        "duplicate experiment log", encoding="utf-8"
+    )
+
+    with pytest.raises(PreflightError) as exc_info:
+        run_preflight_check(dc)
+
+    msg = str(exc_info.value)
+    assert "Multiple EXPERIMENT_*.txt logfiles" in msg
+    assert sid in msg
+    assert "2 files" in msg
+    assert exc_info.value.num_errors == 1
+
+
 def test_preflight_stimulus_dir_empty_message(preflight_env):
     """Empty stimulus directory produces a descriptive message."""
     dc, _ = preflight_env
@@ -520,8 +576,9 @@ def test_preflight_stimulus_dir_empty_with_archive(tmp_path: Path):
     (sess_folder / "data.edf").write_text("data", encoding="utf-8")
     logfiles = sess_folder / "logfiles"
     logfiles.mkdir()
-    (logfiles / "EXPERIMENT_001.txt").write_text("data", encoding="utf-8")
-    (logfiles / "GENERAL_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "GENERAL_LOGFILE_001.txt").write_text("data", encoding="utf-8")
     _write_csv(
         logfiles / "completed_stimuli.csv",
         ["stimulus_id", "stimulus_name", "trial_id", "completed"],
@@ -878,6 +935,7 @@ def test_pt_does_not_inflate_error_count(tmp_path: Path, monkeypatch):
     logfiles = sess_folder / "logfiles"
     logfiles.mkdir()
     (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text("x")
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("x")
     (logfiles / "GENERAL_LOGFILE_001.txt").write_text("x")
     _write_csv(
         logfiles / "completed_stimuli.csv",

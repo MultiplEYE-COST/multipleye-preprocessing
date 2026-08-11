@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}MultiplEYE Data Review — {{ dcn.dcn_name }}{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h2>{{ dcn.dcn_name }}</h2>
+    <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px">
+      <span title="{{ lang_name(dcn.language) }}">{{ dcn.language }}</span> · {{ dcn.country }} · {{ dcn.city }} · {{ dcn.year }}
+      &middot; {{ dcn.n_sessions }} sessions ({{ dcn.n_pilots }} pilots)
+    </div>
+  </div>
+  <div>
+    <span class="badge badge-unreviewed">{{ dcn.n_reviewed_unreviewed }} unreviewed</span>
+    <span class="badge badge-pass">{{ dcn.n_reviewed_accepted }} accepted</span>
+    <span class="badge badge-fail">{{ dcn.n_reviewed_flagged }} flagged</span>
+    <span class="badge badge-warn">{{ dcn.n_reviewed_excluded }} excluded</span>
+    <div style="text-align:right;font-size:0.8rem;margin-top:6px;display:flex;gap:6px;justify-content:flex-end">
+      <a href="#" onclick="fetch('/api/dcn/{{ dcn.dcn_name }}/open/input').then(function(r){return r.json()});return false" class="btn btn-sm" style="text-decoration:none"><i class="fa-regular fa-folder-open" style="margin-right:4px"></i>Input</a>
+      <a href="#" onclick="fetch('/api/dcn/{{ dcn.dcn_name }}/open/output').then(function(r){return r.json()});return false" class="btn btn-sm" style="text-decoration:none"><i class="fa-regular fa-folder-open" style="margin-right:4px"></i>Output</a>
+      <a href="/dcn/{{ dcn.dcn_name }}/swipe" class="btn btn-sm" style="text-decoration:none;background:var(--accent);color:#fff;border-color:var(--accent)"><i class="fa-solid fa-arrows-left-right" style="margin-right:4px"></i>Swipe</a>
+    </div>
+  </div>
+</div>
+
+{% set pf = dcn.preflight_detail %}
+{% if dcn.is_processed %}
+  {# ---- Processed DCN: collapsed, subtle preflight card ---- #}
+  {% if pf %}
+  <details class="card" style="margin-bottom:0.75rem;padding:0;border-left:3px solid var(--border)">
+    <summary style="cursor:pointer;padding:0.6rem 1rem;display:flex;align-items:center;gap:8px;font-size:0.85rem;user-select:none">
+      <span style="font-weight:600;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-secondary)">Preflight</span>
+      <span class="pill pill-{{ dcn.preflight_status }}">{{ dcn.preflight_status }}</span>
+      <span style="color:var(--text-secondary);font-size:0.78rem">
+        {{ pf.n_errors }} err · {{ pf.n_sessions }} session{% if pf.n_sessions != 1 %}s{% endif %} · {{ pf.run_at[:10] if pf.run_at else "" }}
+      </span>
+      <span style="margin-left:auto;font-size:0.7rem;color:var(--text-secondary)">&#9654;</span>
+    </summary>
+    <div style="padding:0 1rem 0.75rem 1rem;font-size:0.85rem;max-height:60vh;overflow-y:auto;border-top:1px solid var(--border)">
+      {% if pf.error_groups %}
+      <h4 style="margin:0.5rem 0 0.25rem;color:var(--fail)">Errors</h4>
+      {% for label, items in pf.error_groups.items() %}
+      <div style="margin-bottom:0.5rem">
+        <strong>{{ label }}</strong> ({{ items|length }})
+        {% for item in items %}
+        <div style="padding:0.1rem 0 0.1rem 1rem;font-family:monospace;font-size:0.78rem;color:var(--text-secondary)">{{ item }}</div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+      {% endif %}
+      {% if pf.stderr %}
+      <h4 style="margin:0.5rem 0 0.25rem;color:var(--warn)">Warnings</h4>
+      <pre style="font-size:0.78rem;color:var(--text-secondary);white-space:pre-wrap;max-height:200px;overflow-y:auto;background:var(--bg);padding:0.5rem;border-radius:4px;margin:0 0 0.5rem">{{ pf.stderr }}</pre>
+      {% endif %}
+      <button class="btn btn-sm" onclick="rerunPreflight('{{ dcn.dcn_name }}')" style="margin-top:0.25rem">
+        <i class="fa-solid fa-rotate" style="margin-right:4px"></i>Re-run
+      </button>
+    </div>
+  </details>
+  {% endif %}
+
+{% else %}
+  {# ---- Unprocessed DCN: expanded, prominent preflight card ---- #}
+  {% if pf %}
+  <details class="card" style="margin-bottom:0.75rem;padding:0;border-left:3px solid var(--warn)" open>
+    <summary style="cursor:pointer;padding:0.75rem 1rem;display:flex;align-items:center;gap:8px;font-size:0.85rem;user-select:none">
+      <span style="font-weight:600">Preflight</span>
+      <span class="pill pill-{{ dcn.preflight_status }}">{{ dcn.preflight_status }}</span>
+      <span style="color:var(--text-secondary);font-size:0.8rem">
+        {{ pf.n_errors }} error{% if pf.n_errors != 1 %}s{% endif %}
+        {% if pf.n_sessions %} &middot; {{ pf.n_sessions }} session{% if pf.n_sessions != 1 %}s{% endif %}{% endif %}
+        &middot; {{ pf.run_at[:10] if pf.run_at else "" }}
+      </span>
+      <span style="margin-left:auto;font-size:0.7rem;color:var(--text-secondary)">&#9660;</span>
+    </summary>
+    <div style="padding:0 1rem 0.75rem 1rem;font-size:0.85rem;max-height:60vh;overflow-y:auto;border-top:1px solid var(--border)">
+      {% if pf.error_groups %}
+      <h4 style="margin:0.5rem 0 0.25rem;color:var(--fail)">Errors</h4>
+      {% for label, items in pf.error_groups.items() %}
+      <div style="margin-bottom:0.5rem">
+        <strong>{{ label }}</strong> ({{ items|length }})
+        {% for item in items %}
+        <div style="padding:0.1rem 0 0.1rem 1rem;font-family:monospace;font-size:0.78rem;color:var(--text-secondary)">{{ item }}</div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+      {% endif %}
+      {% if pf.stderr %}
+      <h4 style="margin:0.5rem 0 0.25rem;color:var(--warn)">Warnings</h4>
+      <pre style="font-size:0.78rem;color:var(--text-secondary);white-space:pre-wrap;max-height:200px;overflow-y:auto;background:var(--bg);padding:0.5rem;border-radius:4px;margin:0 0 0.5rem">{{ pf.stderr }}</pre>
+      {% endif %}
+      <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.5rem">Run preprocessing to review sessions and create output data.</p>
+      <button class="btn btn-sm" onclick="rerunPreflight('{{ dcn.dcn_name }}')" style="margin-top:0.25rem">
+        <i class="fa-solid fa-rotate" style="margin-right:4px"></i>Re-run
+      </button>
+    </div>
+  </details>
+  {% else %}
+  <div class="card" style="margin-bottom:0.75rem;padding:0.75rem 1rem;font-size:0.85rem;display:flex;align-items:center;gap:8px;border-left:3px solid var(--warn)">
+    <span style="font-weight:600">Preflight</span>
+    <button class="btn btn-sm" onclick="rerunPreflight('{{ dcn.dcn_name }}')" style="margin-left:auto">Run preflight</button>
+  </div>
+  {% endif %}
+{% endif %}
+
+{% set total = dcn.n_sessions %}
+{% if total > 0 %}
+{% set pct_at = (dcn.n_reviewed_accepted / total * 100) | round(1) %}
+{% set pct_fg = (dcn.n_reviewed_flagged / total * 100) | round(1) %}
+{% set pct_ex = (dcn.n_reviewed_excluded / total * 100) | round(1) %}
+{% set pct_ur = (dcn.n_reviewed_unreviewed / total * 100) | round(1) %}
+<div style="height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin-top:8px;display:flex">
+  {% if pct_ur > 0 %}<div style="height:100%;width:{{ pct_ur }}%;background:var(--border);opacity:0.3"></div>{% endif %}
+  {% if pct_at > 0 %}<div style="height:100%;width:{{ pct_at }}%;background:var(--pass);opacity:0.6"></div>{% endif %}
+  {% if pct_fg > 0 %}<div style="height:100%;width:{{ pct_fg }}%;background:var(--fail);opacity:0.6"></div>{% endif %}
+  {% if pct_ex > 0 %}<div style="height:100%;width:{{ pct_ex }}%;background:var(--warn);opacity:0.6"></div>{% endif %}
+</div>
+{% endif %}
+
+<div style="display:flex;gap:2rem;border-bottom:2px solid var(--border);margin-bottom:1rem">
+  <a href="#" class="tab-link active" data-tab="sessions" style="padding:0.5rem 0;border-bottom:2px solid var(--accent);margin-bottom:-2px;color:var(--accent)">Sessions</a>
+      <a href="#" class="tab-link" data-tab="flags" style="padding:0.5rem 0;color:var(--text-secondary)">By Check</a>
+  <a href="#" class="tab-link" data-tab="stats" style="padding:0.5rem 0;color:var(--text-secondary)">Stats</a>
+  <a href="#" class="tab-link" data-tab="psychometric" style="padding:0.5rem 0;color:var(--text-secondary)">Psychometric</a>
+</div>
+
+<div id="tab-sessions" class="tab-content">
+  <input id="session-filter" class="search" type="text" placeholder="Filter by SID, PID...">
+  <table>
+    <thead><tr>
+      <th data-sort="sid">SID</th>
+      <th data-sort="pid">PID</th>
+      <th>Type</th>
+      <th>Trials</th>
+      <th data-sort="flags">Checks</th>
+      <th data-sort="review">Review</th>
+      <th>Comment</th>
+      <th data-sort="reviewer">Reviewer</th>
+    </tr></thead>
+    <tbody>
+    {% for s in sessions %}
+    <tr class="session-row" data-href="/dcn/{{ dcn.dcn_name }}/session/{{ s.sid }}" style="cursor:pointer">
+      <td class="sid" data-sid="{{ s.sid }}">{{ s.sid }}</td>
+      <td data-pid="{{ s.pid }}">{{ "%03d" % s.pid }}</td>
+      <td>{% if s.is_pilot %}<span class="badge badge-warn">pilot{% else %}<span class="badge badge-pass">exp{% endif %}</span></td>
+      <td>{% if s.num_completed_trials is not none %}{{ s.num_completed_trials }}/12{% else %}—{% endif %}</td>
+      <td data-flags="{{ s.n_flags }}">
+        {% if s.n_fail_flags %}<span class="badge badge-fail">{{ s.n_fail_flags }}{% endif %}
+        {% if s.n_warn_flags %}<span class="badge badge-warn">{{ s.n_warn_flags }}{% endif %}
+        {% if s.n_flags == 0 %}<span class="badge badge-pass">0{% endif %}
+      </td>
+      <td data-review="{{ s.review_status }}">{% set bc = {"unreviewed": "badge-unreviewed", "accepted": "badge-pass", "flagged": "badge-fail", "excluded": "badge-warn"} %}<span class="badge {{ bc[s.review_status] }}">{{ s.review_status }}</span>{% if s.needs_reprocessing %}<span style="margin-left:4px;font-size:0.7rem;color:var(--warn)" title="Needs reprocessing">↻</span>{% endif %}</td>
+      <td class="comment">{{ s.comment_preview }}</td>
+      <td data-reviewer="{{ s.reviewer }}">{{ s.reviewer }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="tab-flags" class="tab-content" style="display:none">
+  <p style="color:var(--text-secondary);margin-bottom:1rem">Sessions grouped by triggered check.</p>
+  <div id="flag-content"><p style="color:var(--text-secondary);font-size:0.85rem">Coming soon.</p></div>
+</div>
+
+<div id="tab-stats" class="tab-content" style="display:none">
+  <p style="color:var(--text-secondary);margin-bottom:1rem">Key metric distributions across sessions.</p>
+  <div id="stats-content"><p style="color:var(--text-secondary);font-size:0.85rem">Coming soon.</p></div>
+</div>
+
+<div id="tab-psychometric" class="tab-content" style="display:none">
+  <p style="color:var(--text-secondary);margin-bottom:1rem">Psychometric test scores per session.</p>
+  <div id="psychometric-content"><p style="color:var(--text-secondary);font-size:0.85rem">Coming soon.</p></div>
+</div>
+
+<script>
+document.querySelectorAll('.tab-link').forEach(function(link) {
+  link.addEventListener('click', function(e) {
+    e.preventDefault();
+    var tab = this.dataset.tab;
+    document.querySelectorAll('.tab-link').forEach(function(t) {
+      t.style.borderBottom = 'none'; t.style.color = 'var(--text-secondary)';
+    });
+    this.style.borderBottom = '2px solid var(--accent)'; this.style.color = 'var(--accent)';
+    document.querySelectorAll('.tab-content').forEach(function(t) { t.style.display = 'none'; });
+    document.getElementById('tab-' + tab).style.display = '';
+  });
+});
+
+function rerunPreflight(dcnName) {
+  var btn = event.target;
+  if (btn.tagName !== "BUTTON") btn = btn.closest("button");
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right:4px"></i>Running\u2026';
+  fetch('/api/dcn/' + encodeURIComponent(dcnName) + '/preflight/rerun', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function() { window.location.reload(); })
+    .catch(function() {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-rotate" style="margin-right:4px"></i>Failed \u2014 try again';
+    });
+}
+</script>
+{% endblock %}
