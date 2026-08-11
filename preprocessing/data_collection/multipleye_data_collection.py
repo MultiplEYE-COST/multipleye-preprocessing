@@ -582,6 +582,16 @@ class MultipleyeDataCollection:
                     self.sessions[session_name].calibrations,
                     self.sessions[session_name].validations,
                     report,
+                    total_data_loss_ratio=getattr(
+                        self.sessions[session_name],
+                        "_measure_total_data_loss_ratio",
+                        None,
+                    ),
+                    blink_loss_ratio=getattr(
+                        self.sessions[session_name],
+                        "_measure_blink_loss_ratio",
+                        None,
+                    ),
                 )
 
             _report_to_file("## Logfile", report_file_path)

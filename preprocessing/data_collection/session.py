@@ -112,7 +112,6 @@ class Session:
             "num_calibrations": self.num_calibrations,
             "num_validations": self.num_validations,
             "avg_validation_error": self.avg_validation_error,
-            "data_loss_ratio": self.pm_gaze_metadata["data_loss_ratio"],
             "total_data_loss_ratio": getattr(
                 self,
                 "_measure_total_data_loss_ratio",

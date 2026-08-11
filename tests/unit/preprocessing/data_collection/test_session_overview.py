@@ -59,6 +59,38 @@ def test_create_overview_includes_new_fields() -> None:
     assert overview["num_good_validations"] == 1
     assert overview["num_moderate_validations"] == 1
     assert overview["num_bad_validations"] == 1
+    assert "total_data_loss_ratio" in overview
+    assert overview["total_data_loss_ratio"] is None
+    assert "blink_loss_ratio" in overview
+    assert overview["blink_loss_ratio"] is None
+
+
+def test_create_overview_includes_measure_based_data_loss() -> None:
+    sess = _make_session()
+    sess.calibrations = pl.DataFrame({"time": [50.0]})
+    sess.validations = pl.DataFrame(
+        {
+            "time": [100.0],
+            "accuracy_avg": [0.2],
+            "accuracy_max": [0.3],
+            "eye": ["right"],
+        }
+    )
+    sess.pm_gaze_metadata = {
+        "tracked_eye": "R",
+        "data_loss_ratio": 0.02,
+        "mount_configuration": {"mount_type": "Desktop"},
+        "pupil_data_type": "AREA",
+    }
+    sess.lab_config = _mock_lab_config()
+    sess._measure_total_data_loss_ratio = 0.015
+    sess._measure_blink_loss_ratio = 0.008
+
+    overview = sess.create_overview()
+
+    assert overview["total_data_loss_ratio"] == 0.015
+    assert overview["blink_loss_ratio"] == 0.008
+    assert "data_loss_ratio" not in overview
 
 
 def test_tracked_eye_inconsistent_when_eye_changes() -> None:
