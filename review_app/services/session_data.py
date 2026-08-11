@@ -62,8 +62,13 @@ CHECK_REGISTRY: list[dict] = [
     },
     # Data quality
     {
-        "field": "data_loss_ratio",
-        "label": "Data loss ratio",
+        "field": "total_data_loss_ratio",
+        "label": "Total data loss ratio",
+        "category": "Data Quality",
+    },
+    {
+        "field": "blink_loss_ratio",
+        "label": "Blink loss ratio",
         "category": "Data Quality",
     },
     # Recording
