@@ -92,7 +92,7 @@ def run_preprocessing(config_path: str | None = None):
             num_files = len(list(raw_data_folder.glob("*.csv")))
         except FileNotFoundError:
             num_files = 0
-        
+
         if num_expected_files == num_files and not settings.RECALCULATE:
             # Loading previously extracted raw data
             pbar.set_description(f"Loading samples {sess.sid}:")
@@ -149,7 +149,7 @@ def run_preprocessing(config_path: str | None = None):
                     num_files = 0
 
                 if num_expected_files == num_files and not settings.RECALCULATE:
-                    #Loading events if all fixation files exist and the recalculate flag is not active
+                    # Loading events if all fixation files exist and the recalculate flag is not active
                     pbar.set_description(f"Loading fixations {sess.sid}:")
                     gaze = preprocessing.load_trial_level_events_data(
                         gaze,
@@ -158,9 +158,8 @@ def run_preprocessing(config_path: str | None = None):
                         file_pattern=None,
                     )
 
-
                 else:
-                    #If files were not complete or recalculation is active we run fixation detection
+                    # If files were not complete or recalculation is active we run fixation detection
                     pbar.set_description(f"Detecting fixations {sess.sid}:")
 
                     if settings.RUN_FIXATION_DETECTION:
@@ -187,7 +186,7 @@ def run_preprocessing(config_path: str | None = None):
                     num_files = 0
 
                 if num_expected_files == num_files and not settings.RECALCULATE:
-                    #Loading events if all saccade files exist and the recalculate flag is not active
+                    # Loading events if all saccade files exist and the recalculate flag is not active
                     pbar.set_description(f"Loading saccades {sess.sid}:")
 
                     gaze = preprocessing.load_trial_level_events_data(
@@ -197,9 +196,8 @@ def run_preprocessing(config_path: str | None = None):
                         file_pattern=None,
                     )
 
-
                 else:
-                    #If files were not complete or recalculation is active we run saccade detection
+                    # If files were not complete or recalculation is active we run saccade detection
                     pbar.set_description(f"Detecting saccades {sess.sid}:")
 
                     if settings.RUN_SACCADE_DETECTION:

@@ -280,6 +280,38 @@ def load_trial_level_events_data(
     return gaze
 
 
+def load_scanpaths(
+    gaze: pm.Gaze,
+    sid: Sid,
+    file_pattern: str | None = None,
+) -> pl.DataFrame:
+    # TODO: add docstring
+    # TODO: integrate scanpath data in gaze and return gaze object
+    if file_pattern is None:
+        file_pattern = settings.SCANPATH_FILENAME_REGEX
+
+    all_scanpaths = pl.DataFrame()
+    data_folder = sid.scanpaths_dir
+
+    for file in data_folder.glob(settings.SCANPATH_FILE_GLOB):
+        trial_df = pl.read_csv(file)
+
+        match = re.match(file_pattern, file.name)
+        # go over groups in the name regex and add them as columns
+        if match is None:
+            logging.info(f"Skipping file {file} for scanpath loading")
+        else:
+            for group_name in match.groupdict():
+                if group_name not in trial_df.columns:
+                    trial_df = trial_df.with_columns(
+                        pl.lit(match.group(group_name)).alias(group_name)
+                    )
+
+        all_scanpaths = all_scanpaths.vstack(trial_df)
+
+    return all_scanpaths
+
+
 def load_reading_measures(
     sid: Sid,
     file_pattern: str = r".+?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv",
