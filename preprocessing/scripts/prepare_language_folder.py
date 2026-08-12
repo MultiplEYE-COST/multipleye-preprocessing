@@ -1,21 +1,22 @@
 import argparse
+import hashlib
+import os
 import re
 import shutil
-import os
 import tarfile
 from pathlib import Path
 
 import pandas as pd
 
 from ..models.dcn import Dcn
+from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
 from ..utils.data_path_utils import check_data_collection_exists
 from ..utils.file_utils import _copytree, _to_win_long_path
-from ..utils.logging import get_logger
-from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
 from ..utils.fix_multipleye_aoi_files import (
     remap_space_to_following_word,
     repair_word_labels,
 )
+from ..utils.logging import get_logger
 
 logger = get_logger()
 
@@ -207,14 +208,24 @@ def prepare_language_folder(data_collection_name: str | None = None):
         / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
     )
 
-    # Always copy stimulus assets (config, xlsx, images) before AOI checks
-    # so files stay in sync even when AOIs are already fixed.
-    _copy_stimulus_assets(
-        stimulus_folder_path,
-        preprocessed_stimulus_path,
-        eye_tracking_sessions_path,
-        dcn,
-    )
+    # Check if stimulus assets have changed since last copy
+    checksum_path = preprocessed_stimulus_path / ".copy_checksum"
+    source_checksum = _compute_stimulus_checksum(stimulus_folder_path)
+    stored = checksum_path.read_text().strip() if checksum_path.exists() else None
+
+    if source_checksum == stored:
+        logger.info("Stimulus assets unchanged. Skipping copy.")
+    else:
+        if stored is not None:
+            logger.info("Stimulus assets changed. Recopying.")
+            shutil.rmtree(str(preprocessed_stimulus_path))
+        _copy_stimulus_assets(
+            stimulus_folder_path,
+            preprocessed_stimulus_path,
+            eye_tracking_sessions_path,
+            dcn,
+        )
+        checksum_path.write_text(source_checksum)
 
     if (  # check if it already contains 24 files and the fixed marker
         destination_aoi_path.exists()
@@ -388,6 +399,14 @@ def extract_stimulus_version_number_from_asc(asc_file_path: Path) -> int:
                 return int(match.group("version_num"))
 
         return -1
+
+
+def _compute_stimulus_checksum(source_dir: Path) -> str:
+    entries = []
+    for f in sorted(source_dir.rglob("*")):
+        if f.is_file():
+            entries.append(f"{f.relative_to(source_dir)}:{f.stat().st_size}")
+    return hashlib.sha256("\n".join(entries).encode()).hexdigest()
 
 
 def parse_args():
