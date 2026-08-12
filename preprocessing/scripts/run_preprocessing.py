@@ -108,7 +108,7 @@ def run_preprocessing(config_path: str | None = None):
 
             if gaze is not None and gaze.messages is None and asc.exists():
                 tmp = pm.gaze.from_asc(
-                    asc, patterns=[], messages=settings.ANSWER_MSG_PATTERNS
+                    asc, patterns=[], messages=settings.EXPERIMENT_MSG_PATTERNS
                 )
                 gaze.messages = tmp.messages
 
@@ -119,7 +119,7 @@ def run_preprocessing(config_path: str | None = None):
                 lab_config=sess.lab_config,
                 sid=sess.sid,
                 trial_cols=settings.TRIAL_COLS,
-                messages=settings.ANSWER_MSG_PATTERNS,
+                messages=settings.EXPERIMENT_MSG_PATTERNS,
             )
 
             # filter gaze to only contain data of completed stimuli
