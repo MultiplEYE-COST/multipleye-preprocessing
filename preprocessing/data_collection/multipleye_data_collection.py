@@ -1461,8 +1461,7 @@ class MultipleyeDataCollection:
 
         trial_cols = ["trial", "stimulus", "page"]
         if data_loss_df is not None and blink_loss_df is not None:
-            result = data_loss_df.join(blink_loss_df, on=trial_cols, how="full")
-            return result.drop([f"{c}_right" for c in trial_cols])
+            return data_loss_df.join(blink_loss_df, on=trial_cols, how="left")
         if data_loss_df is not None:
             return data_loss_df
         return blink_loss_df
