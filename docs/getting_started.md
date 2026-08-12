@@ -23,6 +23,7 @@ repository to your local machine.
 ```{tip}
 If you have never worked with git nor GitHub,
 check out the [git documentatiion](https://docs.github.com/en/get-started/using-git/about-git) for a quick introduction.
+However, the most important command you need to know is `git clone` which downloads the repository to your local machine. And `git pull` which updates your local copy of the repository with the latest changes.
 ```
 
 ```bash
