@@ -327,7 +327,7 @@ def test_settings_regex_reactivity(settings_obj):
 
     # Verify it works
     match = settings_obj.START_RECORDING_REGEX.match(
-        "MSG 123 start_recording_trial_1_page_1"
+        "start_recording_trial_1_stimulus_Test_1_page_1"
     )
     assert match is not None
     assert match.group("my_trial") == "trial_1"

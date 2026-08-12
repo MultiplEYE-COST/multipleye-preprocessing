@@ -142,9 +142,8 @@ def test_load_gaze_data_with_patterns(synthetic_asc, lab_config):
 
     # Assertions
     assert gaze.messages is not None
-    # 'start_recording_trial_1_stimulus_Lit_MagicMountain_6_page_1' should NOT be here
-    # because it doesn't match any pattern in ANSWER_MSG_PATTERNS
-    # (page_1 is not _question_)
-    assert not gaze.messages["content"].str.contains("page_1").any()
-    # But question start should be here
+    # ANSWER_MSG_PATTERNS now includes start_recording_.* so page_1 messages
+    # are expected along with question messages
+    assert gaze.messages["content"].str.contains("page_1").any()
+    # Question start should be here
     assert gaze.messages["content"].str.contains("question_6111").any()

@@ -233,7 +233,7 @@ class Settings:
             return self.__dict__["RAW_DATA_FILENAME_REGEX"]
         trial_col = self.TRIAL_COL
         stimulus_col = self.STIMULUS_COL
-        return rf"[^_]+_[^_]+_[^_]+_[^_]+_[^_]+_(?P<{trial_col}>(PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_raw_data"
+        return rf".*?(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(?:\.0)?)_raw_data"
 
     @RAW_DATA_FILENAME_REGEX.setter
     def RAW_DATA_FILENAME_REGEX(self, value: str) -> None:
@@ -246,7 +246,7 @@ class Settings:
             return self.__dict__["EVENT_DATA_FILENAME_REGEX"]
         trial_col = self.TRIAL_COL
         stimulus_col = self.STIMULUS_COL
-        return rf"[^_]+_[^_]+_[^_]+_[^_]+_[^_]+_(?P<{trial_col}>(PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_{{event_type}}.csv"
+        return rf".*?(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(?:\.0)?)_{{event_type}}.csv"
 
     @EVENT_DATA_FILENAME_REGEX.setter
     def EVENT_DATA_FILENAME_REGEX(self, value: str) -> None:
@@ -257,7 +257,7 @@ class Settings:
         """Regex to extract trial and stimulus info from reading measures filenames."""
         if "READING_MEASURES_FILENAME_REGEX" in self.__dict__:
             return self.__dict__["READING_MEASURES_FILENAME_REGEX"]
-        return r"[^_]+_[^_]+_[^_]+_[^_]+_[^_]+_(?P<trial>(PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv"
+        return r".*?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv"
 
     @READING_MEASURES_FILENAME_REGEX.setter
     def READING_MEASURES_FILENAME_REGEX(self, value: str) -> None:
