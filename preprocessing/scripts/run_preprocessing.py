@@ -88,7 +88,8 @@ def run_preprocessing(config_path: str | None = None):
 
         # create or load raw data
         raw_data_folder = sess.sid.raw_data_dir
-        if raw_data_folder.exists() and not settings.OVERWRITE:
+        metadata_exists = (sess.sid.metadata_dir / "gaze_metadata.json").exists()
+        if raw_data_folder.exists() and not settings.OVERWRITE and metadata_exists:
             # check if the folder contains the expected number of files, if not, we will overwrite
             num_expected_files = len(sess.completed_stimuli_ids)
             num_files = len(list(raw_data_folder.glob("*.csv")))
