@@ -589,7 +589,7 @@ class Settings:
                 "EyeLink Portable Duo 2000Hz Remote",
                 "Eyelink Duo",
                 "EyeLink Duo",
-                "Eyelink Portable Duo"
+                "Eyelink Portable Duo",
             ],
         }
 
