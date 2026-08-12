@@ -53,7 +53,9 @@ old-format psychometric test data that needs restructuring from task-first to se
 
 The function is `prepare_language_folder()` in `scripts.prepare_language_folder`. It also
 copies stimulus images, question images, and configuration files into the output folder so
-the pipeline has everything it needs in one place.
+the pipeline has everything it needs in one place. If the stimulus folder has changed since
+the last run (e.g. after a team upload), the pipeline detects this automatically and
+re-copies everything on the next run.
 
 (preprocessing_step_1)=
 
