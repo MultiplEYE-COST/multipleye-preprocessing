@@ -425,9 +425,9 @@ class Settings:
         #: Subfolder name for psychometric tests output (overview + detailed CSVs).
         self.PSYCHOMETRIC_TESTS_FOLDER = Path("psychometric_tests/")
 
-        #: Regex patterns for relevant ASC messages for comprehension questions,
-        #: reading times, breaks, and sanity checks.
-        self.ANSWER_MSG_PATTERNS = [
+        #: Regex patterns for ASC messages used during the experiment
+        #: (recording start/stop, breaks, screens, comprehension answers).
+        self.EXPERIMENT_MSG_PATTERNS = [
             r"start_recording_.*",
             r"stop_recording_.*",
             r"(optional|obligatory)_break.*",
