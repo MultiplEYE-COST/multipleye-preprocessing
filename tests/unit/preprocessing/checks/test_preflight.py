@@ -12,6 +12,7 @@ from preprocessing.checks.preflight import (
     PreflightError,
     run_preflight_check,
     _check_psychometric_tests,
+    _check_session_completeness,
 )
 from preprocessing.config import settings
 
@@ -21,6 +22,7 @@ class FakeSession:
     session_identifier: str
     session_file_path: Path
     session_folder_path: Path
+    is_pilot: bool = False
 
 
 @dataclass
@@ -638,6 +640,119 @@ def test_preflight_warnings_only(preflight_env):
     shutil.rmtree(dc.stimulus_dir / "aoi_question_images_en_uk_1", ignore_errors=True)
 
     run_preflight_check(dc)  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# Session completeness check
+# ---------------------------------------------------------------------------
+
+
+def _build_completeness_env(sids):
+    """Build a FakeDataCollection from a list of (sid, is_pilot) tuples."""
+    sessions: dict[str, FakeSession] = {}
+    for entry in sids:
+        sid, is_pilot = entry if isinstance(entry, tuple) else (entry, False)
+        sessions[sid] = FakeSession(
+            session_identifier=sid,
+            session_file_path=Path("/fake") / sid / "data.edf",
+            session_folder_path=Path("/fake") / sid,
+            is_pilot=is_pilot,
+        )
+    return FakeDataCollection(
+        stimulus_dir=Path("/fake"),
+        language="EN",
+        country="UK",
+        lab_number=1,
+        sessions=sessions,
+    )
+
+
+@pytest.mark.parametrize(
+    "sids, expected_summary, expected_missing",
+    [
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("002_EN_UK_1_ET1", False),
+                ("002_EN_UK_1_ET2", False),
+            ],
+            "2/2 participants have all 2 expected ET sessions",
+            [],
+        ),
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("002_EN_UK_1_ET1", False),
+            ],
+            "1/2 participants have all 2 expected ET sessions",
+            ["002_EN_UK_1", "missing: ET2"],
+        ),
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("002_EN_UK_1_ET2", False),
+            ],
+            "1/2 participants have all 2 expected ET sessions",
+            ["002_EN_UK_1", "missing: ET1"],
+        ),
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("001_EN_UK_1_ET3", False),
+                ("002_EN_UK_1_ET1", False),
+                ("002_EN_UK_1_ET2", False),
+            ],
+            "1/2 participants have all 3 expected ET sessions",
+            ["002_EN_UK_1", "missing: ET3"],
+        ),
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("002_EN_UK_1_ET1", True),
+            ],
+            "1/1 participants have all 2 expected ET sessions",
+            [],
+        ),
+    ],
+    ids=[
+        "all_present",
+        "missing_et2",
+        "missing_et1",
+        "three_sessions",
+        "pilots_excluded",
+    ],
+)
+def test_session_completeness_warnings(sids, expected_summary, expected_missing):
+    dc = _build_completeness_env(sids)
+    warnings: dict[str, list[str]] = {}
+    _check_session_completeness(dc, warnings)
+    assert "Session completeness" in warnings
+    msgs = warnings["Session completeness"]
+    assert expected_summary in msgs[0]
+    for substr in expected_missing:
+        assert any(substr in m for m in msgs), (
+            f"Expected '{substr}' in messages: {msgs}"
+        )
+
+
+@pytest.mark.parametrize(
+    "sids",
+    [
+        [],
+        ["000_EN_UK_1_ET1", "001_EN_UK_1_ET1", "002_EN_UK_1_ET1"],
+    ],
+    ids=["empty", "single_session"],
+)
+def test_session_completeness_no_warning(sids):
+    dc = _build_completeness_env(sids)
+    warnings: dict[str, list[str]] = {}
+    _check_session_completeness(dc, warnings)
+    assert "Session completeness" not in warnings
 
 
 # ---------------------------------------------------------------------------
