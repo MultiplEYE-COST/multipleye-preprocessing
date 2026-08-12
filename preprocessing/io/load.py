@@ -6,9 +6,9 @@ import re
 from pathlib import Path
 
 import polars as pl
-import yaml
-
 import pymovements as pm
+import yaml
+from pymovements import transforms
 from pymovements.events import Events
 
 from ..config import settings
@@ -89,7 +89,20 @@ def load_gaze_data(
     trial_cols = gaze.trial_columns or ["trial", "stimulus", "page"]
 
     if gaze.events is not None and not gaze.events.frame.is_empty():
-        blink_expr = gaze.measure_events_ratio("blink_eyelink", sampling_rate=sr)
+        # Use transforms.events2timeratio directly with trial_columns=None
+        # for session-level blink loss. gaze.measure_events_ratio() always
+        # passes self.trial_columns, which produces a per-row expression
+        # that crashes .item() on multi-sample DataFrames.
+        # TODO: switch back to gaze.measure_events_ratio(trial_columns=None)
+        # once https://github.com/pymovements/pymovements/issues/1673 ships.
+        blink_expr = transforms.events2timeratio(
+            events=gaze.events.frame,
+            samples=gaze.samples,
+            name="blink_eyelink",
+            time_column="time",
+            trial_columns=None,
+            sampling_rate=sr,
+        )
         gaze._measure_blink_loss_ratio = gaze.samples.select(blink_expr).item()
 
     # Clear parsed events to avoid save_raw_data crash.
