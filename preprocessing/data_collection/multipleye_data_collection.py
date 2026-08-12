@@ -3,7 +3,6 @@ import logging
 import os
 import re
 import shutil
-
 import subprocess
 import warnings
 from functools import partial
@@ -17,31 +16,34 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
-from ..models.sid import Sid
-from ..models.dcn import Dcn
-from ..config import settings
-from ..utils.data_path_utils import _ci_resolve
-from ..utils.conversion import convert_to_time_str
-from ..utils.data_collection_utils import _report_to_file
-from ..utils.logging import get_logger
-from ..checks.et_quality_checks import (
-    check_comprehension_question_answers,
-    check_metadata,
-    report_to_file_metadata as report_meta,
-    check_validation_requirements,
-)
-from ..checks.formal_experiment_checks import (
-    check_all_screens_logfile,
-    sanity_check_gaze_frame,
-    check_messages,
-)
-from ..data_collection.session import Session
-from ..data_collection.stimulus import LabConfig, Stimulus
-from ..plotting.plot import plot_gaze, plot_main_sequence
-from ..utils.fix_questionnaire_data import remap_wrong_pq_values
 from preprocessing.scripts.prepare_language_folder import (
     extract_stimulus_version_number_from_asc,
 )
+
+from ..checks.et_quality_checks import (
+    check_comprehension_question_answers,
+    check_metadata,
+    check_validation_requirements,
+)
+from ..checks.et_quality_checks import (
+    report_to_file_metadata as report_meta,
+)
+from ..checks.formal_experiment_checks import (
+    check_all_screens_logfile,
+    check_messages,
+    sanity_check_gaze_frame,
+)
+from ..config import settings
+from ..data_collection.session import Session
+from ..data_collection.stimulus import LabConfig, Stimulus
+from ..models.dcn import Dcn
+from ..models.sid import Sid
+from ..plotting.plot import plot_gaze, plot_main_sequence
+from ..utils.conversion import convert_to_time_str
+from ..utils.data_collection_utils import _report_to_file
+from ..utils.data_path_utils import _ci_resolve
+from ..utils.fix_questionnaire_data import remap_wrong_pq_values
+from ..utils.logging import get_logger
 
 
 def eyelink(method):
@@ -612,6 +614,39 @@ class MultipleyeDataCollection:
                 separator="\t",
             )
 
+            _report_to_file("## Per-trial Data Loss", report_file_path)
+            per_trial_loss = self._compute_per_trial_loss_table(session_name)
+            if per_trial_loss is not None and not per_trial_loss.is_empty():
+                num_trials = per_trial_loss.height
+                mean_data_loss = (
+                    per_trial_loss["data_loss_ratio"].mean()
+                    if "data_loss_ratio" in per_trial_loss
+                    else None
+                )
+                mean_blink_loss = (
+                    per_trial_loss["blink_loss_ratio"].mean()
+                    if "blink_loss_ratio" in per_trial_loss
+                    else None
+                )
+                if mean_data_loss is not None:
+                    _report_to_file(
+                        f"- Mean per-trial data loss: {mean_data_loss:.3f} "
+                        f"(across {num_trials} trials)",
+                        report_file_path,
+                    )
+                if mean_blink_loss is not None:
+                    _report_to_file(
+                        f"- Mean per-trial blink loss: {mean_blink_loss:.3f}",
+                        report_file_path,
+                    )
+
+                per_trial_loss.write_csv(
+                    session_results / f"per_trial_data_loss_{session_name}.tsv",
+                    separator="\t",
+                )
+            else:
+                _report_to_file("- No per-trial metrics available.", report_file_path)
+
             legend = "\n---\n\n**Legend:** ✅ Pass | ❌ Fail | ⚠️ Warning\n"
             _report_to_file(legend, report_file_path)
 
@@ -905,7 +940,6 @@ class MultipleyeDataCollection:
                     trial_ids[trial_ids.index(trial)] = f"trial_{int(trial)}"
                 except TypeError:
                     trial_ids = trial_ids
-                    pass
 
         stimulus_names = completed_stimuli["stimulus_name"].to_list()
         stimuli_trial_mapping = {
@@ -1097,7 +1131,7 @@ class MultipleyeDataCollection:
         in_break = False
 
         with open(asc_file, encoding="utf-8") as f:
-            for line in f.readlines():
+            for line in f:
                 if match := settings.MESSAGE_REGEX.match(line):
                     messages.append(match.groupdict())
                     msg = match.groupdict()["message"]
@@ -1413,6 +1447,24 @@ class MultipleyeDataCollection:
 
         # write to file
         return fixation_durations_page_avg
+
+    def _compute_per_trial_loss_table(self, session_name: str):
+        data_loss_df = getattr(
+            self.sessions[session_name], "_per_trial_data_loss", None
+        )
+        blink_loss_df = getattr(
+            self.sessions[session_name], "_per_trial_blink_loss", None
+        )
+
+        if data_loss_df is None and blink_loss_df is None:
+            return None
+
+        trial_cols = ["trial", "stimulus", "page"]
+        if data_loss_df is not None and blink_loss_df is not None:
+            return data_loss_df.join(blink_loss_df, on=trial_cols, how="full")
+        if data_loss_df is not None:
+            return data_loss_df
+        return blink_loss_df
 
     def _load_psychometric_tests(self, session_identifier: str):
         # Match the eye-tracking session to a psychometric test folder

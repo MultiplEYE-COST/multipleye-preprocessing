@@ -207,7 +207,7 @@ The relevant modules are in `answers/`: `msg_parser.py`, `experiment_log_parser.
 
 **Generate quality reports at the session and dataset level.** This stage produces text
 reports on calibration quality, validation scores, data loss, fixation statistics per page,
-and logfile consistency. It also creates plots (gaze-over-stimulus, main sequence) that
+per-trial data loss, and logfile consistency. It also creates plots (gaze-over-stimulus, main sequence) that
 help spot problematic sessions visually.
 
 Session overviews and a dataset overview YAML are written to the metadata folder. The

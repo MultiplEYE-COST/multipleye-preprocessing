@@ -335,6 +335,27 @@ ratio.** Practice trials have 2 questions; main trials have 6. Stimulus names ar
 
 ---
 
+## Per-trial Data Loss
+
+**Mean per-trial data loss and blink loss ratios, plus a TSV breakdown per trial.**
+The markdown section shows the mean across all trials. The full trial-level detail is
+written to `per_trial_data_loss_{session}.tsv` in the same directory.
+
+Columns in the TSV:
+
+- `trial`, `stimulus`, `page` -- trial identifiers
+- `data_loss_ratio` -- fraction of missing samples per trial
+- `blink_loss_ratio` -- fraction of trial time lost to blinks
+- `blink_duration_ms` -- total blink duration in that trial
+- `trial_duration_ms` -- trial recording duration
+
+*Acceptable:* Per-trial data loss below 10%.
+
+*Problematic:* Individual trials exceeding 20% suggest tracking failures for that
+particular stimulus.
+
+---
+
 ## Emoji Legend
 
 **Legend block appearing at the bottom of the report after a `---` horizontal rule.**

@@ -1,17 +1,17 @@
+import contextlib
 import os
 from argparse import ArgumentParser
 
-from tqdm import tqdm
 import polars as pl
 import pymovements as pm
+from tqdm import tqdm
 
-from ..utils.logging import get_logger
 import preprocessing
 from preprocessing import settings
-
-from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 from preprocessing.checks.quality_thresholds import write_quality_thresholds
-import contextlib
+from preprocessing.scripts.prepare_language_folder import prepare_language_folder
+
+from ..utils.logging import get_logger
 
 
 def run_preprocessing(config_path: str | None = None):
@@ -127,6 +127,11 @@ def run_preprocessing(config_path: str | None = None):
                 pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio")
             ).item()
 
+            # Compute per-trial data loss
+            gaze._per_trial_data_loss = gaze.samples.group_by(gaze.trial_columns).agg(
+                pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio")
+            )
+
             preprocessing.save_raw_data(sess.sid, gaze)
             preprocessing.save_session_metadata(sess.sid, gaze)
 
@@ -145,6 +150,8 @@ def run_preprocessing(config_path: str | None = None):
             "_measure_blink_loss_ratio",
             None,
         )
+        sess._per_trial_data_loss = getattr(gaze, "_per_trial_data_loss", None)
+        sess._per_trial_blink_loss = getattr(gaze, "_per_trial_blink_loss", None)
 
         # preprocess gaze data
         pbar.set_description(f"Preprocessing samples {sess.sid}:")

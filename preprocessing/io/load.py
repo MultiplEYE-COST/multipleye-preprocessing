@@ -105,6 +105,37 @@ def load_gaze_data(
         )
         gaze._measure_blink_loss_ratio = gaze.samples.select(blink_expr).item()
 
+        blink_events = gaze.events.frame.filter(pl.col("name").str.contains("blink"))
+        if not blink_events.is_empty():
+            per_trial_blink = blink_events.group_by(trial_cols).agg(
+                pl.col("duration").sum().alias("blink_duration_ms")
+            )
+            per_trial_sample_count = gaze.samples.group_by(trial_cols).agg(
+                pl.len().alias("sample_count")
+            )
+            gaze._per_trial_blink_loss = (
+                per_trial_blink.join(per_trial_sample_count, on=trial_cols, how="right")
+                .with_columns(
+                    (
+                        pl.col("blink_duration_ms").fill_null(0)
+                        / (pl.col("sample_count") * 1000.0 / sr)
+                    ).alias("blink_loss_ratio")
+                )
+                .with_columns(
+                    (pl.col("sample_count") * 1000.0 / sr).alias("trial_duration_ms")
+                )
+                .select(
+                    [
+                        *trial_cols,
+                        "blink_loss_ratio",
+                        "blink_duration_ms",
+                        "trial_duration_ms",
+                    ]
+                )
+            )
+        else:
+            gaze._per_trial_blink_loss = None
+
     # Clear parsed events to avoid save_raw_data crash.
     gaze.events = Events(
         data=pl.DataFrame(
