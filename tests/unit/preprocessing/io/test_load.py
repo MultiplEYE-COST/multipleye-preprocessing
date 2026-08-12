@@ -1,8 +1,9 @@
 import polars as pl
 import pytest
-from preprocessing.io.load import load_gaze_data
-from preprocessing.data_collection.stimulus import LabConfig
+
 from preprocessing.config import settings
+from preprocessing.data_collection.stimulus import LabConfig
+from preprocessing.io.load import load_gaze_data
 from preprocessing.models.sid import Sid
 
 
