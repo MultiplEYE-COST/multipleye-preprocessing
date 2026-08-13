@@ -45,23 +45,23 @@ class Session:
     lab_config: LabConfig = field(default="unknown", init=False)
 
     # stats
-    total_reading_time: float = field(default="unknown", init=False)
-    total_session_duration: float = field(default="unknown", init=False)
+    total_reading_time: float | str = field(default="unknown", init=False)
+    total_session_duration: float | str = field(default="unknown", init=False)
     obligatory_break_made: bool = field(default="unknown", init=False)
     num_optional_breaks_made: int = field(default="unknown", init=False)
-    total_break_time: float = field(default="unknown", init=False)
+    total_break_time: float | str = field(default="unknown", init=False)
 
     # calibrations & validations
     calibrations: pl.DataFrame = field(default="unknown", init=False)
     validations: pl.DataFrame = field(default="unknown", init=False)
-    avg_comprehension_score: float = field(default="unknown", init=False)
-    avg_comprehension_score_local: float = field(default="unknown", init=False)
-    avg_comprehension_score_global: float = field(default="unknown", init=False)
-    avg_comprehension_score_bridging: float = field(default="unknown", init=False)
-    avg_calibration_error: float = field(default="unknown", init=False)
+    avg_comprehension_score: float | str = field(default="unknown", init=False)
+    avg_comprehension_score_local: float | str = field(default="unknown", init=False)
+    avg_comprehension_score_global: float | str = field(default="unknown", init=False)
+    avg_comprehension_score_bridging: float | str = field(default="unknown", init=False)
+    avg_calibration_error: float | str = field(default="unknown", init=False)
     num_calibrations: int = field(default="unknown", init=False)
     num_validations: int = field(default="unknown", init=False)
-    avg_validation_error: float = field(default="unknown", init=False)
+    avg_validation_error: float | str = field(default="unknown", init=False)
 
     # eye tracking metadata
     tracked_eye: str = field(default="unknown", init=False)
@@ -84,11 +84,13 @@ class Session:
     psychometric_tests_session: str = field(default="unknown", init=False)
 
     # data formats
-    raw_data: bool = field(default=False, init=False)
-    fixations: bool = field(default=False, init=False)
-    saccades: bool = field(default=False, init=False)
-    reading_measures: bool = field(default=False, init=False)
-    answers: bool = field(default=False, init=False)
+    # True by default: our pipeline produces all formats. Other pipelines may
+    # set these to False when a format is not generated.
+    raw_data: bool = field(default=True, init=False)
+    fixations: bool = field(default=True, init=False)
+    saccades: bool = field(default=True, init=False)
+    reading_measures: bool = field(default=True, init=False)
+    answers: bool = field(default=True, init=False)
 
     trials = list[Trial]
 
@@ -247,7 +249,7 @@ class Session:
         if experiment.is_empty():
             return
 
-        correct = experiment["is_correct"].to_list()
+        correct = [c for c in experiment["is_correct"].to_list() if c is not None]
         if correct:
             self.avg_comprehension_score = round(
                 sum(1 for c in correct if c) / len(correct), 3
@@ -256,9 +258,13 @@ class Session:
         type_map = {1: "local", 2: "bridging", 3: "global"}
         if "condition_number" in experiment.columns:
             for condition, name in type_map.items():
-                subset = experiment.filter(pl.col("condition_number") == condition)[
-                    "is_correct"
-                ].to_list()
+                subset = [
+                    c
+                    for c in experiment.filter(pl.col("condition_number") == condition)[
+                        "is_correct"
+                    ].to_list()
+                    if c is not None
+                ]
                 if subset:
                     setattr(
                         self,
@@ -282,7 +288,7 @@ class Session:
         self.num_calibrations = len(self.calibrations)
         self.num_validations = len(self.validations)
 
-        self.tracked_eye = self.pm_gaze_metadata.get("tracked_eye", "unknown")
+        self.tracked_eye = self._get_metadata("tracked_eye", "unknown")
 
         # Mean calibration and validation error (accuracy_avg column), if present.
         if (
@@ -303,9 +309,13 @@ class Session:
             if vals:
                 self.avg_calibration_error = round(sum(vals) / len(vals), 3)
 
-        if not isinstance(self.validations, str) and not self.validations.is_empty():
-            scores = self.validations["accuracy_avg"].to_list()
-            eyes = self.validations["eye"].to_list()
+        if (
+            not isinstance(self.validations, str)
+            and not self.validations.is_empty()
+            and {"accuracy_avg", "eye"}.issubset(self.validations.columns)
+        ):
+            scores = self.validations["accuracy_avg"].drop_nulls().to_list()
+            eyes = self.validations["eye"].drop_nulls().to_list()
             self.num_good_validations = sum(
                 1 for s in scores if s < settings.SINGLE_VALIDATION_GOOD_MAX
             )
