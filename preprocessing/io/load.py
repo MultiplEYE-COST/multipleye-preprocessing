@@ -286,26 +286,26 @@ def load_scanpaths(
     file_pattern: str | None = None,
 ) -> pm.Gaze:
     """Load scanpaths for a session from CSV files and return a gaze object with expanded events frame.
-    
-        The function reads CSV files within a specified folder,
-        applies a file pattern to match and extract relevant groups,
-        and integrates the data into the provided `gaze` object's events frame.
-    
-        Parameters
-        ----------
-        gaze : pm.Gaze
-            An object containing gaze data and associated event information.
-        sid : Sid
-            The session identifier.
-        file_pattern : str, optional
-            A pattern for matching CSV file names to extract relevant groups.
-            If None, defaults to settings.EVENT_DATA_FILE_GLOB formatted with event_type.
-    
-        Returns
-        -------
-        pm.Gaze
-            The updated gaze object with the loaded and integrated scanpaths.
-        """
+
+    The function reads CSV files within a specified folder,
+    applies a file pattern to match and extract relevant groups,
+    and integrates the data into the provided `gaze` object's events frame.
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        An object containing gaze data and associated event information.
+    sid : Sid
+        The session identifier.
+    file_pattern : str, optional
+        A pattern for matching CSV file names to extract relevant groups.
+        If None, defaults to settings.EVENT_DATA_FILE_GLOB formatted with event_type.
+
+    Returns
+    -------
+    pm.Gaze
+        The updated gaze object with the loaded and integrated scanpaths.
+    """
 
     if file_pattern is None:
         file_pattern = settings.SCANPATH_FILENAME_REGEX
@@ -329,9 +329,13 @@ def load_scanpaths(
 
         all_scanpaths = all_scanpaths.vstack(trial_df)
 
-    #join loaded scanpaths into existing events frame
-    matched_events = gaze.events.frame.join(all_scanpaths,on=("onset", "trial", "stimulus", "page", "name"), how="left")
-    matched_events = matched_events.drop("duration_right", "location_x_right", "location_y_right")
+    # join loaded scanpaths into existing events frame
+    matched_events = gaze.events.frame.join(
+        all_scanpaths, on=("onset", "trial", "stimulus", "page", "name"), how="left"
+    )
+    matched_events = matched_events.drop(
+        "duration_right", "location_x_right", "location_y_right"
+    )
     gaze.events.frame = matched_events
 
     return gaze
