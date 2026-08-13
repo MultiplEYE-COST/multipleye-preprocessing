@@ -6,7 +6,10 @@ from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
 )
 from preprocessing.models.dcn import Dcn
-from preprocessing.scripts.prepare_language_folder import prepare_language_folder
+from preprocessing.scripts.prepare_language_folder import (
+    _compute_stimulus_checksum,
+    prepare_language_folder,
+)
 
 
 @pytest.fixture
@@ -268,3 +271,128 @@ def test_prepare_language_folder_no_pt_data(
 
     # Should not raise
     prepare_language_folder(data_collection_name)
+
+
+def test_checksum_deterministic(tmp_path):
+    source = tmp_path / "stimuli"
+    source.mkdir()
+    (source / "config").mkdir()
+    (source / "config" / "a.py").write_text("x=1")
+    (source / "data.csv").write_text("col\n1\n")
+
+    assert _compute_stimulus_checksum(source) == _compute_stimulus_checksum(source)
+
+
+def test_checksum_different_content_changes_hash(tmp_path):
+    source = tmp_path / "stimuli"
+    source.mkdir()
+    f = source / "data.csv"
+    f.write_text("col\n1\n")
+
+    h1 = _compute_stimulus_checksum(source)
+    f.write_text("col\n1\n2\n")
+    h2 = _compute_stimulus_checksum(source)
+
+    assert h1 != h2
+
+
+def test_checksum_added_file_changes_hash(tmp_path):
+    source = tmp_path / "stimuli"
+    source.mkdir()
+    (source / "a.csv").write_text("x")
+
+    h1 = _compute_stimulus_checksum(source)
+    (source / "b.csv").write_text("y")
+    h2 = _compute_stimulus_checksum(source)
+
+    assert h1 != h2
+
+
+def test_checksum_removed_file_changes_hash(tmp_path):
+    source = tmp_path / "stimuli"
+    source.mkdir()
+    (source / "a.csv").write_text("x")
+    (source / "b.csv").write_text("y")
+
+    h1 = _compute_stimulus_checksum(source)
+    (source / "b.csv").unlink()
+    h2 = _compute_stimulus_checksum(source)
+
+    assert h1 != h2
+
+
+@pytest.mark.parametrize(
+    "subdirs",
+    [
+        [],
+        ["subdir"],
+    ],
+)
+def test_checksum_no_files_returns_64_char_hex(tmp_path, subdirs):
+    source = tmp_path / "stimuli"
+    source.mkdir()
+    for sub in subdirs:
+        (source / sub).mkdir()
+
+    h = _compute_stimulus_checksum(source)
+
+    assert len(h) == 64
+    assert all(c in "0123456789abcdef" for c in h)
+
+
+def test_checksum_mtime_independent(tmp_path):
+    source = tmp_path / "stimuli"
+    source.mkdir()
+    f = source / "f.txt"
+    f.write_text("hello")
+
+    h1 = _compute_stimulus_checksum(source)
+    f.touch()
+    h2 = _compute_stimulus_checksum(source)
+
+    assert h1 == h2
+
+
+@pytest.fixture
+def first_run(mock_data_collection_factory):
+    def _run(data_collection_name):
+        tmp_path, data_collection_name, aoi_dir = mock_data_collection_factory(
+            data_collection_name
+        )
+        setup_stimulus_assets(tmp_path, data_collection_name, aoi_dir)
+        prepare_language_folder(data_collection_name)
+        preprocessed_stim_dir = (
+            tmp_path
+            / "preprocessed_data"
+            / data_collection_name
+            / f"stimuli_{data_collection_name}"
+        )
+        checksum_path = preprocessed_stim_dir / ".copy_checksum"
+        return tmp_path, data_collection_name, preprocessed_stim_dir, checksum_path
+
+    return _run
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_second_run_skips_copy_when_unchanged(first_run, data_collection_name):
+    _, _, _, checksum_path = first_run(data_collection_name)
+    first_hash = checksum_path.read_text().strip()
+
+    prepare_language_folder(data_collection_name)
+
+    assert checksum_path.read_text().strip() == first_hash
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_stimulus_change_triggers_recopy(first_run, data_collection_name):
+    tmp_path, _, stim_dir, checksum_path = first_run(data_collection_name)
+    first_hash = checksum_path.read_text().strip()
+
+    stimuli_dir = (
+        tmp_path / "data" / data_collection_name / f"stimuli_{data_collection_name}"
+    )
+    (stimuli_dir / "config" / "new_version.csv").write_text("version,2")
+    prepare_language_folder(data_collection_name)
+
+    assert checksum_path.read_text().strip() != first_hash
+    assert (stim_dir / "config" / "new_version.csv").exists()

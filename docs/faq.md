@@ -43,6 +43,15 @@ number of sessions and the size of the data. However, for the size of the Multip
 it can take a few hours.
 :::
 
+:::{dropdown} What happens when the stimulus folder is updated?
+:open:
+
+The pipeline remembers which stimulus files it copied last time.
+If the source folder has changed since then (for example, after a team uploads
+a corrected version), the pipeline notices the difference and copies the updated
+folder automatically. No manual action needed.
+:::
+
 (faq_equipment)=
 
 ## Eye-Tracking Equipment
