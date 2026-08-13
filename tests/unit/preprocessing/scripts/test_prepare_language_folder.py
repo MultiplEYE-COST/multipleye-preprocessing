@@ -1,11 +1,12 @@
-import pytest
 import pandas as pd
-from preprocessing.scripts.prepare_language_folder import prepare_language_folder
+import pytest
+
 from preprocessing import settings
-from preprocessing.models.dcn import Dcn
 from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
 )
+from preprocessing.models.dcn import Dcn
+from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
 
 @pytest.fixture
@@ -222,7 +223,7 @@ def test_prepare_language_folder_optional_aoi_images(
     tmp_path, data_collection_name, aoi_dir = mock_data_collection_factory(
         data_collection_name
     )
-    suffix, lang = setup_stimulus_assets(tmp_path, data_collection_name, aoi_dir)
+    suffix, _lang = setup_stimulus_assets(tmp_path, data_collection_name, aoi_dir)
 
     # Create AOI stimuli images folder
     stimuli_dir = aoi_dir.parent

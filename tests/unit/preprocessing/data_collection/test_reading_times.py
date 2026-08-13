@@ -1,8 +1,9 @@
-import polars as pl
 import os
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock
+
+import polars as pl
 
 from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
@@ -164,7 +165,7 @@ class TestCategorizeAscMessages:
             ],
         )
 
-        rt_df, breaks, screens, uncat, initial_ts = (
+        rt_df, _breaks, _screens, _uncat, initial_ts = (
             MultipleyeDataCollection._categorize_asc_messages(dc, "test_session")
         )
 

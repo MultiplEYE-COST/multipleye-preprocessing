@@ -1,4 +1,4 @@
-from .sid import Sid
 from .dcn import Dcn
+from .sid import Sid
 
-__all__ = ["Sid", "Dcn"]
+__all__ = ["Dcn", "Sid"]

@@ -1,12 +1,12 @@
-import pymovements as pm
 import polars as pl
+import pymovements as pm
 
 from preprocessing.data_collection.stimulus import Stimulus
 from preprocessing.metrics.reading.fixations import annotate_fixations
 from preprocessing.metrics.reading.reading_measures import build_word_level_table
 from preprocessing.metrics.reading.words import (
-    mark_skipped_tokens,
     all_tokens_from_aois,
+    mark_skipped_tokens,
 )
 
 

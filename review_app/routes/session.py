@@ -1,19 +1,19 @@
 """Session-level routes — detail page, review save."""
 
 from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from ..templating import render
-from ..services.session_data import read_overview, build_session_detail
-from ..services.thresholds import load_thresholds
 from ..services.review import load_review, save_review
+from ..services.session_data import build_session_detail, read_overview
 from ..services.swipe import (
-    load_plot_judgments_dict,
-    load_plot_comments_dict,
     list_plot_data,
+    load_plot_comments_dict,
+    load_plot_judgments_dict,
 )
-
+from ..services.thresholds import load_thresholds
+from ..templating import render
 
 router = APIRouter()
 
@@ -70,9 +70,9 @@ async def session_content_partial(
     from ..config import session_overview_path
     from ..services.dcn import list_sessions
     from ..services.swipe import (
-        load_plot_judgments_dict,
-        load_plot_comments_dict,
         list_plot_data,
+        load_plot_comments_dict,
+        load_plot_judgments_dict,
     )
 
     sessions = list_sessions(dcn)

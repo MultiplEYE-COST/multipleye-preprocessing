@@ -1,7 +1,8 @@
 """Load quality thresholds YAML and compare values."""
 
-import yaml
 from typing import Any
+
+import yaml
 
 from ..models import CheckStatus
 

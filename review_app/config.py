@@ -6,9 +6,8 @@ environment variable. Folder name constants mirror those in
 avoid triggering the settings auto-load mechanism.
 """
 
-from pathlib import Path
 import os
-
+from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 

@@ -20,7 +20,7 @@ def load_gaze_data(
     asc_file: Path,
     lab_config: LabConfig,
     sid: Sid,
-    trial_cols: list[str] = None,
+    trial_cols: list[str] | None = None,
     messages: bool | list[str] = False,
 ) -> pm.Gaze:
     """Load sample gaze data from an ASC file.

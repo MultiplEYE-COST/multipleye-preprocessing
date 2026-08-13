@@ -1,17 +1,17 @@
+import contextlib
 import os
 from argparse import ArgumentParser
 
-from tqdm import tqdm
 import polars as pl
 import pymovements as pm
+from tqdm import tqdm
 
-from ..utils.logging import get_logger
 import preprocessing
 from preprocessing import settings
-
-from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 from preprocessing.checks.quality_thresholds import write_quality_thresholds
-import contextlib
+from preprocessing.scripts.prepare_language_folder import prepare_language_folder
+
+from ..utils.logging import get_logger
 
 
 def run_preprocessing(config_path: str | None = None):

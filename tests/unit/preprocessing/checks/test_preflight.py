@@ -10,8 +10,8 @@ import yaml
 
 from preprocessing.checks.preflight import (
     PreflightError,
-    run_preflight_check,
     _check_psychometric_tests,
+    run_preflight_check,
 )
 from preprocessing.config import settings
 
@@ -722,7 +722,8 @@ def _make_task_first(
     tests = tests if tests is not None else ["PLAB", "RAN"]
     config_dir = base / f"participant_configs_{lang}_{country}_{lab}"
     config_dir.mkdir(parents=True)
-    yaml.safe_dump({"dummy": True}, open(config_dir / "001_EN_UK_1_S1.yaml", "w"))
+    with open(config_dir / "001_EN_UK_1_S1.yaml", "w") as f:
+        yaml.safe_dump({"dummy": True}, f)
 
     data_dir = base / f"psychometric_test_{lang}_{country}_{lab}"
     for t in tests:
@@ -868,7 +869,7 @@ def test_pt_check_data_issues(
 
 def test_pt_check_flag_disabled(pt_env, monkeypatch):
     """No warnings when RUN_PSYCHOMETRIC_TESTS is False."""
-    dc, pt_dir = pt_env
+    dc, _pt_dir = pt_env
     monkeypatch.setattr(settings, "RUN_PSYCHOMETRIC_TESTS", False)
     pt_warnings: list[str] = []
     _check_psychometric_tests(dc, pt_warnings)

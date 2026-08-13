@@ -6,12 +6,12 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 # from sphinx.search import languages
 
 project = "MultiplEYE Preprocessing pEYEpline"
-copyright = f"2024–{datetime.now().year}, Deborah N. Jakobi et al"
+copyright = f"2024–{datetime.now(tz=UTC).year}, Deborah N. Jakobi et al"
 author = "Deborah N. Jakobi et al."
 release = "2026.08.12"
 

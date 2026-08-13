@@ -11,8 +11,8 @@ import pymovements as pm
 from pymovements.stimulus import TextStimulus
 
 from ..config import settings
-from ..utils.data_path_utils import _ci_resolve
 from ..mapping.aoi import enlarge_aois
+from ..utils.data_path_utils import _ci_resolve
 from ..utils.logging import get_logger
 
 logger = get_logger()
@@ -359,7 +359,7 @@ class LabConfig:
 
         psychometric_tests = json_config.get("Psychometric_tests", {})
         if not isinstance(psychometric_tests, dict):
-            raise ValueError(
+            raise TypeError(
                 f"'Psychometric_tests' in lab configuration JSON must be an object (dict), "
                 f"got {type(psychometric_tests).__name__}. "
                 f"Check file: {json_config_path}"
