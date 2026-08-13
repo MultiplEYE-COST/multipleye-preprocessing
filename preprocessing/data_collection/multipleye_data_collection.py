@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import warnings
+from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
 
@@ -43,7 +44,7 @@ from ..utils.conversion import convert_to_time_str
 from ..utils.data_collection_utils import _report_to_file
 from ..utils.data_path_utils import _ci_resolve
 from ..utils.fix_questionnaire_data import remap_wrong_pq_values
-from ..utils.logging import get_logger
+from ..utils.logging import get_logger, get_pipeline_info
 
 
 def eyelink(method):
@@ -180,7 +181,19 @@ class MultipleyeDataCollection:
         if not self.overview:
             self.overview = self.create_dataset_overview()
 
-        return "\n".join(f"{k}\t{v}" for k, v in self.overview.items())
+        lines = []
+        for section_name, section in self.overview.items():
+            if isinstance(section, dict):
+                lines.append(f"[{section_name}]")
+                for k, v in section.items():
+                    lines.append(f"  {k}: {v}")
+            elif isinstance(section, list):
+                lines.append(f"[{section_name}]")
+                for item in section:
+                    lines.append(f"  - {item}")
+            else:
+                lines.append(f"{section_name}: {section}")
+        return "\n".join(lines)
 
     # TODO: check these chatgpt functions :D
     def __iter__(self):
@@ -675,16 +688,98 @@ class MultipleyeDataCollection:
             [session for session in self.sessions if self.sessions[session].is_pilot]
         )
 
-        # TODO: add more, check metadata scheme, add stats like num read pages, total reading time etc.
+        metadata_form = self._load_metadata_form()
+        metadata_form_exists = bool(metadata_form)
+
+        dataset_description = (
+            f"{self.country}, {self.city} (lab {self.lab_number}). "
+            f"{self.language} corpus. "
+            f"Data collected from {metadata_form.get('Start_date_of_data_collection', 'unknown')} "
+            f"to {metadata_form.get('End_date_of_data_collection', 'unknown')}."
+        )
+
         overview = {
-            "Title": self.data_collection_name,
-            "Dataset_type": self.type,
-            "Number_of_sessions": num_sessions,
-            "Number_of_pilots": num_pilots,
-            "Tested_language": self.language,
-            "Country": self.country,
-            "Year": self.year,
-            "Number of eye-tracking (ET) sessions per participant": self.num_sessions,
+            "Administrative": {
+                "Title": self.data_collection_name,
+                "Dataset_type": self.type,
+                "Dataset_description": dataset_description,
+                "Number_of_sessions": num_sessions,
+                "Number_of_pilots": num_pilots,
+                "Number of eye-tracking (ET) sessions per participant": (
+                    self.num_sessions
+                ),
+                "City": self.city,
+                "Lab_number": self.lab_number,
+                "Country": self.country,
+                "Tested_language": self.language,
+                "Year": self.year,
+            },
+            "Language_details": {
+                "Metadata_form_exists": metadata_form_exists,
+                "Language_script": metadata_form.get("Script"),
+                "Language_family": metadata_form.get("Language_family"),
+                "Start_date_of_data_collection": metadata_form.get(
+                    "Start_date_of_data_collection"
+                ),
+                "End_date_of_data_collection": metadata_form.get(
+                    "End_date_of_data_collection"
+                ),
+            },
+            "Data_availability": {
+                "Raw_data_available": True,
+                "Fixations_available": True,
+                "Saccades_available": True,
+                "Reading_measures_available": True,
+            },
+            "Psychometric_tests": {
+                "Tests_available": getattr(
+                    self.lab_configuration, "psychometric_tests", None
+                ),
+            },
+            "Technical_setup": {
+                "Eye_tracker_name": getattr(
+                    self.lab_configuration, "name_eye_tracker", None
+                ),
+                "Sampling_frequency_hz": getattr(
+                    self.lab_configuration, "sampling_frequency_hz", None
+                ),
+                "Monitor_name": metadata_form.get("Monitor_name"),
+                "Screen_resolution_width_px": (
+                    self.lab_configuration.screen_resolution[0]
+                    if getattr(self.lab_configuration, "screen_resolution", None)
+                    else None
+                ),
+                "Screen_resolution_height_px": (
+                    self.lab_configuration.screen_resolution[1]
+                    if getattr(self.lab_configuration, "screen_resolution", None)
+                    else None
+                ),
+            },
+            "Processing": {
+                "Preprocessing_date": datetime.now(tz=UTC).strftime("%Y-%m-%d"),
+                "Pipeline_version": self._get_pipeline_version(),
+                "Number_of_stimulus_versions": len(
+                    self.stim_order_versions["version_number"].unique()
+                )
+                if hasattr(self, "stim_order_versions")
+                and len(self.stim_order_versions) > 0
+                else 0,
+                # Flags from metadata_form.json
+                "Required_pq_fixing": metadata_form.get("Required_pq_fixing"),
+                "Psychotests_restructuring": metadata_form.get(
+                    "Psychotests_restructuring"
+                ),
+                "Custom_units_of_analysis": metadata_form.get(
+                    "Custom_units_of_analysis"
+                ),
+                "Answer_option_shuffling_bug": metadata_form.get(
+                    "Answer_option_shuffling_bug"
+                ),
+            },
+            "Data_quality": {
+                "Attrition_rate": self._compute_attrition_rate(),
+                **self._compute_dcn_averages(),
+            },
         }
 
         # Add warnings to overview
@@ -692,9 +787,211 @@ class MultipleyeDataCollection:
             overview["Warnings"] = list(set(logging._captured_warnings))
 
         with open(overview_path, "w", encoding="utf8") as f:
-            yaml.dump(overview, f)
+            yaml.dump(overview, f, sort_keys=False)
 
         return overview
+
+    @staticmethod
+    def _get_pipeline_version() -> str | None:
+        """
+        Return the installed pipeline version, or None if it cannot be determined.
+
+        Returns
+        -------
+        str | None
+            Version string from package metadata, or None on failure.
+        """
+        try:
+            version, _ = get_pipeline_info()
+            return version
+        except (ImportError, KeyError, subprocess.SubprocessError):
+            return None
+
+    def _load_metadata_form(self) -> dict:
+        """
+        Load the final metadata form JSON for this data collection, if present.
+
+        Returns
+        -------
+        dict
+            Parsed metadata form contents, or an empty dict if the file is missing.
+        """
+        lang = self.language.lower() if self.language else ""
+        country = self.country.lower() if self.country else ""
+        city = self.city.capitalize() if self.city else ""
+        labnum = self.lab_number
+        year = self.year
+
+        metadata_path = (
+            self.stimulus_dir.parent
+            / "documentation"
+            / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_metadata_form.json"
+        )
+        if metadata_path.exists():
+            with open(metadata_path, encoding="utf-8") as f:
+                return json.load(f)
+        return {}
+
+    def _compute_attrition_rate(self) -> float | None:
+        """
+        Compute the session attrition rate across non-pilot sessions.
+
+        Attrition is the fraction of non-pilot sessions that crashed, rounded to
+        two decimal places.
+
+        Returns
+        -------
+        float | None
+            Crashed session ratio, or None if there are no non-pilot sessions.
+        """
+        non_pilot_sessions = [s for s in self.sessions.values() if not s.is_pilot]
+        total_sessions = len(non_pilot_sessions)
+        if total_sessions == 0:
+            return None
+        crashed = (
+            len(self.crashed_session_ids) if hasattr(self, "crashed_session_ids") else 0
+        )
+        return round(crashed / total_sessions, 2)
+
+    def _compute_dcn_averages(self) -> dict[str, float | None]:
+        """
+        Compute simple means across non-pilot sessions for the data quality fields.
+
+        Averages are unweighted means across sessions (not time-weighted). Session
+        fields that are not numeric (e.g. the string default "unknown") are skipped,
+        so a field is None when no session has a computed value for it.
+
+        Returns
+        -------
+        dict[str, float | None]
+            Mapping of metric name to mean value, or None if no data is available.
+        """
+        non_pilot_sessions = [s for s in self.sessions.values() if not s.is_pilot]
+        if not non_pilot_sessions:
+            return {
+                "mean_calibration_error": None,
+                "mean_validation_error": None,
+                "mean_data_loss_ratio": None,
+                "mean_blink_ratio": None,
+                "mean_total_reading_time_ms": None,
+                "mean_total_session_duration_s": None,
+                "mean_wpm": None,
+                "mean_comprehension_score": None,
+            }
+
+        calib_errors = [
+            s.avg_calibration_error
+            for s in non_pilot_sessions
+            if isinstance(s.avg_calibration_error, (int, float))
+        ]
+        val_errors = [
+            s.avg_validation_error
+            for s in non_pilot_sessions
+            if isinstance(s.avg_validation_error, (int, float))
+        ]
+        data_loss = [
+            getattr(s, "_measure_total_data_loss_ratio", None)
+            for s in non_pilot_sessions
+        ]
+        data_loss = [v for v in data_loss if isinstance(v, (int, float))]
+        blink_loss = [
+            getattr(s, "_measure_blink_loss_ratio", None) for s in non_pilot_sessions
+        ]
+        blink_loss = [v for v in blink_loss if isinstance(v, (int, float))]
+        reading_times = [
+            s.total_reading_time
+            for s in non_pilot_sessions
+            if isinstance(s.total_reading_time, (int, float))
+        ]
+        session_durations = [
+            s.total_session_duration
+            for s in non_pilot_sessions
+            if isinstance(s.total_session_duration, (int, float))
+        ]
+        comp_scores = [
+            s.avg_comprehension_score
+            for s in non_pilot_sessions
+            if isinstance(s.avg_comprehension_score, (int, float))
+        ]
+
+        # WPM: total words / total_minutes
+        # Word count computed from stimulus page texts
+        mean_wpm = None
+        if reading_times:
+            total_reading_s = sum(reading_times) / 1000  # ms to seconds
+            if total_reading_s > 0:
+                mean_wpm = self._compute_dcn_wpm(non_pilot_sessions, total_reading_s)
+
+        return {
+            "mean_calibration_error": (
+                round(sum(calib_errors) / len(calib_errors), 2)
+                if calib_errors
+                else None
+            ),
+            "mean_validation_error": (
+                round(sum(val_errors) / len(val_errors), 2) if val_errors else None
+            ),
+            "mean_data_loss_ratio": (
+                round(sum(data_loss) / len(data_loss), 2) if data_loss else None
+            ),
+            "mean_blink_ratio": (
+                round(sum(blink_loss) / len(blink_loss), 2) if blink_loss else None
+            ),
+            "mean_total_reading_time_ms": (
+                round(sum(reading_times) / len(reading_times), 2)
+                if reading_times
+                else None
+            ),
+            "mean_total_session_duration_s": (
+                round(sum(session_durations) / len(session_durations), 2)
+                if session_durations
+                else None
+            ),
+            "mean_wpm": round(mean_wpm, 1) if mean_wpm else None,
+            "mean_comprehension_score": (
+                round(sum(comp_scores) / len(comp_scores), 2) if comp_scores else None
+            ),
+        }
+
+    def _compute_dcn_wpm(
+        self,
+        non_pilot_sessions: list,
+        total_reading_seconds: float,
+    ) -> float | None:
+        """
+        Compute words per minute across non-pilot sessions.
+
+        Word count is derived from the stimulus page texts; total words divided by
+        total reading time in minutes.
+
+        Parameters
+        ----------
+        non_pilot_sessions : list
+            Non-pilot Session objects to aggregate.
+        total_reading_seconds : float
+            Total reading time across those sessions, in seconds.
+
+        Returns
+        -------
+        float | None
+            Words per minute, or None if no words or no reading time is available.
+        """
+        total_words = 0
+        for session in non_pilot_sessions:
+            if not isinstance(session.stimuli, list):
+                continue
+            for stim in session.stimuli:
+                if not hasattr(stim, "pages"):
+                    continue
+                for page in stim.pages:
+                    if hasattr(page, "text") and page.text:
+                        total_words += len(page.text.split())
+        if total_words == 0:
+            return None
+        total_minutes = total_reading_seconds / 60
+        if total_minutes <= 0:
+            return None
+        return total_words / total_minutes
 
     def create_session_overview(self, session_idf: str, path: str | Path = "") -> dict:
         sess = self.sessions[session_idf]

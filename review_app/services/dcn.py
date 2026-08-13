@@ -6,9 +6,9 @@ from preprocessing.models import Dcn
 
 from ..config import PREPROCESSED_DATA_DIR, RAW_DATA_DIR
 from ..models import DcnSummary, SessionSummary
-from .review import load_review
-from .session_data import read_overview, compute_checks
 from .preflight import run_pipeline_preflight
+from .review import load_review
+from .session_data import compute_checks, read_overview
 
 
 def _discover_dcn_names() -> set[str]:
@@ -59,7 +59,7 @@ def _build_dcn_summary(dcn: Dcn) -> DcnSummary:
     if ov_path.exists():
         with open(ov_path) as f:
             dcn_overview = yaml.safe_load(f) or {}
-        dcn_type = dcn_overview.get("Dataset_type", "")
+        dcn_type = dcn_overview.get("Administrative", {}).get("Dataset_type", "")
 
     sessions = list_sessions(dcn_name) if is_processed else []
 
