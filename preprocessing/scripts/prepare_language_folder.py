@@ -1,21 +1,21 @@
 import argparse
+import os
 import re
 import shutil
-import os
 import tarfile
 from pathlib import Path
 
 import pandas as pd
 
 from ..models.dcn import Dcn
+from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
 from ..utils.data_path_utils import check_data_collection_exists
 from ..utils.file_utils import _copytree, _to_win_long_path
-from ..utils.logging import get_logger
-from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
 from ..utils.fix_multipleye_aoi_files import (
     remap_space_to_following_word,
     repair_word_labels,
 )
+from ..utils.logging import get_logger
 
 logger = get_logger()
 
@@ -80,9 +80,11 @@ def prepare_language_folder(data_collection_name: str | None = None):
                         only_in_dst = dst_names - src_names
                         if only_in_src or only_in_dst:
                             msg_parts = [
-                                f"Folder '{folder.name}' exists in both "
-                                f"'core_sessions' and 'eye-tracking-sessions' "
-                                f"with different contents."
+                                (
+                                    f"Folder '{folder.name}' exists in both "
+                                    f"'core_sessions' and 'eye-tracking-sessions' "
+                                    f"with different contents."
+                                )
                             ]
                             if only_in_src:
                                 msg_parts.append(

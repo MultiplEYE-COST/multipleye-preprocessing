@@ -1,18 +1,21 @@
 """FastAPI app, route registration, and startup."""
 
-from pathlib import Path
 import urllib.request
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from .config import PREPROCESSED_DATA_DIR
-from .routes.home import router as home_router
 from .routes.collection import (
-    router as collection_router,
     page_router as collection_page_router,
 )
-from .routes.session import router as session_router, api_router as session_api_router
+from .routes.collection import (
+    router as collection_router,
+)
+from .routes.home import router as home_router
+from .routes.session import api_router as session_api_router
+from .routes.session import router as session_router
 from .routes.swipe import router as swipe_router
 
 _HTMX_URL = "https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
@@ -62,9 +65,10 @@ def _startup() -> None:
     import asyncio
 
     def _run_preflight_for_all_dcns() -> None:
+        from preprocessing.models import Dcn
+
         from .config import RAW_DATA_DIR
         from .services.preflight import run_pipeline_preflight
-        from preprocessing.models import Dcn
 
         if not RAW_DATA_DIR.exists():
             return

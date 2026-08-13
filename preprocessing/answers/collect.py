@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 import polars as pl
 
-from .parser import parse_question_order, construct_question_id
-from .io import write_answers
 from ..data_collection.stimulus import Stimulus
 from ..utils.logging import get_logger
+from .io import write_answers
+from .parser import construct_question_id, parse_question_order
 
 
 def _normalize_trial_key(k) -> int | str:
@@ -395,7 +395,7 @@ def collect_session_answers(
             num = int(str(trial_id).split("_")[-1])
             return f"1_{num:03d}"
         except (ValueError, IndexError):
-            return f"2_{str(trial_id)}"
+            return f"2_{trial_id!s}"
 
     long_df = long_df.with_columns(
         pl.col("trial")

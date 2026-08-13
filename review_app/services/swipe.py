@@ -1,16 +1,21 @@
 """Swipe mode — per-plot judgments stored in per-DCN swipe_judgments.yaml."""
 
-import yaml
 import os
 import tempfile
 
-from ..config import dcn_path, swipe_judgments_path
-from .dcn import list_sessions, get_dcn
-from .session_data import read_overview, compute_checks
-from .thresholds import load_thresholds
-from .review import load_review
-from ..config import sanity_checks_path, session_overview_path
 import pycountry
+import yaml
+
+from ..config import (
+    dcn_path,
+    sanity_checks_path,
+    session_overview_path,
+    swipe_judgments_path,
+)
+from .dcn import get_dcn, list_sessions
+from .review import load_review
+from .session_data import compute_checks, get_field, read_overview
+from .thresholds import load_thresholds
 
 VALID_JUDGMENTS = {"keep", "flag", "skip"}
 
@@ -266,8 +271,8 @@ def swipe_data(dcn_name: str) -> dict:
                 "is_pilot": s.is_pilot,
                 "language": language_name,
                 "country": country_name_str,
-                "num_calibrations": overview.get("num_calibrations", 0),
-                "num_validations": overview.get("num_validations", 0),
+                "num_calibrations": get_field(overview, "num_calibrations") or 0,
+                "num_validations": get_field(overview, "num_validations") or 0,
                 "n_flags": s.n_flags,
                 "n_fail_flags": s.n_fail_flags,
                 "n_warn_flags": s.n_warn_flags,

@@ -6,9 +6,9 @@ from preprocessing.models import Dcn
 
 from ..config import PREPROCESSED_DATA_DIR, RAW_DATA_DIR
 from ..models import DcnSummary, SessionSummary
-from .review import load_review
-from .session_data import read_overview, compute_checks
 from .preflight import run_pipeline_preflight
+from .review import load_review
+from .session_data import compute_checks, read_overview
 
 
 def _discover_dcn_names() -> set[str]:
@@ -59,7 +59,7 @@ def _build_dcn_summary(dcn: Dcn) -> DcnSummary:
     if ov_path.exists():
         with open(ov_path) as f:
             dcn_overview = yaml.safe_load(f) or {}
-        dcn_type = dcn_overview.get("Dataset_type", "")
+        dcn_type = dcn_overview.get("Administrative", {}).get("Dataset_type", "")
 
     sessions = list_sessions(dcn_name) if is_processed else []
 
@@ -123,13 +123,14 @@ def list_sessions(dcn_name: str) -> list[SessionSummary]:
 
 def _build_session_summary(dcn_name: str, sid: str) -> SessionSummary | None:
     from ..config import metadata_path, quality_thresholds_path
+    from .session_data import get_field
 
     overview = read_overview(metadata_path(dcn_name, sid) / f"{sid}_overview.yaml")
     if overview is None:
         return None
 
-    pid = overview.get("participant_id", 0)
-    is_pilot = overview.get("is_pilot", False)
+    pid = get_field(overview, "participant_id") or 0
+    is_pilot = get_field(overview, "is_pilot") or False
 
     thresholds = None
     t_path = quality_thresholds_path(dcn_name)
@@ -143,7 +144,7 @@ def _build_session_summary(dcn_name: str, sid: str) -> SessionSummary | None:
 
     review = load_review(dcn_name, sid)
     comment_preview = review.comment.split("\n")[0][:80] if review.comment else ""
-    num_completed_trials = overview.get("num_completed_trials")
+    num_completed_trials = get_field(overview, "num_completed_trials")
 
     return SessionSummary(
         sid=sid,

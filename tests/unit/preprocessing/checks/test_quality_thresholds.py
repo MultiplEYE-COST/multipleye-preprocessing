@@ -1,5 +1,6 @@
-import yaml
 from pathlib import Path
+
+import yaml
 
 from preprocessing.checks.quality_thresholds import write_quality_thresholds
 

@@ -1,6 +1,6 @@
+import logging
 from pathlib import Path
 
-import logging
 import pytest
 import yaml
 
@@ -156,9 +156,9 @@ def test_settings_validation_cases(settings_obj):
 
 def test_prepare_language_folder_none_error():
     """Test that prepare_language_folder raises a ValueError when name is None and no config."""
-    from preprocessing.scripts.prepare_language_folder import prepare_language_folder
-    from preprocessing.config import Settings
     import preprocessing
+    from preprocessing.config import Settings
+    from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
     # Use a fresh settings object without a config file
     s = Settings()
@@ -210,7 +210,7 @@ def test_settings_precedence_env_var(tmp_path, monkeypatch):
 
 def test_settings_copies_template_silently(tmp_path, monkeypatch, caplog):
     """Test that missing config copies template silently during load."""
-    from preprocessing.config import Settings, TEMPLATE_RELATIVE_PATH
+    from preprocessing.config import TEMPLATE_RELATIVE_PATH, Settings
 
     template_path = Settings()._repo_root / TEMPLATE_RELATIVE_PATH
     template_contents = template_path.read_text(encoding="utf-8")
@@ -327,7 +327,7 @@ def test_settings_regex_reactivity(settings_obj):
 
     # Verify it works
     match = settings_obj.START_RECORDING_REGEX.match(
-        "MSG 123 start_recording_trial_1_page_1"
+        "start_recording_trial_1_stimulus_Test_1_page_1"
     )
     assert match is not None
     assert match.group("my_trial") == "trial_1"

@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import warnings
+from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
 
@@ -43,7 +44,7 @@ from ..utils.conversion import convert_to_time_str
 from ..utils.data_collection_utils import _report_to_file
 from ..utils.data_path_utils import _ci_resolve
 from ..utils.fix_questionnaire_data import remap_wrong_pq_values
-from ..utils.logging import get_logger
+from ..utils.logging import get_logger, get_pipeline_info
 
 
 def eyelink(method):
@@ -104,8 +105,9 @@ class MultipleyeDataCollection:
         self.data_collection_name = data_collection_name
 
         self.include_pilots = kwargs.get("include_pilots", False)
-        self.reports_dir = kwargs.get("output_dir", "")
+        self.output_dir = kwargs.get("output_dir", "")
         self.pilot_folder = kwargs.get("pilot_folder", "")
+        self.reports_folder = "reports"
 
         for short_name, long_name in settings.EYETRACKER_NAMES.items():
             if eye_tracker in long_name:
@@ -135,10 +137,6 @@ class MultipleyeDataCollection:
             f"MultipleyeDataCollection initialized. data_root: {self.data_root}"
         )
         self.logger.info(f"Main config loaded from {self.config_file}")
-
-        if not self.reports_dir:
-            self.reports_dir = self.data_root.parent / "quality_reports"
-            self.reports_dir.mkdir(exist_ok=True)
 
         self.add_recorded_sessions(self.data_root, self.session_folder_regex)
 
@@ -183,7 +181,19 @@ class MultipleyeDataCollection:
         if not self.overview:
             self.overview = self.create_dataset_overview()
 
-        return "\n".join(f"{k}\t{v}" for k, v in self.overview.items())
+        lines = []
+        for section_name, section in self.overview.items():
+            if isinstance(section, dict):
+                lines.append(f"[{section_name}]")
+                for k, v in section.items():
+                    lines.append(f"  {k}: {v}")
+            elif isinstance(section, list):
+                lines.append(f"[{section_name}]")
+                for item in section:
+                    lines.append(f"  - {item}")
+            else:
+                lines.append(f"{section_name}: {section}")
+        return "\n".join(lines)
 
     # TODO: check these chatgpt functions :D
     def __iter__(self):
@@ -328,7 +338,7 @@ class MultipleyeDataCollection:
             if missing_included:
                 self.logger.warning(
                     f"The following sessions were specified in 'include_sessions' but "
-                    f"were not found in the data folder: {sorted(list(missing_included))}"
+                    f"were not found in the data folder: {sorted(missing_included)}"
                 )
 
         if self.excluded_sessions:
@@ -336,7 +346,7 @@ class MultipleyeDataCollection:
             if missing_excluded:
                 self.logger.warning(
                     f"The following sessions were specified in 'exclude_sessions' but "
-                    f"were not found in the data folder: {sorted(list(missing_excluded))}"
+                    f"were not found in the data folder: {sorted(missing_excluded)}"
                 )
 
     @eyelink
@@ -379,6 +389,7 @@ class MultipleyeDataCollection:
                 ["edf2asc", "-y", edf_path],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                check=False,
             )
 
             local_asc_path = edf_path.with_suffix(".asc")
@@ -423,6 +434,7 @@ class MultipleyeDataCollection:
         include_pilots: bool = False,
         excluded_sessions: list[str] | None = None,
         included_sessions: list[str] | None = None,
+        output_dir: Path | None = None,
     ) -> "MultipleyeDataCollection":
         """
         :param data_dir: str  path to the data folder
@@ -525,6 +537,7 @@ class MultipleyeDataCollection:
             ps_tests_path=ps_tests_path,
             included_sessions=included_sessions,
             excluded_sessions=excluded_sessions,
+            output_dir=output_dir,
         )
 
     def create_sanity_check_report(
@@ -551,12 +564,16 @@ class MultipleyeDataCollection:
             return
 
         if not output_dir:
-            output_dir = self.reports_dir
+            output_dir = self.output_dir
 
         session_results = (
             Path(output_dir) / settings.SANITY_CHECKS_FOLDER / session_name
         )
         os.makedirs(session_results, exist_ok=True)
+
+        self.sessions[session_name].uncategorized_messages = self.parse_messages(
+            session_name
+        )
 
         report_file_path = session_results / f"{session_name}_{self.city}_report.md"
         self.sessions[session_name].sanity_report_path = report_file_path
@@ -566,8 +583,13 @@ class MultipleyeDataCollection:
 
             messages = self.sessions[session_name].messages
 
-            if not messages:
-                self.logger.warning(f"No messages found in asc file of {session_name}.")
+            if isinstance(messages, pl.DataFrame):
+                messages_for_check = [
+                    {"message": row["content"], "timestamp": row["time"]}
+                    for row in messages.iter_rows(named=True)
+                ]
+            else:
+                messages_for_check = messages or []
 
             stimuli = self.sessions[session_name].stimuli
 
@@ -601,7 +623,10 @@ class MultipleyeDataCollection:
             _report_to_file("## Gaze Frame", report_file_path)
             self._check_stimuli_gaze_frame(gaze, stimuli, session_name)
             _report_to_file("## ASC Messages", report_file_path)
-            self._check_asc_messages(stimuli, messages, session_name)
+            if messages_for_check:
+                self._check_asc_messages(stimuli, messages_for_check, session_name)
+            else:
+                self.logger.warning(f"No messages found in asc file of {session_name}.")
             _report_to_file("## Validation & Calibration", report_file_path)
             self._check_asc_validation(session_name)
             self._load_psychometric_tests(session_name)
@@ -697,16 +722,97 @@ class MultipleyeDataCollection:
             [session for session in self.sessions if self.sessions[session].is_pilot]
         )
 
-        # TODO: add more, check metadata scheme, add stats like num read pages, total reading time etc.
+        metadata_form = self._load_metadata_form()
+        metadata_form_exists = bool(metadata_form)
+
+        dataset_description = (
+            f"{self.country}, {self.city} (lab {self.lab_number}). "
+            f"{self.language} corpus. "
+            f"Data collected from {metadata_form.get('Start_date_of_data_collection', 'unknown')} "
+            f"to {metadata_form.get('End_date_of_data_collection', 'unknown')}."
+        )
+
         overview = {
-            "Title": self.data_collection_name,
-            "Dataset_type": self.type,
-            "Number_of_sessions": num_sessions,
-            "Number_of_pilots": num_pilots,
-            "Tested_language": self.language,
-            "Country": self.country,
-            "Year": self.year,
-            "Number of eye-tracking (ET) sessions per participant": self.num_sessions,
+            "Administrative": {
+                "Title": self.data_collection_name,
+                "Dataset_type": self.type,
+                "Dataset_description": dataset_description,
+                "Number_of_sessions": num_sessions,
+                "Number_of_pilots": num_pilots,
+                "Number of eye-tracking (ET) sessions per participant": (
+                    self.num_sessions
+                ),
+                "City": self.city,
+                "Lab_number": self.lab_number,
+                "Country": self.country,
+                "Tested_language": self.language,
+            },
+            "Language_details": {
+                "Metadata_form_exists": metadata_form_exists,
+                "Language_script": metadata_form.get("Script"),
+                "Language_family": metadata_form.get("Language_family"),
+                "Start_date_of_data_collection": metadata_form.get(
+                    "Start_date_of_data_collection"
+                ),
+                "End_date_of_data_collection": metadata_form.get(
+                    "End_date_of_data_collection"
+                ),
+            },
+            "Data_availability": {
+                "Raw_data_available": True,
+                "Fixations_available": True,
+                "Saccades_available": True,
+                "Reading_measures_available": True,
+            },
+            "Psychometric_tests": {
+                "Tests_available": getattr(
+                    self.lab_configuration, "psychometric_tests", None
+                ),
+            },
+            "Technical_setup": {
+                "Eye_tracker_name": getattr(
+                    self.lab_configuration, "name_eye_tracker", None
+                ),
+                "Sampling_frequency_hz": getattr(
+                    self.lab_configuration, "sampling_frequency_hz", None
+                ),
+                "Monitor_name": metadata_form.get("Monitor_name"),
+                "Screen_resolution_width_px": (
+                    self.lab_configuration.screen_resolution[0]
+                    if getattr(self.lab_configuration, "screen_resolution", None)
+                    else None
+                ),
+                "Screen_resolution_height_px": (
+                    self.lab_configuration.screen_resolution[1]
+                    if getattr(self.lab_configuration, "screen_resolution", None)
+                    else None
+                ),
+            },
+            "Processing": {
+                "Preprocessing_date": datetime.now(tz=UTC).strftime("%Y-%m-%d"),
+                "Pipeline_version": self._get_pipeline_version(),
+                "Number_of_stimulus_versions": len(
+                    self.stim_order_versions["version_number"].unique()
+                )
+                if hasattr(self, "stim_order_versions")
+                and len(self.stim_order_versions) > 0
+                else 0,
+                # Flags from metadata_form.json
+                "Required_pq_fixing": metadata_form.get("Required_pq_fixing"),
+                "Psychotests_restructuring": metadata_form.get(
+                    "Psychotests_restructuring"
+                ),
+                "Custom_units_of_analysis": metadata_form.get(
+                    "Custom_units_of_analysis"
+                ),
+                "Answer_option_shuffling_bug": metadata_form.get(
+                    "Answer_option_shuffling_bug"
+                ),
+            },
+            "Data_quality": {
+                "Attrition_rate": self._compute_attrition_rate(),
+                **self._compute_dcn_averages(),
+            },
         }
 
         # Add warnings to overview
@@ -714,9 +820,211 @@ class MultipleyeDataCollection:
             overview["Warnings"] = list(set(logging._captured_warnings))
 
         with open(overview_path, "w", encoding="utf8") as f:
-            yaml.dump(overview, f)
+            yaml.dump(overview, f, sort_keys=False)
 
         return overview
+
+    @staticmethod
+    def _get_pipeline_version() -> str | None:
+        """
+        Return the installed pipeline version, or None if it cannot be determined.
+
+        Returns
+        -------
+        str | None
+            Version string from package metadata, or None on failure.
+        """
+        try:
+            version, _ = get_pipeline_info()
+            return version
+        except (ImportError, KeyError, subprocess.SubprocessError):
+            return None
+
+    def _load_metadata_form(self) -> dict:
+        """
+        Load the final metadata form JSON for this data collection, if present.
+
+        Returns
+        -------
+        dict
+            Parsed metadata form contents, or an empty dict if the file is missing.
+        """
+        lang = self.language.lower() if self.language else ""
+        country = self.country.lower() if self.country else ""
+        city = self.city.capitalize() if self.city else ""
+        labnum = self.lab_number
+        year = self.year
+
+        metadata_path = (
+            self.stimulus_dir.parent
+            / "documentation"
+            / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_metadata_form.json"
+        )
+        if metadata_path.exists():
+            with open(metadata_path, encoding="utf-8") as f:
+                return json.load(f)
+        return {}
+
+    def _compute_attrition_rate(self) -> float | None:
+        """
+        Compute the session attrition rate across non-pilot sessions.
+
+        Attrition is the fraction of non-pilot sessions that crashed, rounded to
+        two decimal places.
+
+        Returns
+        -------
+        float | None
+            Crashed session ratio, or None if there are no non-pilot sessions.
+        """
+        non_pilot_sessions = [s for s in self.sessions.values() if not s.is_pilot]
+        total_sessions = len(non_pilot_sessions)
+        if total_sessions == 0:
+            return None
+        crashed = (
+            len(self.crashed_session_ids) if hasattr(self, "crashed_session_ids") else 0
+        )
+        return round(crashed / total_sessions, 2)
+
+    def _compute_dcn_averages(self) -> dict[str, float | None]:
+        """
+        Compute simple means across non-pilot sessions for the data quality fields.
+
+        Averages are unweighted means across sessions (not time-weighted). Session
+        fields that are not numeric (e.g. the string default "unknown") are skipped,
+        so a field is None when no session has a computed value for it.
+
+        Returns
+        -------
+        dict[str, float | None]
+            Mapping of metric name to mean value, or None if no data is available.
+        """
+        non_pilot_sessions = [s for s in self.sessions.values() if not s.is_pilot]
+        if not non_pilot_sessions:
+            return {
+                "mean_calibration_error": None,
+                "mean_validation_error": None,
+                "mean_data_loss_ratio": None,
+                "mean_blink_ratio": None,
+                "mean_total_reading_time_ms": None,
+                "mean_total_session_duration_s": None,
+                "mean_wpm": None,
+                "mean_comprehension_score": None,
+            }
+
+        calib_errors = [
+            s.avg_calibration_error
+            for s in non_pilot_sessions
+            if isinstance(s.avg_calibration_error, (int, float))
+        ]
+        val_errors = [
+            s.avg_validation_error
+            for s in non_pilot_sessions
+            if isinstance(s.avg_validation_error, (int, float))
+        ]
+        data_loss = [
+            getattr(s, "_measure_total_data_loss_ratio", None)
+            for s in non_pilot_sessions
+        ]
+        data_loss = [v for v in data_loss if isinstance(v, (int, float))]
+        blink_loss = [
+            getattr(s, "_measure_blink_loss_ratio", None) for s in non_pilot_sessions
+        ]
+        blink_loss = [v for v in blink_loss if isinstance(v, (int, float))]
+        reading_times = [
+            s.total_reading_time
+            for s in non_pilot_sessions
+            if isinstance(s.total_reading_time, (int, float))
+        ]
+        session_durations = [
+            s.total_session_duration
+            for s in non_pilot_sessions
+            if isinstance(s.total_session_duration, (int, float))
+        ]
+        comp_scores = [
+            s.avg_comprehension_score
+            for s in non_pilot_sessions
+            if isinstance(s.avg_comprehension_score, (int, float))
+        ]
+
+        # WPM: total words / total_minutes
+        # Word count computed from stimulus page texts
+        mean_wpm = None
+        if reading_times:
+            total_reading_s = sum(reading_times) / 1000  # ms to seconds
+            if total_reading_s > 0:
+                mean_wpm = self._compute_dcn_wpm(non_pilot_sessions, total_reading_s)
+
+        return {
+            "mean_calibration_error": (
+                round(sum(calib_errors) / len(calib_errors), 2)
+                if calib_errors
+                else None
+            ),
+            "mean_validation_error": (
+                round(sum(val_errors) / len(val_errors), 2) if val_errors else None
+            ),
+            "mean_data_loss_ratio": (
+                round(sum(data_loss) / len(data_loss), 2) if data_loss else None
+            ),
+            "mean_blink_ratio": (
+                round(sum(blink_loss) / len(blink_loss), 2) if blink_loss else None
+            ),
+            "mean_total_reading_time_ms": (
+                round(sum(reading_times) / len(reading_times), 2)
+                if reading_times
+                else None
+            ),
+            "mean_total_session_duration_s": (
+                round(sum(session_durations) / len(session_durations), 2)
+                if session_durations
+                else None
+            ),
+            "mean_wpm": round(mean_wpm, 1) if mean_wpm else None,
+            "mean_comprehension_score": (
+                round(sum(comp_scores) / len(comp_scores), 2) if comp_scores else None
+            ),
+        }
+
+    def _compute_dcn_wpm(
+        self,
+        non_pilot_sessions: list,
+        total_reading_seconds: float,
+    ) -> float | None:
+        """
+        Compute words per minute across non-pilot sessions.
+
+        Word count is derived from the stimulus page texts; total words divided by
+        total reading time in minutes.
+
+        Parameters
+        ----------
+        non_pilot_sessions : list
+            Non-pilot Session objects to aggregate.
+        total_reading_seconds : float
+            Total reading time across those sessions, in seconds.
+
+        Returns
+        -------
+        float | None
+            Words per minute, or None if no words or no reading time is available.
+        """
+        total_words = 0
+        for session in non_pilot_sessions:
+            if not isinstance(session.stimuli, list):
+                continue
+            for stim in session.stimuli:
+                if not hasattr(stim, "pages"):
+                    continue
+                for page in stim.pages:
+                    if hasattr(page, "text") and page.text:
+                        total_words += len(page.text.split())
+        if total_words == 0:
+            return None
+        total_minutes = total_reading_seconds / 60
+        if total_minutes <= 0:
+            return None
+        return total_words / total_minutes
 
     def create_session_overview(self, session_idf: str, path: str | Path = "") -> dict:
         sess = self.sessions[session_idf]
@@ -760,7 +1068,6 @@ class MultipleyeDataCollection:
                 self.sessions[session].completed_stimuli_names,
                 self.sessions[session].stimuli_trial_mapping,
             ) = self._load_session_completed_stimuli(session)
-            self.sessions[session].messages = self._parse_asc(session)
             self.sessions[session].logfile = self._load_session_logfile(session)
             self.sessions[
                 session
@@ -939,7 +1246,7 @@ class MultipleyeDataCollection:
                 try:
                     trial_ids[trial_ids.index(trial)] = f"trial_{int(trial)}"
                 except TypeError:
-                    trial_ids = trial_ids
+                    pass  # trial id already in the target format, leave as-is
 
         stimulus_names = completed_stimuli["stimulus_name"].to_list()
         stimuli_trial_mapping = {
@@ -1069,166 +1376,269 @@ class MultipleyeDataCollection:
                 f"Please add the used stimulus folder from the experiment. Or check the stimulus order versions file for missing IDs or duplicates."
             )
 
-    def _parse_asc(self, session_identifier: str):
-        """
-        qick fix for now, should be replaced by the summary experiment frame later on, however the extraction of the
-        stimulus order version is essential for other code parts, it cannot be removed without further alterations
-        """
-
-        other_screens = [
-            "welcome_screen",
-            "informed_consent_screen",
-            "start_experiment",
-            "stimulus_order_version",
-            "showing_instruction_screen",
-            "camera_setup_screen",
-            "practice_text_starting_screen",
-            "transition_screen",
-            "final_validation",
-            "show_final_screen",
-            "fixation_trigger:skipped_by_experimenter",
-            "fixation_trigger:experimenter_calibration_triggered",
-            "recalibration",
-            "empty_screen",
-            "obligatory_break",
-            "optional_break",
-        ]
-
-        asc_file = self.sessions[session_identifier].asc_path
-        stimuli_trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
-
-        other_screen_appearance = {
-            "timestamp": [],
-            "screen": [],
+    def _create_empty_rt_frame(self, session_identifier: str) -> pl.DataFrame:
+        session = self.sessions[session_identifier]
+        mapping = session.stimuli_trial_mapping
+        num_of_pages_per_trial = {
+            stimulus.name: [page.number for page in stimulus.pages]
+            for stimulus in session.stimuli
         }
 
-        reading_times = {
-            "start_ts": [],
-            "stop_ts": [],
-            "start_msg": [],
-            "stop_msg": [],
-            "duration_ms": [],
-            "duration_str": [],
-            "trials": [],
-            "pages": [],
-            "status": [],
-            "stimulus_name": [],
-        }
+        trial_col = settings.TRIAL_COL
+        page_col = settings.PAGE_COL
 
-        breaks = {
+        rows: list[dict] = []
+        for stimulus_name in mapping.values():
+            if stimulus_name not in num_of_pages_per_trial:
+                continue
+            for page_num in num_of_pages_per_trial[stimulus_name]:
+                rows.append(
+                    {
+                        "stimulus_name": stimulus_name,
+                        "start_ts": None,
+                        "stop_ts": None,
+                        "start_msg": None,
+                        "stop_msg": None,
+                        "duration_ms": None,
+                        "duration_str": None,
+                        trial_col: None,
+                        page_col: f"page_{page_num}",
+                        "status": None,
+                    }
+                )
+
+        schema = {
+            "stimulus_name": pl.String,
+            "start_ts": pl.String,
+            "stop_ts": pl.String,
+            "start_msg": pl.String,
+            "stop_msg": pl.String,
+            "duration_ms": pl.String,
+            "duration_str": pl.String,
+            trial_col: pl.String,
+            page_col: pl.String,
+            "status": pl.String,
+        }
+        return (
+            pl.DataFrame(rows, schema=schema) if rows else pl.DataFrame(schema=schema)
+        )
+
+    def _categorize_asc_messages(self, session_identifier: str):
+        reading_times_df = self._create_empty_rt_frame(session_identifier)
+        break_msg: list[dict] = []
+        other_screens: list[dict] = []
+        uncategorized_msgs: list[dict] = []
+
+        page_col = settings.PAGE_COL
+
+        initial_ts = 0
+        messages = self.sessions[session_identifier].messages
+
+        if messages is None:
+            return (
+                reading_times_df,
+                break_msg,
+                other_screens,
+                uncategorized_msgs,
+                initial_ts,
+            )
+
+        if isinstance(messages, pl.DataFrame) and messages.is_empty():
+            return (
+                reading_times_df,
+                break_msg,
+                other_screens,
+                uncategorized_msgs,
+                initial_ts,
+            )
+
+        if isinstance(messages, pl.DataFrame):
+            row_iter = messages.iter_rows(named=True)
+        else:
+            row_iter = messages.copy()
+
+        for msg in row_iter:
+            content = msg.get("content", msg.get("message", ""))
+            ts_val = msg.get("time", msg.get("timestamp", ""))
+
+            timestamp = str(ts_val)
+            if not initial_ts:
+                initial_ts = timestamp
+
+            if settings.BREAK_REGEX.match(content):
+                break_msg.append({"message": content, "timestamp": timestamp})
+            elif settings.OTHER_SCREENS_REGEX.match(content):
+                other_screens.append({"message": content, "timestamp": timestamp})
+            elif match := settings.START_RECORDING_REGEX.match(content):
+                event = match.groupdict()
+                event["start_ts"] = timestamp
+                reading_times_df = reading_times_df.update(
+                    pl.DataFrame(event), on=["stimulus_name", page_col], how="left"
+                )
+            elif match := settings.STOP_RECORDING_REGEX.match(content):
+                event = match.groupdict()
+                event["stop_ts"] = timestamp
+                reading_times_df = reading_times_df.update(
+                    pl.DataFrame(event), on=["stimulus_name", page_col], how="left"
+                )
+            else:
+                uncategorized_msgs.append({"message": content, "timestamp": timestamp})
+
+        return (
+            reading_times_df,
+            break_msg,
+            other_screens,
+            uncategorized_msgs,
+            initial_ts,
+        )
+
+    def _document_other_screens(
+        self, session_idf: str, other_screens: list[dict]
+    ) -> None:
+        result_folder = self.output_dir / self.reports_folder / session_idf
+        os.makedirs(result_folder, exist_ok=True)
+
+        data = {
+            "timestamp": [m["timestamp"] for m in other_screens],
+            "screen": [m["message"] for m in other_screens],
+        }
+        pd.DataFrame(data).to_csv(
+            result_folder / f"other_screens_{session_idf}.tsv",
+            sep="\t",
+            index=False,
+        )
+
+    def _document_breaks(self, session_idf: str, breaks: list[dict]) -> None:
+        result_folder = self.output_dir / self.reports_folder / session_idf
+        os.makedirs(result_folder, exist_ok=True)
+
+        breaks_df: dict[str, list] = {
             "start_ts": [],
             "stop_ts": [],
             "duration_ms": [],
             "type": [],
         }
-
-        messages = []
-
-        initial_ts = 0
-
-        result_folder = self.reports_dir / session_identifier
-        os.makedirs(result_folder, exist_ok=True)
         in_break = False
 
-        with open(asc_file, encoding="utf-8") as f:
-            for line in f:
-                if match := settings.MESSAGE_REGEX.match(line):
-                    messages.append(match.groupdict())
-                    msg = match.groupdict()["message"]
-                    ts = match.groupdict()["timestamp"]
+        for entry in breaks:
+            msg = entry["message"]
+            ts = entry["timestamp"]
 
-                    if not initial_ts:
-                        initial_ts = ts
+            if msg == "optional_break" and not in_break:
+                in_break = True
+                breaks_df["start_ts"].append(ts)
+                breaks_df["type"].append("optional")
+            elif msg == "optional_break_end" and in_break:
+                in_break = False
+                breaks_df["stop_ts"].append(ts)
+            elif msg.split()[0] == "optional_break_duration:":
+                breaks_df["duration_ms"].append(msg.split()[1])
+            elif msg == "obligatory_break" and not in_break:
+                in_break = True
+                breaks_df["start_ts"].append(ts)
+                breaks_df["type"].append("obligatory")
+            elif msg == "obligatory_break_end" and in_break:
+                in_break = False
+                breaks_df["stop_ts"].append(ts)
+            elif msg.split()[0] == "obligatory_break_duration:":
+                breaks_df["duration_ms"].append(msg.split()[1])
 
-                    for screen in other_screens:
-                        if screen in line:
-                            other_screen_appearance["screen"].append(msg)
-                            other_screen_appearance["timestamp"].append(ts)
-
-                    if msg == "optional_break" and not in_break:
-                        in_break = True
-                        breaks["start_ts"].append(ts)
-                        breaks["type"].append("optional")
-                    elif msg == "optional_break_end" and in_break:
-                        in_break = False
-                        breaks["stop_ts"].append(ts)
-                    elif msg.split()[0] == "optional_break_duration:":
-                        breaks["duration_ms"].append(msg.split()[1])
-
-                    elif msg == "obligatory_break" and not in_break:
-                        in_break = True
-                        breaks["start_ts"].append(ts)
-                        breaks["type"].append("obligatory")
-                    elif msg == "obligatory_break_end" and in_break:
-                        in_break = False
-                        breaks["stop_ts"].append(ts)
-                    elif msg.split()[0] == "obligatory_break_duration:":
-                        breaks["duration_ms"].append(msg.split()[1])
-
-                if match := settings.START_RECORDING_REGEX.match(line):
-                    reading_times["start_ts"].append(match.groupdict()["timestamp"])
-                    reading_times["start_msg"].append(match.groupdict()["type"])
-
-                    trial = match.groupdict()["trial"]
-                    # trial = trial.replace('trial_', '')
-                    reading_times["trials"].append(trial)
-
-                    if trial in stimuli_trial_mapping:
-                        reading_times["stimulus_name"].append(
-                            stimuli_trial_mapping[trial]
-                        )
-                    else:
-                        reading_times["stimulus_name"].append("unknown")
-
-                    reading_times["pages"].append(match.groupdict()["page"])
-                    reading_times["status"].append("reading time")
-                elif match := settings.STOP_RECORDING_REGEX.match(line):
-                    reading_times["stop_ts"].append(match.groupdict()["timestamp"])
-                    reading_times["stop_msg"].append(match.groupdict()["type"])
-
-            self._document_reading_times(
-                initial_ts, reading_times, result_folder, session_identifier
+        if in_break:
+            breaks_df["stop_ts"].append(None)
+            self.logger.warning(
+                f"Session {session_idf} did not finish a break properly, "
+                f"missing end message."
             )
 
-            other_screens_df = pd.DataFrame(other_screen_appearance)
-            other_screens_df.to_csv(
-                result_folder / f"other_screens_{session_identifier}.tsv",
-                sep="\t",
-                index=False,
-            )
+        max_len = max(
+            len(breaks_df["start_ts"]),
+            len(breaks_df["stop_ts"]),
+            len(breaks_df["duration_ms"]),
+            len(breaks_df["type"]),
+        )
+        for col in ("start_ts", "stop_ts", "duration_ms", "type"):
+            while len(breaks_df[col]) < max_len:
+                breaks_df[col].append(None)
 
-            if not in_break:
-                breaks_df = pd.DataFrame(breaks)
-                breaks_df.to_csv(
-                    result_folder / f"breaks_{session_identifier}.tsv",
-                    sep="\t",
-                    index=False,
-                )
-            else:
-                self.logger.warning(
-                    f"Session {session_identifier} did not finish a break properly, "
-                    f"missing end message."
-                )
+        pd.DataFrame(breaks_df).to_csv(
+            result_folder / f"breaks_{session_idf}.tsv",
+            sep="\t",
+            index=False,
+        )
 
-        return messages
+    def parse_messages(self, session_identifier: str) -> list[dict]:
+        (
+            stimulus_times_df,
+            break_msg,
+            other_screens,
+            uncategorized_msgs,
+            initial_ts,
+        ) = self._categorize_asc_messages(session_identifier)
+
+        self._document_other_screens(session_identifier, other_screens)
+        self._document_breaks(session_identifier, break_msg)
+
+        result_folder = self.output_dir / self.reports_folder / session_identifier
+        os.makedirs(result_folder, exist_ok=True)
+        self._document_reading_times(
+            initial_ts,
+            stimulus_times_df,
+            result_folder,
+            session_identifier,
+        )
+
+        return uncategorized_msgs
 
     def _document_reading_times(
         self, initial_ts, reading_times, result_folder, session_identifier
     ):
-        """
-        TODO: improve this function!! this is terrible and buggy
-        :param initial_ts:
-        :param reading_times:
-        :param result_folder:
-        :param session_identifier:
-        :return:
-        """
+        """Document reading times from categorized messages.
 
+        :param initial_ts: Timestamp of the first message.
+        :param reading_times: A polars DataFrame or dict of lists with start_ts/stop_ts per page.
+        :param result_folder: Output directory for TSV files.
+        :param session_identifier: The session identifier.
+        """
         stimuli_trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
+
+        if isinstance(reading_times, pl.DataFrame):
+            valid = reading_times.filter(
+                pl.col("start_ts").is_not_null() & pl.col("stop_ts").is_not_null()
+            )
+            reading_times_dict: dict[str, list] = {
+                "start_ts": valid["start_ts"].to_list(),
+                "stop_ts": valid["stop_ts"].to_list(),
+                "start_msg": [],
+                "stop_msg": [],
+                "duration_ms": [],
+                "duration_str": [],
+                "trials": [],
+                "pages": valid["page"].to_list(),
+                "status": [],
+                "stimulus_name": [],
+            }
+            stimuli_trial_mapping = self.sessions[
+                session_identifier
+            ].stimuli_trial_mapping
+            for row in valid.iter_rows(named=True):
+                reading_times_dict["start_msg"].append("start_recording")
+                reading_times_dict["stop_msg"].append("stop_recording")
+                reading_times_dict["status"].append("reading time")
+                page = row["page"]
+                stim = row["stimulus_name"]
+                trial = None
+                for t, s in stimuli_trial_mapping.items():
+                    if s == stim:
+                        trial = t
+                        break
+                reading_times_dict["trials"].append(trial or "unknown")
+                reading_times_dict["stimulus_name"].append(stim)
+            reading_times = reading_times_dict
+
         total_reading_duration_ms = 0
 
         for start, stop in zip(reading_times["start_ts"], reading_times["stop_ts"]):
-            time_ms = int(stop) - int(start)
+            time_ms = int(float(stop)) - int(float(start))
             time_str = convert_to_time_str(time_ms)
             reading_times["duration_ms"].append(time_ms)
             reading_times["duration_str"].append(time_str)
@@ -1246,7 +1656,7 @@ class MultipleyeDataCollection:
             reading_times["pages"],
             reading_times["trials"],
         ):
-            time_ms = int(start) - int(stop)
+            time_ms = int(float(start)) - int(float(stop))
             time_str = convert_to_time_str(time_ms)
             reading_times["duration_ms"].append(time_ms)
             reading_times["duration_str"].append(time_str)
@@ -1383,7 +1793,7 @@ class MultipleyeDataCollection:
         )
 
     def _check_stimuli_gaze_frame(self, gaze, stimuli, session_identifier):
-        """ """
+        """Check the gaze data for all stimuli screens of a session."""
         logging.debug(
             f"Checking asc file all screens for {session_identifier} all screens."
         )
@@ -1586,7 +1996,7 @@ if __name__ == "__main__":
     settings.setup_logging()
     data_collection_folder = "MultiplEYE_ET_EE_Tartu_1_2025"
 
-    this_repo = Path().resolve().parent
+    this_repo = Path.cwd().parent
 
     data_folder_path = this_repo / "data" / data_collection_folder
 

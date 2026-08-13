@@ -5,15 +5,21 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from ..templating import render
 from ..services.dcn import get_dcn
+from ..services.swipe import (
+    remove_plot_judgment as _remove_plot_judgment_sync,
+)
+from ..services.swipe import (
+    save_plot_comment as _save_plot_comment_sync,
+)
+from ..services.swipe import (
+    save_plot_judgment as _save_plot_judgment_sync,
+)
 from ..services.swipe import (
     swipe_data,
     swipe_stats,
-    save_plot_judgment as _save_plot_judgment_sync,
-    remove_plot_judgment as _remove_plot_judgment_sync,
-    save_plot_comment as _save_plot_comment_sync,
 )
+from ..templating import render
 
 router = APIRouter()
 

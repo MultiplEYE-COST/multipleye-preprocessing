@@ -8,7 +8,7 @@ loads instantly — the user clicks "Re-run" to refresh.
 
 import io
 from contextlib import redirect_stderr
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import yaml
 
@@ -136,4 +136,4 @@ def _do_run(dcn_name: str) -> dict:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")

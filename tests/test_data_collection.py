@@ -1,12 +1,11 @@
 import unittest
-from unittest import TestCase
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest import TestCase
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from preprocessing.data_collection import MultipleyeDataCollection
-
 
 # the tests were written with github copilot, so they are not complete yet, and I don't know if they are correct, nor do I understand them fully
 

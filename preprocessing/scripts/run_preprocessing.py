@@ -48,6 +48,7 @@ def run_preprocessing(config_path: str | None = None):
             include_pilots=settings.INCLUDE_PILOTS,
             excluded_sessions=settings.EXCLUDE_SESSIONS,
             included_sessions=settings.INCLUDE_SESSIONS,
+            output_dir=settings.OUTPUT_DIR,
         )
 
     elif settings.EXPERIMENT_TYPE == "MeRID":
@@ -106,6 +107,12 @@ def run_preprocessing(config_path: str | None = None):
                 load_metadata=True,
             )
 
+            if gaze is not None and gaze.messages is None and asc.exists():
+                tmp = pm.gaze.from_asc(
+                    asc, patterns=[], messages=settings.EXPERIMENT_MSG_PATTERNS
+                )
+                gaze.messages = tmp.messages
+
         else:
             pbar.set_description(f"Extracting samples {sess.sid}:")
             gaze = preprocessing.load_gaze_data(
@@ -113,7 +120,7 @@ def run_preprocessing(config_path: str | None = None):
                 lab_config=sess.lab_config,
                 sid=sess.sid,
                 trial_cols=settings.TRIAL_COLS,
-                messages=settings.ANSWER_MSG_PATTERNS,
+                messages=settings.EXPERIMENT_MSG_PATTERNS,
             )
 
             # filter gaze to only contain data of completed stimuli
@@ -139,6 +146,7 @@ def run_preprocessing(config_path: str | None = None):
         sess.pm_gaze_metadata = gaze._metadata
         sess.calibrations = gaze.calibrations
         sess.validations = gaze.validations
+        sess.messages = gaze.messages
 
         # Store measure-based data loss values (computed above and in load_gaze_data).
         sess._measure_total_data_loss_ratio = getattr(

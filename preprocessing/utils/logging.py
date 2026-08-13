@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from ..config import settings
 import logging
 import re
 import subprocess
@@ -8,6 +7,8 @@ from importlib import metadata
 from pathlib import Path
 
 import pymovements as pm
+
+from ..config import settings
 
 # Package-level logger
 logger = logging.getLogger("preprocessing")

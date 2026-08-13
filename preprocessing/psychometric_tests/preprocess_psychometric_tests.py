@@ -20,8 +20,8 @@ import warnings
 from math import nan
 from pathlib import Path
 
-from pandas import read_csv, DataFrame
 import pandas as pd
+from pandas import DataFrame, read_csv
 
 from ..config import settings
 from ..models.sid import Sid
@@ -181,7 +181,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 overview_row["LWMC_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"[{session.name}] LWMC test skipped: {str(err)}",
+                    f"[{session.name}] LWMC test skipped: {err!s}",
                     category=UserWarning,
                 )
 
@@ -197,7 +197,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 overview_row["RAN_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"[{session.name}] RAN test skipped: {str(err)}",
+                    f"[{session.name}] RAN test skipped: {err!s}",
                     category=UserWarning,
                 )
 
@@ -226,7 +226,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 overview_row["Stroop_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"[{session.name}] Stroop test skipped: {str(err)}",
+                    f"[{session.name}] Stroop test skipped: {err!s}",
                     category=UserWarning,
                 )
             try:
@@ -253,7 +253,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 overview_row["Flanker_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"[{session.name}] Flanker test skipped: {str(err)}",
+                    f"[{session.name}] Flanker test skipped: {err!s}",
                     category=UserWarning,
                 )
 
@@ -277,7 +277,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 overview_row["WikiVocab_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"[{session.name}] WikiVocab test skipped: {str(err)}",
+                    f"[{session.name}] WikiVocab test skipped: {err!s}",
                     category=UserWarning,
                 )
 
@@ -300,7 +300,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 overview_row["PLAB_Done"] = 1
             except ValueError as err:
                 warnings.warn(
-                    f"[{session.name}] PLAB test skipped: {str(err)}",
+                    f"[{session.name}] PLAB test skipped: {err!s}",
                     category=UserWarning,
                 )
 
@@ -1275,9 +1275,9 @@ def preprocess_plab(plab_dir: Path) -> dict:
     df_set1 = df[df["question_id"].isin([1, 2, 3, 4])]
     df_set2 = df[df["question_id"].isin(range(5, 16))]
 
-    rt_set1, acc_set1, num_set1 = (nan, nan, 0)
+    rt_set1, acc_set1, _num_set1 = (nan, nan, 0)
     if not df_set1.empty:
-        rt_set1, acc_set1, num_set1 = _reaction_time_accuracy(
+        rt_set1, acc_set1, _num_set1 = _reaction_time_accuracy(
             df_set1,
             reaction_time_col="rt",
             correctness_col="correctness",
@@ -1285,9 +1285,9 @@ def preprocess_plab(plab_dir: Path) -> dict:
             max_rt=float("inf"),
         )
 
-    rt_set2, acc_set2, num_set2 = (nan, nan, 0)
+    rt_set2, acc_set2, _num_set2 = (nan, nan, 0)
     if not df_set2.empty:
-        rt_set2, acc_set2, num_set2 = _reaction_time_accuracy(
+        rt_set2, acc_set2, _num_set2 = _reaction_time_accuracy(
             df_set2,
             reaction_time_col="rt",
             correctness_col="correctness",
