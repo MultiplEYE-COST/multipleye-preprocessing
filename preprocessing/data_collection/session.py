@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TypeVar
 
@@ -101,7 +101,8 @@ class Session:
     reading_measures: bool = field(default=True, init=False)
     answers: bool = field(default=True, init=False)
 
-    trials = list[Trial]
+    # per-trial metrics
+    trials: list[Trial] | str = field(default="unknown", init=False)
 
     @property
     def sid(self) -> "Sid":
@@ -167,6 +168,11 @@ class Session:
                 "total_reading_time": self.total_reading_time,
                 "total_session_duration": self.total_session_duration,
             },
+            "Trials": (
+                [asdict(t) for t in self.trials]
+                if isinstance(self.trials, list)
+                else self.trials
+            ),
             "Comprehension": {
                 "avg_comprehension_score": self.avg_comprehension_score,
                 "avg_comprehension_score_local": self.avg_comprehension_score_local,
@@ -347,6 +353,8 @@ class Session:
 
         self._compute_comprehension_scores()
 
+        self.trials = self._compute_trials()
+
         duration = self._compute_session_duration()
         if duration is not None:
             self.total_session_duration = duration
@@ -378,3 +386,80 @@ class Session:
         if total_ms <= 0:
             return None
         return round(total_ms / 1000, 3)
+
+    def _reading_time_by_trial(self) -> dict[str, float]:
+        """Return total reading time in ms per trial from stimulus timestamps."""
+        by_trial: dict[str, float] = {}
+        if not isinstance(self.stimulus_start_end_ts, list):
+            return by_trial
+        for entry in self.stimulus_start_end_ts:
+            try:
+                start = float(entry["start_ts"])
+                stop = float(entry["stop_ts"])
+                trial = str(entry["trial"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            by_trial[trial] = by_trial.get(trial, 0.0) + (stop - start)
+        return by_trial
+
+    def _compute_trials(self) -> list[Trial] | str:
+        """Assemble per-trial metrics from the answers CSV and reading times.
+
+        Returns
+        -------
+        list[Trial] | str
+            Per-trial metrics, or "unknown" when the answers CSV is missing.
+        """
+        answers_csv = self.sid.answers_dir / f"{self.sid}_answers.csv"
+        if not answers_csv.exists():
+            return "unknown"
+
+        try:
+            answers = pl.read_csv(answers_csv)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Could not read answers CSV {answers_csv}: {exc}")
+            return "unknown"
+
+        required = {"trial", "stimulus", "stimulus_id", "is_correct"}
+        if answers.is_empty() or not required.issubset(answers.columns):
+            return "unknown"
+
+        reading_by_trial = self._reading_time_by_trial()
+
+        trials: list[Trial] = []
+        for trial_id, group in answers.group_by("trial", maintain_order=True):
+            trial_id = trial_id[0] if isinstance(trial_id, tuple) else trial_id
+            correct = [c for c in group["is_correct"].to_list() if c is not None]
+            if not correct:
+                score = 0.0
+            else:
+                score = round(sum(1 for c in correct if c) / len(correct), 3)
+
+            question_time = 0.0
+            if "confirmation_rt_ms" in group.columns:
+                q_times = [
+                    float(t) for t in group["confirmation_rt_ms"].drop_nulls().to_list()
+                ]
+                question_time = round(sum(q_times), 3) if q_times else 0.0
+
+            first = group.row(0, named=True)
+            try:
+                trial_number = int(str(trial_id).rsplit("_", 1)[-1])
+            except ValueError:
+                trial_number = 0
+
+            trials.append(
+                Trial(
+                    trial_number=trial_number,
+                    stimulus_id=int(first["stimulus_id"]),
+                    stimulus_name=str(first["stimulus"]),
+                    is_practice=str(trial_id).startswith("PRACTICE_"),
+                    num_questions=group.height,
+                    comprehension_score=score,
+                    comprehension_question_time_ms=question_time,
+                    reading_time_ms=round(reading_by_trial.get(str(trial_id), 0.0), 3),
+                )
+            )
+
+        trials.sort(key=lambda t: (t.is_practice, t.trial_number))
+        return trials

@@ -1,7 +1,9 @@
+import contextlib
 from pathlib import Path
 from unittest.mock import patch
 
 import polars as pl
+import pytest
 
 from preprocessing.data_collection.session import Session
 from preprocessing.data_collection.stimulus import LabConfig
@@ -129,6 +131,7 @@ def test_sections_are_present() -> None:
         "Calibration_validation",
         "Data_quality",
         "Experiment_procedure",
+        "Trials",
         "Comprehension",
         "Data_formats",
     ]
@@ -577,3 +580,170 @@ def test_reading_time_already_set() -> None:
     proc = overview["Experiment_procedure"]
 
     assert proc["total_reading_time"] == 42.0
+
+
+# --- Trial building ---
+
+
+def _write_answers(
+    tmp_path: Path,
+    rows: list[dict],
+) -> Path:
+    """Write an answers CSV and return the comp_answers dir for the fake sid."""
+    answers_dir = tmp_path / "comp_answers" / "001_EN_UK_1_ET1"
+    answers_dir.mkdir(parents=True)
+    pl.DataFrame(rows).write_csv(answers_dir / "001_EN_UK_1_ET1_answers.csv")
+    return answers_dir
+
+
+def _trial_sess(answers_dir: Path) -> Session:
+    sess = _sess_with_validation_data()
+    sess.stimulus_start_end_ts = [
+        {
+            "stimulus": "Lit_MagicMountain",
+            "trial": "trial_1",
+            "start_ts": 1000.0,
+            "stop_ts": 4000.0,
+        },
+        {
+            "stimulus": "Lit_Alchemist",
+            "trial": "trial_2",
+            "start_ts": 5000.0,
+            "stop_ts": 8000.0,
+        },
+        {
+            "stimulus": "Enc_WikiMoon",
+            "trial": "PRACTICE_trial_1",
+            "start_ts": 100.0,
+            "stop_ts": 500.0,
+        },
+    ]
+    return sess
+
+
+_ANSWERS_ROWS = [
+    {
+        "trial": "trial_1",
+        "stimulus": "Lit_MagicMountain",
+        "stimulus_id": 3,
+        "is_correct": True,
+        "confirmation_rt_ms": 1000.0,
+    },
+    {
+        "trial": "trial_1",
+        "stimulus": "Lit_MagicMountain",
+        "stimulus_id": 3,
+        "is_correct": False,
+        "confirmation_rt_ms": 2000.0,
+    },
+    {
+        "trial": "trial_2",
+        "stimulus": "Lit_Alchemist",
+        "stimulus_id": 4,
+        "is_correct": True,
+        "confirmation_rt_ms": 1500.0,
+    },
+    {
+        "trial": "PRACTICE_trial_1",
+        "stimulus": "Enc_WikiMoon",
+        "stimulus_id": 13,
+        "is_correct": True,
+        "confirmation_rt_ms": 500.0,
+    },
+]
+
+
+@pytest.mark.parametrize(
+    (
+        "trial_number",
+        "is_practice",
+        "stimulus_name",
+        "num_questions",
+        "comprehension_score",
+        "question_time_ms",
+        "reading_time_ms",
+    ),
+    [
+        (1, False, "Lit_MagicMountain", 2, 0.5, 3000.0, 3000.0),
+        (2, False, "Lit_Alchemist", 1, 1.0, 1500.0, 3000.0),
+        (1, True, "Enc_WikiMoon", 1, 1.0, 500.0, 400.0),
+    ],
+)
+def test_trials_computed_from_answers_and_reading_times(
+    tmp_path: Path,
+    trial_number: int,
+    is_practice: bool,
+    stimulus_name: str,
+    num_questions: int,
+    comprehension_score: float,
+    question_time_ms: float,
+    reading_time_ms: float,
+) -> None:
+    answers_dir = _write_answers(tmp_path, _ANSWERS_ROWS)
+    sess = _trial_sess(answers_dir)
+
+    with patch.object(
+        Session,
+        "sid",
+        property(lambda self: _FakeSid(answers_dir)),
+    ):
+        trials = sess.create_overview()["Trials"]
+
+    trial = next(
+        t
+        for t in trials
+        if t["trial_number"] == trial_number and t["is_practice"] == is_practice
+    )
+    assert trial["stimulus_name"] == stimulus_name
+    assert trial["num_questions"] == num_questions
+    assert trial["comprehension_score"] == comprehension_score
+    assert trial["comprehension_question_time_ms"] == question_time_ms
+    assert trial["reading_time_ms"] == reading_time_ms
+
+
+@pytest.mark.parametrize(
+    ("answers_setup",),
+    [
+        ("missing",),
+        ("unreadable",),
+    ],
+)
+def test_trials_unknown_without_usable_answers(
+    tmp_path: Path,
+    answers_setup: str,
+) -> None:
+    sess = _sess_with_validation_data()
+
+    def _patched_sid(path: Path):
+        return _FakeSid(path)
+
+    if answers_setup == "missing":
+        answers_dir = tmp_path / "nonexistent"
+    else:
+        answers_dir = tmp_path / "comp_answers" / "001_EN_UK_1_ET1"
+        answers_dir.mkdir(parents=True)
+        (answers_dir / "001_EN_UK_1_ET1_answers.csv").write_text("garbage")
+
+    def _raise(*args, **kwargs):
+        from polars.exceptions import ComputeError
+
+        raise ComputeError("cannot parse")
+
+    patches = [
+        patch.object(
+            Session,
+            "sid",
+            property(lambda self: _patched_sid(answers_dir)),
+        )
+    ]
+    if answers_setup == "unreadable":
+        patches.insert(
+            0, patch("preprocessing.data_collection.session.pl.read_csv", _raise)
+        )
+
+    with contextlib.ExitStack() as stack:
+        for p in patches:
+            stack.enter_context(p)
+        trials = sess.create_overview()["Trials"]
+
+    assert trials == "unknown"
