@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TypeVar
 
 import polars as pl
 
@@ -10,6 +11,8 @@ from ..models import Sid
 from ..utils.logging import get_logger
 
 logger = get_logger()
+
+T = TypeVar("T")
 
 
 @dataclass
@@ -24,43 +27,49 @@ class Session:
     session_folder_path: Path
     session_file_path: Path
     session_file_name: str
-    asc_path: Path = field(default="unknown", init=False)
+    asc_path: Path | str = field(default="unknown", init=False)
 
     # stimuli
     # TODO: move stimuli, completed stimuli, stimuli trial mapping to one thing
-    stimuli: list[Stimulus] = field(default="unknown", init=False)
-    randomization_version: int = field(default="unknown", init=False)
+    stimuli: list[Stimulus] | str = field(default="unknown", init=False)
+    randomization_version: int | str = field(default="unknown", init=False)
     stimulus_folder_name: str = field(default="unknown", init=False)
-    completed_stimuli_ids: list[int] = field(default="unknown", init=False)
-    completed_stimuli_names: list[str] = field(default="unknown", init=False)
-    question_order: dict[str, list[str]] = field(default="unknown", init=False)
-    stimulus_order_ids: list[int] = field(default="unknown", init=False)
-    messages: list[dict[str, str]] = field(default="unknown", init=False)
-    uncategorized_messages: list[dict[str, str]] = field(default="unknown", init=False)
-    stimuli_trial_mapping: dict[str, str] = field(default="unknown", init=False)
-    stimulus_start_end_ts: dict[str, list[str]] = field(default="unknown", init=False)
+    completed_stimuli_ids: list[int] | str = field(default="unknown", init=False)
+    completed_stimuli_names: list[str] | str = field(default="unknown", init=False)
+    question_order: dict[str, list[str]] | str = field(default="unknown", init=False)
+    stimulus_order_ids: list[int] | str = field(default="unknown", init=False)
+    messages: pl.DataFrame | list[dict[str, str]] | str = field(
+        default="unknown", init=False
+    )
+    uncategorized_messages: list[dict[str, str]] | str = field(
+        default="unknown", init=False
+    )
+    stimuli_trial_mapping: dict[str, str] | str = field(default="unknown", init=False)
+    stimulus_start_end_ts: list[dict[str, str | float]] | str = field(
+        default="unknown", init=False
+    )
 
     logfile: str = field(default="unknown", init=False)
-    interrupted: bool = field(default="unknown", init=False)
-    lab_config: LabConfig = field(default="unknown", init=False)
+    interrupted: bool | str = field(default="unknown", init=False)
+    lab_config: LabConfig | str = field(default="unknown", init=False)
 
     # stats
     total_reading_time: float | str = field(default="unknown", init=False)
     total_session_duration: float | str = field(default="unknown", init=False)
-    obligatory_break_made: bool = field(default="unknown", init=False)
-    num_optional_breaks_made: int = field(default="unknown", init=False)
+    obligatory_break_made: bool | str = field(default="unknown", init=False)
+    num_optional_breaks_made: int | str = field(default="unknown", init=False)
     total_break_time: float | str = field(default="unknown", init=False)
 
     # calibrations & validations
-    calibrations: pl.DataFrame = field(default="unknown", init=False)
-    validations: pl.DataFrame = field(default="unknown", init=False)
+    calibrations: pl.DataFrame | str = field(default="unknown", init=False)
+    validations: pl.DataFrame | str = field(default="unknown", init=False)
     avg_comprehension_score: float | str = field(default="unknown", init=False)
     avg_comprehension_score_local: float | str = field(default="unknown", init=False)
     avg_comprehension_score_global: float | str = field(default="unknown", init=False)
     avg_comprehension_score_bridging: float | str = field(default="unknown", init=False)
     avg_calibration_error: float | str = field(default="unknown", init=False)
-    num_calibrations: int = field(default="unknown", init=False)
-    num_validations: int = field(default="unknown", init=False)
+    num_calibrations: int | str = field(default="unknown", init=False)
+    num_validations: int | str = field(default="unknown", init=False)
     avg_validation_error: float | str = field(default="unknown", init=False)
 
     # eye tracking metadata
@@ -74,11 +83,11 @@ class Session:
     num_completed_trials: int = field(default=0, init=False)
 
     # sanity report
-    sanity_report_path: Path = field(default="unknown", init=False)
+    sanity_report_path: Path | str = field(default="unknown", init=False)
 
     # preprocessing pm
-    pm_gaze_path: Path = field(default="unknown", init=False)
-    pm_gaze_metadata: dict = field(default="unknown", init=False)
+    pm_gaze_path: Path | str = field(default="unknown", init=False)
+    pm_gaze_metadata: dict | str = field(default="unknown", init=False)
 
     # psychometric tests
     psychometric_tests_session: str = field(default="unknown", init=False)
@@ -173,7 +182,7 @@ class Session:
             },
         }
 
-    def _get_metadata(self, key: str, default: str = "unknown") -> str:
+    def _get_metadata(self, key: str, default: T = "unknown") -> str | T:
         """Return a value from pm_gaze_metadata without raising on missing keys."""
         if isinstance(self.pm_gaze_metadata, dict):
             return self.pm_gaze_metadata.get(key, default)
@@ -278,11 +287,12 @@ class Session:
             return None
         if "time" not in self.messages.columns:
             return None
-        min_t = self.messages["time"].min()
-        max_t = self.messages["time"].max()
-        if min_t is None or max_t is None:
+        times = self.messages["time"].cast(pl.Float64).drop_nulls().to_list()
+        if not times:
             return None
-        return round((float(max_t) - float(min_t)) / 1000, 3)
+        min_t = min(times)
+        max_t = max(times)
+        return round((max_t - min_t) / 1000, 3)
 
     def _create_stats(self):
         self.num_calibrations = len(self.calibrations)
