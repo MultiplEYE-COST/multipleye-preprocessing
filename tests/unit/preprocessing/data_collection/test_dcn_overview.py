@@ -97,6 +97,9 @@ def _setup_session_with_data(
     total_reading_time: float = 25000.0,
     total_session_duration: float = 1800.0,
     avg_comprehension: float = 0.8,
+    avg_comprehension_local: float = 0.7,
+    avg_comprehension_global: float = 0.9,
+    avg_comprehension_bridging: float = 0.6,
     num_completed_trials: int = 10,
 ) -> None:
     session.avg_calibration_error = avg_calibration_error
@@ -106,6 +109,9 @@ def _setup_session_with_data(
     session.total_reading_time = total_reading_time
     session.total_session_duration = total_session_duration
     session.avg_comprehension_score = avg_comprehension
+    session.avg_comprehension_score_local = avg_comprehension_local
+    session.avg_comprehension_score_global = avg_comprehension_global
+    session.avg_comprehension_score_bridging = avg_comprehension_bridging
     session.num_completed_trials = num_completed_trials
 
 
@@ -266,6 +272,36 @@ class TestComputedAverages:
         assert q["mean_blink_ratio"] is None
         assert q["mean_total_reading_time_ms"] is None
         assert q["mean_comprehension_score"] is None
+        assert q["mean_comprehension_score_local"] is None
+        assert q["mean_comprehension_score_global"] is None
+        assert q["mean_comprehension_score_bridging"] is None
+
+    def test_comprehension_by_type_averages(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        _setup_session_with_data(
+            dc.sessions["001_EN_UK_1_ET1"],
+            avg_comprehension=0.8,
+            avg_comprehension_local=0.7,
+            avg_comprehension_global=0.9,
+            avg_comprehension_bridging=0.6,
+        )
+        _setup_session_with_data(
+            dc.sessions["002_EN_UK_1_ET1"],
+            avg_comprehension=0.6,
+            avg_comprehension_local=0.5,
+            avg_comprehension_global=0.7,
+            avg_comprehension_bridging=0.4,
+        )
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        q = _qual(overview)
+
+        assert q["mean_comprehension_score"] == 0.7
+        assert q["mean_comprehension_score_local"] == 0.6
+        assert q["mean_comprehension_score_global"] == 0.8
+        assert q["mean_comprehension_score_bridging"] == 0.5
 
     def test_averages_with_multiple_sessions(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
