@@ -81,9 +81,11 @@ def prepare_language_folder(data_collection_name: str | None = None):
                         only_in_dst = dst_names - src_names
                         if only_in_src or only_in_dst:
                             msg_parts = [
-                                f"Folder '{folder.name}' exists in both "
-                                f"'core_sessions' and 'eye-tracking-sessions' "
-                                f"with different contents."
+                                (
+                                    f"Folder '{folder.name}' exists in both "
+                                    f"'core_sessions' and 'eye-tracking-sessions' "
+                                    f"with different contents."
+                                )
                             ]
                             if only_in_src:
                                 msg_parts.append(

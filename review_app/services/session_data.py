@@ -1,11 +1,11 @@
 """Read session overview YAML and compute check results with threshold comparison."""
 
-import yaml
 from pathlib import Path
 
-from ..models import CheckResult, SessionDetail, ReviewAnnotation
-from .thresholds import check_value
+import yaml
 
+from ..models import CheckResult, ReviewAnnotation, SessionDetail
+from .thresholds import check_value
 
 # Mapping from overview YAML field names to check metadata.
 # Ordered by category for display grouping.
@@ -17,11 +17,63 @@ CHECK_REGISTRY: list[dict] = [
         "label": "Tracked eye consistent",
         "category": "Hardware",
     },
-    {"field": "Mount_configuration", "label": "Mount type", "category": "Hardware"},
+    {"field": "Eye_tracker_name", "label": "Eye tracker", "category": "Hardware"},
+    {
+        "field": "Sampling_frequency_hz",
+        "label": "Sampling frequency (Hz)",
+        "category": "Hardware",
+    },
+    {"field": "Mount_type", "label": "Mount type", "category": "Hardware"},
+    {
+        "field": "Head_stabilization",
+        "label": "Head stabilization",
+        "category": "Hardware",
+    },
+    {"field": "Eyes_recorded", "label": "Eyes recorded", "category": "Hardware"},
     {"field": "Pupil_data_type", "label": "Pupil data type", "category": "Hardware"},
     {
-        "field": "expected_sampling_rate_hz",
-        "label": "Sampling rate (Hz)",
+        "field": "Screen_resolution_width_px",
+        "label": "Screen resolution width (px)",
+        "category": "Hardware",
+    },
+    {
+        "field": "Screen_resolution_height_px",
+        "label": "Screen resolution height (px)",
+        "category": "Hardware",
+    },
+    {
+        "field": "Screen_size_width_cm",
+        "label": "Screen size width (cm)",
+        "category": "Hardware",
+    },
+    {
+        "field": "Screen_size_height_cm",
+        "label": "Screen size height (cm)",
+        "category": "Hardware",
+    },
+    {
+        "field": "Screen_distance_cm",
+        "label": "Screen distance (cm)",
+        "category": "Hardware",
+    },
+    {
+        "field": "Image_resolution_width_px",
+        "label": "Image resolution width (px)",
+        "category": "Hardware",
+    },
+    {
+        "field": "Image_resolution_height_px",
+        "label": "Image resolution height (px)",
+        "category": "Hardware",
+    },
+    {
+        "field": "Image_size_width_cm",
+        "label": "Image size width (cm)",
+        "category": "Hardware",
+    },
+    {
+        "field": "Image_size_height_cm",
+        "label": "Image size height (cm)",
         "category": "Hardware",
     },
     # Calibration & validation
@@ -62,8 +114,13 @@ CHECK_REGISTRY: list[dict] = [
     },
     # Data quality
     {
-        "field": "data_loss_ratio",
-        "label": "Data loss ratio",
+        "field": "total_data_loss_ratio",
+        "label": "Total data loss ratio",
+        "category": "Data Quality",
+    },
+    {
+        "field": "blink_loss_ratio",
+        "label": "Blink loss ratio",
         "category": "Data Quality",
     },
     # Recording
@@ -119,16 +176,31 @@ CHECK_REGISTRY: list[dict] = [
         "label": "Avg comprehension score",
         "category": "Comprehension",
     },
-    # Data presence
-    {"field": "Raw_data", "label": "Raw data present", "category": "Data Files"},
-    {"field": "Fixations", "label": "Fixations present", "category": "Data Files"},
-    {"field": "Saccades", "label": "Saccades present", "category": "Data Files"},
     {
-        "field": "Reading_measures",
+        "field": "avg_comprehension_score_local",
+        "label": "Avg local comprehension score",
+        "category": "Comprehension",
+    },
+    {
+        "field": "avg_comprehension_score_global",
+        "label": "Avg global comprehension score",
+        "category": "Comprehension",
+    },
+    {
+        "field": "avg_comprehension_score_bridging",
+        "label": "Avg bridging comprehension score",
+        "category": "Comprehension",
+    },
+    # Data presence
+    {"field": "raw_data", "label": "Raw data present", "category": "Data Files"},
+    {"field": "fixations", "label": "Fixations present", "category": "Data Files"},
+    {"field": "saccades", "label": "Saccades present", "category": "Data Files"},
+    {
+        "field": "reading_measures",
         "label": "Reading measures present",
         "category": "Data Files",
     },
-    {"field": "Answers", "label": "Answers present", "category": "Data Files"},
+    {"field": "answers", "label": "Answers present", "category": "Data Files"},
 ]
 
 
@@ -144,6 +216,25 @@ def read_overview(path: Path) -> dict | None:
         return yaml.load(f, Loader=yaml.FullLoader)
 
 
+def get_field(overview: dict, field: str) -> object | None:
+    """Resolve a field from a session overview, searching nested sections.
+
+    Session overviews are grouped into topic sections (e.g. ``Data_quality``).
+    This helper finds a field either at the top level (legacy flat overviews)
+    or inside any section dict.
+
+    :param overview: Dict from a session overview YAML.
+    :param field: Field name to look up.
+    :returns: The value, or None if not found.
+    """
+    if field in overview:
+        return overview[field]
+    for section in overview.values():
+        if isinstance(section, dict) and field in section:
+            return section[field]
+    return None
+
+
 def compute_checks(overview: dict, thresholds: dict | None) -> list[CheckResult]:
     """Compute CheckResult list from overview values and thresholds.
 
@@ -154,7 +245,7 @@ def compute_checks(overview: dict, thresholds: dict | None) -> list[CheckResult]
     checks: list[CheckResult] = []
     for entry in CHECK_REGISTRY:
         field = entry["field"]
-        value = overview.get(field, None)
+        value = get_field(overview, field)
         if value is None:
             continue
         if not _is_checkable(value):
@@ -219,8 +310,8 @@ def build_session_detail(
     :param sid: Session identifier.
     :returns: SessionDetail model.
     """
-    pid = overview.get("participant_id", 0)
-    is_pilot = overview.get("is_pilot", False)
+    pid = get_field(overview, "participant_id") or 0
+    is_pilot = get_field(overview, "is_pilot") or False
     checks = compute_checks(overview, thresholds)
 
     from ..config import sanity_checks_path

@@ -1,5 +1,6 @@
-import yaml
 from pathlib import Path
+
+import yaml
 
 from ..config import settings
 
@@ -19,7 +20,8 @@ def write_quality_thresholds(output_dir: str | Path) -> None:
         "avg_validation_error": list(settings.ACCEPTABLE_AVG_VALIDATION_SCORES),
         "max_validation_error": list(settings.ACCEPTABLE_MAX_VALIDATION_SCORES),
         "validation_errors": list(settings.ACCEPTABLE_VALIDATION_ERRORS),
-        "data_loss_ratio": list(settings.ACCEPTABLE_DATA_LOSS_RATIOS),
+        "total_data_loss_ratio": list(settings.ACCEPTABLE_DATA_LOSS_RATIOS),
+        "blink_loss_ratio": list(settings.ACCEPTABLE_DATA_LOSS_RATIOS),
         "total_session_duration": list(settings.ACCEPTABLE_RECORDING_DURATIONS),
         "num_practice_trials": settings.ACCEPTABLE_NUM_PRACTICE_TRIALS,
         "num_experiment_trials": settings.ACCEPTABLE_NUM_TRIALS,

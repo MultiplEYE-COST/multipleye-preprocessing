@@ -131,11 +131,11 @@ class TestCopytree:
         src = source_dir
         dst = tmp_path / "dest"
 
-        with patch("os.name", "nt" if is_windows else "posix"):
-            with patch(
-                "preprocessing.utils.file_utils.shutil.copytree"
-            ) as mock_copytree:
-                _copytree(src, dst, dirs_exist_ok=True)
+        with (
+            patch("os.name", "nt" if is_windows else "posix"),
+            patch("preprocessing.utils.file_utils.shutil.copytree") as mock_copytree,
+        ):
+            _copytree(src, dst, dirs_exist_ok=True)
 
         call_args, call_kwargs = mock_copytree.call_args
         src_arg, dst_arg = call_args[0], call_args[1]

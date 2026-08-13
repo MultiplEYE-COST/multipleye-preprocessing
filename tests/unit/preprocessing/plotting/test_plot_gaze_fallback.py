@@ -1,11 +1,13 @@
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-from preprocessing.plotting.plot import plot_gaze
+
+import pytest
+
+from preprocessing.config import settings
 from preprocessing.data_collection.stimulus import (
     Stimulus,
 )
-from preprocessing.config import settings
+from preprocessing.plotting.plot import plot_gaze
 
 
 @pytest.fixture

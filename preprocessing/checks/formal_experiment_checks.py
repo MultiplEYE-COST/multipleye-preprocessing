@@ -46,7 +46,9 @@ RATING_SCREENS = [
 
 
 def check_all_screens_logfile(
-    logfile: pl.DataFrame, stimuli: Stimulus | list[Stimulus], report_file: Path = None
+    logfile: pl.DataFrame,
+    stimuli: Stimulus | list[Stimulus],
+    report_file: Path | None = None,
 ):
     """
     checking if all screens, where ET data is tracked are present in the log file
@@ -203,7 +205,7 @@ def check_messages(
 
         try:
             last_msg_index = messages_only.index(f"start_recording{pattern}_page_1")
-        except ValueError as e:
+        except ValueError:
             # if the session has been restarted, there might be a mismatch between trial numbers and stimulus ids
             if restarted:
                 while updated_trial <= 12:
@@ -214,9 +216,9 @@ def check_messages(
                         last_msg_index = messages_only.index(pattern)
                         break
                 else:
-                    raise e
+                    raise
             else:
-                raise e
+                raise
 
         last_msg_timestamp = messages[last_msg_index].get("timestamp")
 

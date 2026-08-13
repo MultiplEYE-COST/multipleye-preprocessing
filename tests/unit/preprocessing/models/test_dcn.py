@@ -1,4 +1,5 @@
 import pytest
+
 from preprocessing.models.dcn import Dcn
 
 

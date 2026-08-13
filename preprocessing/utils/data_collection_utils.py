@@ -15,5 +15,5 @@ def _report_to_file(message: str, report_file: Path) -> None:
         The path to the file where the message will be appended.
     """
     assert isinstance(report_file, Path)
-    with open(report_file, "a", encoding="utf-8") as report_file:
-        report_file.write(f"{message}\n")
+    with open(report_file, "a", encoding="utf-8") as f:
+        f.write(f"{message}\n")

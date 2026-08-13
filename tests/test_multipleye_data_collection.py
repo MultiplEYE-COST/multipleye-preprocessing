@@ -1,9 +1,10 @@
-from unittest import TestCase
-import pytest
 from pathlib import Path
+from unittest import TestCase
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from preprocessing.data_collection import MultipleyeDataCollection
-from unittest.mock import patch, MagicMock
 
 
 @pytest.mark.skip(reason="Not complete")
@@ -14,7 +15,7 @@ class TestMultipleyeDataCollection(TestCase):
         # For example, you could create a temporary directory or file
         # self.test_dir = tempfile.TemporaryDirectory()
 
-        self.this_repo = Path().resolve().parent
+        self.this_repo = Path.cwd().parent
 
         self.data_collection_folder = "MultiplEYE_toy_X_x_1_1"
         self.data_folder_path = self.this_repo / "tests" / self.data_collection_folder

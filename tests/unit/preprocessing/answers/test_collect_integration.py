@@ -1,9 +1,11 @@
+from pathlib import Path
+
 import polars as pl
 import pytest
-from pathlib import Path
+
 from preprocessing.answers.collect import collect_session_answers
 from preprocessing.answers.msg_parser import parse_answers_from_messages
-from preprocessing.data_collection.stimulus import Stimulus, ComprehensionQuestion
+from preprocessing.data_collection.stimulus import ComprehensionQuestion, Stimulus
 
 
 @pytest.fixture

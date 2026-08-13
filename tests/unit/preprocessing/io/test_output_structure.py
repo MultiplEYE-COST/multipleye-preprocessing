@@ -1,19 +1,20 @@
-import pytest
 import polars as pl
 import pymovements as pm
+import pytest
+
+from preprocessing.config import settings
+from preprocessing.io.load import (
+    load_reading_measures,
+    load_trial_level_events_data,
+    load_trial_level_raw_data,
+)
 from preprocessing.io.save import (
-    save_raw_data,
     save_events_data,
-    save_scanpaths,
+    save_raw_data,
     save_reading_measures,
+    save_scanpaths,
     save_session_metadata,
 )
-from preprocessing.io.load import (
-    load_trial_level_raw_data,
-    load_trial_level_events_data,
-    load_reading_measures,
-)
-from preprocessing.config import settings
 from preprocessing.models.sid import Sid
 
 SID_STRINGS = ["001_EN_UK_1_S1", "017_DA_DK_1_ET1_start_after_trial_3"]
@@ -81,9 +82,7 @@ def test_save_load_raw_data_structure(tmp_path, dummy_gaze, sid_str):
     sid = Sid(sid_str)
     save_raw_data(sid, dummy_gaze)
     assert sid.raw_data_dir.exists()
-    assert (
-        sid.raw_data_dir / f"{str(sid)}_trial_1_Enc_WikiMoon_1_raw_data.csv"
-    ).exists()
+    assert (sid.raw_data_dir / f"{sid!s}_trial_1_Enc_WikiMoon_1_raw_data.csv").exists()
 
     loaded_gaze = load_trial_level_raw_data(
         sid, trial_columns=["trial", "stimulus", "page"]
@@ -105,7 +104,7 @@ def test_save_load_events_structure(tmp_path, dummy_gaze, event_type, sid_str):
     )
     expected_dir = sid.fixations_dir if event_type == "fixation" else sid.saccades_dir
     assert expected_dir.exists()
-    assert (expected_dir / f"{str(sid)}_Enc_WikiMoon_1_{event_type}.csv").exists()
+    assert (expected_dir / f"{sid!s}_Enc_WikiMoon_1_{event_type}.csv").exists()
 
     loaded_gaze = load_trial_level_events_data(dummy_gaze, sid, event_type)
     assert len(loaded_gaze.events.frame.filter(pl.col("name") == event_type)) >= 1
@@ -116,9 +115,7 @@ def test_save_scanpaths_structure(tmp_path, dummy_gaze, sid_str):
     sid = Sid(sid_str)
     save_scanpaths(sid, dummy_gaze)
     assert sid.scanpaths_dir.exists()
-    assert (
-        sid.scanpaths_dir / f"{str(sid)}_trial_1_Enc_WikiMoon_1_scanpath.csv"
-    ).exists()
+    assert (sid.scanpaths_dir / f"{sid!s}_trial_1_Enc_WikiMoon_1_scanpath.csv").exists()
 
 
 @pytest.mark.parametrize("sid_str", SID_STRINGS)
@@ -131,7 +128,7 @@ def test_save_load_reading_measures_structure(tmp_path, sid_str):
     assert sid.reading_measures_dir.exists()
     assert (
         sid.reading_measures_dir
-        / f"{str(sid)}_trial_1_Enc_WikiMoon_1_reading_measures.csv"
+        / f"{sid!s}_trial_1_Enc_WikiMoon_1_reading_measures.csv"
     ).exists()
 
     loaded_rm = load_reading_measures(sid)
