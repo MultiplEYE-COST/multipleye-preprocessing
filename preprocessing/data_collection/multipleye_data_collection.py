@@ -876,6 +876,9 @@ class MultipleyeDataCollection:
                 "mean_total_session_duration_s": None,
                 "mean_wpm": None,
                 "mean_comprehension_score": None,
+                "mean_comprehension_score_local": None,
+                "mean_comprehension_score_global": None,
+                "mean_comprehension_score_bridging": None,
             }
 
         calib_errors = [
@@ -907,6 +910,15 @@ class MultipleyeDataCollection:
             for s in non_pilot_sessions
             if isinstance(s.total_session_duration, (int, float))
         ]
+
+        def _mean_of(attr: str) -> float | None:
+            values = [
+                getattr(s, attr, None)
+                for s in non_pilot_sessions
+                if isinstance(getattr(s, attr, None), (int, float))
+            ]
+            return round(sum(values) / len(values), 2) if values else None
+
         comp_scores = [
             s.avg_comprehension_score
             for s in non_pilot_sessions
@@ -949,6 +961,13 @@ class MultipleyeDataCollection:
             "mean_wpm": round(mean_wpm, 1) if mean_wpm else None,
             "mean_comprehension_score": (
                 round(sum(comp_scores) / len(comp_scores), 2) if comp_scores else None
+            ),
+            "mean_comprehension_score_local": _mean_of("avg_comprehension_score_local"),
+            "mean_comprehension_score_global": _mean_of(
+                "avg_comprehension_score_global"
+            ),
+            "mean_comprehension_score_bridging": _mean_of(
+                "avg_comprehension_score_bridging"
             ),
         }
 
