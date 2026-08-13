@@ -259,11 +259,24 @@ def run_preprocessing(config_path: str | None = None):
                     f"Fixations missing for {sess.sid}. Skipping AOI mapping/scanpaths."
                 )
             else:
-                preprocessing.map_fixations_to_aois(
-                    gaze,
-                    sess.stimuli,
-                )
-                preprocessing.save_scanpaths(sess.sid, gaze)
+                #Check whether scanpaths have been saved before for this session
+                num_expected_files = len(sess.completed_stimuli_ids)
+
+                scanpaths_data_folder = sess.sid.scanpaths_dir
+                try:
+                    num_files = len(list(scanpaths_data_folder.glob("*.csv")))
+                except FileNotFoundError:
+                    num_files = 0
+
+
+                if num_files == num_expected_files and not settings.RECALCULATE:
+                    gaze = preprocessing.load_scanpaths(gaze, sess.sid)
+                else:
+                    preprocessing.map_fixations_to_aois(
+                        gaze,
+                        sess.stimuli,
+                    )
+                    preprocessing.save_scanpaths(sess.sid, gaze)
 
                 preprocessing.save_session_metadata(sess.sid, gaze)
 

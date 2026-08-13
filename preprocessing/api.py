@@ -16,6 +16,7 @@ from .io.load import (
     load_gaze_data,
     load_trial_level_raw_data,
     load_trial_level_events_data,
+    load_scanpaths,
     load_reading_measures,
 )
 from .answers.msg_parser import parse_answers_from_messages
@@ -45,6 +46,7 @@ __all__ = [
     "load_gaze_data",
     "load_trial_level_raw_data",
     "load_trial_level_events_data",
+    "load_scanpaths",
     "load_reading_measures",
     "parse_answers_from_messages",
     "parse_answers_from_logfile",
