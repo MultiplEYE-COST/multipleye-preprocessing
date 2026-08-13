@@ -712,7 +712,6 @@ class MultipleyeDataCollection:
                 "Lab_number": self.lab_number,
                 "Country": self.country,
                 "Tested_language": self.language,
-                "Year": self.year,
             },
             "Language_details": {
                 "Metadata_form_exists": metadata_form_exists,

@@ -149,7 +149,6 @@ class TestAdministrative:
         assert a["Dataset_type"] == "MultiplEYE"
         assert a["Tested_language"] == "EN"
         assert a["Country"] == "UK"
-        assert a["Year"] == 2025
         assert a["City"] == "London"
         assert a["Lab_number"] == 1
 
