@@ -1,12 +1,13 @@
 """Tests for session data service."""
 
-from review_app.services.session_data import (
-    read_overview,
-    compute_checks,
-    _is_checkable,
-    CHECK_REGISTRY,
-)
 from pathlib import Path
+
+from review_app.services.session_data import (
+    CHECK_REGISTRY,
+    _is_checkable,
+    compute_checks,
+    read_overview,
+)
 
 
 def test_read_overview_missing(tmp_path: Path) -> None:

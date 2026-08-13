@@ -5,7 +5,7 @@ from ...config import settings
 
 def all_tokens_from_aois(
     aois: pl.DataFrame,
-    trial: str = None,
+    trial: str | None = None,
 ) -> pl.DataFrame:
     """
     Returns every AOI token on the page:

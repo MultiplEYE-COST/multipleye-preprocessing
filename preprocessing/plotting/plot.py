@@ -1,8 +1,8 @@
 import math
 from pathlib import Path
 
-import PIL
 import matplotlib.pyplot as plt
+import PIL
 import polars as pl
 import pymovements as pm
 from matplotlib.patches import Circle

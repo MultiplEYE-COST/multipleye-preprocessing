@@ -1,12 +1,12 @@
 """Functions for saving data."""
 
+import contextlib
 import json
 
 import polars as pl
-
 import pymovements as pm
+
 from ..models.sid import Sid
-import contextlib
 
 
 def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
@@ -33,7 +33,7 @@ def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
         df = trial.samples
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
-        name = f"{str(sid)}_{trial}_{stimulus}_raw_data.csv"
+        name = f"{sid!s}_{trial}_{stimulus}_raw_data.csv"
         df = df["time", "pixel_x", "pixel_y", "pupil", "page"]
         df.write_csv(directory / name)
 
@@ -81,7 +81,7 @@ def save_events_data(
     events = data_copy.events.frame.filter(pl.col("name") == event_type)
 
     for group in events.partition_by(split_column):
-        name = f"{str(sid)}"
+        name = f"{sid!s}"
         for col in name_columns:
             if col not in group.columns:
                 raise ValueError(f"Column {col} not found in events data.")
@@ -127,7 +127,7 @@ def save_scanpaths(sid: Sid, data: pm.Gaze) -> None:
             continue
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
-        name = f"{str(sid)}_{trial}_{stimulus}_scanpath.csv"
+        name = f"{sid!s}_{trial}_{stimulus}_scanpath.csv"
 
         df = df[
             "onset",
@@ -170,7 +170,7 @@ def save_reading_measures(sid: Sid, data: pl.DataFrame) -> None:
     for trial in trials:
         trial_id = trial["trial"][0]
         stimulus = trial["stimulus"][0]
-        name = f"{str(sid)}_{trial_id}_{stimulus}_reading_measures.csv"
+        name = f"{sid!s}_{trial_id}_{stimulus}_reading_measures.csv"
         trial = trial.drop("stimulus", "trial")
         trial.write_csv(directory / name)
 

@@ -73,7 +73,7 @@ async def dcn_psychometric(dcn_name: str) -> JSONResponse:
     with open(path) as f:
         reader = csv.DictReader(f)
         for row in reader:
-            rows.append(row)
+            rows.append(dict(row))
     return JSONResponse(rows)
 
 

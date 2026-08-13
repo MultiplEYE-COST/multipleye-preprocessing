@@ -40,12 +40,30 @@ review = [
 [tool.setuptools.packages.find]
 include = ["preprocessing", "review_app"]
 
+[tool.ruff]
+# Notebooks are templates/notes, not shipped code; ruff 0.16 lints them by default.
+exclude = ["*.ipynb"]
+
+[tool.ruff.lint]
+# Rules deliberately not enforced. These are the 0.16 default rules that
+# conflict with established codebase patterns; kept as explicit ignores so
+# the effective lint set is reproducible across dev and CI.
+ignore = [
+    "ASYNC220",  # subprocess in async routes (FastAPI pattern, blocking is intentional)
+    "ASYNC230",  # open() in async routes (FastAPI pattern, blocking is intentional)
+    "BLE001",  # blind except: pipeline deliberately catches broadly and logs
+    "LOG015",  # root logger calls: codebase uses the logging module directly
+    "RUF012",  # mutable class attribute defaults (dataclass-like pattern)
+    "S112",  # try-except-continue: psychometric tests deliberately skip and continue
+    "SIM113",  # index-based loop is intentional (index used into stimuli_order)
+]
+
 [dependency-groups]
 dev = [{ include-group = "lint" }, { include-group = "docs" }]
 lint = [
     "pre-commit>=4.5.1",
     "pytest>=7.0.0",
-    "ruff>=0.13.0",
+    "ruff==0.16.3",
 ]
 docs = [
     "myst-nb>=1.3.0",

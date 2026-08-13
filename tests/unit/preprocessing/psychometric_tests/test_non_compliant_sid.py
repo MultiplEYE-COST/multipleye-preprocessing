@@ -1,9 +1,10 @@
 import pandas as pd
-from preprocessing.psychometric_tests.preprocess_psychometric_tests import (
-    preprocess_all_sessions,
-    create_merged_psychometric_overview,
-)
+
 from preprocessing.config import settings
+from preprocessing.psychometric_tests.preprocess_psychometric_tests import (
+    create_merged_psychometric_overview,
+    preprocess_all_sessions,
+)
 
 
 def test_non_compliant_sid_in_preprocess(tmp_path, monkeypatch):

@@ -338,7 +338,7 @@ class MultipleyeDataCollection:
             if missing_included:
                 self.logger.warning(
                     f"The following sessions were specified in 'include_sessions' but "
-                    f"were not found in the data folder: {sorted(list(missing_included))}"
+                    f"were not found in the data folder: {sorted(missing_included)}"
                 )
 
         if self.excluded_sessions:
@@ -346,7 +346,7 @@ class MultipleyeDataCollection:
             if missing_excluded:
                 self.logger.warning(
                     f"The following sessions were specified in 'exclude_sessions' but "
-                    f"were not found in the data folder: {sorted(list(missing_excluded))}"
+                    f"were not found in the data folder: {sorted(missing_excluded)}"
                 )
 
     @eyelink
@@ -389,6 +389,7 @@ class MultipleyeDataCollection:
                 ["edf2asc", "-y", edf_path],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                check=False,
             )
 
             local_asc_path = edf_path.with_suffix(".asc")
@@ -1212,7 +1213,7 @@ class MultipleyeDataCollection:
                 try:
                     trial_ids[trial_ids.index(trial)] = f"trial_{int(trial)}"
                 except TypeError:
-                    trial_ids = trial_ids
+                    pass  # trial id already in the target format, leave as-is
 
         stimulus_names = completed_stimuli["stimulus_name"].to_list()
         stimuli_trial_mapping = {
@@ -1759,7 +1760,7 @@ class MultipleyeDataCollection:
         )
 
     def _check_stimuli_gaze_frame(self, gaze, stimuli, session_identifier):
-        """ """
+        """Check the gaze data for all stimuli screens of a session."""
         logging.debug(
             f"Checking asc file all screens for {session_identifier} all screens."
         )
@@ -1944,7 +1945,7 @@ if __name__ == "__main__":
     settings.setup_logging()
     data_collection_folder = "MultiplEYE_ET_EE_Tartu_1_2025"
 
-    this_repo = Path().resolve().parent
+    this_repo = Path.cwd().parent
 
     data_folder_path = this_repo / "data" / data_collection_folder
 
