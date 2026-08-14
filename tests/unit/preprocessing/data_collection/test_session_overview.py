@@ -86,10 +86,10 @@ def test_create_overview_includes_new_fields() -> None:
     assert cal["num_moderate_validations"] == 1
     assert cal["num_bad_validations"] == 1
     dq = overview["Data_quality"]
-    assert "total_data_loss_ratio" in dq
-    assert dq["total_data_loss_ratio"] is None
-    assert "blink_loss_ratio" in dq
-    assert dq["blink_loss_ratio"] is None
+    assert "session_total_data_loss_ratio" in dq
+    assert dq["session_total_data_loss_ratio"] is None
+    assert "session_blink_loss_ratio" in dq
+    assert dq["session_blink_loss_ratio"] is None
 
 
 def test_create_overview_includes_measure_based_data_loss() -> None:
@@ -100,8 +100,8 @@ def test_create_overview_includes_measure_based_data_loss() -> None:
     overview = sess.create_overview()
 
     dq = overview["Data_quality"]
-    assert dq["total_data_loss_ratio"] == 0.015
-    assert dq["blink_loss_ratio"] == 0.008
+    assert dq["session_total_data_loss_ratio"] == 0.015
+    assert dq["session_blink_loss_ratio"] == 0.008
 
 
 def test_tracked_eye_inconsistent_when_eye_changes() -> None:

@@ -144,12 +144,12 @@ class Session:
                 "num_bad_validations": self.num_bad_validations,
             },
             "Data_quality": {
-                "total_data_loss_ratio": getattr(
+                "session_total_data_loss_ratio": getattr(
                     self,
                     "_measure_total_data_loss_ratio",
                     None,
                 ),
-                "blink_loss_ratio": getattr(
+                "session_blink_loss_ratio": getattr(
                     self,
                     "_measure_blink_loss_ratio",
                     None,
