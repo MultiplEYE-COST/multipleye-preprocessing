@@ -94,8 +94,8 @@ async def dcn_stats(dcn_name: str) -> JSONResponse:
             continue
         for key in (
             "avg_comprehension_score",
-            "total_data_loss_ratio",
-            "blink_loss_ratio",
+            "session_total_data_loss_ratio",
+            "session_blink_loss_ratio",
             "avg_validation_error",
             "num_calibrations",
             "num_validations",

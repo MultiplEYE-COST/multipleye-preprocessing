@@ -23,7 +23,7 @@ def test_write_quality_thresholds_creates_yaml(tmp_path: Path) -> None:
     assert data["expected_sampling_rate_hz"] == 1000
     assert data["single_validation_good_max"] == 0.305
     assert data["single_validation_moderate_max"] == 0.45
-    assert data["total_data_loss_ratio"][1] <= 0.1
+    assert data["session_total_data_loss_ratio"][1] <= 0.1
 
 
 def test_write_quality_thresholds_overwrites(tmp_path: Path) -> None:
