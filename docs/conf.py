@@ -63,6 +63,7 @@ html_theme_options = {
     "use_issues_button": True,
     "use_edit_page_button": True,
     "path_to_docs": "docs",
+    "navbar_persistent": [],
     "icon_links": [
         {
             "name": "MultiplEYE",
