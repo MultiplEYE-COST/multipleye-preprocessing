@@ -293,15 +293,15 @@ def run_preprocessing(config_path: str | None = None):
                 logger.warning(
                     f"Gaze/Event data missing or not mapped for {sess.sid}. Skipping reading measures."
                 )
-            elif rm_folder.exists() and not settings.RECALCULATE:
-                # check if the folder contains the expected number of files, if not, we will recalculate
-                num_expected_files = len(sess.completed_stimuli_ids)
+
+            num_expected_files = len(sess.completed_stimuli_ids)
+            try:
                 num_files = len(list(rm_folder.glob("*.csv")))
-                if num_expected_files != num_files:
-                    raise ValueError(
-                        f"Reading measures cannot be loaded as the folder for session {sess.sid} does not contain the "
-                        f"expected number of files. Please check and select recalculate."
-                    )
+            except FileNotFoundError:
+                num_files = 0
+            
+            if num_files == num_expected_files and not settings.RECALCULATE:
+                # check if the folder contains the expected number of files, if not, we will recalculate
 
                 pbar.set_description(f"Loading reading measures {sess.sid}:")
                 reading_measures = preprocessing.load_reading_measures(sess.sid)
