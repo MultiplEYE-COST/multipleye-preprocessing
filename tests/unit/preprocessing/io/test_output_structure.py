@@ -35,13 +35,20 @@ def dummy_gaze():
             "trial": ["trial_1", "trial_1", "trial_1"],
             "stimulus": ["Enc_WikiMoon_1", "Enc_WikiMoon_1", "Enc_WikiMoon_1"],
             "page": ["page_1", "page_1", "page_1"],
+            "position_x": [100.0, 101.0, 102.0],
+            "position_y": [200.0, 201.0, 202.0],
+            "velocity_x": [100.0, 101.0, 102.0],
+            "velocity_y": [200.0, 201.0, 202.0],
         }
     )
     gaze = pm.Gaze(
         df,
         trial_columns=["trial", "stimulus", "page"],
         pixel_columns=["pixel_x", "pixel_y"],
+        position_columns=["position_x", "position_y"],
+        velocity_columns=["velocity_x", "velocity_y"],
     )
+
     gaze.events = pm.Events(
         pl.DataFrame(
             {
