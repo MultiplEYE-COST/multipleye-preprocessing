@@ -291,9 +291,8 @@ class MultipleyeDataCollection:
                             ses = Session(
                                 participant_id=int(item.name.split("_")[0]),
                                 session_identifier=item.name,
-                                session_folder_path=Path(item.path),
-                                session_file_path=session_file,
-                                session_file_name=session_file.name,
+                                session_folder_path_unprocessed=Path(item.path),
+                                session_file_path_unprocessed=session_file,
                                 is_pilot=is_pilot,
                             )
 
@@ -368,7 +367,7 @@ class MultipleyeDataCollection:
         for session_identifier, session in tqdm(
             self.sessions.items(), desc="Converting EDF to ASC"
         ):
-            edf_path = Path(session.session_file_path)
+            edf_path = Path(session.session_file_path_unprocessed)
 
             output_asc_folder = (
                 settings.OUTPUT_DIR / settings.ASC_FOLDER / session_identifier
@@ -1109,7 +1108,7 @@ class MultipleyeDataCollection:
                     logging._captured_warnings = []  # type: ignore
                 logging._captured_warnings.append(msg)  # type: ignore
 
-            self.sessions[session].stimuli = self._load_session_stimuli(
+            self.sessions[session].load_session_stimuli(
                 self.stimulus_dir,
                 self.language,
                 self.country,
@@ -1179,7 +1178,7 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier.
         :return: The question order version to correctly map participant, stimulus and question order versions.
         """
-        session_path = self.sessions[session_identifier].session_folder_path
+        session_path = self.sessions[session_identifier].session_folder_path_unprocessed
         logfile_path = Path(f"{session_path}/logfiles")
         general_logfile = logfile_path.glob("GENERAL_LOGFILE_*.txt")
         general_logfile = next(general_logfile)
@@ -1208,7 +1207,7 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier.
         """
 
-        session_path = self.sessions[session_identifier].session_folder_path
+        session_path = self.sessions[session_identifier].session_folder_path_unprocessed
         logfile_folder = Path(f"{session_path}/logfiles")
 
         assert logfile_folder.exists(), (
@@ -1236,7 +1235,7 @@ class MultipleyeDataCollection:
     def _load_session_completed_stimuli(
         self, session_identifier
     ) -> tuple[list, list, dict]:
-        session_path = self.sessions[session_identifier].session_folder_path
+        session_path = self.sessions[session_identifier].session_folder_path_unprocessed
         logfile_folder = Path(f"{session_path}/logfiles")
         completed_stim_path = logfile_folder / "completed_stimuli.csv"
 
@@ -1954,7 +1953,7 @@ class MultipleyeDataCollection:
                 )
                 continue
 
-            folder = Path(self.sessions[session].session_folder_path)
+            folder = Path(self.sessions[session].session_folder_path_unprocessed)
 
             pq_file = folder / f"{sid.base_id}_pq_data.json"
             if pq_file.exists():

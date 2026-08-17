@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import TypeVar
 
 import polars as pl
+import yaml
 
 from ..config import settings
 from ..data_collection.stimulus import LabConfig, Stimulus
@@ -19,15 +20,18 @@ T = TypeVar("T")
 class Session:
     # general info
     participant_id: int
+    language: str
+    country: str
+    city: str
+    lab_number: int
 
     session_identifier: str
     is_pilot: bool
 
     # paths and files
-    session_folder_path: Path
-    session_file_path: Path
-    session_file_name: str
-    asc_path: Path | str = field(default="unknown", init=False)
+    session_folder_path_unprocessed: Path = field(default="not available", init=False)
+    session_file_path_unprocessed: Path = field(default="not available", init=False)
+    asc_path: Path = field(default="unknown", init=False)
 
     # stimuli
     # TODO: move stimuli, completed stimuli, stimuli trial mapping to one thing
@@ -119,6 +123,26 @@ class Session:
             Calibration_validation, Data_quality, Experiment_procedure,
             Comprehension, and Data_formats.
         """
+    @classmethod
+    def load_from_yaml(cls, yaml_file: Path, dataset_dir: Path) -> "Session":
+        session_specs = yaml.safe_load(yaml_file)
+
+        stimulus_dir = dataset_dir / session_specs["stimulus_folder_name"]
+
+        stimuli = cls.load_session_stimuli(
+            stimulus_dir,
+            session_specs["language"],
+            session_specs["country"],
+            session_specs["lab_number"],
+            session_specs["randomization_version"],
+            session_specs["session_identifier"],
+        )
+
+        session = Session(**session_specs, stimuli=stimuli)
+
+        return session
+
+    def create_overview(self):
         self._create_stats()
 
         return {
@@ -299,6 +323,61 @@ class Session:
         min_t = min(times)
         max_t = max(times)
         return round((max_t - min_t) / 1000, 3)
+
+    def load_session_stimuli(
+        self,
+        stimulus_dir: Path,
+        lang: str,
+        country: str,
+        lab_num: int,
+        stimulus_order_version: int,
+        session_identifier: str,
+        stimulus_names: None | list = None,
+    ) -> list[Stimulus]:
+        """
+        Load the stimuli from the specified directory.
+        :param stimulus_dir: The directory where the stimuli are stored.
+        :param lang: The language of the stimuli.
+        :param country: The country of the stimuli.
+        :param stimulus_names: The names of the stimuli to load. If None, the predefined stimuli names in the
+        global variable self.stimulus_names are used.
+        :param stimulus_order_version: The version of the questions to load. Specifies how the questions are ordered and the
+        shuffling of the answer options.
+        :param lab_num: The lab number.
+
+        """
+        stimuli = []
+        if stimulus_names is None:
+            stimulus_names = [
+                name
+                for name, num in settings.STIMULUS_NAME_MAPPING.items()
+                if num in self.completed_stimuli_ids
+            ]
+
+        for stimulus_name in stimulus_names:
+            trial_mapping = self.stimuli_trial_mapping
+            # get the trial id from the mapping, keys are ids and values are strings
+            trial_id = [
+                key for key, value in trial_mapping.items() if value == stimulus_name
+            ]
+            if len(trial_id) == 0:
+                raise KeyError(
+                    f"Stimulus name {stimulus_name} not found in the trial mapping for session "
+                    f"{session_identifier}. Please check the completed_stimuli.csv file."
+                )
+
+            stimulus = Stimulus.load(
+                stimulus_dir,
+                lang,
+                country,
+                lab_num,
+                stimulus_name,
+                stimulus_order_version,
+                trial_id[0],
+            )
+            stimuli.append(stimulus)
+
+        return stimuli
 
     def _create_stats(self):
         self.num_calibrations = len(self.calibrations)

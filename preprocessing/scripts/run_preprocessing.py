@@ -408,7 +408,7 @@ def run_preprocessing(config_path: str | None = None):
                 recalculated_upstream = True
                 pbar.set_description(f"Collecting comprehension answers {sess.sid}")
                 question_order_csv = (
-                    sess.session_folder_path
+                    sess.session_folder_path_unprocessed
                     / "logfiles"
                     / "question_order_versions.csv"
                 )

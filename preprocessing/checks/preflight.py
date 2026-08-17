@@ -287,11 +287,11 @@ def _check_sessions(data_collection, groups: dict[str, list[str]]) -> None:
         sid = session.session_identifier
 
         # 1. EDF data file
-        if not _ci_exists(session.session_file_path):
+        if not _ci_exists(session.session_file_path_unprocessed):
             groups.setdefault("EDF data file", []).append(sid)
 
         # 2. Logfiles folder
-        logfiles: Path = session.session_folder_path / "logfiles"
+        logfiles: Path = session.session_folder_path_unprocessed / "logfiles"
         if not _ci_exists(logfiles):
             groups.setdefault("Logfiles folder", []).append(sid)
             continue

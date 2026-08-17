@@ -176,14 +176,14 @@ def preflight_env(tmp_path: Path):
         # ---- EDF -----------------------------------------------------------
         (
             "edf_missing",
-            lambda env: env[0].sessions[env[1]].session_file_path.unlink(),
+            lambda env: env[0].sessions[env[1]].session_file_path_unprocessed.unlink(),
             1,
         ),
         # ---- logfiles folder -----------------------------------------------
         (
             "logfiles_folder_missing",
             lambda env: _rmtree(
-                env[0].sessions[env[1]].session_folder_path / "logfiles"
+                env[0].sessions[env[1]].session_folder_path_unprocessed / "logfiles"
             ),
             1,
         ),
@@ -191,7 +191,7 @@ def preflight_env(tmp_path: Path):
         (
             "experiment_log_missing",
             lambda env: _remove_glob(
-                env[0].sessions[env[1]].session_folder_path / "logfiles",
+                env[0].sessions[env[1]].session_folder_path_unprocessed / "logfiles",
                 "EXPERIMENT_*.txt",
             ),
             1,
@@ -199,7 +199,7 @@ def preflight_env(tmp_path: Path):
         (
             "experiment_log_duplicate",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "EXPERIMENT_LOGFILE_002.txt"
             ).write_text("duplicate experiment log", encoding="utf-8"),
@@ -209,7 +209,7 @@ def preflight_env(tmp_path: Path):
         (
             "general_log_missing",
             lambda env: _remove_glob(
-                env[0].sessions[env[1]].session_folder_path / "logfiles",
+                env[0].sessions[env[1]].session_folder_path_unprocessed / "logfiles",
                 "GENERAL_LOGFILE_*.txt",
             ),
             1,
@@ -217,7 +217,7 @@ def preflight_env(tmp_path: Path):
         (
             "general_log_duplicate",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "GENERAL_LOGFILE_002.txt"
             ).write_text("duplicate general log", encoding="utf-8"),
@@ -227,7 +227,7 @@ def preflight_env(tmp_path: Path):
         (
             "data_logfile_missing",
             lambda env: _remove_glob(
-                env[0].sessions[env[1]].session_folder_path / "logfiles",
+                env[0].sessions[env[1]].session_folder_path_unprocessed / "logfiles",
                 "DATA_LOGFILE_*.txt",
             ),
             1,
@@ -235,7 +235,7 @@ def preflight_env(tmp_path: Path):
         (
             "data_logfile_duplicate",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "DATA_LOGFILE_002.txt"
             ).write_text("duplicate data log", encoding="utf-8"),
@@ -245,7 +245,7 @@ def preflight_env(tmp_path: Path):
         (
             "completed_stimuli_missing",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "completed_stimuli.csv"
             ).unlink(),
@@ -254,7 +254,7 @@ def preflight_env(tmp_path: Path):
         (
             "completed_stimuli_unparseable",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "completed_stimuli.csv"
             ).write_text("not,a,csv\n"),
@@ -263,7 +263,7 @@ def preflight_env(tmp_path: Path):
         (
             "completed_stimuli_wrong_columns",
             lambda env: _write_csv(
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "completed_stimuli.csv",
                 ["foo", "bar"],
@@ -275,7 +275,7 @@ def preflight_env(tmp_path: Path):
         (
             "question_order_missing",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "question_order_versions.csv"
             ).unlink(),
@@ -284,7 +284,7 @@ def preflight_env(tmp_path: Path):
         (
             "question_order_unparseable",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "question_order_versions.csv"
             ).write_text("broken"),
@@ -293,7 +293,7 @@ def preflight_env(tmp_path: Path):
         (
             "question_order_wrong_columns",
             lambda env: _write_csv(
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "question_order_versions.csv",
                 ["a", "b"],
@@ -379,9 +379,9 @@ def preflight_env(tmp_path: Path):
                 (
                     env[0].stimulus_dir / "multipleye_stimuli_experiment_EN.xlsx"
                 ).unlink(),
-                env[0].sessions[env[1]].session_file_path.unlink(),
+                env[0].sessions[env[1]].session_file_path_unprocessed.unlink(),
                 (
-                    env[0].sessions[env[1]].session_folder_path
+                    env[0].sessions[env[1]].session_folder_path_unprocessed
                     / "logfiles"
                     / "completed_stimuli.csv"
                 ).unlink(),
