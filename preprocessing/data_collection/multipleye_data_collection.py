@@ -531,7 +531,7 @@ class MultipleyeDataCollection:
         session_name: str,
         output_dir: Path | str = "",
         plotting: bool = True,
-        overwrite: bool = False,
+        recalculate: bool = settings.RECALCULATE,
     ) -> None:
         """
         Create the sanity checks and reports if for one or multiple sessions.
@@ -559,7 +559,7 @@ class MultipleyeDataCollection:
         report_file_path = session_results / f"{session_name}_{self.city}_report.md"
         self.sessions[session_name].sanity_report_path = report_file_path
 
-        if not report_file_path.exists() or overwrite:
+        if not report_file_path.exists() or recalculate:
             open(report_file_path, "w", encoding="utf-8").close()
 
             messages = self.sessions[session_name].messages
@@ -609,6 +609,10 @@ class MultipleyeDataCollection:
                 self._create_plots(
                     gaze, stimuli, session_name, session_results, aoi=True
                 )
+
+        else:
+            logging.info(f"Skipping sanity check report for session {session_name}.")
+            return
 
     def _load_session_names(self, session: str | list[str] | None) -> list[str]:
         """

@@ -299,7 +299,7 @@ def run_preprocessing(config_path: str | None = None):
                 num_files = len(list(rm_folder.glob("*.csv")))
             except FileNotFoundError:
                 num_files = 0
-            
+
             if num_files == num_expected_files and not settings.RECALCULATE:
                 # check if the folder contains the expected number of files, if not, we will recalculate
 
@@ -384,7 +384,7 @@ def run_preprocessing(config_path: str | None = None):
                     gaze,
                     sess.session_identifier,
                     plotting=True,
-                    overwrite=True,
+                    recalculate=settings.RECALCULATE,
                     output_dir=settings.OUTPUT_DIR,
                 )
         else:
