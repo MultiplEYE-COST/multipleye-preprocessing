@@ -639,6 +639,39 @@ class MultipleyeDataCollection:
                 separator="\t",
             )
 
+            _report_to_file("## Per-trial Data Loss", report_file_path)
+            per_trial_loss = self._compute_per_trial_loss_table(session_name)
+            if per_trial_loss is not None and not per_trial_loss.is_empty():
+                num_trials = per_trial_loss.height
+                mean_data_loss = (
+                    per_trial_loss["data_loss_ratio"].mean()
+                    if "data_loss_ratio" in per_trial_loss
+                    else None
+                )
+                mean_blink_loss = (
+                    per_trial_loss["blink_loss_ratio"].mean()
+                    if "blink_loss_ratio" in per_trial_loss
+                    else None
+                )
+                if mean_data_loss is not None:
+                    _report_to_file(
+                        f"- Mean per-trial data loss: {mean_data_loss:.3f} "
+                        f"(across {num_trials} trials)",
+                        report_file_path,
+                    )
+                if mean_blink_loss is not None:
+                    _report_to_file(
+                        f"- Mean per-trial blink loss: {mean_blink_loss:.3f}",
+                        report_file_path,
+                    )
+
+                per_trial_loss.write_csv(
+                    session_results / f"per_trial_data_loss_{session_name}.tsv",
+                    separator="\t",
+                )
+            else:
+                _report_to_file("- No per-trial metrics available.", report_file_path)
+
             legend = "\n---\n\n**Legend:** ✅ Pass | ❌ Fail | ⚠️ Warning\n"
             _report_to_file(legend, report_file_path)
 
@@ -1824,6 +1857,24 @@ class MultipleyeDataCollection:
 
         # write to file
         return fixation_durations_page_avg
+
+    def _compute_per_trial_loss_table(self, session_name: str):
+        data_loss_df = getattr(
+            self.sessions[session_name], "_per_trial_data_loss", None
+        )
+        blink_loss_df = getattr(
+            self.sessions[session_name], "_per_trial_blink_loss", None
+        )
+
+        if data_loss_df is None and blink_loss_df is None:
+            return None
+
+        trial_cols = ["trial", "stimulus", "page"]
+        if data_loss_df is not None and blink_loss_df is not None:
+            return data_loss_df.join(blink_loss_df, on=trial_cols, how="left")
+        if data_loss_df is not None:
+            return data_loss_df
+        return blink_loss_df
 
     def _load_psychometric_tests(self, session_identifier: str):
         # Match the eye-tracking session to a psychometric test folder

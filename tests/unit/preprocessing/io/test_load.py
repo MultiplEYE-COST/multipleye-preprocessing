@@ -147,3 +147,50 @@ def test_load_gaze_data_with_patterns(synthetic_asc, lab_config):
     assert gaze.messages["content"].str.contains("page_1").any()
     # Question start should be here
     assert gaze.messages["content"].str.contains("question_6111").any()
+
+
+def test_blink_loss_ratio_is_scalar_with_trial_columns():
+    import pymovements as pm
+    from pymovements import transforms
+
+    samples = pl.DataFrame(
+        {
+            "time": [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+            "x": [0.0] * 6,
+            "y": [0.0] * 6,
+            "trial": ["trial_1"] * 6,
+            "stimulus": ["stim"] * 6,
+            "page": ["page_1"] * 6,
+        }
+    )
+    events = pm.Events(
+        pl.DataFrame(
+            {
+                "name": ["blink_eyelink", "blink_eyelink"],
+                "onset": [1.0, 4.0],
+                "offset": [2.0, 5.0],
+                "trial": ["trial_1", "trial_1"],
+                "stimulus": ["stim", "stim"],
+                "page": ["page_1", "page_1"],
+            }
+        ),
+        trial_columns=["trial", "stimulus", "page"],
+    )
+    gaze = pm.Gaze(
+        samples,
+        trial_columns=["trial", "stimulus", "page"],
+        pixel_columns=["x", "y"],
+    )
+    gaze.events = events
+
+    sr = 1000.0
+    expr = transforms.events2timeratio(
+        events=gaze.events.frame,
+        samples=gaze.samples,
+        name="blink_eyelink",
+        trial_columns=None,
+        sampling_rate=sr,
+    )
+    result = gaze.samples.select(expr)
+
+    assert result.height == 1

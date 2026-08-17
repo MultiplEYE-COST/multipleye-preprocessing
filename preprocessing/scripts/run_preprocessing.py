@@ -90,7 +90,8 @@ def run_preprocessing(config_path: str | None = None):
 
         # create or load raw data
         raw_data_folder = sess.sid.raw_data_dir
-        if raw_data_folder.exists() and not settings.OVERWRITE:
+        metadata_exists = (sess.sid.metadata_dir / "gaze_metadata.json").exists()
+        if raw_data_folder.exists() and not settings.OVERWRITE and metadata_exists:
             # check if the folder contains the expected number of files, if not, we will overwrite
             num_expected_files = len(sess.completed_stimuli_ids)
             num_files = len(list(raw_data_folder.glob("*.csv")))
@@ -135,6 +136,11 @@ def run_preprocessing(config_path: str | None = None):
                 pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio")
             ).item()
 
+            # Compute per-trial data loss
+            gaze._per_trial_data_loss = gaze.samples.group_by(gaze.trial_columns).agg(
+                pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio")
+            )
+
             preprocessing.save_raw_data(sess.sid, gaze)
             preprocessing.save_session_metadata(sess.sid, gaze)
 
@@ -154,6 +160,8 @@ def run_preprocessing(config_path: str | None = None):
             "_measure_blink_loss_ratio",
             None,
         )
+        sess._per_trial_data_loss = getattr(gaze, "_per_trial_data_loss", None)
+        sess._per_trial_blink_loss = getattr(gaze, "_per_trial_blink_loss", None)
 
         # preprocess gaze data
         pbar.set_description(f"Preprocessing samples {sess.sid}:")
