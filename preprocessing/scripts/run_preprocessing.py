@@ -85,6 +85,10 @@ def run_preprocessing(config_path: str | None = None):
 
         asc = sess.asc_path
 
+        # Flag to be changed, then recalculation was forced for a session previously, e.g. because of incomplete files
+        # Forces recalculation for all subsequent stages
+        recalculated_upstream = False
+
         # check whether the raw data was calculated before and whether it is complete
         raw_data_folder = sess.sid.raw_data_dir
         num_expected_files = len(sess.completed_stimuli_ids)
@@ -94,7 +98,7 @@ def run_preprocessing(config_path: str | None = None):
             # Check if a previous version of this pipeline saved the raw data without velocity and position information
             test_file = files[0]
             preprocessed = "position_x" in pl.read_csv(test_file).columns
-        except FileNotFoundError:
+        except IndexError:
             num_files = 0
             preprocessed = False
 
@@ -113,6 +117,7 @@ def run_preprocessing(config_path: str | None = None):
 
         else:
             # Extract raw data from asc file
+            recalculated_upstream = True
             pbar.set_description(f"Extracting samples {sess.sid}:")
             gaze = preprocessing.load_gaze_data(
                 asc_file=asc,
@@ -157,7 +162,11 @@ def run_preprocessing(config_path: str | None = None):
                 except FileNotFoundError:
                     num_files = 0
 
-                if num_expected_files == num_files and not settings.RECALCULATE:
+                if (
+                    num_expected_files == num_files
+                    and not settings.RECALCULATE
+                    and not recalculated_upstream
+                ):
                     # Loading events if all fixation files exist and the recalculate flag is not active
                     pbar.set_description(f"Loading fixations {sess.sid}:")
                     gaze = preprocessing.load_trial_level_events_data(
@@ -168,6 +177,7 @@ def run_preprocessing(config_path: str | None = None):
                     )
 
                 else:
+                    recalculated_upstream = True
                     # If files were not complete or recalculation is active we run fixation detection
                     pbar.set_description(f"Detecting fixations {sess.sid}:")
 
@@ -194,7 +204,11 @@ def run_preprocessing(config_path: str | None = None):
                 except FileNotFoundError:
                     num_files = 0
 
-                if num_expected_files == num_files and not settings.RECALCULATE:
+                if (
+                    num_expected_files == num_files
+                    and not settings.RECALCULATE
+                    and not recalculated_upstream
+                ):
                     # Loading events if all saccade files exist and the recalculate flag is not active
                     pbar.set_description(f"Loading saccades {sess.sid}:")
 
@@ -206,6 +220,7 @@ def run_preprocessing(config_path: str | None = None):
                     )
 
                 else:
+                    recalculated_upstream = True
                     # If files were not complete or recalculation is active we run saccade detection
                     pbar.set_description(f"Detecting saccades {sess.sid}:")
 
@@ -277,9 +292,14 @@ def run_preprocessing(config_path: str | None = None):
                 except FileNotFoundError:
                     num_files = 0
 
-                if num_files == num_expected_files and not settings.RECALCULATE:
+                if (
+                    num_files == num_expected_files
+                    and not settings.RECALCULATE
+                    and not recalculated_upstream
+                ):
                     gaze = preprocessing.load_scanpaths(gaze, sess.sid)
                 else:
+                    recalculated_upstream = True
                     preprocessing.map_fixations_to_aois(
                         gaze,
                         sess.stimuli,
@@ -309,7 +329,11 @@ def run_preprocessing(config_path: str | None = None):
             except FileNotFoundError:
                 num_files = 0
 
-            if num_files == num_expected_files and not settings.RECALCULATE:
+            if (
+                num_files == num_expected_files
+                and not settings.RECALCULATE
+                and not recalculated_upstream
+            ):
                 # check if the folder contains the expected number of files, if not, we will recalculate
 
                 pbar.set_description(f"Loading reading measures {sess.sid}:")
@@ -318,6 +342,7 @@ def run_preprocessing(config_path: str | None = None):
                 data_collection[sess.session_identifier].reading_measures = True
 
             else:
+                recalculated_upstream = True
                 pbar.set_description(f"Calculating reading measures {sess.sid}:")
                 reading_measures = preprocessing.calculate_reading_measures(
                     gaze,
@@ -333,10 +358,15 @@ def run_preprocessing(config_path: str | None = None):
         if settings.RUN_COMPREHENSION_ANSWERS:
             answers_csv = sess.sid.answers_dir / f"{sess.sid}_answers.csv"
 
-            if answers_csv.exists() and not settings.RECALCULATE:
+            if (
+                answers_csv.exists()
+                and not settings.RECALCULATE
+                and not recalculated_upstream
+            ):
                 pbar.set_description(f"Loading comprehension answers {sess.sid}")
                 sess.answers = True
             else:
+                recalculated_upstream = True
                 pbar.set_description(f"Collecting comprehension answers {sess.sid}")
                 question_order_csv = (
                     sess.session_folder_path
@@ -393,7 +423,7 @@ def run_preprocessing(config_path: str | None = None):
                     gaze,
                     sess.session_identifier,
                     plotting=True,
-                    recalculate=settings.RECALCULATE,
+                    recalculate=(settings.RECALCULATE or recalculated_upstream),
                     output_dir=settings.OUTPUT_DIR,
                 )
         else:
