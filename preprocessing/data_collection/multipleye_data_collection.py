@@ -661,7 +661,8 @@ class MultipleyeDataCollection:
                     )
                 if mean_blink_loss is not None:
                     _report_to_file(
-                        f"- Mean per-trial blink loss: {mean_blink_loss:.3f}",
+                        f"- Mean per-trial blink loss: {mean_blink_loss:.3f} "
+                        f"(across {num_trials} trials)",
                         report_file_path,
                     )
 
@@ -669,6 +670,22 @@ class MultipleyeDataCollection:
                     session_results / f"per_trial_data_loss_{session_name}.tsv",
                     separator="\t",
                 )
+
+                per_page_loss = self._compute_per_page_loss_table(session_name)
+                if per_page_loss is not None and not per_page_loss.is_empty():
+                    per_page_loss.write_csv(
+                        session_results / f"per_page_data_loss_{session_name}.tsv",
+                        separator="\t",
+                    )
+                    _report_to_file("Data loss by page type:", report_file_path)
+                    by_page_type = self._data_loss_by_page_type(session_name)
+                    if by_page_type is not None:
+                        for row in by_page_type.iter_rows(named=True):
+                            _report_to_file(
+                                f"- {row['page_type']}: {row['mean_data_loss']:.3f} "
+                                f"(mean over {row['num_pages']} pages)",
+                                report_file_path,
+                            )
             else:
                 _report_to_file("- No per-trial metrics available.", report_file_path)
 
@@ -1892,12 +1909,89 @@ class MultipleyeDataCollection:
         if data_loss_df is None and blink_loss_df is None:
             return None
 
-        trial_cols = ["trial", "stimulus", "page"]
+        trial_cols = ["trial", "stimulus"]
         if data_loss_df is not None and blink_loss_df is not None:
             return data_loss_df.join(blink_loss_df, on=trial_cols, how="left")
         if data_loss_df is not None:
             return data_loss_df
         return blink_loss_df
+
+    def _compute_per_page_loss_table(self, session_name: str):
+        data_loss_df = getattr(self.sessions[session_name], "_per_page_data_loss", None)
+        blink_loss_df = getattr(
+            self.sessions[session_name], "_per_page_blink_loss", None
+        )
+
+        if data_loss_df is None and blink_loss_df is None:
+            return None
+
+        page_cols = ["trial", "stimulus", "page"]
+        if data_loss_df is not None and blink_loss_df is not None:
+            table = data_loss_df.join(blink_loss_df, on=page_cols, how="left")
+        elif data_loss_df is not None:
+            table = data_loss_df
+        else:
+            table = blink_loss_df
+
+        return table.with_columns(
+            pl.col("page")
+            .map_elements(
+                self._page_type,
+                return_dtype=pl.Utf8,
+            )
+            .alias("page_type")
+        )
+
+    def _data_loss_by_page_type(self, session_name: str):
+        """Aggregate mean data-loss ratio per page type.
+
+        Parameters
+        ----------
+        session_name : str
+            The session identifier.
+
+        Returns
+        -------
+        pl.DataFrame | None
+            A DataFrame with ``page_type``, ``mean_data_loss`` and ``num_pages``
+            columns, or ``None`` if no per-page data-loss data is available.
+        """
+        per_page_loss = self._compute_per_page_loss_table(session_name)
+        if per_page_loss is None or per_page_loss.is_empty():
+            return None
+        if "data_loss_ratio" not in per_page_loss.columns:
+            return None
+        return (
+            per_page_loss.group_by("page_type")
+            .agg(
+                pl.col("data_loss_ratio").mean().alias("mean_data_loss"),
+                pl.len().alias("num_pages"),
+            )
+            .sort("page_type")
+        )
+
+    def _page_type(self, page: str) -> str:
+        """Classify a page name into a coarse page type.
+
+        Parameters
+        ----------
+        page : str
+            The page name from the gaze trial_columns.
+
+        Returns
+        -------
+        str
+            One of "reading", "question", "rating", or "other".
+        """
+        if page.startswith("page_"):
+            return "reading"
+        if page.startswith("question_"):
+            return "question"
+        if page.startswith("familiarity_rating_screen") or page == (
+            "subject_difficulty_screen"
+        ):
+            return "rating"
+        return "other"
 
     def _load_psychometric_tests(self, session_identifier: str):
         # Match the eye-tracking session to a psychometric test folder
