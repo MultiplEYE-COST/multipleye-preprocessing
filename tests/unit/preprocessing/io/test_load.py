@@ -149,6 +149,49 @@ def test_load_gaze_data_with_patterns(synthetic_asc, lab_config):
     assert gaze.messages["content"].str.contains("question_6111").any()
 
 
+@pytest.mark.filterwarnings("ignore:No metadata found")
+@pytest.mark.filterwarnings("ignore:No samples configuration found")
+@pytest.mark.filterwarnings("ignore:No recording configuration found")
+@pytest.mark.filterwarnings("ignore:No screen resolution found")
+@pytest.mark.filterwarnings("ignore:No sampling rate found")
+@pytest.mark.filterwarnings("ignore:No tracked eye information found")
+@pytest.mark.filterwarnings("ignore:No mount configuration found")
+@pytest.mark.filterwarnings("ignore:No eye tracker vendor found")
+@pytest.mark.filterwarnings("ignore:No eye tracker model found")
+@pytest.mark.filterwarnings("ignore:No eye tracker software version found")
+def test_load_gaze_data_captures_rating_and_validation_messages(tmp_path, lab_config):
+    """Regression test: rating/validation messages must survive message filtering.
+
+    PR #204 filtered messages through EXPERIMENT_MSG_PATTERNS without including
+    ``showing_*`` rating screens or ``validation_before_stimulus``, so the sanity
+    check reported them as missing even though they are present in the ASC file.
+    """
+    path = tmp_path / "synthetic.asc"
+    content = """** CONVERTED FROM synthetic.edf
+MSG 1000 start_recording_trial_1_stimulus_Lit_MagicMountain_6_page_1
+MSG 1500 stop_recording_trial_1_stimulus_Lit_MagicMountain_6_page_1
+MSG 2000 start_recording_trial_1_subject_difficulty_screen
+MSG 2500 showing_subject_difficulty_screen
+MSG 3000 showing_familiarity_rating_screen_1
+MSG 3500 validation_before_stimulus
+1000 500.0 500.0 100.0 .
+1500 500.0 500.0 100.0 .
+"""
+    path.write_text(content)
+
+    gaze = load_gaze_data(
+        asc_file=path,
+        lab_config=lab_config,
+        sid=Sid("001_SV_CH_Zurich_S1_ET1"),
+        messages=settings.EXPERIMENT_MSG_PATTERNS,
+    )
+
+    contents = gaze.messages["content"].to_list()
+    assert "showing_subject_difficulty_screen" in contents
+    assert "showing_familiarity_rating_screen_1" in contents
+    assert "validation_before_stimulus" in contents
+
+
 def test_blink_loss_ratio_is_scalar_with_trial_columns():
     import pymovements as pm
     from pymovements import transforms

@@ -1,4 +1,5 @@
 import logging
+import re
 from pathlib import Path
 
 import pytest
@@ -332,6 +333,28 @@ def test_settings_regex_reactivity(settings_obj):
     assert match is not None
     assert match.group("my_trial") == "trial_1"
     assert match.group("my_page") == "page_1"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "showing_subject_difficulty_screen",
+        "showing_familiarity_rating_screen_1",
+        "showing_familiarity_rating_screen_2",
+        "validation_before_stimulus",
+    ],
+)
+def test_experiment_msg_patterns_include_rating_and_validation(settings_obj, message):
+    """Regression test: these messages were dropped from the message whitelist.
+
+    PR #204 replaced full ASC message capture with EXPERIMENT_MSG_PATTERNS and
+    omitted these messages, causing the sanity check to report every rating
+    screen and pre-stimulus validation as missing even though they exist in the
+    ASC file.
+    """
+    assert any(
+        re.match(pattern, message) for pattern in settings_obj.EXPERIMENT_MSG_PATTERNS
+    ), f"{message} is not matched by any EXPERIMENT_MSG_PATTERNS entry"
 
 
 def test_settings_gaze_patterns_reactivity(settings_obj):

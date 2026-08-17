@@ -473,6 +473,6 @@ def _check_validation_screen(messages, file, stimulus_name):
 
 def _check_rating_screens(messages, file):
     for rating in RATING_SCREENS:
-        if f"{rating}" not in messages:
-            # print(f"Missing instruction {instruction}")
+        bare_name = rating.removeprefix("showing_")
+        if not any(bare_name in msg for msg in messages):
             _report_to_file(f"- Missing rating {rating} in asc file", file)
