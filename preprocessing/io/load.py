@@ -459,3 +459,7 @@ def load_reading_measures(
         raise ValueError(f"No reading measures files found in {data_folder}")
 
     return pl.concat(all_trials)
+
+
+def load_preprocessed_dataset(dataset_name: str, dataset_type: str):
+    pass
