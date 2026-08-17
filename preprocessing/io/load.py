@@ -94,7 +94,7 @@ def load_trial_level_raw_data(
 ) -> pm.Gaze:
     """Load trial-level raw data from multiple CSV files and construct a gaze object.
 
-    This function aggregates raw data files containing gaze data for one or more trials.
+    This function aggregates raw data files containing gaze data with position and velocity information for one or more trials.
 
     Parameters
     ----------
@@ -130,6 +130,10 @@ def load_trial_level_raw_data(
                 "pupil": pl.Float64,
                 "pixel_x": pl.Float64,
                 "pixel_y": pl.Float64,
+                "position_x": pl.Float64,
+                "position_y": pl.Float64,
+                "velocity_x": pl.Float64,
+                "velocity_y": pl.Float64,
                 "page": pl.Utf8,
             },
         )
@@ -150,6 +154,8 @@ def load_trial_level_raw_data(
         initial_df,
         trial_columns=trial_columns,
         pixel_columns=["pixel_x", "pixel_y"],
+        position_columns=["position_x", "position_y"],
+        velocity_columns=["velocity_x", "velocity_y"],
     )
 
     if load_metadata:

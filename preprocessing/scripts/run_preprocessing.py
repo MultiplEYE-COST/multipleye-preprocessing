@@ -89,11 +89,16 @@ def run_preprocessing(config_path: str | None = None):
         raw_data_folder = sess.sid.raw_data_dir
         num_expected_files = len(sess.completed_stimuli_ids)
         try:
-            num_files = len(list(raw_data_folder.glob("*.csv")))
+            files = list(raw_data_folder.glob("*.csv"))
+            num_files = len(files)
+            #Check if a previous version of this pipeline saved the raw data without velocity and position information
+            test_file = files[0]
+            preprocessed = ("position_x" in pl.read_csv(test_file).columns)
         except FileNotFoundError:
             num_files = 0
+            preprocessed = False
 
-        if num_expected_files == num_files and not settings.RECALCULATE:
+        if num_expected_files == num_files and preprocessed and not settings.RECALCULATE:
             # Loading previously extracted raw data
             pbar.set_description(f"Loading samples {sess.sid}:")
             gaze = preprocessing.load_trial_level_raw_data(
@@ -120,16 +125,16 @@ def run_preprocessing(config_path: str | None = None):
 
             preprocessing.save_session_metadata(sess.sid, gaze)
 
+            # preprocess gaze data
+            pbar.set_description(f"Preprocessing samples {sess.sid}:")
+            preprocessing.preprocess_gaze(
+               gaze,
+            )
+            preprocessing.save_raw_data(sess.sid, gaze)
+
         sess.pm_gaze_metadata = gaze._metadata
         sess.calibrations = gaze.calibrations
         sess.validations = gaze.validations
-
-        # preprocess gaze data
-        pbar.set_description(f"Preprocessing samples {sess.sid}:")
-        preprocessing.preprocess_gaze(
-            gaze,
-        )
-        preprocessing.save_raw_data(sess.sid, gaze)
 
         # create or load fixation data
         fixation_data_folder = sess.sid.fixations_dir
