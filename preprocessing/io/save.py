@@ -34,7 +34,17 @@ def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
         name = f"{str(sid)}_{trial}_{stimulus}_raw_data.csv"
-        df = df["time", "pixel_x", "pixel_y","position_x", "position_y", "velocity_x", "velocity_y", "pupil", "page"]
+        df = df[
+            "time",
+            "pixel_x",
+            "pixel_y",
+            "position_x",
+            "position_y",
+            "velocity_x",
+            "velocity_y",
+            "pupil",
+            "page",
+        ]
         df.write_csv(directory / name)
 
 

@@ -91,14 +91,18 @@ def run_preprocessing(config_path: str | None = None):
         try:
             files = list(raw_data_folder.glob("*.csv"))
             num_files = len(files)
-            #Check if a previous version of this pipeline saved the raw data without velocity and position information
+            # Check if a previous version of this pipeline saved the raw data without velocity and position information
             test_file = files[0]
-            preprocessed = ("position_x" in pl.read_csv(test_file).columns)
+            preprocessed = "position_x" in pl.read_csv(test_file).columns
         except FileNotFoundError:
             num_files = 0
             preprocessed = False
 
-        if num_expected_files == num_files and preprocessed and not settings.RECALCULATE:
+        if (
+            num_expected_files == num_files
+            and preprocessed
+            and not settings.RECALCULATE
+        ):
             # Loading previously extracted raw data
             pbar.set_description(f"Loading samples {sess.sid}:")
             gaze = preprocessing.load_trial_level_raw_data(
@@ -128,7 +132,7 @@ def run_preprocessing(config_path: str | None = None):
             # preprocess gaze data
             pbar.set_description(f"Preprocessing samples {sess.sid}:")
             preprocessing.preprocess_gaze(
-               gaze,
+                gaze,
             )
             preprocessing.save_raw_data(sess.sid, gaze)
 
