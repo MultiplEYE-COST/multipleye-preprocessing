@@ -118,7 +118,6 @@ def run_preprocessing(config_path: str | None = None):
                 pl.col("stimulus").is_in(sess.completed_stimuli_names)
             )
 
-            preprocessing.save_raw_data(sess.sid, gaze)
             preprocessing.save_session_metadata(sess.sid, gaze)
 
         sess.pm_gaze_metadata = gaze._metadata
@@ -130,6 +129,7 @@ def run_preprocessing(config_path: str | None = None):
         preprocessing.preprocess_gaze(
             gaze,
         )
+        preprocessing.save_raw_data(sess.sid, gaze)
 
         # create or load fixation data
         fixation_data_folder = sess.sid.fixations_dir
