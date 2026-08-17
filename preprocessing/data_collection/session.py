@@ -416,7 +416,7 @@ class Session:
 
         try:
             answers = pl.read_csv(answers_csv)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning(f"Could not read answers CSV {answers_csv}: {exc}")
             return "unknown"
 
