@@ -162,6 +162,7 @@ def load_gaze_data(
 
         blink_events = gaze.events.frame.filter(pl.col("name").str.contains("blink"))
         if not blink_events.is_empty():
+            # Per-page blink loss: one row per page, time-weighted within the page.
             per_page_blink = blink_events.group_by(trial_cols).agg(
                 pl.col("duration").sum().alias("blink_duration_ms")
             )
@@ -176,6 +177,9 @@ def load_gaze_data(
                 sr=sr,
             )
 
+            # Per-trial blink loss: one row per trial (time-weighted within the
+            # trial). Trials are not weighted by length against each other; the
+            # sanity report takes a plain, equal-weighted mean over trial rows.
             per_trial_cols = ["trial", "stimulus"]
             per_trial_blink = blink_events.group_by(per_trial_cols).agg(
                 pl.col("duration").sum().alias("blink_duration_ms")

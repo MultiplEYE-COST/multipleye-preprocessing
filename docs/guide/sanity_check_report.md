@@ -348,6 +348,10 @@ directory:
 - `per_page_data_loss_{session}.tsv`: one row per page, with a `page_type` column
   (`reading`, `question` or `rating`).
 
+**Weighting:** each per-trial value is the time-weighted ratio within that trial, but the
+**across-trial mean uses a plain, equal-weighted mean** over trial rows — trials are not
+weighted by their recording length. Pages may be weighted by their recording duration.
+
 Columns in `per_trial_data_loss_{session}.tsv`:
 
 - `trial`, `stimulus`: trial identifiers

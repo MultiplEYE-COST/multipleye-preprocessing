@@ -642,6 +642,8 @@ class MultipleyeDataCollection:
             _report_to_file("## Per-trial Data Loss", report_file_path)
             per_trial_loss = self._compute_per_trial_loss_table(session_name)
             if per_trial_loss is not None and not per_trial_loss.is_empty():
+                # One row per trial. The mean over rows weights every trial equally:
+                # trials are NOT weighted by their recording length.
                 num_trials = per_trial_loss.height
                 mean_data_loss = (
                     per_trial_loss["data_loss_ratio"].mean()
