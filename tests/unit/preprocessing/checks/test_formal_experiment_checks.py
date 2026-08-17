@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import polars as pl
 
 from preprocessing.checks.formal_experiment_checks import (
+    _check_rating_screens,
     check_all_screens_logfile,
     check_messages,
     sanity_check_gaze_frame,
@@ -126,6 +127,29 @@ def test_sanity_check_gaze_frame_report_lines_have_bullet_prefix(
     assert "- Lit_BrokenApril: Missing page 3 in asc file" in lines
     assert "- Missing question_q1101 in asc file or in experiment frame" in lines
     assert "- Missing rating showing_subject_difficulty_screen in asc file" in lines
+
+
+def test_check_rating_screens_accepts_start_recording_form(tmp_path: Path) -> None:
+    """The check must tolerate the bare ``start_recording_*`` rating form.
+
+    Older data captures rating screens as ``start_recording_trial_N_<rating>``
+    (matched by ``start_recording_.*``), while newer ASCs also emit a
+    ``showing_<rating>`` message. The check must not report a screen as missing
+    when either form is present.
+    """
+    report_file = tmp_path / "report.md"
+    messages = [
+        "start_recording_trial_1_subject_difficulty_screen",
+        "start_recording_trial_1_familiarity_rating_screen_1",
+        "start_recording_trial_1_familiarity_rating_screen_2",
+    ]
+
+    _check_rating_screens(messages, report_file)
+
+    if not report_file.exists():
+        return
+    text = report_file.read_text(encoding="utf-8")
+    assert "Missing rating" not in text
 
 
 def test_check_messages_report_lines_have_bullet_prefix(tmp_path: Path) -> None:
