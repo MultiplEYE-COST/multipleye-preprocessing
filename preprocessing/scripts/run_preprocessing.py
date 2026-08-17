@@ -58,6 +58,7 @@ def run_preprocessing(config_path: str | None = None):
                 include_pilots=settings.INCLUDE_PILOTS,
                 excluded_sessions=settings.EXCLUDE_SESSIONS,
                 included_sessions=settings.INCLUDE_SESSIONS,
+                output_dir=settings.OUTPUT_DIR,
             )
         )
 
