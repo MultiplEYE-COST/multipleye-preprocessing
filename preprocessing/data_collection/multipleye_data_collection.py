@@ -70,11 +70,9 @@ class MultipleyeDataCollection:
     year: int
     country: str
     session_folder_regex: str = ""
-    data_root: Path = None
+    data_root_unprocessed: Path = None
     excluded_sessions: list = []
     type = "MultiplEYE"
-
-    # TODO: read instruction excel
 
     def __init__(
         self,
@@ -87,12 +85,12 @@ class MultipleyeDataCollection:
         stimulus_dir: Path,
         lab_number: int,
         city: str,
-        data_root: Path,
         lab_configuration: LabConfig,
-        session_folder_regex: str,
+        session_folder_regex: str = "",
+        data_root_unprocessed: Path | None = None,
+        data_root_processed: Path | None = None,
         included_sessions: list[str] | None = None,
         excluded_sessions: list[str] | None = None,
-        # stimuli: list[Stimulus],
         **kwargs,
     ):
         self.sessions: dict[str, Session] = {}
@@ -125,7 +123,8 @@ class MultipleyeDataCollection:
         self.lab_number = lab_number
         self.city = city
         self.lab_configuration = lab_configuration
-        self.data_root = data_root
+        self.data_root_unprocessed = data_root_unprocessed
+        self.data_root_processed = data_root_processed
         self.session_folder_regex = session_folder_regex
         self.psychometric_tests = kwargs.get("psychometric_tests", [])
         self.excluded_sessions = excluded_sessions
@@ -133,26 +132,30 @@ class MultipleyeDataCollection:
         self.logger = get_logger()
 
         self.logger.info(
-            f"MultipleyeDataCollection initialized. data_root: {self.data_root}"
+            f"MultipleyeDataCollection initialized with data collection name: {self.data_collection_name}"
         )
         self.logger.info(f"Main config loaded from {self.config_file}")
 
-        self.add_recorded_sessions(self.data_root, self.session_folder_regex)
+        # if the data is yet unprocessed
+        if self.data_root_unprocessed is not None:
+            self.preprocessed = False
+            self.add_recorded_sessions(session_folder_regex=self.session_folder_regex)
 
-        if len(self.sessions) == 0:
-            msg = f"No sessions found in {self.data_root}. "
-            if self.included_sessions:
-                msg += (
-                    f"Check if 'include_sessions' {self.included_sessions} is correct. "
-                )
-            if self.excluded_sessions:
-                msg += (
-                    f"Check if 'exclude_sessions' {self.excluded_sessions} "
-                    "is filtering all available data. "
-                )
+            if len(self.sessions) == 0:
+                msg = f"No sessions found in {self.data_root_unprocessed}. "
+                if self.included_sessions:
+                    msg += f"Check if 'include_sessions' {self.included_sessions} is correct. "
+                if self.excluded_sessions:
+                    msg += (
+                        f"Check if 'exclude_sessions' {self.excluded_sessions} "
+                        "is filtering all available data. "
+                    )
 
-            msg += "Please check the session_folder_regex and the data_root."
-            raise ValueError(msg)
+                msg += "Please check the session_folder_regex and the data_root."
+                raise ValueError(msg)
+        else:
+            self.preprocessed = True
+            self.add_preprocessed_sessions()
 
         # load stimulus order versions to know what stimulus randomization was used for
         # each participant
@@ -174,7 +177,10 @@ class MultipleyeDataCollection:
             )
             self.stim_order_versions = stim_order_versions
 
-        self.overview = self.create_dataset_overview()
+        if not self.preprocessed:
+            self.overview = self.create_dataset_overview()
+        else:
+            self.overview = self.load_dataset_overview(path=data_root_processed)
 
     def __repr__(self):
         if not self.overview:
@@ -194,7 +200,6 @@ class MultipleyeDataCollection:
                 lines.append(f"{section_name}: {section}")
         return "\n".join(lines)
 
-    # TODO: check these chatgpt functions :D
     def __iter__(self):
         self._iter_keys = sorted(self.sessions)
         self._iter_index = 0
@@ -210,15 +215,31 @@ class MultipleyeDataCollection:
     def __getitem__(self, item):
         return self.sessions[item]
 
+    def add_preprocessed_sessions(self):
+
+        if not self.data_root_processed:
+            raise ValueError(
+                "The data collection has no information about preprocessed data. "
+                "Please initialize the data collection from preprocessed data using "
+                "'create_from_preprocessed' method."
+            )
+
+        metadata_folder = self.data_root_processed / "metadata"
+
+        for session in metadata_folder.iterdir():
+            sess_yaml = session / f"{session.name}_overview.yaml"
+
+            sess = Session.from_yaml(sess_yaml, self.data_root_processed)
+
+            self.sessions[session.name] = sess
+
     def add_recorded_sessions(
         self,
-        data_root: Path,
         session_folder_regex: str = "",
         session_file_suffix: str = "",
     ) -> None:
         """
         Checks what sessions there exist for this data collection and adds them to the sessions dict. No preprocessing or anything happends in here.
-        :param data_root: Specifies the root folder where the data is stored
         :param session_folder_regex: The pattern for the session folder names. It is possible to include infomration in
         regex groups. Those will be parsed directly and stored in the session object.
         Those folders should be in the root folder. If '' then the root folder is assumed to contain all files
@@ -226,9 +247,6 @@ class MultipleyeDataCollection:
         :param session_file_suffix: The pattern for the session file names. If no pattern is given, all files in the
         session folder are assumed to be the data files depending on the eye tracker.
         """
-
-        self.data_root = data_root
-        self.session_folder_regex = session_folder_regex
 
         found_sessions = []
 
@@ -239,10 +257,12 @@ class MultipleyeDataCollection:
 
         # get a list of all folders in the data folder
         if session_folder_regex:
-            items = list(os.scandir(self.data_root))
+            items = list(os.scandir(self.data_root_unprocessed))
             pilots = []
             if self.include_pilots:
-                pilots = list(os.scandir(self.data_root / self.pilot_folder))
+                pilots = list(
+                    os.scandir(self.data_root_unprocessed / self.pilot_folder)
+                )
                 items = items + pilots
 
             for item in items:
@@ -291,10 +311,15 @@ class MultipleyeDataCollection:
                             ses = Session(
                                 participant_id=int(item.name.split("_")[0]),
                                 session_identifier=item.name,
-                                session_folder_path_unprocessed=Path(item.path),
-                                session_file_path_unprocessed=session_file,
                                 is_pilot=is_pilot,
+                                language=self.language,
+                                country=self.country,
+                                city=self.city,
+                                lab_number=self.lab_number,
                             )
+
+                            ses.session_folder_path_unprocessed = Path(item.path)
+                            ses.session_file_path_unprocessed = session_file
 
                             self.sessions[item.name] = ses
 
@@ -307,7 +332,7 @@ class MultipleyeDataCollection:
 
         if not found_sessions:
             raise ValueError(
-                f"No sessions found (or none matching the ex-/inclusion criteria) in data folder {self.data_root}"
+                f"No sessions found (or none matching the ex-/inclusion criteria) in data folder {self.data_root_unprocessed}"
             )
 
         unique_sessions = set(found_sessions)
@@ -435,14 +460,13 @@ class MultipleyeDataCollection:
         output_dir: Path | None = None,
     ) -> "MultipleyeDataCollection":
         """
-        :param data_dir: str  path to the data folder
+        :param data_dir: path to the data folder
         :param additional_folder: if additional sub-folders in the data folder are used,
         e.g. 'core_dataset', test_dataset, pilot_dataset
-        :param different_stimulus_names: if the stimulus names are different from the default ones they can be extracted
-        from the multipleye_stimuli_experiment_en.xlsx file, at the moment only used for testing purposes
         :param include_pilots: If True, the pilot sessions are included in the data collection.
         :param excluded_sessions: If not None, the sessions excluded from the data collection.
         :param included_sessions: If not None, the sessions included in the data collection.
+        :param output_dir: The directory where the output files will be saved.
         :return:
         MultipleyeDataCollection object
         """
@@ -527,7 +551,7 @@ class MultipleyeDataCollection:
             stimulus_dir=stimulus_folder_path,
             lab_number=int(lab_number),
             city=city,
-            data_root=et_data_path,
+            data_root_unprocessed=et_data_path,
             lab_configuration=lab_configuration_data,
             include_pilots=include_pilots,
             pilot_folder=et_data_path / "pilot_sessions" if include_pilots else None,
@@ -536,6 +560,72 @@ class MultipleyeDataCollection:
             included_sessions=included_sessions,
             excluded_sessions=excluded_sessions,
             output_dir=output_dir,
+        )
+
+    @classmethod
+    def create_from_preprocessed(
+        cls, data_dir: Path | str
+    ) -> "MultipleyeDataCollection":
+        data_dir = Path(data_dir)
+        data_folder_name = data_dir.name
+
+        try:
+            dcn = Dcn(data_folder_name)
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                f"Invalid data collection name: {data_folder_name}. {e}"
+            ) from e
+
+        stimulus_language = dcn.lang
+        country = dcn.country
+        city = dcn.city
+        lab_number = dcn.lab
+        year = dcn.year
+
+        # load dataset overview yaml
+        overview_yaml = f"{data_dir}/{data_folder_name}_overview.yaml"
+
+        with open(overview_yaml, encoding="utf-8") as f:
+            overview = yaml.safe_load(f) or {}
+
+        stimulus_folder_path = data_dir / f"stimuli_{data_folder_name}"
+
+        # Flatten nested overview sections while remaining compatible with already-flat files.
+        flat_overview = {}
+
+        for key, value in overview.items():
+            if isinstance(value, dict):
+                flat_overview.update(value)
+            else:
+                flat_overview[key] = value
+
+        config_file = (
+            stimulus_folder_path
+            / "config"
+            / f"config_{stimulus_language.lower()}_{country.lower()}_{city}_{lab_number}.py"
+        )
+
+        lab_configuration_data = cls.load_lab_config(
+            stimulus_folder_path,
+            stimulus_language,
+            country,
+            int(lab_number),
+            city,
+            int(year),
+        )
+
+        return cls(
+            data_collection_name=flat_overview["Title"],
+            stimulus_language=flat_overview["Tested_language"],
+            country=flat_overview["Country"],
+            year=int(year),
+            eye_tracker=flat_overview["Eye_tracker_name"],
+            lab_number=int(flat_overview["Lab_number"]),
+            city=flat_overview["City"],
+            stimulus_dir=stimulus_folder_path,
+            lab_configuration=lab_configuration_data,
+            config_file=config_file,
+            data_root_processed=data_dir,
         )
 
     def create_sanity_check_report(
@@ -683,7 +773,9 @@ class MultipleyeDataCollection:
             sessions = [key for key in self.sessions]
             return sessions
         elif session not in self.sessions:
-            raise KeyError(f"Session {session} not found in {self.data_root}.")
+            raise KeyError(
+                f"Session {session} not found in {self.data_root_unprocessed}."
+            )
 
         elif isinstance(session, str):
             return [session]
@@ -698,7 +790,8 @@ class MultipleyeDataCollection:
 
         if not path:
             overview_path = (
-                self.data_root.parent / f"{self.data_collection_name}_overview.yaml"
+                self.data_root_unprocessed.parent
+                / f"{self.data_collection_name}_overview.yaml"
             )
 
         else:
@@ -816,6 +909,22 @@ class MultipleyeDataCollection:
             yaml.dump(overview, f, sort_keys=False)
 
         return overview
+
+    def load_dataset_overview(self, path: str | Path = ""):
+
+        if not path:
+            overview_path = (
+                self.data_root_unprocessed.parent
+                / f"{self.data_collection_name}_overview.yaml"
+            )
+
+        else:
+            overview_path = path / f"{self.data_collection_name}_overview.yaml"
+
+        with open(overview_path, "r", encoding="utf8") as f:
+            overview = yaml.safe_load(f)
+
+        return dict(overview)
 
     @staticmethod
     def _get_pipeline_version() -> str | None:
@@ -1042,7 +1151,9 @@ class MultipleyeDataCollection:
         sess = self.sessions[session_idf]
 
         if not path:
-            overview_path = self.data_root.parent / f"{session_idf}_overview.yaml"
+            overview_path = (
+                self.data_root_unprocessed.parent / f"{session_idf}_overview.yaml"
+            )
         else:
             overview_path = (
                 Path(path)
@@ -1756,9 +1867,11 @@ class MultipleyeDataCollection:
             }
         )
 
-        if os.path.exists(self.data_root.parent / "total_reading_times.tsv"):
+        if os.path.exists(
+            self.data_root_unprocessed.parent / "total_reading_times.tsv"
+        ):
             temp_total_times = pd.read_csv(
-                self.data_root.parent / "total_reading_times.tsv", sep="\t"
+                self.data_root_unprocessed.parent / "total_reading_times.tsv", sep="\t"
             )
             if session_identifier not in temp_total_times["session"].tolist():
                 total_times = pd.concat(
@@ -1766,7 +1879,9 @@ class MultipleyeDataCollection:
                 )
 
         total_times.to_csv(
-            self.data_root.parent / "total_reading_times.tsv", sep="\t", index=False
+            self.data_root_unprocessed.parent / "total_reading_times.tsv",
+            sep="\t",
+            index=False,
         )
 
     def _check_asc_validation(self, session_identifier: str) -> None:
@@ -1987,24 +2102,9 @@ class MultipleyeDataCollection:
 
             if not path:
                 self.participant_data_path = (
-                    self.data_root.parent / "participant_data.csv"
+                    self.data_root_unprocessed.parent / "participant_data.csv"
                 )
             else:
                 self.participant_data_path = path
 
             participant_data.to_csv(self.participant_data_path, index=False)
-
-
-if __name__ == "__main__":
-    settings.setup_logging()
-    data_collection_folder = "MultiplEYE_ET_EE_Tartu_1_2025"
-
-    this_repo = Path.cwd().parent
-
-    data_folder_path = this_repo / "data" / data_collection_folder
-
-    multipleye = MultipleyeDataCollection.create_from_data_folder(str(data_folder_path))
-    # multipleye.add_recorded_sessions(data_root= data_folder_path / 'eye-tracking-sessions' / 'core_dataset', convert_to_asc=False, session_folder_regex=r"005_ET_EE_1_ET1")
-    # multipleye.create_gaze_frame("005_ET_EE_1_ET1")
-    multipleye.create_sanity_check_report(["005_ET_EE_1_ET1", "006_ET_EE_1_ET1"])
-    multipleye.create_experiment_frame("005_ET_EE_1_ET1")

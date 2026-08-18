@@ -24,7 +24,6 @@ class Session:
     country: str
     city: str
     lab_number: int
-
     session_identifier: str
     is_pilot: bool
 
@@ -108,6 +107,10 @@ class Session:
     # per-trial metrics
     trials: list[Trial] | str = field(default="unknown", init=False)
 
+    def __post_init__(self):
+
+        pass
+
     @property
     def sid(self) -> "Sid":
         return Sid(self.session_identifier)
@@ -152,6 +155,10 @@ class Session:
                 "is_pilot": self.is_pilot,
                 "year_of_data_collection": self._get_metadata("year", "unknown"),
                 "month_of_data_collection": self._get_metadata("month", "unknown"),
+                "language": self.language,
+                "country": self.country,
+                "city": self.city,
+                "lab_number": self.lab_number,
             },
             "Technical_setup": self._technical_setup(),
             "Tracking": {
@@ -182,6 +189,7 @@ class Session:
             "Experiment_procedure": {
                 "question_order": self.question_order,
                 "stimulus_order_ids": self.stimulus_order_ids,
+                "completed_stimuli_ids": self.completed_stimuli_ids,
                 "num_completed_trials": len(self.stimulus_order_ids)
                 if isinstance(self.stimulus_order_ids, list)
                 else None,
@@ -191,6 +199,11 @@ class Session:
                 "total_break_time": self.total_break_time,
                 "total_reading_time": self.total_reading_time,
                 "total_session_duration": self.total_session_duration,
+                "randomization_version": self.randomization_version,
+            },
+            "Stimuli": {
+                "stimulus_folder_name": self.stimulus_folder_name,
+                "stimulus_trial_mapping": self.stimuli_trial_mapping,
             },
             "Trials": (
                 [asdict(t) for t in self.trials]
@@ -211,6 +224,22 @@ class Session:
                 "answers": self.answers,
             },
         }
+
+    @classmethod
+    def from_yaml(cls, yaml_file: Path, dataset_dir: Path) -> "Session":
+        with open(yaml_file, "r", encoding="utf8") as f:
+            session_specs = yaml.safe_load(f)
+
+        # Flatten nested overview sections while remaining compatible with already-flat files.
+        flat_overview = {}
+
+        for key, value in session_specs.items():
+            if isinstance(value, dict):
+                flat_overview.update(value)
+            else:
+                flat_overview[key] = value
+
+        return cls(**flat_overview)
 
     def _get_metadata(self, key: str, default: T = "unknown") -> str | T:
         """Return a value from pm_gaze_metadata without raising on missing keys."""
@@ -241,21 +270,21 @@ class Session:
         image_size_w, image_size_h = _pair(_resolve("image_size_cm"))
 
         return {
-            "Eye_tracker_name": _resolve("name_eye_tracker", None),
-            "Sampling_frequency_hz": _resolve("sampling_frequency_hz", None),
-            "Mount_type": mount.get("mount_type"),
-            "Head_stabilization": mount.get("head_stabilization"),
-            "Eyes_recorded": mount.get("eyes_recorded"),
-            "Pupil_data_type": self._get_metadata("pupil_data_type"),
-            "Screen_resolution_width_px": screen_res_w,
-            "Screen_resolution_height_px": screen_res_h,
-            "Screen_size_width_cm": screen_size_w,
-            "Screen_size_height_cm": screen_size_h,
-            "Screen_distance_cm": _resolve("screen_distance_cm", None),
-            "Image_resolution_width_px": image_res_w,
-            "Image_resolution_height_px": image_res_h,
-            "Image_size_width_cm": image_size_w,
-            "Image_size_height_cm": image_size_h,
+            "eye_tracker_name": _resolve("name_eye_tracker", None),
+            "sampling_frequency_hz": _resolve("sampling_frequency_hz", None),
+            "mount_type": mount.get("mount_type"),
+            "head_stabilization": mount.get("head_stabilization"),
+            "eyes_recorded": mount.get("eyes_recorded"),
+            "pupil_data_type": self._get_metadata("pupil_data_type"),
+            "screen_resolution_width_px": screen_res_w,
+            "screen_resolution_height_px": screen_res_h,
+            "screen_size_width_cm": screen_size_w,
+            "screen_size_height_cm": screen_size_h,
+            "screen_distance_cm": _resolve("screen_distance_cm", None),
+            "image_resolution_width_px": image_res_w,
+            "image_resolution_height_px": image_res_h,
+            "image_size_width_cm": image_size_w,
+            "image_size_height_cm": image_size_h,
         }
 
     def _compute_comprehension_scores(self) -> None:
@@ -323,61 +352,6 @@ class Session:
         min_t = min(times)
         max_t = max(times)
         return round((max_t - min_t) / 1000, 3)
-
-    def load_session_stimuli(
-        self,
-        stimulus_dir: Path,
-        lang: str,
-        country: str,
-        lab_num: int,
-        stimulus_order_version: int,
-        session_identifier: str,
-        stimulus_names: None | list = None,
-    ) -> list[Stimulus]:
-        """
-        Load the stimuli from the specified directory.
-        :param stimulus_dir: The directory where the stimuli are stored.
-        :param lang: The language of the stimuli.
-        :param country: The country of the stimuli.
-        :param stimulus_names: The names of the stimuli to load. If None, the predefined stimuli names in the
-        global variable self.stimulus_names are used.
-        :param stimulus_order_version: The version of the questions to load. Specifies how the questions are ordered and the
-        shuffling of the answer options.
-        :param lab_num: The lab number.
-
-        """
-        stimuli = []
-        if stimulus_names is None:
-            stimulus_names = [
-                name
-                for name, num in settings.STIMULUS_NAME_MAPPING.items()
-                if num in self.completed_stimuli_ids
-            ]
-
-        for stimulus_name in stimulus_names:
-            trial_mapping = self.stimuli_trial_mapping
-            # get the trial id from the mapping, keys are ids and values are strings
-            trial_id = [
-                key for key, value in trial_mapping.items() if value == stimulus_name
-            ]
-            if len(trial_id) == 0:
-                raise KeyError(
-                    f"Stimulus name {stimulus_name} not found in the trial mapping for session "
-                    f"{session_identifier}. Please check the completed_stimuli.csv file."
-                )
-
-            stimulus = Stimulus.load(
-                stimulus_dir,
-                lang,
-                country,
-                lab_num,
-                stimulus_name,
-                stimulus_order_version,
-                trial_id[0],
-            )
-            stimuli.append(stimulus)
-
-        return stimuli
 
     def _create_stats(self):
         self.num_calibrations = len(self.calibrations)
@@ -542,3 +516,53 @@ class Session:
 
         trials.sort(key=lambda t: (t.is_practice, t.trial_number))
         return trials
+
+    def load_session_stimuli(
+        self,
+        stimulus_dir: Path,
+        stimulus_names: None | list = None,
+    ) -> None:
+        """
+        Load the stimuli from the specified directory.
+        :param stimulus_dir: The directory where the stimuli are stored.
+        :param lang: The language of the stimuli.
+        :param country: The country of the stimuli.
+        :param stimulus_names: The names of the stimuli to load. If None, the predefined stimuli names in the
+        global variable self.stimulus_names are used.
+        :param stimulus_order_version: The version of the questions to load. Specifies how the questions are ordered and the
+        shuffling of the answer options.
+        :param lab_num: The lab number.
+
+        """
+        stimuli = []
+        if stimulus_names is None:
+            stimulus_names = [
+                name
+                for name, num in settings.STIMULUS_NAME_MAPPING.items()
+                if num in self.completed_stimuli_ids
+            ]
+
+        for stimulus_name in stimulus_names:
+            trial_mapping = self.stimuli_trial_mapping
+            # get the trial id from the mapping, keys are ids and values are strings
+            trial_id = [
+                key for key, value in trial_mapping.items() if value == stimulus_name
+            ]
+            if len(trial_id) == 0:
+                raise KeyError(
+                    f"Stimulus name {stimulus_name} not found in the trial mapping for session "
+                    f"{self.session_identifier}. Please check the completed_stimuli.csv file."
+                )
+
+            stimulus = Stimulus.load(
+                stimulus_dir,
+                self.language,
+                self.country,
+                self.lab_num,
+                stimulus_name,
+                self.stimulus_order_version,
+                trial_id[0],
+            )
+            stimuli.append(stimulus)
+
+        return stimuli

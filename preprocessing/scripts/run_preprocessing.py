@@ -9,6 +9,7 @@ from tqdm import tqdm
 import preprocessing
 from preprocessing import settings
 from preprocessing.checks.quality_thresholds import write_quality_thresholds
+from preprocessing.plotting.plots import create_plots
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
 from ..utils.logging import get_logger
@@ -461,10 +462,19 @@ def run_preprocessing(config_path: str | None = None):
                 data_collection.create_sanity_check_report(
                     gaze,
                     sess.session_identifier,
-                    plotting=True,
+                    overwrite=True,
                     recalculate=(settings.RECALCULATE or recalculated_upstream),
                     output_dir=settings.OUTPUT_DIR,
                 )
+
+                create_plots(
+                    gaze,
+                    ["main_sequence", "gaze_overlay"],
+                    stimuli=sess.stimuli,
+                    session_identifier=sess.session_identifier,
+                    directory=settings.OUTPUT_DIR / settings.SANITY_CHECKS_FOLDER,
+                )
+
         else:
             pbar.set_description(f"Skipping sanity checks {sess.sid}:")
 
