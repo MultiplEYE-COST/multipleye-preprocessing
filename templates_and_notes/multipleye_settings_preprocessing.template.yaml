@@ -24,7 +24,7 @@ experiment_type: "MultiplEYE" # MultiplEYE or MeRID
 # If false, already preprocessed sessions are skipped.
 # Note: If some files exist, recalculate once to ensure version consistency.
 # Note: Activate recalculate whenever changing input files e.g. the stimulus order
-recalculate: true
+recalculate: false
 
 # List of session identifiers to explicitly include. If not empty, only these are processed.
 include_sessions: [] # e.g., ["000_DA_DK_1_ET1"]
