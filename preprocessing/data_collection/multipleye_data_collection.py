@@ -539,7 +539,7 @@ class MultipleyeDataCollection:
         :param gaze:
         :param session_name: Specifies which session to create the report for.
         :param plotting: If True, all plots are also created for all the sessions.
-        :param overwrite: If True, the sanity check report is overwritten if it already exists.
+        :param recalculate: If True, the sanity check report is overwritten if it already exists.
         """
 
         if session_name in self.excluded_sessions:

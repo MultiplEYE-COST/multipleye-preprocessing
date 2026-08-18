@@ -68,7 +68,7 @@ settings, the stimulus order randomisation table, and the experiment metadata fo
 
 **Every stage reads the output of the previous stage and can be toggled on or off.**
 The configuration YAML controls which stages run. Output files are cached on disk; when
-`overwrite: false` the pipeline skips recomputation and validates file counts against the
+`recalculate: false` the pipeline skips recomputation and validates file counts against the
 expected number of completed stimuli.
 
 **Two experiment types are supported through the same interface.** `MultiplEYE` uses one
