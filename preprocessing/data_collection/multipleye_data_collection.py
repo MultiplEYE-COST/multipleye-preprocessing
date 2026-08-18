@@ -162,10 +162,7 @@ class MultipleyeDataCollection:
             self.stimulus_dir / "config" / f"stimulus_order_versions_"
             f"{self.language}_{self.country}_{self.lab_number}.csv"
         )
-        stim_order_versions = pd.read_csv(stim_order_versions)
-        self.stim_order_versions = stim_order_versions[
-            stim_order_versions["participant_id"].notnull()
-        ]
+        self.stim_order_versions = pd.read_csv(stim_order_versions)
 
         if self.stim_order_versions.empty:
             warnings.warn(
@@ -1310,7 +1307,7 @@ class MultipleyeDataCollection:
         ]
 
         if stim_order_version.empty:
-            self.logger.warning(
+            self.logger.warning(f"\n"
                 f"+"+f"-"*175+f"+"+"\n"
                 f" WARNING: Participant ID {p_id} not found in stimulus order versions. Please check the "
                 f" participant IDs in the stimulus order versions file. It is possible that the team did not "
@@ -1320,7 +1317,7 @@ class MultipleyeDataCollection:
                 f"that were presented to this participant.""\n"
                 f"+"+f"-"*175+f"+"
             )
-            print(
+            print(f"\n"
                 f"+"+f"-"*175+f"+"+"\n"
                 f" WARNING: Participant ID {p_id} not found in stimulus order versions. Please check the "
                 f" participant IDs in the stimulus order versions file. It is possible that the team did not "
