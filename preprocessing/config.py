@@ -331,7 +331,7 @@ class Settings:
         # If False, preprocessed sessions will be skipped and not reprocessed.
         # If only some files for a session exist, the user has to select recalculate once
         # to avoid having files stemming from different versions.
-        self.RECALCULATE = True
+        self.RECALCULATE = False
 
         #: List of session identifiers to explicitly exclude from processing.
         self.EXCLUDE_SESSIONS: list[str] = []
