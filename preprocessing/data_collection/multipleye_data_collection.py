@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import warnings
+import sys
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
@@ -1319,6 +1320,17 @@ class MultipleyeDataCollection:
                 f"that were presented to this participant.""\n"
                 f"+"+f"-"*175+f"+"
             )
+            print(
+                f"+"+f"-"*175+f"+"+"\n"
+                f" WARNING: Participant ID 002 not found in stimulus order versions. Please check the "
+                f" participant IDs in the stimulus order versions file. It is possible that the team did not "
+                f"upload the correct stimulus version from the experiment folder. Extracting version "
+                f"from asc file. Gaze data may be mapped to the wrong stimuli/AOIs. "
+                f"Please verify that the stimulus folder contains the exact stimuli "
+                f"that were presented to this participant.""\n"
+                f"+"+f"-"*175+f"+",file=sys.stderr
+            )
+
             version = extract_stimulus_version_number_from_asc(
                 self.sessions[session_identifier].asc_path
             )
