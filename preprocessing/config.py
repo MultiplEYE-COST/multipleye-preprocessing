@@ -506,7 +506,7 @@ class Settings:
         self.ACCEPTABLE_NUM_CALIBRATIONS = [3, 30]
 
         #: Acceptable range (min, max) for the number of validations in a session.
-        self.ACCEPTABLE_NUM_VALIDATION = (13, 30)
+        self.ACCEPTABLE_NUM_VALIDATION = (12, 30)
 
         #: Acceptable range (min, max) for average validation accuracy scores.
         self.ACCEPTABLE_AVG_VALIDATION_SCORES = (0.0, 0.8)

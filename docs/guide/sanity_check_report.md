@@ -43,7 +43,7 @@ line is a bullet prefixed with `✅` if the value passes, or blank if it does no
 
   *Example:* `23`
 
-  *Acceptable:* 13–30 (`ACCEPTABLE_NUM_VALIDATION`).
+  *Acceptable:* 12–30 (`ACCEPTABLE_NUM_VALIDATION`).
 
   *Problematic:* Fewer than 12 means trials ran without validation, so calibration quality cannot be
   assessed for those trials.
