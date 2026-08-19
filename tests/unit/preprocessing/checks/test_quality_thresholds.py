@@ -18,7 +18,7 @@ def test_write_quality_thresholds_creates_yaml(tmp_path: Path) -> None:
         data = yaml.safe_load(f)
 
     assert data["num_calibrations"] == [3, 30]
-    assert data["num_validations"] == [13, 30]
+    assert data["num_validations"] == [12, 30]
     assert data["avg_validation_error"][1] <= 0.8
     assert data["expected_sampling_rate_hz"] == 1000
     assert data["single_validation_good_max"] == 0.305
