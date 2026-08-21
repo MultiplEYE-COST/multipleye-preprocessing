@@ -78,10 +78,6 @@ def run_preprocessing(config_path: str | None = None):
     data_collection.convert_edf_to_asc()
     data_collection.prepare_session_level_information()
 
-    # for sess in multipleye:
-    #     if sess.stimuli == 'unknown':
-    #         print(sess.session_identifier)
-
     sessions = [s for s in data_collection]
 
     for sess in (pbar := tqdm(sessions)):
@@ -166,7 +162,7 @@ def run_preprocessing(config_path: str | None = None):
             )
             preprocessing.save_raw_data(sess.sid, gaze)
 
-        sess.pm_gaze_metadata = gaze._metadata
+        sess.add_pm_metadata(gaze._metadata)
         sess.calibrations = gaze.calibrations
         sess.validations = gaze.validations
         sess.messages = gaze.messages
@@ -253,6 +249,20 @@ def run_preprocessing(config_path: str | None = None):
                     pbar.set_description(f"Loading saccades {sess.sid}:")
 
                     gaze = preprocessing.load_trial_level_events_data(
+                if settings.RUN_FIXATION_DETECTION:
+                    preprocessing.save_events_data(
+                        settings.FIXATION,
+                        sess.sid,
+                        "trial",
+                        ["trial", "stimulus"],
+                        [
+                            "onset",
+                            "duration",
+                            "location_x",
+                            "location_y",
+                            "position",
+                            "page",
+                        ],
                         gaze,
                         sess.sid,
                         event_type=settings.SACCADE,

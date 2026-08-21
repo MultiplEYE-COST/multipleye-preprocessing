@@ -1,5 +1,6 @@
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from pprint import pformat
 from typing import TypeVar
 
 import polars as pl
@@ -26,6 +27,8 @@ class Session:
     lab_number: int
     session_identifier: str
     is_pilot: bool
+    month_of_data_collection: str = field(default="unknown", init=True)
+    year_of_data_collection: str = field(default="unknown", init=True)
 
     # paths and files
     session_folder_path_unprocessed: Path = field(default="not available", init=True)
@@ -34,7 +37,7 @@ class Session:
     dataset_dir: Path = field(default="unknown", init=True)
 
     # stimuli
-    # TODO: move stimuli, completed stimuli, stimuli trial mapping to one thing
+    # TODO: move stimuli, completed stimuli, stimuli trial mapping to one thing?
     stimuli: list[Stimulus] | str = field(default="unknown", init=True)
     randomization_version: int | str = field(default="unknown", init=True)
     stimulus_folder_name: str = field(default="unknown", init=True)
@@ -58,11 +61,11 @@ class Session:
     lab_config: LabConfig | str = field(default="unknown", init=True)
 
     # stats
-    total_reading_time: float | str = field(default="unknown", init=True)
-    total_session_duration: float | str = field(default="unknown", init=True)
+    total_reading_time_ms: float | str = field(default="unknown", init=True)
+    total_session_duration_ms: float | str = field(default="unknown", init=True)
     obligatory_break_made: bool | str = field(default="unknown", init=True)
     num_optional_breaks_made: int | str = field(default="unknown", init=True)
-    total_break_time: float | str = field(default="unknown", init=True)
+    total_break_time_ms: float | str = field(default="unknown", init=True)
 
     # calibrations & validations
     calibrations: pl.DataFrame | str = field(default="unknown", init=True)
@@ -87,12 +90,24 @@ class Session:
     num_completed_trials: int = field(default=0, init=True)
     was_session_interrupted: bool = field(default=False, init=True)
 
-    # sanity report
+    # data quality & sanity report
     sanity_report_path: Path | str = field(default="unknown", init=True)
+    blink_loss_ratio: float | str = field(default="unknown", init=True)
+    total_data_loss_ratio: float | str = field(default="unknown", init=True)
 
     # preprocessing pm
     pm_gaze_path: Path | str = field(default="unknown", init=True)
-    pm_gaze_metadata: dict | str = field(default="unknown", init=True)
+    # parsed from pm metadata
+    # recording details eyelink (if the eyelink settings are wrong, these will be too!)
+    recording_start_time_eyelink_hh_mm_ss: str = field(default="unknown", init=True)
+    recording_day_eyelink: str = field(default="unknown", init=True)
+    recording_month_eyelink: str = field(default="unknown", init=True)
+    recording_year_eyelink: str = field(default="unknown", init=True)
+    pupil_data_type: str = field(default="unknown", init=True)
+    total_recording_duration_ms: float = field(default="unknown", init=True)
+    mount_type: str = field(default="unknown", init=True)
+    head_stabilization: str = field(default="unknown", init=True)
+    eyes_recorded: str = field(default="unknown", init=True)
 
     # psychometric tests
     psychometric_tests_session: str = field(default="unknown", init=True)
@@ -109,9 +124,8 @@ class Session:
     # per-trial metrics
     trials: list[Trial] | str = field(default="unknown", init=False)
 
-    def __post_init__(self):
-
-        self.load_session_stimuli(self.dataset_dir / self.stimulus_folder_name)
+    def __str__(self) -> str:
+        return pformat(self.create_overview(), indent=4)
 
     @property
     def sid(self) -> "Sid":
@@ -155,8 +169,9 @@ class Session:
                 "participant_id": self.participant_id,
                 "session_identifier": self.session_identifier,
                 "is_pilot": self.is_pilot,
-                "year_of_data_collection": self._get_metadata("year", "unknown"),
-                "month_of_data_collection": self._get_metadata("month", "unknown"),
+                # TODO: needs to be changed to be parsed from the logfile
+                "year_of_data_collection": self.recording_year_eyelink,
+                "month_of_data_collection": self.recording_month_eyelink,
                 "language": self.language,
                 "country": self.country,
                 "city": self.city,
@@ -183,10 +198,16 @@ class Session:
                     None,
                 ),
                 "session_blink_loss_ratio": getattr(
+                )
+                if not self.total_data_loss_ratio
+                else self.total_data_loss_ratio,
+                "blink_loss_ratio": getattr(
                     self,
                     "_measure_blink_loss_ratio",
                     None,
-                ),
+                )
+                if not self.blink_loss_ratio
+                else self.blink_loss_ratio,
             },
             "Experiment_procedure": {
                 "question_order": self.question_order,
@@ -198,9 +219,9 @@ class Session:
                 "was_session_interrupted": self.interrupted,
                 "obligatory_break_made": self.obligatory_break_made,
                 "num_optional_breaks_made": self.num_optional_breaks_made,
-                "total_break_time": self.total_break_time,
-                "total_reading_time": self.total_reading_time,
-                "total_session_duration": self.total_session_duration,
+                "total_break_time_ms": self.total_break_time_ms,
+                "total_reading_time_ms": self.total_reading_time_ms,
+                "total_session_duration_ms": self.total_session_duration_ms,
                 "randomization_version": self.randomization_version,
             },
             "Stimuli": {
@@ -237,29 +258,128 @@ class Session:
 
         for key, value in session_specs.items():
             if isinstance(value, dict):
-                flat_overview.update(value)
+                if key == "Technical_setup":
+                    tech_setup = value
+                else:
+                    flat_overview.update(value)
             else:
                 flat_overview[key] = value
 
-        flat_overview.pop("month_of_data_collection", None)
-        flat_overview.pop("year_of_data_collection", None)
-        flat_overview.pop("blink_loss_ratio", None)
-        flat_overview.pop("total_data_loss_ratio", None)
+        # parse technical setup into lab config
+        lab_config = LabConfig(
+            screen_resolution=(
+                tech_setup["screen_resolution_width_px"],
+                tech_setup["screen_resolution_height_px"],
+            ),
+            screen_size_cm=(
+                tech_setup["screen_size_width_cm"],
+                tech_setup["screen_size_height_cm"],
+            ),
+            screen_distance_cm=tech_setup["screen_distance_cm"],
+            image_resolution=(
+                tech_setup["image_resolution_width_px"],
+                tech_setup["image_resolution_height_px"],
+            ),
+            image_size_cm=(
+                tech_setup["image_size_width_cm"],
+                tech_setup["image_size_height_cm"],
+            ),
+            name_eye_tracker=tech_setup["eye_tracker_name"],
+        )
 
-        return cls(**flat_overview, dataset_dir=dataset_dir)
+        flat_overview["mount_type"] = tech_setup["mount_type"]
+        flat_overview["head_stabilization"] = tech_setup["head_stabilization"]
+        flat_overview["eyes_recorded"] = tech_setup["eyes_recorded"]
 
-    def _get_metadata(self, key: str, default: T = "unknown") -> str | T:
-        """Return a value from pm_gaze_metadata without raising on missing keys."""
-        if isinstance(self.pm_gaze_metadata, dict):
-            return self.pm_gaze_metadata.get(key, default)
-        return default
+        session = cls(
+            **flat_overview, dataset_dir=Path(dataset_dir), lab_config=lab_config
+        )
+        session.load_session_stimuli(
+            Path(session.dataset_dir) / session.stimulus_folder_name
+        )
+
+        return session
+
+    def load_session_stimuli(
+        self,
+        stimulus_dir: Path,
+        stimulus_names: None | list = None,
+    ) -> None:
+        """
+        Load the stimuli from the specified directory.
+        :param stimulus_dir: The directory where the stimuli are stored.
+        :param stimulus_names: The names of the stimuli to load.
+        If None, the predefined stimuli names in the settings are used.
+        """
+
+        if self.stimulus_folder_name == "unknown":
+            self.stimulus_folder_name = stimulus_dir.name
+
+        stimuli = []
+        if stimulus_names is None:
+            stimulus_names = [
+                name
+                for name, num in settings.STIMULUS_NAME_MAPPING.items()
+                if num in self.completed_stimuli_ids
+            ]
+
+        for stimulus_name in stimulus_names:
+            trial_mapping = self.stimulus_trial_mapping
+            # get the trial id from the mapping, keys are ids and values are strings
+            trial_id = [
+                key for key, value in trial_mapping.items() if value == stimulus_name
+            ]
+            if len(trial_id) == 0:
+                raise KeyError(
+                    f"Stimulus name {stimulus_name} not found in the trial mapping for session "
+                    f"{self.session_identifier}. Please check the completed_stimuli.csv file."
+                )
+
+            stimulus = Stimulus.load(
+                stimulus_dir,
+                self.language,
+                self.country,
+                self.lab_number,
+                stimulus_name,
+                self.randomization_version,
+                trial_id[0],
+            )
+            stimuli.append(stimulus)
+
+        self.stimuli = stimuli
+
+    def add_pm_metadata(self, metadata: dict) -> None:
+        """Adds the metadata for a gaze object in pymovements to the session's metadata."""
+
+        self.recording_day_eyelink = metadata["day"]
+        self.recording_month_eyelink = metadata["month"]
+        self.recording_year_eyelink = metadata["year"]
+        self.recording_start_time_eyelink_hh_mm_ss = metadata["time"]
+        self.tracked_eye = metadata["tracked_eye"]
+        self.pupil_data_type = metadata["pupil_data_type"]
+        self.total_recording_duration_ms = float(
+            metadata["total_recording_duration_ms"]
+        )
+
+        self.blink_loss_ratio = getattr(
+            self,
+            "_measure_blink_loss_ratio",
+            None,
+        )
+
+        self.total_data_loss_ratio = getattr(
+            self,
+            "_measure_data_loss_ratio",
+            None,
+        )
+
+        self.mount_type = metadata["mount_configuration"]["mount_type"]
+        self.head_stabilization = metadata["mount_configuration"]["head_stabilization"]
+        self.eyes_recorded = metadata["mount_configuration"]["eyes_recorded"]
 
     def _technical_setup(self) -> dict:
         """Assemble the technical setup section from lab config and gaze metadata."""
         cfg = self.lab_config if isinstance(self.lab_config, LabConfig) else None
-        mount = self._get_metadata("mount_configuration", {})
-        if not isinstance(mount, dict):
-            mount = {}
 
         def _resolve(attr: str, fallback: object = None) -> object:
             if cfg is not None:
@@ -279,10 +399,10 @@ class Session:
         return {
             "eye_tracker_name": _resolve("name_eye_tracker", None),
             "sampling_frequency_hz": _resolve("sampling_frequency_hz", None),
-            "mount_type": mount.get("mount_type"),
-            "head_stabilization": mount.get("head_stabilization"),
-            "eyes_recorded": mount.get("eyes_recorded"),
-            "pupil_data_type": self._get_metadata("pupil_data_type"),
+            "mount_type": self.mount_type,
+            "head_stabilization": self.head_stabilization,
+            "eyes_recorded": self.eyes_recorded,
+            "pupil_data_type": self.pupil_data_type,
             "screen_resolution_width_px": screen_res_w,
             "screen_resolution_height_px": screen_res_h,
             "screen_size_width_cm": screen_size_w,
@@ -364,8 +484,6 @@ class Session:
         self.num_calibrations = len(self.calibrations)
         self.num_validations = len(self.validations)
 
-        self.tracked_eye = self._get_metadata("tracked_eye", "unknown")
-
         # Mean calibration and validation error (accuracy_avg column), if present.
         if (
             isinstance(self.validations, pl.DataFrame)
@@ -417,12 +535,12 @@ class Session:
 
         duration = self._compute_session_duration()
         if duration is not None:
-            self.total_session_duration = duration
+            self.total_session_duration_ms = duration
 
-        if self.total_reading_time == "unknown":
+        if self.total_reading_time_ms == "unknown":
             reading = self._compute_total_reading_time()
             if reading is not None:
-                self.total_reading_time = reading
+                self.total_reading_time_ms = reading
 
     def _compute_total_reading_time(self) -> float | None:
         """Return total reading time in seconds from stimulus start/end timestamps.

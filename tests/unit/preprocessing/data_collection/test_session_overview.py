@@ -571,7 +571,7 @@ def test_reading_time_non_positive_total() -> None:
 
 def test_reading_time_already_set() -> None:
     sess = _sess_with_validation_data()
-    sess.total_reading_time = 42.0
+    sess.total_reading_time_ms = 42.0
     sess.stimulus_start_end_ts = [
         {"stimulus": "a", "trial": "trial_1", "start_ts": 1000.0, "stop_ts": 4000.0},
     ]

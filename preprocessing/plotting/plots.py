@@ -20,7 +20,7 @@ def create_plots(
     aoi=False,
 ):
     plot_dir = directory / f"{session_identifier}_plots"
-    plot_dir.mkdir(exist_ok=True)
+    plot_dir.mkdir(exist_ok=True, parents=True)
 
     if type(plot_type) is not list:
         plot_type = [plot_type]
@@ -30,8 +30,10 @@ def create_plots(
             plot_main_sequence(gaze.events, plot_dir)
 
         elif plot == "gaze_overlay":
+            dir = plot_dir / "gaze_overlay"
+            dir.mkdir(exist_ok=True, parents=True)
             for stimulus in stimuli:
-                plot_gaze(gaze, stimulus, plot_dir, aoi_image=aoi)
+                plot_gaze(gaze, stimulus, dir, aoi_image=aoi)
 
 
 def plot_gaze(

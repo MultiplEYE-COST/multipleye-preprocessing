@@ -300,10 +300,12 @@ def check_metadata(
 ) -> None:
     """
     Check the metadata of the gaze data and write a report to file.
-    :param metadata: Metadata report.
+    :param metadata: Metadata produced for a pymovements gaze object.
     :param calibrations: Session calibrations as DataFrame from the pymovements metadata.
     :param validations: Session validations as DataFrame from the pymovements metadata.
     :param report: Function to write the report to file.
+    :param total_data_loss_ratio: Total data loss ratio as float.
+    :param blink_loss_ratio: Blink loss ratio as float.
     :return:
     """
     date = f"{metadata['time']};     {metadata['day']}.{metadata['month']}.{metadata['year']}"
@@ -333,10 +335,6 @@ def check_metadata(
         [round(score, 4) for score in validation_scores_max],
         settings.TRACKED_EYE,
     )
-
-    # this has been excluded in pm, but as we have the accuracy values this is enough...
-    # validation_errors = validations["error"].to_list()
-    # report("Validation errors", validation_errors, config.ACCEPTABLE_VALIDATION_ERRORS)
 
     tracked_eye = metadata["tracked_eye"]
     report("tracked_eye", tracked_eye, settings.TRACKED_EYE)

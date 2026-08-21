@@ -226,7 +226,8 @@ class MultipleyeDataCollection:
 
         metadata_folder = self.data_root_processed / "metadata"
 
-        for session in metadata_folder.iterdir():
+        for session in (pbar := tqdm(metadata_folder.iterdir())):
+            pbar.set_description(f"Adding preprocessed session: {session.name}")
             sess_yaml = session / f"{session.name}_overview.yaml"
 
             sess = Session.from_yaml(sess_yaml, self.data_root_processed)
@@ -690,7 +691,7 @@ class MultipleyeDataCollection:
             with open(report_file_path, "a+", encoding="utf-8") as report_file:
                 report = partial(report_meta, report_file=report_file)
                 check_metadata(
-                    self.sessions[session_name].pm_gaze_metadata,
+                    self.sessions[session_name].get_pm_metadata(),
                     self.sessions[session_name].calibrations,
                     self.sessions[session_name].validations,
                     report,
@@ -1037,14 +1038,14 @@ class MultipleyeDataCollection:
         ]
         blink_loss = [v for v in blink_loss if isinstance(v, (int, float))]
         reading_times = [
-            s.total_reading_time
+            s.total_reading_time_ms
             for s in non_pilot_sessions
-            if isinstance(s.total_reading_time, (int, float))
+            if isinstance(s.total_reading_time_ms, (int, float))
         ]
         session_durations = [
-            s.total_session_duration
+            s.total_session_duration_ms
             for s in non_pilot_sessions
-            if isinstance(s.total_session_duration, (int, float))
+            if isinstance(s.total_session_duration_ms, (int, float))
         ]
 
         def _mean_of(attr: str) -> float | None:
@@ -1203,7 +1204,6 @@ class MultipleyeDataCollection:
                 session, self.sessions[session].randomization_version
             )
 
-            # TODO: lab config should be changeable for each session
             self.sessions[session].lab_config = self.lab_configuration
 
             if (
