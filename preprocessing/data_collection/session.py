@@ -28,88 +28,90 @@ class Session:
     is_pilot: bool
 
     # paths and files
-    session_folder_path_unprocessed: Path = field(default="not available", init=False)
-    session_file_path_unprocessed: Path = field(default="not available", init=False)
-    asc_path: Path = field(default="unknown", init=False)
+    session_folder_path_unprocessed: Path = field(default="not available", init=True)
+    session_file_path_unprocessed: Path = field(default="not available", init=True)
+    asc_path: Path = field(default="unknown", init=True)
+    dataset_dir: Path = field(default="unknown", init=True)
 
     # stimuli
     # TODO: move stimuli, completed stimuli, stimuli trial mapping to one thing
-    stimuli: list[Stimulus] | str = field(default="unknown", init=False)
-    randomization_version: int | str = field(default="unknown", init=False)
-    stimulus_folder_name: str = field(default="unknown", init=False)
-    completed_stimuli_ids: list[int] | str = field(default="unknown", init=False)
-    completed_stimuli_names: list[str] | str = field(default="unknown", init=False)
-    question_order: dict[str, list[str]] | str = field(default="unknown", init=False)
-    stimulus_order_ids: list[int] | str = field(default="unknown", init=False)
+    stimuli: list[Stimulus] | str = field(default="unknown", init=True)
+    randomization_version: int | str = field(default="unknown", init=True)
+    stimulus_folder_name: str = field(default="unknown", init=True)
+    completed_stimuli_ids: list[int] | str = field(default="unknown", init=True)
+    completed_stimuli_names: list[str] | str = field(default="unknown", init=True)
+    question_order: dict[str, list[str]] | str = field(default="unknown", init=True)
+    stimulus_order_ids: list[int] | str = field(default="unknown", init=True)
     messages: pl.DataFrame | list[dict[str, str]] | str = field(
-        default="unknown", init=False
+        default="unknown", init=True
     )
     uncategorized_messages: list[dict[str, str]] | str = field(
-        default="unknown", init=False
+        default="unknown", init=True
     )
-    stimuli_trial_mapping: dict[str, str] | str = field(default="unknown", init=False)
+    stimulus_trial_mapping: dict[str, str] | str = field(default="unknown", init=True)
     stimulus_start_end_ts: list[dict[str, str | float]] | str = field(
-        default="unknown", init=False
+        default="unknown", init=True
     )
 
-    logfile: str = field(default="unknown", init=False)
-    interrupted: bool | str = field(default="unknown", init=False)
-    lab_config: LabConfig | str = field(default="unknown", init=False)
+    logfile: str = field(default="unknown", init=True)
+    interrupted: bool | str = field(default="unknown", init=True)
+    lab_config: LabConfig | str = field(default="unknown", init=True)
 
     # stats
-    total_reading_time: float | str = field(default="unknown", init=False)
-    total_session_duration: float | str = field(default="unknown", init=False)
-    obligatory_break_made: bool | str = field(default="unknown", init=False)
-    num_optional_breaks_made: int | str = field(default="unknown", init=False)
-    total_break_time: float | str = field(default="unknown", init=False)
+    total_reading_time: float | str = field(default="unknown", init=True)
+    total_session_duration: float | str = field(default="unknown", init=True)
+    obligatory_break_made: bool | str = field(default="unknown", init=True)
+    num_optional_breaks_made: int | str = field(default="unknown", init=True)
+    total_break_time: float | str = field(default="unknown", init=True)
 
     # calibrations & validations
-    calibrations: pl.DataFrame | str = field(default="unknown", init=False)
-    validations: pl.DataFrame | str = field(default="unknown", init=False)
-    avg_comprehension_score: float | str = field(default="unknown", init=False)
-    avg_comprehension_score_local: float | str = field(default="unknown", init=False)
-    avg_comprehension_score_global: float | str = field(default="unknown", init=False)
-    avg_comprehension_score_bridging: float | str = field(default="unknown", init=False)
-    avg_calibration_error: float | str = field(default="unknown", init=False)
-    num_calibrations: int | str = field(default="unknown", init=False)
-    num_validations: int | str = field(default="unknown", init=False)
-    avg_validation_error: float | str = field(default="unknown", init=False)
+    calibrations: pl.DataFrame | str = field(default="unknown", init=True)
+    validations: pl.DataFrame | str = field(default="unknown", init=True)
+    avg_comprehension_score: float | str = field(default="unknown", init=True)
+    avg_comprehension_score_local: float | str = field(default="unknown", init=True)
+    avg_comprehension_score_global: float | str = field(default="unknown", init=True)
+    avg_comprehension_score_bridging: float | str = field(default="unknown", init=True)
+    avg_calibration_error: float | str = field(default="unknown", init=True)
+    num_calibrations: int | str = field(default="unknown", init=True)
+    num_validations: int | str = field(default="unknown", init=True)
+    avg_validation_error: float | str = field(default="unknown", init=True)
 
     # eye tracking metadata
-    tracked_eye: str = field(default="unknown", init=False)
-    tracked_eye_consistent: bool = field(default=True, init=False)
-    num_good_validations: int = field(default=0, init=False)
-    num_moderate_validations: int = field(default=0, init=False)
-    num_bad_validations: int = field(default=0, init=False)
+    tracked_eye: str = field(default="unknown", init=True)
+    tracked_eye_consistent: bool = field(default=True, init=True)
+    num_good_validations: int = field(default=0, init=True)
+    num_moderate_validations: int = field(default=0, init=True)
+    num_bad_validations: int = field(default=0, init=True)
 
     # completed trials
-    num_completed_trials: int = field(default=0, init=False)
+    num_completed_trials: int = field(default=0, init=True)
+    was_session_interrupted: bool = field(default=False, init=True)
 
     # sanity report
-    sanity_report_path: Path | str = field(default="unknown", init=False)
+    sanity_report_path: Path | str = field(default="unknown", init=True)
 
     # preprocessing pm
-    pm_gaze_path: Path | str = field(default="unknown", init=False)
-    pm_gaze_metadata: dict | str = field(default="unknown", init=False)
+    pm_gaze_path: Path | str = field(default="unknown", init=True)
+    pm_gaze_metadata: dict | str = field(default="unknown", init=True)
 
     # psychometric tests
-    psychometric_tests_session: str = field(default="unknown", init=False)
+    psychometric_tests_session: str = field(default="unknown", init=True)
 
     # data formats
     # True by default: our pipeline produces all formats. Other pipelines may
     # set these to False when a format is not generated.
-    raw_data: bool = field(default=True, init=False)
-    fixations: bool = field(default=True, init=False)
-    saccades: bool = field(default=True, init=False)
-    reading_measures: bool = field(default=True, init=False)
-    answers: bool = field(default=True, init=False)
+    raw_data: bool = field(default=True, init=True)
+    fixations: bool = field(default=True, init=True)
+    saccades: bool = field(default=True, init=True)
+    reading_measures: bool = field(default=True, init=True)
+    answers: bool = field(default=True, init=True)
 
     # per-trial metrics
     trials: list[Trial] | str = field(default="unknown", init=False)
 
     def __post_init__(self):
 
-        pass
+        self.load_session_stimuli(self.dataset_dir / self.stimulus_folder_name)
 
     @property
     def sid(self) -> "Sid":
@@ -203,7 +205,7 @@ class Session:
             },
             "Stimuli": {
                 "stimulus_folder_name": self.stimulus_folder_name,
-                "stimulus_trial_mapping": self.stimuli_trial_mapping,
+                "stimulus_trial_mapping": self.stimulus_trial_mapping,
             },
             "Trials": (
                 [asdict(t) for t in self.trials]
@@ -239,7 +241,12 @@ class Session:
             else:
                 flat_overview[key] = value
 
-        return cls(**flat_overview)
+        flat_overview.pop("month_of_data_collection", None)
+        flat_overview.pop("year_of_data_collection", None)
+        flat_overview.pop("blink_loss_ratio", None)
+        flat_overview.pop("total_data_loss_ratio", None)
+
+        return cls(**flat_overview, dataset_dir=dataset_dir)
 
     def _get_metadata(self, key: str, default: T = "unknown") -> str | T:
         """Return a value from pm_gaze_metadata without raising on missing keys."""
@@ -525,14 +532,8 @@ class Session:
         """
         Load the stimuli from the specified directory.
         :param stimulus_dir: The directory where the stimuli are stored.
-        :param lang: The language of the stimuli.
-        :param country: The country of the stimuli.
-        :param stimulus_names: The names of the stimuli to load. If None, the predefined stimuli names in the
-        global variable self.stimulus_names are used.
-        :param stimulus_order_version: The version of the questions to load. Specifies how the questions are ordered and the
-        shuffling of the answer options.
-        :param lab_num: The lab number.
-
+        :param stimulus_names: The names of the stimuli to load.
+        If None, the predefined stimuli names in the settings are used.
         """
         stimuli = []
         if stimulus_names is None:
@@ -543,7 +544,7 @@ class Session:
             ]
 
         for stimulus_name in stimulus_names:
-            trial_mapping = self.stimuli_trial_mapping
+            trial_mapping = self.stimulus_trial_mapping
             # get the trial id from the mapping, keys are ids and values are strings
             trial_id = [
                 key for key, value in trial_mapping.items() if value == stimulus_name
@@ -558,9 +559,9 @@ class Session:
                 stimulus_dir,
                 self.language,
                 self.country,
-                self.lab_num,
+                self.lab_number,
                 stimulus_name,
-                self.stimulus_order_version,
+                self.randomization_version,
                 trial_id[0],
             )
             stimuli.append(stimulus)

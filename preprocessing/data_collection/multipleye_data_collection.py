@@ -1189,7 +1189,7 @@ class MultipleyeDataCollection:
             (
                 self.sessions[session].completed_stimuli_ids,
                 self.sessions[session].completed_stimuli_names,
-                self.sessions[session].stimuli_trial_mapping,
+                self.sessions[session].stimulus_trial_mapping,
             ) = self._load_session_completed_stimuli(session)
             self.sessions[session].logfile = self._load_session_logfile(session)
             self.sessions[
@@ -1221,11 +1221,6 @@ class MultipleyeDataCollection:
 
             self.sessions[session].load_session_stimuli(
                 self.stimulus_dir,
-                self.language,
-                self.country,
-                self.lab_number,
-                self.sessions[session].randomization_version,
-                session,
             )
 
     def _load_session_stimuli(
@@ -1259,7 +1254,7 @@ class MultipleyeDataCollection:
             ]
 
         for stimulus_name in stimulus_names:
-            trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
+            trial_mapping = self.sessions[session_identifier].stimulus_trial_mapping
             # get the trial id from the mapping, keys are ids and values are strings
             trial_id = [
                 key for key, value in trial_mapping.items() if value == stimulus_name
@@ -1372,7 +1367,7 @@ class MultipleyeDataCollection:
                     pass  # trial id already in the target format, leave as-is
 
         stimulus_names = completed_stimuli["stimulus_name"].to_list()
-        stimuli_trial_mapping = {
+        stimulus_trial_mapping = {
             str(trial): name for trial, name in zip(trial_ids, stimulus_names)
         }
 
@@ -1396,7 +1391,7 @@ class MultipleyeDataCollection:
             for name, stim_id in zip(completed_stimulus_names, completed_stimuli_ids)
         ]
 
-        return completed_stimuli_ids, completed_stimulus_names, stimuli_trial_mapping
+        return completed_stimuli_ids, completed_stimulus_names, stimulus_trial_mapping
 
     def _load_session_stimulus_order(
         self, session_identifier, logfile_order_version: int
@@ -1501,7 +1496,7 @@ class MultipleyeDataCollection:
 
     def _create_empty_rt_frame(self, session_identifier: str) -> pl.DataFrame:
         session = self.sessions[session_identifier]
-        mapping = session.stimuli_trial_mapping
+        mapping = session.stimulus_trial_mapping
         num_of_pages_per_trial = {
             stimulus.name: [page.number for page in stimulus.pages]
             for stimulus in session.stimuli
@@ -1722,7 +1717,9 @@ class MultipleyeDataCollection:
         :param result_folder: Output directory for TSV files.
         :param session_identifier: The session identifier.
         """
-        stimuli_trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
+        stimulus_trial_mapping = self.sessions[
+            session_identifier
+        ].stimulus_trial_mapping
 
         if isinstance(reading_times, pl.DataFrame):
             valid = reading_times.filter(
@@ -1740,9 +1737,9 @@ class MultipleyeDataCollection:
                 "status": [],
                 "stimulus_name": [],
             }
-            stimuli_trial_mapping = self.sessions[
+            stimulus_trial_mapping = self.sessions[
                 session_identifier
-            ].stimuli_trial_mapping
+            ].stimulus_trial_mapping
             for row in valid.iter_rows(named=True):
                 reading_times_dict["start_msg"].append("start_recording")
                 reading_times_dict["stop_msg"].append("stop_recording")
@@ -1750,7 +1747,7 @@ class MultipleyeDataCollection:
                 page = row["page"]
                 stim = row["stimulus_name"]
                 trial = None
-                for t, s in stimuli_trial_mapping.items():
+                for t, s in stimulus_trial_mapping.items():
                     if s == stim:
                         trial = t
                         break
@@ -1790,8 +1787,8 @@ class MultipleyeDataCollection:
             reading_times["trials"].append(trial)
             total_set_up_time_ms += time_ms
 
-            if trial in stimuli_trial_mapping:
-                reading_times["stimulus_name"].append(stimuli_trial_mapping[trial])
+            if trial in stimulus_trial_mapping:
+                reading_times["stimulus_name"].append(stimulus_trial_mapping[trial])
             else:
                 reading_times["stimulus_name"].append("unknown")
 
