@@ -260,7 +260,6 @@ def run_preprocessing(config_path: str | None = None):
                             "duration",
                             "location_x",
                             "location_y",
-                            "position",
                             "page",
                         ],
                         gaze,
@@ -444,14 +443,14 @@ def run_preprocessing(config_path: str | None = None):
                         # We only fallback if we really didn't find anything in ASC
                         # OR if extraction was disabled and raw data was missing (gaze is None)
                         parsed_answers = preprocessing.parse_answers_from_logfile(
-                            sess.logfile, sess.stimuli_trial_mapping
+                            sess.logfile, sess.stimulus_trial_mapping
                         )
                         if not parsed_answers.is_empty():
                             source = "logfile"
 
                     preprocessing.collect_session_answers(
                         question_order_csv=question_order_csv,
-                        stimuli_trial_map=sess.stimuli_trial_mapping,
+                        stimuli_trial_map=sess.stimulus_trial_mapping,
                         stimuli=sess.stimuli,
                         parsed_answers=parsed_answers,
                         out_path=answers_csv,
@@ -482,7 +481,7 @@ def run_preprocessing(config_path: str | None = None):
                     ["main_sequence", "gaze_overlay"],
                     stimuli=sess.stimuli,
                     session_identifier=sess.session_identifier,
-                    directory=settings.OUTPUT_DIR / settings.SANITY_CHECKS_FOLDER,
+                    directory=settings.OUTPUT_DIR / "visualizations",
                 )
 
         else:

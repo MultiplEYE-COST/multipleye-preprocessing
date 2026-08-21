@@ -65,7 +65,6 @@ class MultipleyeDataCollection:
     skipped_session_ids: list[str] = []
     num_sessions = 1
     overview = {}
-
     data_collection_name: str
     year: int
     country: str
@@ -95,7 +94,6 @@ class MultipleyeDataCollection:
     ):
         self.sessions: dict[str, Session] = {}
         self.skipped_session_ids: list[str] = []
-        # TODO: in theory this can be multiple languages for the stimuli..
         self.language = stimulus_language
         self.country = country
         self.year = year

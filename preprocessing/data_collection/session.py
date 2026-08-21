@@ -92,8 +92,8 @@ class Session:
 
     # data quality & sanity report
     sanity_report_path: Path | str = field(default="unknown", init=True)
-    blink_loss_ratio: float | str = field(default="unknown", init=True)
-    total_data_loss_ratio: float | str = field(default="unknown", init=True)
+    blink_loss_ratio: float | str = field(default=None, init=True)
+    total_data_loss_ratio: float | str = field(default=None, init=True)
 
     # preprocessing pm
     pm_gaze_path: Path | str = field(default="unknown", init=True)
@@ -105,9 +105,9 @@ class Session:
     recording_year_eyelink: str = field(default="unknown", init=True)
     pupil_data_type: str = field(default="unknown", init=True)
     total_recording_duration_ms: float = field(default="unknown", init=True)
-    mount_type: str = field(default="unknown", init=True)
-    head_stabilization: str = field(default="unknown", init=True)
-    eyes_recorded: str = field(default="unknown", init=True)
+    mount_type: str = field(default=None, init=True)
+    head_stabilization: str = field(default=None, init=True)
+    eyes_recorded: str = field(default=None, init=True)
 
     # psychometric tests
     psychometric_tests_session: str = field(default="unknown", init=True)
@@ -351,31 +351,42 @@ class Session:
     def add_pm_metadata(self, metadata: dict) -> None:
         """Adds the metadata for a gaze object in pymovements to the session's metadata."""
 
-        self.recording_day_eyelink = metadata["day"]
-        self.recording_month_eyelink = metadata["month"]
-        self.recording_year_eyelink = metadata["year"]
-        self.recording_start_time_eyelink_hh_mm_ss = metadata["time"]
-        self.tracked_eye = metadata["tracked_eye"]
-        self.pupil_data_type = metadata["pupil_data_type"]
-        self.total_recording_duration_ms = float(
-            metadata["total_recording_duration_ms"]
-        )
+        if isinstance(metadata, dict):
+            self.recording_day_eyelink = metadata["day"]
+            self.recording_month_eyelink = metadata["month"]
+            self.recording_year_eyelink = metadata["year"]
+            self.recording_start_time_eyelink_hh_mm_ss = metadata["time"]
+            self.tracked_eye = metadata["tracked_eye"]
+            self.pupil_data_type = metadata["pupil_data_type"]
+            self.total_recording_duration_ms = float(
+                metadata["total_recording_duration_ms"]
+            )
 
-        self.blink_loss_ratio = getattr(
-            self,
-            "_measure_blink_loss_ratio",
-            None,
-        )
+            self.pm_blink_data_loss = metadata["data_loss_ratio_blinks"]
+            self.pm_data_loss = metadata["data_loss_ratio"]
 
-        self.total_data_loss_ratio = getattr(
-            self,
-            "_measure_data_loss_ratio",
-            None,
-        )
+            if isinstance(metadata["mount_configuration"], dict):
+                self.mount_type = metadata["mount_configuration"]["mount_type"]
+                self.head_stabilization = metadata["mount_configuration"][
+                    "head_stabilization"
+                ]
+                self.eyes_recorded = metadata["mount_configuration"]["eyes_recorded"]
 
-        self.mount_type = metadata["mount_configuration"]["mount_type"]
-        self.head_stabilization = metadata["mount_configuration"]["head_stabilization"]
-        self.eyes_recorded = metadata["mount_configuration"]["eyes_recorded"]
+    def get_pm_metadata(self) -> dict:
+
+        metadata = {}
+
+        metadata["day"] = self.recording_day_eyelink
+        metadata["month"] = self.recording_month_eyelink
+        metadata["year"] = self.recording_year_eyelink
+        metadata["time"] = self.recording_start_time_eyelink_hh_mm_ss
+        metadata["tracked_eye"] = self.tracked_eye
+        metadata["total_recording_duration_ms"] = self.total_recording_duration_ms
+        metadata["sampling_rate"] = self.lab_config.sampling_frequency_hz
+        metadata["data_loss_ratio"] = self.pm_data_loss
+        metadata["data_loss_ratio_blinks"] = self.pm_blink_data_loss
+
+        return metadata
 
     def _technical_setup(self) -> dict:
         """Assemble the technical setup section from lab config and gaze metadata."""

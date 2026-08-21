@@ -14,9 +14,12 @@ def _make_session(overrides: dict | None = None) -> Session:
         "participant_id": 1,
         "session_identifier": "001_EN_UK_1_ET1",
         "is_pilot": False,
-        "session_folder_path": Path("/tmp"),
-        "session_file_path": Path("/tmp/test.log"),
-        "session_file_name": "test.log",
+        "session_folder_path_unprocessed": Path("/tmp"),
+        "session_file_path_unprocessed": Path("/tmp/test.log"),
+        "language": "EN",
+        "country": "UK",
+        "city": "London",
+        "lab_number": 1,
         **(overrides or {}),
     }
     return Session(**fields)
@@ -36,16 +39,14 @@ def _mock_lab_config() -> LabConfig:
 
 
 def _seed_metadata(sess: Session) -> None:
-    sess.pm_gaze_metadata = {
-        "tracked_eye": "R",
-        "data_loss_ratio": 0.02,
-        "mount_configuration": {
-            "mount_type": "Desktop",
-            "head_stabilization": "stabilized",
-            "eyes_recorded": "binocular / monocular",
-        },
-        "pupil_data_type": "AREA",
-    }
+    sess.tracked_eye = "R"
+    sess.mount_type = "Desktop"
+    sess.head_stabilization = "stabilized"
+    sess.eyes_recorded = "binocular / monocular"
+    sess.pupil_data_type = "AREA"
+    sess.pm_data_loss = 0.02
+    sess.pm_blink_data_loss = 0.01
+
     sess.lab_config = _mock_lab_config()
 
 
@@ -132,6 +133,7 @@ def test_sections_are_present() -> None:
         "Data_quality",
         "Experiment_procedure",
         "Trials",
+        "Stimuli",
         "Comprehension",
         "Data_formats",
     ]
@@ -143,16 +145,16 @@ def test_technical_setup_from_lab_config() -> None:
     overview = sess.create_overview()
     tech = overview["Technical_setup"]
 
-    assert tech["Eye_tracker_name"] == "test"
-    assert tech["Sampling_frequency_hz"] == 1000.0
-    assert tech["Mount_type"] == "Desktop"
-    assert tech["Head_stabilization"] == "stabilized"
-    assert tech["Eyes_recorded"] == "binocular / monocular"
-    assert tech["Pupil_data_type"] == "AREA"
-    assert tech["Screen_resolution_width_px"] == 1920
-    assert tech["Screen_resolution_height_px"] == 1080
-    assert tech["Screen_distance_cm"] == 60.0
-    assert tech["Image_size_width_cm"] == 38.0
+    assert tech["eye_tracker_name"] == "test"
+    assert tech["sampling_frequency_hz"] == 1000.0
+    assert tech["mount_type"] == "Desktop"
+    assert tech["head_stabilization"] == "stabilized"
+    assert tech["eyes_recorded"] == "binocular / monocular"
+    assert tech["pupil_data_type"] == "AREA"
+    assert tech["screen_resolution_width_px"] == 1920
+    assert tech["screen_resolution_height_px"] == 1080
+    assert tech["screen_distance_cm"] == 60.0
+    assert tech["image_size_width_cm"] == 38.0
 
 
 def test_avg_validation_error_computed_from_validations() -> None:
@@ -218,7 +220,7 @@ def test_session_duration_from_messages() -> None:
     overview = sess.create_overview()
     proc = overview["Experiment_procedure"]
 
-    assert proc["total_session_duration"] == 59.0
+    assert proc["total_session_duration_ms"] == 59.0
 
 
 def test_reading_time_from_stimulus_start_end_ts() -> None:
@@ -231,7 +233,7 @@ def test_reading_time_from_stimulus_start_end_ts() -> None:
     overview = sess.create_overview()
     proc = overview["Experiment_procedure"]
 
-    assert proc["total_reading_time"] == 5.0
+    assert proc["total_reading_time_ms"] == 5.0
 
 
 def test_data_formats_section() -> None:
@@ -270,37 +272,34 @@ def test_unprocessed_session_defaults() -> None:
     overview = sess.create_overview()
 
     assert overview["Tracking"]["tracked_eye"] == "unknown"
-    assert overview["Technical_setup"]["Eye_tracker_name"] is None
+    assert overview["Technical_setup"]["eye_tracker_name"] is None
     assert overview["Calibration_validation"]["avg_validation_error"] == "unknown"
     assert overview["Calibration_validation"]["num_calibrations"] == 7
     assert overview["Comprehension"]["avg_comprehension_score"] == "unknown"
-    assert overview["Experiment_procedure"]["total_session_duration"] == "unknown"
-    assert overview["Experiment_procedure"]["total_reading_time"] == "unknown"
+    assert overview["Experiment_procedure"]["total_session_duration_ms"] == "unknown"
+    assert overview["Experiment_procedure"]["total_reading_time_ms"] == "unknown"
 
 
 def test_metadata_not_a_dict() -> None:
     sess = _make_session()
-    sess.pm_gaze_metadata = "unknown"
+    sess.add_pm_metadata(None)
 
     overview = sess.create_overview()
 
-    assert overview["Administrative"]["year_of_data_collection"] == "unknown"
-    assert overview["Technical_setup"]["Mount_type"] is None
+    assert overview["Technical_setup"]["pupil_data_type"] == "unknown"
+    assert overview["Technical_setup"]["mount_type"] is None
 
 
 def test_mount_configuration_not_a_dict() -> None:
     sess = _make_session()
-    sess.pm_gaze_metadata = {
-        "tracked_eye": "R",
-        "mount_configuration": "unknown",
-        "pupil_data_type": "AREA",
-    }
+    sess.tracked_eye = ("R",)
+    sess.pupil_data_type = "AREA"
 
     overview = sess.create_overview()
     tech = overview["Technical_setup"]
 
-    assert tech["Mount_type"] is None
-    assert tech["Eyes_recorded"] is None
+    assert tech["mount_type"] is None
+    assert tech["eyes_recorded"] is None
 
 
 def test_technical_setup_without_lab_config() -> None:
@@ -311,9 +310,9 @@ def test_technical_setup_without_lab_config() -> None:
     overview = sess.create_overview()
     tech = overview["Technical_setup"]
 
-    assert tech["Eye_tracker_name"] is None
-    assert tech["Sampling_frequency_hz"] is None
-    assert tech["Screen_resolution_width_px"] is None
+    assert tech["eye_tracker_name"] is None
+    assert tech["sampling_frequency_hz"] is None
+    assert tech["screen_resolution_width_px"] is None
 
 
 def test_validations_without_accuracy_column() -> None:
@@ -530,7 +529,7 @@ def test_session_duration_without_time_column() -> None:
     overview = sess.create_overview()
     proc = overview["Experiment_procedure"]
 
-    assert proc["total_session_duration"] == "unknown"
+    assert proc["total_session_duration_ms"] == "unknown"
 
 
 def test_session_duration_with_null_timestamps() -> None:
@@ -540,7 +539,7 @@ def test_session_duration_with_null_timestamps() -> None:
     overview = sess.create_overview()
     proc = overview["Experiment_procedure"]
 
-    assert proc["total_session_duration"] == "unknown"
+    assert proc["total_session_duration_ms"] == "unknown"
 
 
 def test_reading_time_malformed_entries() -> None:
@@ -554,7 +553,7 @@ def test_reading_time_malformed_entries() -> None:
     overview = sess.create_overview()
     proc = overview["Experiment_procedure"]
 
-    assert proc["total_reading_time"] == 3.0
+    assert proc["total_reading_time_ms"] == 3.0
 
 
 def test_reading_time_non_positive_total() -> None:
@@ -566,7 +565,7 @@ def test_reading_time_non_positive_total() -> None:
     overview = sess.create_overview()
     proc = overview["Experiment_procedure"]
 
-    assert proc["total_reading_time"] == "unknown"
+    assert proc["total_reading_time_ms"] == "unknown"
 
 
 def test_reading_time_already_set() -> None:
@@ -579,7 +578,7 @@ def test_reading_time_already_set() -> None:
     overview = sess.create_overview()
     proc = overview["Experiment_procedure"]
 
-    assert proc["total_reading_time"] == 42.0
+    assert proc["total_reading_time_ms"] == 42.0
 
 
 # --- Trial building ---

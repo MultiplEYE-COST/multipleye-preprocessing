@@ -30,7 +30,7 @@ def _mock_stimulus(
 def _mock_dc(
     output_dir: Path | None = None,
     stimuli: list[Mock] | None = None,
-    stimuli_trial_mapping: dict[str, str] | None = None,
+    stimulus_trial_mapping: dict[str, str] | None = None,
     messages: list[dict[str, str]] | None = None,
 ) -> MultipleyeDataCollection:
     dc = Mock(spec=MultipleyeDataCollection)
@@ -39,7 +39,7 @@ def _mock_dc(
 
     session = Mock()
     session.stimuli = stimuli or []
-    session.stimuli_trial_mapping = stimuli_trial_mapping or {}
+    session.stimulus_trial_mapping = stimulus_trial_mapping or {}
     session.messages = messages or []
 
     dc.sessions = {"test_session": session}
@@ -56,7 +56,7 @@ class TestCreateEmptyRtFrame:
         stim = _mock_stimulus("Stim_A_1", num_pages=3)
         dc = _mock_dc(
             stimuli=[stim],
-            stimuli_trial_mapping={"trial_1": "Stim_A_1"},
+            stimulus_trial_mapping={"trial_1": "Stim_A_1"},
         )
 
         df = MultipleyeDataCollection._create_empty_rt_frame(dc, "test_session")
@@ -81,7 +81,7 @@ class TestCreateEmptyRtFrame:
         stim_b = _mock_stimulus("Stim_B_2", num_pages=4)
         dc = _mock_dc(
             stimuli=[stim_a, stim_b],
-            stimuli_trial_mapping={
+            stimulus_trial_mapping={
                 "trial_1": "Stim_A_1",
                 "trial_2": "Stim_B_2",
             },
@@ -95,7 +95,7 @@ class TestCreateEmptyRtFrame:
         stim = _mock_stimulus("Stim_X_1", num_pages=3)
         dc = _mock_dc(
             stimuli=[stim],
-            stimuli_trial_mapping={"trial_1": "Stim_X_1"},
+            stimulus_trial_mapping={"trial_1": "Stim_X_1"},
         )
 
         df = MultipleyeDataCollection._create_empty_rt_frame(dc, "test_session")
@@ -107,7 +107,7 @@ class TestCreateEmptyRtFrame:
         stim = _mock_stimulus("Stim_Q_5", num_pages=1)
         dc = _mock_dc(
             stimuli=[stim],
-            stimuli_trial_mapping={"trial_3": "Stim_Q_5"},
+            stimulus_trial_mapping={"trial_3": "Stim_Q_5"},
         )
 
         df = MultipleyeDataCollection._create_empty_rt_frame(dc, "test_session")
@@ -118,7 +118,7 @@ class TestCreateEmptyRtFrame:
         stim = _mock_stimulus("Stim_A_1", num_pages=2)
         dc = _mock_dc(
             stimuli=[stim],
-            stimuli_trial_mapping={"trial_1": "Stim_A_1"},
+            stimulus_trial_mapping={"trial_1": "Stim_A_1"},
         )
 
         df = MultipleyeDataCollection._create_empty_rt_frame(dc, "test_session")
@@ -131,7 +131,7 @@ class TestCreateEmptyRtFrame:
         stim_b = _mock_stimulus("Stim_B_2", num_pages=2)
         dc = _mock_dc(
             stimuli=[stim_a, stim_b],
-            stimuli_trial_mapping={"trial_1": "Stim_A_1"},  # B not in mapping
+            stimulus_trial_mapping={"trial_1": "Stim_A_1"},  # B not in mapping
         )
 
         df = MultipleyeDataCollection._create_empty_rt_frame(dc, "test_session")
@@ -144,7 +144,7 @@ class TestCategorizeAscMessages:
         stim = _mock_stimulus("PopSci_MultiplEYE", num_pages=2)
         dc = _mock_dc(
             stimuli=[stim],
-            stimuli_trial_mapping={"trial_1": "PopSci_MultiplEYE"},
+            stimulus_trial_mapping={"trial_1": "PopSci_MultiplEYE"},
             messages=[
                 {
                     "message": "start_recording_trial_1_stimulus_PopSci_MultiplEYE_1_page_1",

@@ -19,8 +19,13 @@ from preprocessing.config import settings
 @dataclass
 class FakeSession:
     session_identifier: str
-    session_file_path: Path
-    session_folder_path: Path
+    session_file_path_unprocessed: Path
+    session_folder_path_unprocessed: Path
+    language: str
+    country: str
+    lab_number: int
+    city: str = "City"
+    year: int = 2024
 
 
 @dataclass
@@ -144,8 +149,13 @@ def preflight_env(tmp_path: Path):
 
     session = FakeSession(
         session_identifier=session_id,
-        session_file_path=edf_path,
-        session_folder_path=sess_folder,
+        session_file_path_unprocessed=edf_path,
+        session_folder_path_unprocessed=sess_folder,
+        language="EN",
+        country="UK",
+        lab_number=1,
+        city="City",
+        year=2024,
     )
 
     dc = FakeDataCollection(
@@ -507,8 +517,13 @@ def test_preflight_multiple_sessions(tmp_path: Path):
 
         sessions[sid] = FakeSession(
             session_identifier=sid,
-            session_file_path=edf,
-            session_folder_path=sess_dir,
+            session_file_path_unprocessed=edf,
+            session_folder_path_unprocessed=sess_dir,
+            language="EN",
+            country="UK",
+            lab_number=1,
+            city=city,
+            year=year,
         )
 
     dc = FakeDataCollection(
@@ -535,7 +550,7 @@ def test_preflight_multiple_sessions(tmp_path: Path):
 def test_preflight_duplicate_experiment_log_message(preflight_env):
     """Multiple EXPERIMENT_*.txt files produce a descriptive message."""
     dc, sid = preflight_env
-    logfiles = dc.sessions[sid].session_folder_path / "logfiles"
+    logfiles = dc.sessions[sid].session_folder_path_unprocessed / "logfiles"
     (logfiles / "EXPERIMENT_LOGFILE_002.txt").write_text(
         "duplicate experiment log", encoding="utf-8"
     )
@@ -600,8 +615,13 @@ def test_preflight_stimulus_dir_empty_with_archive(tmp_path: Path):
 
     session = FakeSession(
         session_identifier=sid,
-        session_file_path=sess_folder / "data.edf",
-        session_folder_path=sess_folder,
+        session_file_path_unprocessed=sess_folder / "data.edf",
+        session_folder_path_unprocessed=sess_folder,
+        language="EN",
+        country="UK",
+        lab_number=1,
+        city="City",
+        year=2024,
     )
     dc = FakeDataCollection(
         stimulus_dir=stim_dir,
@@ -959,8 +979,13 @@ def test_pt_does_not_inflate_error_count(tmp_path: Path, monkeypatch):
 
     session = FakeSession(
         session_identifier=sid,
-        session_file_path=sess_folder / "data.edf",
-        session_folder_path=sess_folder,
+        session_file_path_unprocessed=sess_folder / "data.edf",
+        session_folder_path_unprocessed=sess_folder,
+        language="EN",
+        country="UK",
+        lab_number=1,
+        city=city,
+        year=year,
     )
     dc = FakeDataCollection(
         stimulus_dir=stim_dir,
