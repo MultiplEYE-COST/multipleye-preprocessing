@@ -1,7 +1,7 @@
 from pathlib import Path
 
-import polars as pl
 import pandas as pd
+import polars as pl
 
 from ..utils.logging import get_logger
 

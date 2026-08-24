@@ -1,9 +1,10 @@
 import warnings
+
 import polars as pl
 
 
 def parse_answers_from_logfile(
-    logfile: pl.DataFrame, stimuli_trial_mapping: dict[str, str] = None
+    logfile: pl.DataFrame, stimuli_trial_mapping: dict[str, str] | None = None
 ) -> pl.DataFrame:
     """Parse comprehension question answers from experiment logfile.
 

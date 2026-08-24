@@ -5,11 +5,11 @@ from unittest.mock import patch
 
 import pytest
 
+from preprocessing.config import settings
 from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
 )
-from preprocessing.config import settings
-from preprocessing.utils.logging import setup_logging, clear_log_file
+from preprocessing.utils.logging import clear_log_file, setup_logging
 
 
 @pytest.fixture

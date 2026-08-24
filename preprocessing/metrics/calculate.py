@@ -1,12 +1,12 @@
-import pymovements as pm
 import polars as pl
+import pymovements as pm
 
 from preprocessing.data_collection.stimulus import Stimulus
 from preprocessing.metrics.reading.fixations import annotate_fixations
 from preprocessing.metrics.reading.reading_measures import build_word_level_table
 from preprocessing.metrics.reading.words import (
-    mark_skipped_tokens,
     all_tokens_from_aois,
+    mark_skipped_tokens,
 )
 
 
@@ -19,7 +19,9 @@ def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.Dat
     for stim in stimuli:
         aois = stim.text_stimulus.aois
         words_only = all_tokens_from_aois(aois, trial=stim.trial_id)
-        words_only = words_only.with_columns(pl.lit(stim.name).alias("stimulus"))
+        words_only = words_only.with_columns(
+            pl.lit(stim.full_identifier).alias("stimulus")
+        )
         words_only_all_trials.append(words_only)
 
     words_df = pl.concat(words_only_all_trials)

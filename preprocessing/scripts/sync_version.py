@@ -1,6 +1,6 @@
-import sys
-import re
 import argparse
+import re
+import sys
 from pathlib import Path
 
 # Paths to files and the regex to find the version string in each

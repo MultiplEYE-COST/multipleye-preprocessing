@@ -53,7 +53,9 @@ old-format psychometric test data that needs restructuring from task-first to se
 
 The function is `prepare_language_folder()` in `scripts.prepare_language_folder`. It also
 copies stimulus images, question images, and configuration files into the output folder so
-the pipeline has everything it needs in one place.
+the pipeline has everything it needs in one place. If the stimulus folder has changed since
+the last run (e.g. after a team upload), the pipeline detects this automatically and
+re-copies everything on the next run.
 
 (preprocessing_step_1)=
 
@@ -207,7 +209,7 @@ The relevant modules are in `answers/`: `msg_parser.py`, `experiment_log_parser.
 
 **Generate quality reports at the session and dataset level.** This stage produces text
 reports on calibration quality, validation scores, data loss, fixation statistics per page,
-and logfile consistency. It also creates plots (gaze-over-stimulus, main sequence) that
+per-trial data loss, and logfile consistency. It also creates plots (gaze-over-stimulus, main sequence) that
 help spot problematic sessions visually.
 
 Session overviews and a dataset overview YAML are written to the metadata folder. The

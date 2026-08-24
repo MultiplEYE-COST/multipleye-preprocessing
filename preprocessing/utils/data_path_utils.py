@@ -6,8 +6,9 @@ from pathlib import Path
 
 import yaml
 
-from ..models.sid import Sid
 from preprocessing.config import settings
+
+from ..models.sid import Sid
 
 
 def _ci_exists(path: Path) -> bool:

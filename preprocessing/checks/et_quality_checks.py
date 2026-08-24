@@ -1,6 +1,6 @@
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TextIO
-from collections.abc import Callable
 
 import polars as pl
 
@@ -48,7 +48,9 @@ def report_to_file_metadata(
 
 
 def check_comprehension_question_answers(
-    logfile: pl.DataFrame, stimuli: Stimulus | list[Stimulus], report_file: Path = None
+    logfile: pl.DataFrame,
+    stimuli: Stimulus | list[Stimulus],
+    report_file: Path | None = None,
 ):
     """compute the number of correct answers for each participant
     params: logfile as polars
@@ -293,6 +295,8 @@ def check_metadata(
     calibrations: pl.DataFrame,
     validations: pl.DataFrame,
     report: ReportFunction,
+    total_data_loss_ratio: float | None = None,
+    blink_loss_ratio: float | None = None,
 ) -> None:
     """
     Check the metadata of the gaze data and write a report to file.
@@ -344,20 +348,30 @@ def check_metadata(
         validation_eye,
         tracked_eye,
     )
-    data_loss_ratio = metadata["data_loss_ratio"]
-    report(
-        "Data loss ratio",
-        round(data_loss_ratio, 3),
-        settings.ACCEPTABLE_DATA_LOSS_RATIOS,
-        percentage=True,
+    data_loss = (
+        total_data_loss_ratio
+        if total_data_loss_ratio is not None
+        else metadata.get("data_loss_ratio")
     )
-    data_loss_ratio_blinks = metadata["data_loss_ratio_blinks"]
-    report(
-        "Data loss ratio due to blinks",
-        round(data_loss_ratio_blinks, 3),
-        settings.ACCEPTABLE_DATA_LOSS_RATIOS,
-        percentage=True,
+    if data_loss is not None:
+        report(
+            "Total data loss ratio",
+            round(data_loss, 3),
+            settings.ACCEPTABLE_DATA_LOSS_RATIOS,
+            percentage=True,
+        )
+    blink_loss = (
+        blink_loss_ratio
+        if blink_loss_ratio is not None
+        else metadata.get("data_loss_ratio_blinks")
     )
+    if blink_loss is not None:
+        report(
+            "Blink loss ratio",
+            round(blink_loss, 3),
+            settings.ACCEPTABLE_DATA_LOSS_RATIOS,
+            percentage=True,
+        )
     total_recording_duration = metadata["total_recording_duration_ms"] / 60000
     report(
         "Total recording duration",

@@ -1,7 +1,7 @@
 """Conversion utilities."""
 
 
-def convert_to_time_str(duration_ms: float | int) -> str:
+def convert_to_time_str(duration_ms: float) -> str:
     """Convert a duration in milliseconds to a string in the format HH:MM:SS.
 
     Parameters
@@ -20,7 +20,7 @@ def convert_to_time_str(duration_ms: float | int) -> str:
         If duration_ms is >= 86,400,000 (24 hours or more), negative, or not a number.
     """
     if not isinstance(duration_ms, (int, float)):
-        raise ValueError(f"Duration must be a number: {duration_ms}")
+        raise ValueError(f"Duration must be a number: {duration_ms}")  # noqa: TRY004
     if duration_ms < 0:
         raise ValueError(f"Duration cannot be negative: {duration_ms}")
     if duration_ms >= 86400000:

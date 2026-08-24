@@ -1,16 +1,17 @@
+import contextlib
 import os
 from argparse import ArgumentParser
 
-from tqdm import tqdm
 import polars as pl
+import pymovements as pm
+from tqdm import tqdm
 
-from ..utils.logging import get_logger
 import preprocessing
 from preprocessing import settings
-
-from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 from preprocessing.checks.quality_thresholds import write_quality_thresholds
-import contextlib
+from preprocessing.scripts.prepare_language_folder import prepare_language_folder
+
+from ..utils.logging import get_logger
 
 
 def run_preprocessing(config_path: str | None = None):
@@ -47,6 +48,7 @@ def run_preprocessing(config_path: str | None = None):
             include_pilots=settings.INCLUDE_PILOTS,
             excluded_sessions=settings.EXCLUDE_SESSIONS,
             included_sessions=settings.INCLUDE_SESSIONS,
+            output_dir=settings.OUTPUT_DIR,
         )
 
     elif settings.EXPERIMENT_TYPE == "MeRID":
@@ -56,6 +58,7 @@ def run_preprocessing(config_path: str | None = None):
                 include_pilots=settings.INCLUDE_PILOTS,
                 excluded_sessions=settings.EXCLUDE_SESSIONS,
                 included_sessions=settings.INCLUDE_SESSIONS,
+                output_dir=settings.OUTPUT_DIR,
             )
         )
 
@@ -92,6 +95,8 @@ def run_preprocessing(config_path: str | None = None):
         # check whether the raw data was calculated before and whether it is complete
         raw_data_folder = sess.sid.raw_data_dir
         num_expected_files = len(sess.completed_stimuli_ids)
+        metadata_exists = (sess.sid.metadata_dir / "gaze_metadata.json").exists()
+        
         try:
             files = list(raw_data_folder.glob("*.csv"))
             num_files = len(files)
@@ -105,6 +110,7 @@ def run_preprocessing(config_path: str | None = None):
         if (
             num_expected_files == num_files
             and preprocessed
+            and metadata_exists
             and not settings.RECALCULATE
         ):
             # Loading previously extracted raw data
@@ -115,6 +121,12 @@ def run_preprocessing(config_path: str | None = None):
                 load_metadata=True,
             )
 
+            if gaze is not None and gaze.messages is None and asc.exists():
+                tmp = pm.gaze.from_asc(
+                    asc, patterns=[], messages=settings.EXPERIMENT_MSG_PATTERNS
+                )
+                gaze.messages = tmp.messages
+
         else:
             # Extract raw data from asc file
             recalculated_upstream = True
@@ -124,12 +136,24 @@ def run_preprocessing(config_path: str | None = None):
                 lab_config=sess.lab_config,
                 sid=sess.sid,
                 trial_cols=settings.TRIAL_COLS,
-                messages=settings.ANSWER_MSG_PATTERNS,
+                messages=settings.EXPERIMENT_MSG_PATTERNS,
             )
 
             # filter gaze to only contain data of completed stimuli
             gaze.samples = gaze.samples.filter(
                 pl.col("stimulus").is_in(sess.completed_stimuli_names)
+            )
+
+            # Compute total data loss via pymovements.measure.data_loss().
+            # Session-level (duration-weighted), not per-trial mean.
+            sr = gaze.experiment.sampling_rate or float(gaze._metadata["sampling_rate"])
+            gaze._measure_total_data_loss_ratio = gaze.samples.select(
+                pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio")
+            ).item()
+
+            # Compute per-trial data loss
+            gaze._per_trial_data_loss = gaze.samples.group_by(gaze.trial_columns).agg(
+                pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio")
             )
 
             preprocessing.save_session_metadata(sess.sid, gaze)
@@ -144,6 +168,21 @@ def run_preprocessing(config_path: str | None = None):
         sess.pm_gaze_metadata = gaze._metadata
         sess.calibrations = gaze.calibrations
         sess.validations = gaze.validations
+        sess.messages = gaze.messages
+
+        # Store measure-based data loss values (computed above and in load_gaze_data).
+        sess._measure_total_data_loss_ratio = getattr(
+            gaze,
+            "_measure_total_data_loss_ratio",
+            None,
+        )
+        sess._measure_blink_loss_ratio = getattr(
+            gaze,
+            "_measure_blink_loss_ratio",
+            None,
+        )
+        sess._per_trial_data_loss = getattr(gaze, "_per_trial_data_loss", None)
+        sess._per_trial_blink_loss = getattr(gaze, "_per_trial_blink_loss", None)
 
         # create or load fixation data
         fixation_data_folder = sess.sid.fixations_dir

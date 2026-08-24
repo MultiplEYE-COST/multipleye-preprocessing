@@ -1,12 +1,11 @@
 """DCN-level routes — overview, session list, flags, stats, psychometric."""
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
-from ..templating import render
-from ..services.dcn import get_dcn, list_sessions
 from ..models import FlagSummary
-
+from ..services.dcn import get_dcn, list_sessions
+from ..templating import render
 
 router = APIRouter(prefix="/api/dcn")
 
@@ -62,8 +61,9 @@ async def dcn_flags(dcn_name: str) -> JSONResponse:
 @router.get("/{dcn_name}/psychometric")
 async def dcn_psychometric(dcn_name: str) -> JSONResponse:
     """Return per-session psychometric scores."""
-    from ..config import psychometric_path
     import csv
+
+    from ..config import psychometric_path
 
     path = psychometric_path(dcn_name)
     if not path.exists():
@@ -73,7 +73,7 @@ async def dcn_psychometric(dcn_name: str) -> JSONResponse:
     with open(path) as f:
         reader = csv.DictReader(f)
         for row in reader:
-            rows.append(row)
+            rows.append(dict(row))
     return JSONResponse(rows)
 
 
@@ -84,8 +84,8 @@ async def dcn_stats(dcn_name: str) -> JSONResponse:
     if not sessions:
         return JSONResponse({})
 
-    from ..services.session_data import read_overview
     from ..config import session_overview_path
+    from ..services.session_data import get_field, read_overview
 
     values: dict[str, list[float | int | bool | str]] = {}
     for s in sessions:
@@ -94,13 +94,14 @@ async def dcn_stats(dcn_name: str) -> JSONResponse:
             continue
         for key in (
             "avg_comprehension_score",
-            "data_loss_ratio",
+            "session_total_data_loss_ratio",
+            "session_blink_loss_ratio",
             "avg_validation_error",
             "num_calibrations",
             "num_validations",
             "total_session_duration",
         ):
-            val = ov.get(key)
+            val = get_field(ov, key)
             if val is not None and isinstance(val, (int, float)):
                 values.setdefault(key, []).append(val)
 
@@ -126,6 +127,7 @@ async def open_dcn_folder(dcn_name: str, which: str):
     """Open a DCN's data folder in the OS file manager (Finder on macOS)."""
     import subprocess
     import sys
+
     from ..config import PREPROCESSED_DATA_DIR, RAW_DATA_DIR
 
     if which == "input":

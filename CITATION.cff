@@ -13,8 +13,10 @@ authors:
   given-names: "Anastassia"
 - family-names: "Krakowczyk"
   given-names: "Daniel"
+- family-names: "Popp"
+  given-names: "Antonia"
 - family-names: "J{\"a}ger"
   given-names: "Lena A."
 title: "The MultiplEYE preprocessing pipeline"
-version: 2026.08.06
+version: 2026.08.17
 url: "https://github.com/MultiplEYE-COST/multipleye-preprocessing/"
