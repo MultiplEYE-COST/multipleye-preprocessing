@@ -161,7 +161,7 @@ def load_trial_level_raw_data(
 ) -> pm.Gaze:
     """Load trial-level raw data from multiple CSV files and construct a gaze object.
 
-    This function aggregates raw data files containing gaze data for one or more trials.
+    This function aggregates raw data files containing gaze data with position and velocity information for one or more trials.
 
     Parameters
     ----------
@@ -197,6 +197,10 @@ def load_trial_level_raw_data(
                 "pupil": pl.Float64,
                 "pixel_x": pl.Float64,
                 "pixel_y": pl.Float64,
+                "position_x": pl.Float64,
+                "position_y": pl.Float64,
+                "velocity_x": pl.Float64,
+                "velocity_y": pl.Float64,
                 "page": pl.Utf8,
             },
         )
@@ -217,6 +221,8 @@ def load_trial_level_raw_data(
         initial_df,
         trial_columns=trial_columns,
         pixel_columns=["pixel_x", "pixel_y"],
+        position_columns=["position_x", "position_y"],
+        velocity_columns=["velocity_x", "velocity_y"],
     )
 
     if load_metadata:
@@ -347,6 +353,67 @@ def load_trial_level_events_data(
         all_events,
         trial_columns=gaze.trial_columns,
     )
+
+    return gaze
+
+
+def load_scanpaths(
+    gaze: pm.Gaze,
+    sid: Sid,
+    file_pattern: str | None = None,
+) -> pm.Gaze:
+    """Load scanpaths for a session from CSV files and return a gaze object with expanded events frame.
+
+    The function reads CSV files within a specified folder,
+    applies a file pattern to match and extract relevant groups,
+    and integrates the data into the provided `gaze` object's events frame.
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        An object containing gaze data and associated event information.
+    sid : Sid
+        The session identifier.
+    file_pattern : str, optional
+        A pattern for matching CSV file names to extract relevant groups.
+        If None, defaults to settings.EVENT_DATA_FILE_GLOB formatted with event_type.
+
+    Returns
+    -------
+    pm.Gaze
+        The updated gaze object with the loaded and integrated scanpaths.
+    """
+
+    if file_pattern is None:
+        file_pattern = settings.SCANPATH_FILENAME_REGEX
+
+    all_scanpaths = pl.DataFrame()
+    data_folder = sid.scanpaths_dir
+
+    for file in data_folder.glob(settings.SCANPATH_FILE_GLOB):
+        trial_df = pl.read_csv(file)
+
+        match = re.match(file_pattern, file.name)
+        # go over groups in the name regex and add them as columns
+        if match is None:
+            logging.info(f"Skipping file {file} for scanpath loading")
+        else:
+            for group_name in match.groupdict():
+                if group_name not in trial_df.columns:
+                    trial_df = trial_df.with_columns(
+                        pl.lit(match.group(group_name)).alias(group_name)
+                    )
+
+        all_scanpaths = all_scanpaths.vstack(trial_df)
+
+    # join loaded scanpaths into existing events frame
+    matched_events = gaze.events.frame.join(
+        all_scanpaths, on=("onset", "trial", "stimulus", "page", "name"), how="left"
+    )
+    matched_events = matched_events.drop(
+        "duration_right", "location_x_right", "location_y_right"
+    )
+    gaze.events.frame = matched_events
 
     return gaze
 

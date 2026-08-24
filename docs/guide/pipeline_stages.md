@@ -265,6 +265,6 @@ two-session experiments, `MeridDataCollection` extends the base class and overri
 the stimulus order logic.
 
 **The pipeline caches aggressively.** Every stage checks whether its output already
-exists on disk. If it does and `overwrite` is false, the stage loads the cached result
+exists on disk. If it does and `recalculate` is false, the stage loads the cached result
 instead of recomputing. The number of cached files is validated against the list of
 completed stimuli to catch partial or corrupted runs.

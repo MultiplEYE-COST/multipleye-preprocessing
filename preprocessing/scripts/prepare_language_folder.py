@@ -219,7 +219,10 @@ def prepare_language_folder(data_collection_name: str | None = None):
         logger.info("Stimulus assets unchanged. Skipping copy.")
     else:
         if stored is not None:
-            logger.info("Stimulus assets changed. Recopying.")
+            logger.warning(
+                "Stimulus assets have changed and are being recopied. Note that some outputs may be based on a previous stimuli version. "
+                "To recalculate everything based on the new stimuli version please activate the 'Recalculate' flag in the settings."
+            )
             shutil.rmtree(str(preprocessed_stimulus_path))
         _copy_stimulus_assets(
             stimulus_folder_path,

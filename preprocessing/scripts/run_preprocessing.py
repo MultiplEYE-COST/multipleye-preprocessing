@@ -88,19 +88,32 @@ def run_preprocessing(config_path: str | None = None):
 
         asc = sess.asc_path
 
-        # create or load raw data
-        raw_data_folder = sess.sid.raw_data_dir
-        metadata_exists = (sess.sid.metadata_dir / "gaze_metadata.json").exists()
-        if raw_data_folder.exists() and not settings.OVERWRITE and metadata_exists:
-            # check if the folder contains the expected number of files, if not, we will overwrite
-            num_expected_files = len(sess.completed_stimuli_ids)
-            num_files = len(list(raw_data_folder.glob("*.csv")))
-            if num_expected_files != num_files:
-                raise ValueError(
-                    f"Raw data cannot be loaded as the folder for session {sess.sid} does not contain the "
-                    f"expected number of files. Please check and select overwrite."
-                )
+        # Flag to be changed, then recalculation was forced for a session previously, e.g. because of incomplete files
+        # Forces recalculation for all subsequent stages
+        recalculated_upstream = False
 
+        # check whether the raw data was calculated before and whether it is complete
+        raw_data_folder = sess.sid.raw_data_dir
+        num_expected_files = len(sess.completed_stimuli_ids)
+        metadata_exists = (sess.sid.metadata_dir / "gaze_metadata.json").exists()
+
+        try:
+            files = list(raw_data_folder.glob("*.csv"))
+            num_files = len(files)
+            # Check if a previous version of this pipeline saved the raw data without velocity and position information
+            test_file = files[0]
+            preprocessed = "position_x" in pl.read_csv(test_file).columns
+        except IndexError:
+            num_files = 0
+            preprocessed = False
+
+        if (
+            num_expected_files == num_files
+            and preprocessed
+            and metadata_exists
+            and not settings.RECALCULATE
+        ):
+            # Loading previously extracted raw data
             pbar.set_description(f"Loading samples {sess.sid}:")
             gaze = preprocessing.load_trial_level_raw_data(
                 sess.sid,
@@ -115,6 +128,8 @@ def run_preprocessing(config_path: str | None = None):
                 gaze.messages = tmp.messages
 
         else:
+            # Extract raw data from asc file
+            recalculated_upstream = True
             pbar.set_description(f"Extracting samples {sess.sid}:")
             gaze = preprocessing.load_gaze_data(
                 asc_file=asc,
@@ -141,8 +156,14 @@ def run_preprocessing(config_path: str | None = None):
                 pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio")
             )
 
-            preprocessing.save_raw_data(sess.sid, gaze)
             preprocessing.save_session_metadata(sess.sid, gaze)
+
+            # preprocess gaze data
+            pbar.set_description(f"Preprocessing samples {sess.sid}:")
+            preprocessing.preprocess_gaze(
+                gaze,
+            )
+            preprocessing.save_raw_data(sess.sid, gaze)
 
         sess.pm_gaze_metadata = gaze._metadata
         sess.calibrations = gaze.calibrations
@@ -163,12 +184,6 @@ def run_preprocessing(config_path: str | None = None):
         sess._per_trial_data_loss = getattr(gaze, "_per_trial_data_loss", None)
         sess._per_trial_blink_loss = getattr(gaze, "_per_trial_blink_loss", None)
 
-        # preprocess gaze data
-        pbar.set_description(f"Preprocessing samples {sess.sid}:")
-        preprocessing.preprocess_gaze(
-            gaze,
-        )
-
         # create or load fixation data
         fixation_data_folder = sess.sid.fixations_dir
         saccade_data_folder = sess.sid.saccades_dir
@@ -178,83 +193,100 @@ def run_preprocessing(config_path: str | None = None):
                 logger.warning(
                     f"Gaze data missing for {sess.sid}. Skipping event detection."
                 )
-            elif (
-                fixation_data_folder.exists()
-                and saccade_data_folder.exists()
-                and not settings.OVERWRITE
-            ):
-                # check if the folder contains the expected number of files, if not, we will overwrite
-                num_expected_files = len(sess.completed_stimuli_ids)
-                num_files = len(list(fixation_data_folder.glob("*.csv")))
-
-                if num_expected_files != num_files:
-                    raise ValueError(
-                        f"Fixation data cannot be loaded as the folder for session {sess.sid} does not contain the "
-                        f"expected number of files. Please check or select overwrite."
-                    )
-
-                num_files = len(list(saccade_data_folder.glob("*.csv")))
-                if num_expected_files != num_files:
-                    raise ValueError(
-                        f"Saccade data cannot be loaded as the folder for session {sess.sid} does not contain the "
-                        f"expected number of files. Please check or select overwrite."
-                    )
-
-                pbar.set_description(f"Loading events {sess.sid}:")
-                gaze = preprocessing.load_trial_level_events_data(
-                    gaze,
-                    sess.sid,
-                    event_type=settings.FIXATION,
-                    file_pattern=None,
-                )
-
-                gaze = preprocessing.load_trial_level_events_data(
-                    gaze,
-                    sess.sid,
-                    event_type=settings.SACCADE,
-                    file_pattern=None,
-                )
-
             else:
-                pbar.set_description(f"Detecting events {sess.sid}:")
+                num_expected_files = len(sess.completed_stimuli_ids)
 
-                if settings.RUN_FIXATION_DETECTION:
-                    preprocessing.detect_fixations(gaze)
-                if settings.RUN_SACCADE_DETECTION:
-                    preprocessing.detect_saccades(gaze)
+                try:
+                    num_files = len(list(fixation_data_folder.glob("*.csv")))
+                except FileNotFoundError:
+                    num_files = 0
 
-                if settings.RUN_FIXATION_DETECTION:
-                    preprocessing.save_events_data(
-                        settings.FIXATION,
-                        sess.sid,
-                        "trial",
-                        ["trial", "stimulus"],
-                        ["onset", "duration", "location_x", "location_y", "page"],
+                if (
+                    num_expected_files == num_files
+                    and not settings.RECALCULATE
+                    and not recalculated_upstream
+                ):
+                    # Loading events if all fixation files exist and the recalculate flag is not active
+                    pbar.set_description(f"Loading fixations {sess.sid}:")
+                    gaze = preprocessing.load_trial_level_events_data(
                         gaze,
+                        sess.sid,
+                        event_type=settings.FIXATION,
+                        file_pattern=None,
                     )
 
-                if settings.RUN_SACCADE_DETECTION:
-                    preprocessing.save_events_data(
-                        settings.SACCADE,
-                        sess.sid,
-                        "trial",
-                        ["trial", "stimulus"],
-                        [
-                            "onset",
-                            "duration",
-                            "amplitude",
-                            "peak_velocity",
-                            "dispersion",
-                            "page",
-                        ],
+                else:
+                    recalculated_upstream = True
+                    # If files were not complete or recalculation is active we run fixation detection
+                    pbar.set_description(f"Detecting fixations {sess.sid}:")
+
+                    if settings.RUN_FIXATION_DETECTION:
+                        preprocessing.detect_fixations(gaze)
+
+                        preprocessing.save_events_data(
+                            settings.FIXATION,
+                            sess.sid,
+                            "trial",
+                            ["trial", "stimulus"],
+                            ["onset", "duration", "location_x", "location_y", "page"],
+                            gaze,
+                        )
+
+                    # Unnest event columns (e.g. location struct -> location_x/location_y)
+                    # so downstream code doesn't need to handle struct columns.
+                    if gaze is not None and gaze.events is not None:
+                        with contextlib.suppress(Warning):
+                            gaze.events.unnest()
+
+                try:
+                    num_files = len(list(saccade_data_folder.glob("*.csv")))
+                except FileNotFoundError:
+                    num_files = 0
+
+                if (
+                    num_expected_files == num_files
+                    and not settings.RECALCULATE
+                    and not recalculated_upstream
+                ):
+                    # Loading events if all saccade files exist and the recalculate flag is not active
+                    pbar.set_description(f"Loading saccades {sess.sid}:")
+
+                    gaze = preprocessing.load_trial_level_events_data(
                         gaze,
+                        sess.sid,
+                        event_type=settings.SACCADE,
+                        file_pattern=None,
                     )
 
-                # Unnest event columns (e.g. location struct -> location_x/location_y)
-                # so downstream code doesn't need to handle struct columns.
-                if gaze is not None and gaze.events is not None:
-                    with contextlib.suppress(Warning):
-                        gaze.events.unnest()
+                else:
+                    recalculated_upstream = True
+                    # If files were not complete or recalculation is active we run saccade detection
+                    pbar.set_description(f"Detecting saccades {sess.sid}:")
+
+                    if settings.RUN_SACCADE_DETECTION:
+                        preprocessing.detect_saccades(gaze)
+
+                        preprocessing.save_events_data(
+                            settings.SACCADE,
+                            sess.sid,
+                            "trial",
+                            ["trial", "stimulus"],
+                            [
+                                "onset",
+                                "duration",
+                                "amplitude",
+                                "peak_velocity",
+                                "dispersion",
+                                "page",
+                            ],
+                            gaze,
+                        )
+
+                    # Unnest event columns (e.g. location struct -> location_x/location_y)
+                    # so downstream code doesn't need to handle struct columns.
+                    if gaze is not None and gaze.events is not None:
+                        with contextlib.suppress(Warning):
+                            gaze.events.unnest()
         else:
             pbar.set_description(f"Skipping event detection {sess.sid}:")
             # Load existing if available
@@ -290,11 +322,28 @@ def run_preprocessing(config_path: str | None = None):
                     f"Fixations missing for {sess.sid}. Skipping AOI mapping/scanpaths."
                 )
             else:
-                preprocessing.map_fixations_to_aois(
-                    gaze,
-                    sess.stimuli,
-                )
-                preprocessing.save_scanpaths(sess.sid, gaze)
+                # Check whether scanpaths have been saved before for this session
+                num_expected_files = len(sess.completed_stimuli_ids)
+
+                scanpaths_data_folder = sess.sid.scanpaths_dir
+                try:
+                    num_files = len(list(scanpaths_data_folder.glob("*.csv")))
+                except FileNotFoundError:
+                    num_files = 0
+
+                if (
+                    num_files == num_expected_files
+                    and not settings.RECALCULATE
+                    and not recalculated_upstream
+                ):
+                    gaze = preprocessing.load_scanpaths(gaze, sess.sid)
+                else:
+                    recalculated_upstream = True
+                    preprocessing.map_fixations_to_aois(
+                        gaze,
+                        sess.stimuli,
+                    )
+                    preprocessing.save_scanpaths(sess.sid, gaze)
 
                 preprocessing.save_session_metadata(sess.sid, gaze)
 
@@ -312,15 +361,19 @@ def run_preprocessing(config_path: str | None = None):
                 logger.warning(
                     f"Gaze/Event data missing or not mapped for {sess.sid}. Skipping reading measures."
                 )
-            elif rm_folder.exists() and not settings.OVERWRITE:
-                # check if the folder contains the expected number of files, if not, we will overwrite
-                num_expected_files = len(sess.completed_stimuli_ids)
+
+            num_expected_files = len(sess.completed_stimuli_ids)
+            try:
                 num_files = len(list(rm_folder.glob("*.csv")))
-                if num_expected_files != num_files:
-                    raise ValueError(
-                        f"Reading measures cannot be loaded as the folder for session {sess.sid} does not contain the "
-                        f"expected number of files. Please check and select overwrite."
-                    )
+            except FileNotFoundError:
+                num_files = 0
+
+            if (
+                num_files == num_expected_files
+                and not settings.RECALCULATE
+                and not recalculated_upstream
+            ):
+                # check if the folder contains the expected number of files, if not, we will recalculate
 
                 pbar.set_description(f"Loading reading measures {sess.sid}:")
                 reading_measures = preprocessing.load_reading_measures(sess.sid)
@@ -328,6 +381,7 @@ def run_preprocessing(config_path: str | None = None):
                 data_collection[sess.session_identifier].reading_measures = True
 
             else:
+                recalculated_upstream = True
                 pbar.set_description(f"Calculating reading measures {sess.sid}:")
                 reading_measures = preprocessing.calculate_reading_measures(
                     gaze,
@@ -343,10 +397,15 @@ def run_preprocessing(config_path: str | None = None):
         if settings.RUN_COMPREHENSION_ANSWERS:
             answers_csv = sess.sid.answers_dir / f"{sess.sid}_answers.csv"
 
-            if answers_csv.exists() and not settings.OVERWRITE:
+            if (
+                answers_csv.exists()
+                and not settings.RECALCULATE
+                and not recalculated_upstream
+            ):
                 pbar.set_description(f"Loading comprehension answers {sess.sid}")
                 sess.answers = True
             else:
+                recalculated_upstream = True
                 pbar.set_description(f"Collecting comprehension answers {sess.sid}")
                 question_order_csv = (
                     sess.session_folder_path
@@ -403,7 +462,7 @@ def run_preprocessing(config_path: str | None = None):
                     gaze,
                     sess.session_identifier,
                     plotting=True,
-                    overwrite=True,
+                    recalculate=(settings.RECALCULATE or recalculated_upstream),
                     output_dir=settings.OUTPUT_DIR,
                 )
         else:

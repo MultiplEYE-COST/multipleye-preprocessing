@@ -253,6 +253,19 @@ class Settings:
         self.__dict__["EVENT_DATA_FILENAME_REGEX"] = value
 
     @property
+    def SCANPATH_FILENAME_REGEX(self) -> str:
+        """Regex to extract info from scanpath data filenames."""
+        if "SCANPATH_FILENAME_REGEX" in self.__dict__:
+            return self.__dict__["SCANPATH_FILENAME_REGEX"]
+        trial_col = self.TRIAL_COL
+        stimulus_col = self.STIMULUS_COL
+        return rf".+?(?P<{trial_col}>(?:PRACTICE_)?trial_\d+)_(?P<{stimulus_col}>[^_]+_[^_]+_\d+(\.0)?)_scanpath.csv"
+
+    @SCANPATH_FILENAME_REGEX.setter
+    def SCANPATH_FILENAME_REGEX(self, value: str) -> None:
+        self.__dict__["SCANPATH_FILENAME_REGEX"] = value
+
+    @property
     def READING_MEASURES_FILENAME_REGEX(self) -> str:
         """Regex to extract trial and stimulus info from reading measures filenames."""
         if "READING_MEASURES_FILENAME_REGEX" in self.__dict__:
@@ -328,11 +341,11 @@ class Settings:
         #:
         self.EXPERIMENT_TYPE: str = ""
 
-        # Defines whether written files will be overwritten, if they already exist.
+        # Defines whether written files will be recalculated, if they already exist.
         # If False, preprocessed sessions will be skipped and not reprocessed.
-        # If only some files for a session exist, the user has to select overwrite once
+        # If only some files for a session exist, the user has to select recalculate once
         # to avoid having files stemming from different versions.
-        self.OVERWRITE = False
+        self.RECALCULATE = False
 
         #: List of session identifiers to explicitly exclude from processing.
         self.EXCLUDE_SESSIONS: list[str] = []
@@ -599,6 +612,9 @@ class Settings:
 
         #: Glob pattern for event data files.
         self.EVENT_DATA_FILE_GLOB = "*_{event_type}.csv"
+
+        #: Glob pattern for scanpath files.
+        self.SCANPATH_FILE_GLOB = "*_scanpath.csv"
 
         #: Glob pattern for reading measures files.
         self.READING_MEASURES_GLOB = "*_reading_measures.csv"

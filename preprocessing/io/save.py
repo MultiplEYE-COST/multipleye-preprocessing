@@ -11,7 +11,7 @@ from ..models.sid import Sid
 
 def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
     """
-    Saves raw gaze data in separate csv files per trial.
+    Saves raw gaze data with calculated position and velocity in separate csv files per trial.
 
     Parameters
     ----------
@@ -34,7 +34,17 @@ def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
         name = f"{sid!s}_{trial}_{stimulus}_raw_data.csv"
-        df = df["time", "pixel_x", "pixel_y", "pupil", "page"]
+        df = df[
+            "time",
+            "pixel_x",
+            "pixel_y",
+            "position_x",
+            "position_y",
+            "velocity_x",
+            "velocity_y",
+            "pupil",
+            "page",
+        ]
         df.write_csv(directory / name)
 
 
