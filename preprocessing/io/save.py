@@ -33,7 +33,7 @@ def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
         df = trial.samples
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
-        name = f"{str(sid!s)}_{trial}_{stimulus}_raw_data.csv"
+        name = f"{sid!s}_{trial}_{stimulus}_raw_data.csv"
         df = df[
             "time",
             "pixel_x",

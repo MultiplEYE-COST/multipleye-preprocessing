@@ -264,7 +264,7 @@ class Settings:
     @SCANPATH_FILENAME_REGEX.setter
     def SCANPATH_FILENAME_REGEX(self, value: str) -> None:
         self.__dict__["SCANPATH_FILENAME_REGEX"] = value
-        
+
     @property
     def READING_MEASURES_FILENAME_REGEX(self) -> str:
         """Regex to extract trial and stimulus info from reading measures filenames."""
@@ -614,8 +614,8 @@ class Settings:
         self.EVENT_DATA_FILE_GLOB = "*_{event_type}.csv"
 
         #: Glob pattern for scanpath files.
-        self.SCANPATH_FILE_GLOB = "*_scanpath.csv
-        
+        self.SCANPATH_FILE_GLOB = "*_scanpath.csv"
+
         #: Glob pattern for reading measures files.
         self.READING_MEASURES_GLOB = "*_reading_measures.csv"
 

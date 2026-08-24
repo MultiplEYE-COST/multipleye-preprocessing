@@ -96,7 +96,7 @@ def run_preprocessing(config_path: str | None = None):
         raw_data_folder = sess.sid.raw_data_dir
         num_expected_files = len(sess.completed_stimuli_ids)
         metadata_exists = (sess.sid.metadata_dir / "gaze_metadata.json").exists()
-        
+
         try:
             files = list(raw_data_folder.glob("*.csv"))
             num_files = len(files)
