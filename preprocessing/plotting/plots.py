@@ -12,17 +12,26 @@ from ..data_collection.stimulus import Stimulus
 
 
 def create_plots(
-    gaze, plot_type: str, stimuli, session_identifier, directory, aoi=False
+    gaze,
+    plot_type: str | list[str],
+    stimuli: list[Stimulus],
+    session_identifier: str,
+    directory: Path,
+    aoi=False,
 ):
     plot_dir = directory / f"{session_identifier}_plots"
     plot_dir.mkdir(exist_ok=True)
 
-    if plot_type == "main_sequence":
-        plot_main_sequence(gaze.events, plot_dir)
+    if type(plot_type) is not list:
+        plot_type = [plot_type]
 
-    elif plot_type == "gaze_overlay":
-        for stimulus in stimuli:
-            plot_gaze(gaze, stimulus, plot_dir, aoi_image=aoi)
+    for plot in plot_type:
+        if plot == "main_sequence":
+            plot_main_sequence(gaze.events, plot_dir)
+
+        elif plot == "gaze_overlay":
+            for stimulus in stimuli:
+                plot_gaze(gaze, stimulus, plot_dir, aoi_image=aoi)
 
 
 def plot_gaze(
