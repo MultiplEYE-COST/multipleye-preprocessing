@@ -249,19 +249,6 @@ def run_preprocessing(config_path: str | None = None):
                     pbar.set_description(f"Loading saccades {sess.sid}:")
 
                     gaze = preprocessing.load_trial_level_events_data(
-                if settings.RUN_FIXATION_DETECTION:
-                    preprocessing.save_events_data(
-                        settings.FIXATION,
-                        sess.sid,
-                        "trial",
-                        ["trial", "stimulus"],
-                        [
-                            "onset",
-                            "duration",
-                            "location_x",
-                            "location_y",
-                            "page",
-                        ],
                         gaze,
                         sess.sid,
                         event_type=settings.SACCADE,
@@ -456,6 +443,7 @@ def run_preprocessing(config_path: str | None = None):
                         out_path=answers_csv,
                         source=source,
                         completed_stimuli_ids=sess.completed_stimuli_ids,
+                        was_session_interrupted=sess.was_session_interrupted,
                     )
                     sess.answers = True
         else:

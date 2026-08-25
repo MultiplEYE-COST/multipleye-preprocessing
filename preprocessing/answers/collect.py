@@ -35,6 +35,7 @@ def collect_session_answers(
     out_path: Path | None = None,
     source: str = "unknown",
     completed_stimuli_ids: Sequence[int] | None = None,
+    was_session_interrupted: bool = False,
 ) -> pl.DataFrame:
     """Assemble per-session question rows from order CSV and a trial->stimulus map.
 
@@ -44,6 +45,8 @@ def collect_session_answers(
         Path to the session's question_order_versions.csv.
     stimuli_trial_map: Mapping
         Maps trial identifiers to stimulus names, e.g., {'trial_1': 'Arg_PISACowsMilk_10', ...}.
+        Contains all stimulus names that should have been completed in the session even if the session had been
+        interrupted.
     stimuli: Sequence[Stimulus] | None
         List of Stimulus objects to look up correct answer texts.
     parsed_answers: pl.DataFrame | None
@@ -53,7 +56,10 @@ def collect_session_answers(
     source: str
         The source of the parsed answers, e.g., 'asc' or 'logfile'.
     completed_stimuli_ids: Sequence[int] | None
-        List of stimulus numeric IDs in the order they were completed.
+        List of stimulus numeric IDs in the order they were completed. Can contain less items than stimuli_trial_map if
+        the session had been interrupted.
+    was_session_interrupted: bool
+        Whether a session was interrupted.
 
     Returns
     -------
@@ -108,7 +114,12 @@ def collect_session_answers(
 
     # stim_id_mapping: actual trial identifier -> stimulus numeric ID
     stim_id_map = {}
-    if completed_stimuli_ids and len(completed_stimuli_ids) == len(sorted_keys):
+    if (
+        completed_stimuli_ids
+        and len(completed_stimuli_ids) == len(sorted_keys)
+        or completed_stimuli_ids
+        and was_session_interrupted
+    ):
         stim_id_map = dict(zip(sorted_keys, completed_stimuli_ids))
     elif completed_stimuli_ids:
         logger.warning(

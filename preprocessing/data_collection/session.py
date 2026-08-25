@@ -57,7 +57,6 @@ class Session:
     )
 
     logfile: str = field(default="unknown", init=True)
-    interrupted: bool | str = field(default="unknown", init=True)
     lab_config: LabConfig | str = field(default="unknown", init=True)
 
     # stats
@@ -88,7 +87,7 @@ class Session:
 
     # completed trials
     num_completed_trials: int = field(default=0, init=True)
-    was_session_interrupted: bool = field(default=False, init=True)
+    was_session_interrupted: bool = field(default="unknown", init=True)
 
     # data quality & sanity report
     sanity_report_path: Path | str = field(default="unknown", init=True)
@@ -131,17 +130,6 @@ class Session:
     def sid(self) -> "Sid":
         return Sid(self.session_identifier)
 
-    def create_overview(self) -> dict:
-        """
-        Create a topic-grouped overview of the session.
-
-        Returns
-        -------
-        dict
-            Overview with sections: Administrative, Technical_setup, Tracking,
-            Calibration_validation, Data_quality, Experiment_procedure,
-            Comprehension, and Data_formats.
-        """
     @classmethod
     def load_from_yaml(cls, yaml_file: Path, dataset_dir: Path) -> "Session":
         session_specs = yaml.safe_load(yaml_file)
@@ -162,6 +150,16 @@ class Session:
         return session
 
     def create_overview(self):
+        """
+        Create a topic-grouped overview of the session.
+
+        Returns
+        -------
+        dict
+            Overview with sections: Administrative, Technical_setup, Tracking,
+            Calibration_validation, Data_quality, Experiment_procedure,
+            Comprehension, and Data_formats.
+        """
         self._create_stats()
 
         return {
@@ -198,16 +196,10 @@ class Session:
                     None,
                 ),
                 "session_blink_loss_ratio": getattr(
-                )
-                if not self.total_data_loss_ratio
-                else self.total_data_loss_ratio,
-                "blink_loss_ratio": getattr(
                     self,
                     "_measure_blink_loss_ratio",
                     None,
-                )
-                if not self.blink_loss_ratio
-                else self.blink_loss_ratio,
+                ),
             },
             "Experiment_procedure": {
                 "question_order": self.question_order,
@@ -216,7 +208,7 @@ class Session:
                 "num_completed_trials": len(self.stimulus_order_ids)
                 if isinstance(self.stimulus_order_ids, list)
                 else None,
-                "was_session_interrupted": self.interrupted,
+                "was_session_interrupted": self.was_session_interrupted,
                 "obligatory_break_made": self.obligatory_break_made,
                 "num_optional_breaks_made": self.num_optional_breaks_made,
                 "total_break_time_ms": self.total_break_time_ms,
@@ -651,48 +643,5 @@ class Session:
             )
 
         trials.sort(key=lambda t: (t.is_practice, t.trial_number))
+
         return trials
-
-    def load_session_stimuli(
-        self,
-        stimulus_dir: Path,
-        stimulus_names: None | list = None,
-    ) -> None:
-        """
-        Load the stimuli from the specified directory.
-        :param stimulus_dir: The directory where the stimuli are stored.
-        :param stimulus_names: The names of the stimuli to load.
-        If None, the predefined stimuli names in the settings are used.
-        """
-        stimuli = []
-        if stimulus_names is None:
-            stimulus_names = [
-                name
-                for name, num in settings.STIMULUS_NAME_MAPPING.items()
-                if num in self.completed_stimuli_ids
-            ]
-
-        for stimulus_name in stimulus_names:
-            trial_mapping = self.stimulus_trial_mapping
-            # get the trial id from the mapping, keys are ids and values are strings
-            trial_id = [
-                key for key, value in trial_mapping.items() if value == stimulus_name
-            ]
-            if len(trial_id) == 0:
-                raise KeyError(
-                    f"Stimulus name {stimulus_name} not found in the trial mapping for session "
-                    f"{self.session_identifier}. Please check the completed_stimuli.csv file."
-                )
-
-            stimulus = Stimulus.load(
-                stimulus_dir,
-                self.language,
-                self.country,
-                self.lab_number,
-                stimulus_name,
-                self.randomization_version,
-                trial_id[0],
-            )
-            stimuli.append(stimulus)
-
-        return stimuli

@@ -1184,6 +1184,7 @@ class MultipleyeDataCollection:
                 self.logger.warning(
                     f"Session {session} started after a trial. Only the completed stimuli will be considered."
                 )
+                self.sessions[session].was_session_interrupted = True
 
             (
                 self.sessions[session].completed_stimuli_ids,
@@ -1375,6 +1376,7 @@ class MultipleyeDataCollection:
                 self.logger.warning(
                     f"Session {session_identifier} has been restarted. Only the completed stimuli will be considered."
                 )
+                self.sessions[session_identifier].was_session_interrupted = True
             # delete the last row in the csv if it contains 'restart' in the completed column
             completed_stimuli = completed_stimuli[:-1]
 
