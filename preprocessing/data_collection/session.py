@@ -629,18 +629,37 @@ class Session:
             except ValueError:
                 trial_number = 0
 
-            trials.append(
-                Trial(
-                    trial_number=trial_number,
-                    stimulus_id=int(first["stimulus_id"]),
-                    stimulus_name=str(first["stimulus"]),
-                    is_practice=str(trial_id).startswith("PRACTICE_"),
-                    num_questions=group.height,
-                    comprehension_score=score,
-                    comprehension_question_time_ms=question_time,
-                    reading_time_ms=round(reading_by_trial.get(str(trial_id), 0.0), 3),
+            if first["question_id"] == "session_interrupted":
+                trials.append(
+                    Trial(
+                        trial_number=trial_number,
+                        stimulus_id=None,
+                        stimulus_name=None,
+                        is_practice=str(trial_id).startswith("PRACTICE_"),
+                        num_questions=None,
+                        comprehension_score=None,
+                        comprehension_question_time_ms=None,
+                        reading_time_ms=None,
+                        status="interrupted",
+                    )
                 )
-            )
+
+            else:
+                trials.append(
+                    Trial(
+                        trial_number=trial_number,
+                        stimulus_id=int(first["stimulus_id"]),
+                        stimulus_name=str(first["stimulus"]),
+                        is_practice=str(trial_id).startswith("PRACTICE_"),
+                        num_questions=group.height,
+                        comprehension_score=score,
+                        comprehension_question_time_ms=question_time,
+                        reading_time_ms=round(
+                            reading_by_trial.get(str(trial_id), 0.0), 3
+                        ),
+                        status="completed",
+                    )
+                )
 
         trials.sort(key=lambda t: (t.is_practice, t.trial_number))
 

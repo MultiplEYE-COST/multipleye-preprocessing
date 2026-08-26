@@ -452,6 +452,10 @@ def collect_session_answers(
     ]
     long_df = long_df.select([c for c in final_cols if c in long_df.columns])
 
+    # if session was interrupted fill NAs with value
+    if was_session_interrupted:
+        long_df = long_df.fill_null("session_interrupted")
+
     if out_path is None:
         session_dir = question_order_csv.parent.parent
         out_path = session_dir / "results" / "answers.csv"
