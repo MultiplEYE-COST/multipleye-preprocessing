@@ -59,7 +59,7 @@ def _build_dcn_summary(dcn: Dcn) -> DcnSummary:
     if ov_path.exists():
         with open(ov_path) as f:
             dcn_overview = yaml.safe_load(f) or {}
-        dcn_type = dcn_overview.get("Administrative", {}).get("Dataset_type", "")
+        dcn_type = dcn_overview.get("administrative", {}).get("dataset_type", "")
 
     sessions = list_sessions(dcn_name) if is_processed else []
 

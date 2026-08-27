@@ -756,91 +756,89 @@ class MultipleyeDataCollection:
         )
 
         overview = {
-            "Administrative": {
-                "Title": self.data_collection_name,
-                "Dataset_type": self.type,
-                "Dataset_description": dataset_description,
-                "Number_of_sessions": num_sessions,
-                "Number_of_pilots": num_pilots,
-                "Number of eye-tracking (ET) sessions per participant": (
-                    self.num_sessions
-                ),
-                "City": self.city,
-                "Lab_number": self.lab_number,
-                "Country": self.country,
-                "Tested_language": self.language,
+            "administrative": {
+                "title": self.data_collection_name,
+                "dataset_type": self.type,
+                "dataset_description": dataset_description,
+                "number_of_sessions": num_sessions,
+                "number_of_pilots": num_pilots,
+                "number_of_et_sessions_per_participant": self.num_sessions,
+                "city": self.city,
+                "lab_number": self.lab_number,
+                "country": self.country,
+                "tested_language": self.language,
             },
-            "Language_details": {
-                "Metadata_form_exists": metadata_form_exists,
-                "Language_script": metadata_form.get("Script"),
-                "Language_family": metadata_form.get("Language_family"),
-                "Start_date_of_data_collection": metadata_form.get(
+            "language_details": {
+                "metadata_form_exists": metadata_form_exists,
+                "language_script": metadata_form.get("Script"),
+                "language_family": metadata_form.get("Language_family"),
+                "start_date_of_data_collection": metadata_form.get(
                     "Start_date_of_data_collection"
                 ),
-                "End_date_of_data_collection": metadata_form.get(
+                "end_date_of_data_collection": metadata_form.get(
                     "End_date_of_data_collection"
                 ),
             },
-            "Data_availability": {
-                "Raw_data_available": True,
-                "Fixations_available": True,
-                "Saccades_available": True,
-                "Reading_measures_available": True,
+            "data_availability": {
+                "raw_data_available": True,
+                "fixations_available": True,
+                "saccades_available": True,
+                "reading_measures_available": True,
             },
-            "Psychometric_tests": {
-                "Tests_available": getattr(
+            "psychometric_tests": {
+                "tests_available": getattr(
                     self.lab_configuration, "psychometric_tests", None
                 ),
             },
-            "Technical_setup": {
-                "Eye_tracker_name": getattr(
+            "technical_setup": {
+                "eye_tracker_name": getattr(
                     self.lab_configuration, "name_eye_tracker", None
                 ),
-                "Sampling_frequency_hz": getattr(
+                "sampling_frequency_hz": getattr(
                     self.lab_configuration, "sampling_frequency_hz", None
                 ),
-                "Monitor_name": metadata_form.get("Monitor_name"),
-                "Screen_resolution_width_px": (
+                "monitor_name": metadata_form.get("Monitor_name"),
+                "screen_resolution_width_px": (
                     self.lab_configuration.screen_resolution[0]
                     if getattr(self.lab_configuration, "screen_resolution", None)
                     else None
                 ),
-                "Screen_resolution_height_px": (
+                "screen_resolution_height_px": (
                     self.lab_configuration.screen_resolution[1]
                     if getattr(self.lab_configuration, "screen_resolution", None)
                     else None
                 ),
             },
-            "Processing": {
-                "Preprocessing_date": datetime.now(tz=UTC).strftime("%Y-%m-%d"),
-                "Pipeline_version": self._get_pipeline_version(),
-                "Number_of_stimulus_versions": len(
+            "processing": {
+                "preprocessing_date": datetime.now(tz=UTC).strftime("%Y-%m-%d"),
+                "pipeline_version": self._get_pipeline_version(),
+                "number_of_stimulus_versions": len(
                     self.stim_order_versions["version_number"].unique()
                 )
                 if hasattr(self, "stim_order_versions")
                 and len(self.stim_order_versions) > 0
                 else 0,
                 # Flags from metadata_form.json
-                "Required_pq_fixing": metadata_form.get("Required_pq_fixing"),
-                "Psychotests_restructuring": metadata_form.get(
+                "required_pq_fixing": metadata_form.get("Required_pq_fixing"),
+                "psychotests_restructuring": metadata_form.get(
                     "Psychotests_restructuring"
                 ),
-                "Custom_units_of_analysis": metadata_form.get(
+                "custom_units_of_analysis": metadata_form.get(
                     "Custom_units_of_analysis"
                 ),
-                "Answer_option_shuffling_bug": metadata_form.get(
+                "answer_option_shuffling_bug": metadata_form.get(
                     "Answer_option_shuffling_bug"
                 ),
             },
-            "Data_quality": {
-                "Attrition_rate": self._compute_attrition_rate(),
+            "data_quality": {
+                "attrition_rate": self._compute_attrition_rate(),
                 **self._compute_dcn_averages(),
             },
         }
 
         # Add warnings to overview
         if hasattr(logging, "_captured_warnings") and logging._captured_warnings:
-            overview["Warnings"] = list(set(logging._captured_warnings))
+            overview["warnings"] = list(set(logging._captured_warnings))
 
         with open(overview_path, "w", encoding="utf8") as f:
             yaml.dump(overview, f, sort_keys=False)
@@ -925,8 +923,8 @@ class MultipleyeDataCollection:
         non_pilot_sessions = [s for s in self.sessions.values() if not s.is_pilot]
         if not non_pilot_sessions:
             return {
-                "mean_calibration_error": None,
-                "mean_validation_error": None,
+                "mean_calibration_error_dva": None,
+                "mean_validation_error_dva": None,
                 "mean_data_loss_ratio": None,
                 "mean_blink_ratio": None,
                 "mean_total_reading_time_ms": None,
@@ -991,12 +989,12 @@ class MultipleyeDataCollection:
                 mean_wpm = self._compute_dcn_wpm(non_pilot_sessions, total_reading_s)
 
         return {
-            "mean_calibration_error": (
+            "mean_calibration_error_dva": (
                 round(sum(calib_errors) / len(calib_errors), 2)
                 if calib_errors
                 else None
             ),
-            "mean_validation_error": (
+            "mean_validation_error_dva": (
                 round(sum(val_errors) / len(val_errors), 2) if val_errors else None
             ),
             "mean_data_loss_ratio": (
