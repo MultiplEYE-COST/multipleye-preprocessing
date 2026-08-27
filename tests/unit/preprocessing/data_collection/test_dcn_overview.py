@@ -116,31 +116,31 @@ def _setup_session_with_data(
 
 
 def _admin(overview: dict) -> dict:
-    return overview["Administrative"]
+    return overview["administrative"]
 
 
 def _lang(overview: dict) -> dict:
-    return overview["Language_details"]
+    return overview["language_details"]
 
 
 def _avail(overview: dict) -> dict:
-    return overview["Data_availability"]
+    return overview["data_availability"]
 
 
 def _psych(overview: dict) -> dict:
-    return overview["Psychometric_tests"]
+    return overview["psychometric_tests"]
 
 
 def _tech(overview: dict) -> dict:
-    return overview["Technical_setup"]
+    return overview["technical_setup"]
 
 
 def _proc(overview: dict) -> dict:
-    return overview["Processing"]
+    return overview["processing"]
 
 
 def _qual(overview: dict) -> dict:
-    return overview["Data_quality"]
+    return overview["data_quality"]
 
 
 class TestAdministrative:
@@ -151,12 +151,12 @@ class TestAdministrative:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         a = _admin(overview)
 
-        assert a["Title"] == "MultiplEYE_EN_UK_London_1_2025"
-        assert a["Dataset_type"] == "MultiplEYE"
-        assert a["Tested_language"] == "EN"
-        assert a["Country"] == "UK"
-        assert a["City"] == "London"
-        assert a["Lab_number"] == 1
+        assert a["title"] == "MultiplEYE_EN_UK_London_1_2025"
+        assert a["dataset_type"] == "MultiplEYE"
+        assert a["tested_language"] == "EN"
+        assert a["country"] == "UK"
+        assert a["city"] == "London"
+        assert a["lab_number"] == 1
 
     def test_dataset_description(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -165,8 +165,8 @@ class TestAdministrative:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         a = _admin(overview)
 
-        assert "London" in a["Dataset_description"]
-        assert "EN" in a["Dataset_description"]
+        assert "London" in a["dataset_description"]
+        assert "EN" in a["dataset_description"]
 
     def test_session_counts(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -175,9 +175,9 @@ class TestAdministrative:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         a = _admin(overview)
 
-        assert a["Number_of_sessions"] == 3
-        assert a["Number_of_pilots"] == 0
-        assert "Number of eye-tracking (ET) sessions per participant" in a
+        assert a["number_of_sessions"] == 3
+        assert a["number_of_pilots"] == 0
+        assert "number_of_et_sessions_per_participant" in a
 
 
 class TestProcessing:
@@ -188,8 +188,8 @@ class TestProcessing:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         p = _proc(overview)
 
-        assert p["Pipeline_version"] == "2026.08.11"
-        assert p["Preprocessing_date"] == datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        assert p["pipeline_version"] == "2026.08.11"
+        assert p["preprocessing_date"] == datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
 
 class TestTechnicalSetup:
@@ -200,10 +200,10 @@ class TestTechnicalSetup:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         t = _tech(overview)
 
-        assert t["Eye_tracker_name"] == "EyeLink 1000 Plus"
-        assert t["Sampling_frequency_hz"] == 1000.0
-        assert t["Screen_resolution_width_px"] == 1920
-        assert t["Screen_resolution_height_px"] == 1080
+        assert t["eye_tracker_name"] == "EyeLink 1000 Plus"
+        assert t["sampling_frequency_hz"] == 1000.0
+        assert t["screen_resolution_width_px"] == 1920
+        assert t["screen_resolution_height_px"] == 1080
 
     def test_psychometric_tests(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -212,7 +212,7 @@ class TestTechnicalSetup:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         p = _psych(overview)
 
-        assert p["Tests_available"] == ["TestA", "TestB"]
+        assert p["tests_available"] == ["TestA", "TestB"]
 
 
 class TestYAMLOutput:
@@ -226,7 +226,7 @@ class TestYAMLOutput:
 
         with open(yaml_path) as f:
             data = yaml.safe_load(f)
-        assert data["Administrative"]["Title"] == "MultiplEYE_EN_UK_London_1_2025"
+        assert data["administrative"]["title"] == "MultiplEYE_EN_UK_London_1_2025"
 
     def test_sections_ordered(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -235,13 +235,13 @@ class TestYAMLOutput:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
 
         keys = list(overview.keys())
-        assert keys[0] == "Administrative"
-        assert keys[1] == "Language_details"
-        assert keys[2] == "Data_availability"
-        assert keys[3] == "Psychometric_tests"
-        assert keys[4] == "Technical_setup"
-        assert keys[5] == "Processing"
-        assert keys[6] == "Data_quality"
+        assert keys[0] == "administrative"
+        assert keys[1] == "language_details"
+        assert keys[2] == "data_availability"
+        assert keys[3] == "psychometric_tests"
+        assert keys[4] == "technical_setup"
+        assert keys[5] == "processing"
+        assert keys[6] == "data_quality"
 
 
 class TestDataAvailability:
@@ -252,10 +252,10 @@ class TestDataAvailability:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         a = _avail(overview)
 
-        assert a["Raw_data_available"] is True
-        assert a["Fixations_available"] is True
-        assert a["Saccades_available"] is True
-        assert a["Reading_measures_available"] is True
+        assert a["raw_data_available"] is True
+        assert a["fixations_available"] is True
+        assert a["saccades_available"] is True
+        assert a["reading_measures_available"] is True
 
 
 class TestComputedAverages:
@@ -266,8 +266,8 @@ class TestComputedAverages:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         q = _qual(overview)
 
-        assert q["mean_calibration_error"] is None
-        assert q["mean_validation_error"] is None
+        assert q["mean_calibration_error_dva"] is None
+        assert q["mean_validation_error_dva"] is None
         assert q["mean_data_loss_ratio"] is None
         assert q["mean_blink_ratio"] is None
         assert q["mean_total_reading_time_ms"] is None
@@ -332,8 +332,8 @@ class TestComputedAverages:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         q = _qual(overview)
 
-        assert q["mean_calibration_error"] == 0.6
-        assert q["mean_validation_error"] == 0.4
+        assert q["mean_calibration_error_dva"] == 0.6
+        assert q["mean_validation_error_dva"] == 0.4
         assert q["mean_data_loss_ratio"] == 0.02
         assert q["mean_blink_ratio"] == 0.02
 
@@ -349,7 +349,7 @@ class TestAttritionRate:
 
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
 
-        assert _qual(overview)["Attrition_rate"] == pytest.approx(1.0 / 3.0, abs=0.01)
+        assert _qual(overview)["attrition_rate"] == pytest.approx(1.0 / 3.0, abs=0.01)
 
     def test_attrition_rate_zero_with_no_crashes(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -360,7 +360,7 @@ class TestAttritionRate:
 
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
 
-        assert _qual(overview)["Attrition_rate"] == 0.0
+        assert _qual(overview)["attrition_rate"] == 0.0
 
 
 class TestMetadataForm:
@@ -371,9 +371,9 @@ class TestMetadataForm:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         ld = _lang(overview)
 
-        assert ld["Metadata_form_exists"] is False
-        assert ld["Language_script"] is None
-        assert ld["Language_family"] is None
+        assert ld["metadata_form_exists"] is False
+        assert ld["language_script"] is None
+        assert ld["language_family"] is None
 
     def test_metadata_form_fields_loaded(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -403,14 +403,14 @@ class TestMetadataForm:
         t = _tech(overview)
         p = _proc(overview)
 
-        assert ld["Metadata_form_exists"] is True
-        assert ld["Language_script"] == "Latin"
-        assert ld["Language_family"] == "Indo-European"
-        assert ld["Start_date_of_data_collection"] == "2025-01-15"
-        assert ld["End_date_of_data_collection"] == "2025-03-20"
-        assert t["Monitor_name"] == "Dell U2412M"
-        assert p["Required_pq_fixing"] == "yes"
-        assert "2025-01-15" in _admin(overview)["Dataset_description"]
+        assert ld["metadata_form_exists"] is True
+        assert ld["language_script"] == "Latin"
+        assert ld["language_family"] == "Indo-European"
+        assert ld["start_date_of_data_collection"] == "2025-01-15"
+        assert ld["end_date_of_data_collection"] == "2025-03-20"
+        assert t["monitor_name"] == "Dell U2412M"
+        assert p["required_pq_fixing"] == "yes"
+        assert "2025-01-15" in _admin(overview)["dataset_description"]
 
 
 class TestWPM:
@@ -465,8 +465,8 @@ class TestLabConfigAttributeSafety:
         t = _tech(overview)
         p = _psych(overview)
 
-        assert t["Eye_tracker_name"] is not None
-        assert t["Sampling_frequency_hz"] is None
-        assert t["Screen_resolution_width_px"] is None
-        assert t["Screen_resolution_height_px"] is None
-        assert p["Tests_available"] is None
+        assert t["eye_tracker_name"] is not None
+        assert t["sampling_frequency_hz"] is None
+        assert t["screen_resolution_width_px"] is None
+        assert t["screen_resolution_height_px"] is None
+        assert p["tests_available"] is None

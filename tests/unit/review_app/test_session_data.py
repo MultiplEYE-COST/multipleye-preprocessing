@@ -74,13 +74,13 @@ def test_check_registry_covers_expected_fields() -> None:
     fields = {e["field"] for e in CHECK_REGISTRY}
     assert "num_calibrations" in fields
     assert "num_validations" in fields
-    assert "avg_validation_error" in fields
+    assert "avg_validation_error_dva" in fields
     assert "session_total_data_loss_ratio" in fields
     assert "session_blink_loss_ratio" in fields
     assert "tracked_eye" in fields
     assert "tracked_eye_consistent" in fields
     assert "avg_comprehension_score" in fields
-    assert "total_session_duration" in fields
+    assert "total_session_duration_s" in fields
     assert "num_completed_trials" in fields
 
 
