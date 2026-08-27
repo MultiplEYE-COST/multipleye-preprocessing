@@ -88,7 +88,7 @@ def run_preprocessing(config_path: str | None = None):
 
         asc = sess.asc_path
 
-        # Flag to be changed, then recalculation was forced for a session previously, e.g. because of incomplete files
+        # Flag to be changed, when recalculation was forced for a session previously, e.g. because of incomplete files
         # Forces recalculation for all subsequent stages
         recalculated_upstream = False
 
