@@ -102,7 +102,7 @@ def run_preprocessing(config_path: str | None = None):
             num_files = len(files)
             # Check if a previous version of this pipeline saved the raw data without velocity and position information
             test_file = files[0]
-            preprocessed = "position_x" in pl.read_csv(test_file).columns
+            preprocessed = "position_x" in pl.read_csv(test_file, n_rows=0).columns
         except IndexError:
             num_files = 0
             preprocessed = False
