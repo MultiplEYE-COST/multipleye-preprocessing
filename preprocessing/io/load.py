@@ -64,6 +64,7 @@ def load_gaze_data(
         screen_height_cm=lab_config.image_size_cm[1],
         distance_cm=lab_config.screen_distance_cm,
         sampling_rate=lab_config.sampling_frequency_hz,
+        origin="upper left",
     )
 
     if messages is None:
