@@ -55,6 +55,8 @@ class Session:
 
     # stats
     total_reading_time: float | str = field(default="unknown", init=False)
+    mean_rt_per_stim_ms: float | str = field(default="unknown", init=False)
+    sd_rt_per_stim_ms: float | str = field(default="unknown", init=False)
     total_session_duration: float | str = field(default="unknown", init=False)
     obligatory_break_made: bool | str = field(default="unknown", init=False)
     num_optional_breaks_made: int | str = field(default="unknown", init=False)
@@ -167,6 +169,8 @@ class Session:
                 "total_break_time_s": self.total_break_time,
                 "total_reading_time_s": self.total_reading_time,
                 "total_session_duration_s": self.total_session_duration,
+                "mean_rt_per_stim_ms": self.mean_rt_per_stim_ms,
+                "sd_rt_per_stim_ms": self.sd_rt_per_stim_ms,
             },
             "trials": (
                 [asdict(t) for t in self.trials]
@@ -364,6 +368,11 @@ class Session:
             if reading is not None:
                 self.total_reading_time = reading
 
+        mean_rt, sd_rt = self._compute_rt_per_stim()
+        if mean_rt is not None:
+            self.mean_rt_per_stim_ms = mean_rt
+            self.sd_rt_per_stim_ms = sd_rt if sd_rt is not None else "unknown"
+
     def _compute_total_reading_time(self) -> float | None:
         """Return total reading time in seconds from stimulus start/end timestamps.
 
@@ -386,6 +395,47 @@ class Session:
         if total_ms <= 0:
             return None
         return round(total_ms / 1000, 3)
+
+    def _compute_rt_per_stim(
+        self,
+    ) -> tuple[float | None, float | None]:
+        """Return (mean, sd) of reading time per stimulus in ms across stimuli.
+
+        Reading time per stimulus is the sum of per-page reading durations
+        (entries with ``type == "reading time"``) for that stimulus. The mean
+        and sample standard deviation are computed across stimuli. Returns
+        ``(None, None)`` when no reading-time data is available.
+        """
+        if (
+            not isinstance(self.stimulus_start_end_ts, list)
+            or not self.stimulus_start_end_ts
+        ):
+            return None, None
+
+        per_stim: dict[str, float] = {}
+        for entry in self.stimulus_start_end_ts:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("type") != "reading time":
+                continue
+            try:
+                dur = float(entry["duration_ms"])
+                stim = str(entry.get("stimulus", "unknown"))
+            except (KeyError, TypeError, ValueError):
+                continue
+            per_stim[stim] = per_stim.get(stim, 0.0) + dur
+
+        if not per_stim:
+            return None, None
+
+        values = list(per_stim.values())
+        mean_rt = round(sum(values) / len(values), 2)
+        if len(values) < 2:
+            sd_rt: float | None = 0.0
+        else:
+            variance = sum((v - mean_rt) ** 2 for v in values) / (len(values) - 1)
+            sd_rt = round(variance**0.5, 2)
+        return mean_rt, sd_rt
 
     def _reading_time_by_trial(self) -> dict[str, float]:
         """Return total reading time in ms per trial from stimulus timestamps."""
