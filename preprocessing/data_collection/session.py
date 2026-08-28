@@ -130,25 +130,6 @@ class Session:
     def sid(self) -> "Sid":
         return Sid(self.session_identifier)
 
-    @classmethod
-    def load_from_yaml(cls, yaml_file: Path, dataset_dir: Path) -> "Session":
-        session_specs = yaml.safe_load(yaml_file)
-
-        stimulus_dir = dataset_dir / session_specs["stimulus_folder_name"]
-
-        stimuli = cls.load_session_stimuli(
-            stimulus_dir,
-            session_specs["language"],
-            session_specs["country"],
-            session_specs["lab_number"],
-            session_specs["randomization_version"],
-            session_specs["session_identifier"],
-        )
-
-        session = Session(**session_specs, stimuli=stimuli)
-
-        return session
-
     def create_overview(self):
         """
         Create a topic-grouped overview of the session.

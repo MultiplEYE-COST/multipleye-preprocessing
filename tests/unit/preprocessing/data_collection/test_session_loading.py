@@ -91,3 +91,78 @@ def test_from_yaml_without_technical_setup_raises(tmp_path):
 
     with pytest.raises(NameError):
         Session.from_yaml(yaml_path, tmp_path)
+
+
+# python
+from types import SimpleNamespace
+
+
+def _make_session():
+    return Session(
+        participant_id=1,
+        language="en",
+        country="US",
+        city="Nowhere",
+        lab_number=1,
+        session_identifier="S1",
+        is_pilot=False,
+        lab_config=SimpleNamespace(sampling_frequency_hz=500),
+    )
+
+
+def test_add_and_get_pm_metadata_full():
+    s = _make_session()
+    metadata = {
+        "day": "01",
+        "month": "02",
+        "year": "2023",
+        "time": "12:00:00",
+        "tracked_eye": "left",
+        "pupil_data_type": "diameter",
+        "total_recording_duration_ms": "12345.6",
+        "data_loss_ratio_blinks": 0.1,
+        "data_loss_ratio": 0.2,
+        "mount_configuration": {
+            "mount_type": "chin",
+            "head_stabilization": "chinrest",
+            "eyes_recorded": "both",
+        },
+    }
+
+    s.add_pm_metadata(metadata)
+
+    # check fields set on the session
+    assert s.recording_day_eyelink == "01"
+    assert s.recording_month_eyelink == "02"
+    assert s.recording_year_eyelink == "2023"
+    assert s.recording_start_time_eyelink_hh_mm_ss == "12:00:00"
+    assert s.tracked_eye == "left"
+    assert s.pupil_data_type == "diameter"
+    assert s.total_recording_duration_ms == float("12345.6")
+    assert s.pm_blink_data_loss == 0.1
+    assert s.pm_data_loss == 0.2
+    assert s.mount_type == "chin"
+    assert s.head_stabilization == "chinrest"
+    assert s.eyes_recorded == "both"
+
+    # check get_pm_metadata output
+    md = s.get_pm_metadata()
+    assert md["day"] == "01"
+    assert md["month"] == "02"
+    assert md["year"] == "2023"
+    assert md["time"] == "12:00:00"
+    assert md["tracked_eye"] == "left"
+    assert md["total_recording_duration_ms"] == float("12345.6")
+    assert md["sampling_rate"] == 500
+    assert md["data_loss_ratio"] == 0.2
+    assert md["data_loss_ratio_blinks"] == 0.1
+
+
+def test_add_pm_metadata_non_dict():
+    s = _make_session()
+    s.recording_day_eyelink = "orig_day"
+
+    s.add_pm_metadata(None)
+
+    assert s.recording_day_eyelink == "orig_day"
+    assert s.recording_month_eyelink == "unknown"
