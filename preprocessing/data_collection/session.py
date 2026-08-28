@@ -60,11 +60,11 @@ class Session:
     lab_config: LabConfig | str = field(default="unknown", init=True)
 
     # stats
-    total_reading_time_ms: float | str = field(default="unknown", init=True)
-    total_session_duration_ms: float | str = field(default="unknown", init=True)
+    total_reading_time_s: float | str = field(default="unknown", init=True)
+    total_session_duration_s: float | str = field(default="unknown", init=True)
     obligatory_break_made: bool | str = field(default="unknown", init=True)
     num_optional_breaks_made: int | str = field(default="unknown", init=True)
-    total_break_time_ms: float | str = field(default="unknown", init=True)
+    total_break_time_s: float | str = field(default="unknown", init=True)
 
     # calibrations & validations
     calibrations: pl.DataFrame | str = field(default="unknown", init=True)
@@ -137,14 +137,14 @@ class Session:
         Returns
         -------
         dict
-            Overview with sections: Administrative, Technical_setup, Tracking,
-            Calibration_validation, Data_quality, Experiment_procedure,
-            Comprehension, and Data_formats.
+            Overview with sections: administrative, technical_setup, tracking,
+            calibration_validation, data_quality, experiment_procedure,
+            comprehension, and data_formats.
         """
         self._create_stats()
 
         return {
-            "Administrative": {
+            "administrative": {
                 "participant_id": self.participant_id,
                 "session_identifier": self.session_identifier,
                 "is_pilot": self.is_pilot,
@@ -156,21 +156,21 @@ class Session:
                 "city": self.city,
                 "lab_number": self.lab_number,
             },
-            "Technical_setup": self._technical_setup(),
-            "Tracking": {
+            "technical_setup": self._technical_setup(),
+            "tracking": {
                 "tracked_eye": self.tracked_eye,
                 "tracked_eye_consistent": self.tracked_eye_consistent,
             },
-            "Calibration_validation": {
+            "calibration_validation": {
                 "num_calibrations": self.num_calibrations,
                 "num_validations": self.num_validations,
-                "avg_calibration_error": self.avg_calibration_error,
-                "avg_validation_error": self.avg_validation_error,
+                "avg_calibration_error_dva": self.avg_calibration_error,
+                "avg_validation_error_dva": self.avg_validation_error,
                 "num_good_validations": self.num_good_validations,
                 "num_moderate_validations": self.num_moderate_validations,
                 "num_bad_validations": self.num_bad_validations,
             },
-            "Data_quality": {
+            "data_quality": {
                 "session_total_data_loss_ratio": getattr(
                     self,
                     "_measure_total_data_loss_ratio",
@@ -182,7 +182,7 @@ class Session:
                     None,
                 ),
             },
-            "Experiment_procedure": {
+            "experiment_procedure": {
                 "question_order": self.question_order,
                 "stimulus_order_ids": self.stimulus_order_ids,
                 "completed_stimuli_ids": self.completed_stimuli_ids,
@@ -192,27 +192,27 @@ class Session:
                 "was_session_interrupted": self.was_session_interrupted,
                 "obligatory_break_made": self.obligatory_break_made,
                 "num_optional_breaks_made": self.num_optional_breaks_made,
-                "total_break_time_ms": self.total_break_time_ms,
-                "total_reading_time_ms": self.total_reading_time_ms,
-                "total_session_duration_ms": self.total_session_duration_ms,
+                "total_break_time_s": self.total_break_time_s,
+                "total_reading_time_s": self.total_reading_time,
+                "total_session_duration_s": self.total_session_duration_s,
                 "randomization_version": self.randomization_version,
             },
             "Stimuli": {
                 "stimulus_folder_name": self.stimulus_folder_name,
                 "stimulus_trial_mapping": self.stimulus_trial_mapping,
             },
-            "Trials": (
+            "trials": (
                 [asdict(t) for t in self.trials]
                 if isinstance(self.trials, list)
                 else self.trials
             ),
-            "Comprehension": {
+            "comprehension": {
                 "avg_comprehension_score": self.avg_comprehension_score,
                 "avg_comprehension_score_local": self.avg_comprehension_score_local,
                 "avg_comprehension_score_global": self.avg_comprehension_score_global,
                 "avg_comprehension_score_bridging": self.avg_comprehension_score_bridging,
             },
-            "Data_formats": {
+            "data_formats": {
                 "raw_data": self.raw_data,
                 "fixations": self.fixations,
                 "saccades": self.saccades,
@@ -526,12 +526,12 @@ class Session:
 
         duration = self._compute_session_duration()
         if duration is not None:
-            self.total_session_duration_ms = duration
+            self.total_session_duration_s = duration
 
-        if self.total_reading_time_ms == "unknown":
+        if self.total_reading_time_s == "unknown":
             reading = self._compute_total_reading_time()
             if reading is not None:
-                self.total_reading_time_ms = reading
+                self.total_reading_time_s = reading
 
     def _compute_total_reading_time(self) -> float | None:
         """Return total reading time in seconds from stimulus start/end timestamps.

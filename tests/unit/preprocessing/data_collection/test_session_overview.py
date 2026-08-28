@@ -79,14 +79,14 @@ def test_create_overview_includes_new_fields() -> None:
 
     overview = sess.create_overview()
 
-    tracking = overview["Tracking"]
+    tracking = overview["tracking"]
     assert tracking["tracked_eye"] == "R"
     assert tracking["tracked_eye_consistent"] is True
-    cal = overview["Calibration_validation"]
+    cal = overview["calibration_validation"]
     assert cal["num_good_validations"] == 1
     assert cal["num_moderate_validations"] == 1
     assert cal["num_bad_validations"] == 1
-    dq = overview["Data_quality"]
+    dq = overview["data_quality"]
     assert "session_total_data_loss_ratio" in dq
     assert dq["session_total_data_loss_ratio"] is None
     assert "session_blink_loss_ratio" in dq
@@ -100,7 +100,7 @@ def test_create_overview_includes_measure_based_data_loss() -> None:
 
     overview = sess.create_overview()
 
-    dq = overview["Data_quality"]
+    dq = overview["data_quality"]
     assert dq["session_total_data_loss_ratio"] == 0.015
     assert dq["session_blink_loss_ratio"] == 0.008
 
@@ -115,7 +115,7 @@ def test_tracked_eye_inconsistent_when_eye_changes() -> None:
 
     overview = sess.create_overview()
 
-    tracking = overview["Tracking"]
+    tracking = overview["tracking"]
     assert tracking["tracked_eye"] == "R"
     assert tracking["tracked_eye_consistent"] is False
 
@@ -126,16 +126,15 @@ def test_sections_are_present() -> None:
     overview = sess.create_overview()
 
     assert list(overview.keys()) == [
-        "Administrative",
-        "Technical_setup",
-        "Tracking",
-        "Calibration_validation",
-        "Data_quality",
-        "Experiment_procedure",
-        "Stimuli",
-        "Trials",
-        "Comprehension",
-        "Data_formats",
+        "administrative",
+        "technical_setup",
+        "tracking",
+        "calibration_validation",
+        "data_quality",
+        "experiment_procedure",
+        "stimulitrials",
+        "comprehension",
+        "data_formats",
     ]
 
 
@@ -143,7 +142,7 @@ def test_technical_setup_from_lab_config() -> None:
     sess = _sess_with_validation_data()
 
     overview = sess.create_overview()
-    tech = overview["Technical_setup"]
+    tech = overview["technical_setup"]
 
     assert tech["eye_tracker_name"] == "test"
     assert tech["sampling_frequency_hz"] == 1000.0
@@ -164,9 +163,9 @@ def test_avg_validation_error_computed_from_validations() -> None:
     sess.validations = _validations([0.2, 0.3, 0.4])
 
     overview = sess.create_overview()
-    cal = overview["Calibration_validation"]
+    cal = overview["calibration_validation"]
 
-    assert cal["avg_validation_error"] == 0.3
+    assert cal["avg_validation_error_dva"] == 0.3
     assert cal["num_calibrations"] == 1
     assert cal["num_validations"] == 3
 
@@ -191,7 +190,7 @@ def test_comprehension_scores_read_from_answers_csv(tmp_path: Path) -> None:
         property(lambda self: _FakeSid(answers_dir)),
     ):
         overview = sess.create_overview()
-        comp = overview["Comprehension"]
+        comp = overview["comprehension"]
 
     assert comp["avg_comprehension_score"] == 0.667
     assert comp["avg_comprehension_score_local"] == 0.5
@@ -218,9 +217,9 @@ def test_session_duration_from_messages() -> None:
     )
 
     overview = sess.create_overview()
-    proc = overview["Experiment_procedure"]
+    proc = overview["experiment_procedure"]
 
-    assert proc["total_session_duration_ms"] == 59.0
+    assert proc["total_session_duration_s"] == 59.0
 
 
 def test_reading_time_from_stimulus_start_end_ts() -> None:
@@ -231,16 +230,16 @@ def test_reading_time_from_stimulus_start_end_ts() -> None:
     ]
 
     overview = sess.create_overview()
-    proc = overview["Experiment_procedure"]
+    proc = overview["experiment_procedure"]
 
-    assert proc["total_reading_time_ms"] == 5.0
+    assert proc["total_reading_time_s"] == 5.0
 
 
 def test_data_formats_section() -> None:
     sess = _sess_with_validation_data()
 
     overview = sess.create_overview()
-    formats = overview["Data_formats"]
+    formats = overview["data_formats"]
 
     assert formats["raw_data"] is True
     assert formats["fixations"] is True
@@ -255,7 +254,7 @@ def test_data_formats_can_be_disabled_for_other_pipelines() -> None:
     sess.saccades = False
 
     overview = sess.create_overview()
-    formats = overview["Data_formats"]
+    formats = overview["data_formats"]
 
     assert formats["fixations"] is False
     assert formats["saccades"] is False
@@ -271,13 +270,13 @@ def test_unprocessed_session_defaults() -> None:
 
     overview = sess.create_overview()
 
-    assert overview["Tracking"]["tracked_eye"] == "unknown"
-    assert overview["Technical_setup"]["eye_tracker_name"] is None
-    assert overview["Calibration_validation"]["avg_validation_error"] == "unknown"
-    assert overview["Calibration_validation"]["num_calibrations"] == 7
-    assert overview["Comprehension"]["avg_comprehension_score"] == "unknown"
-    assert overview["Experiment_procedure"]["total_session_duration_ms"] == "unknown"
-    assert overview["Experiment_procedure"]["total_reading_time_ms"] == "unknown"
+    assert overview["tracking"]["tracked_eye"] == "unknown"
+    assert overview["technical_setup"]["eye_tracker_name"] is None
+    assert overview["calibration_validation"]["avg_validation_error_dva"] == "unknown"
+    assert overview["calibration_validation"]["num_calibrations"] == 7
+    assert overview["comprehension"]["avg_comprehension_score"] == "unknown"
+    assert overview["experiment_procedure"]["total_session_duration_s"] == "unknown"
+    assert overview["experiment_procedure"]["total_reading_time_s"] == "unknown"
 
 
 def test_metadata_not_a_dict() -> None:
@@ -286,17 +285,17 @@ def test_metadata_not_a_dict() -> None:
 
     overview = sess.create_overview()
 
-    assert overview["Technical_setup"]["pupil_data_type"] == "unknown"
-    assert overview["Technical_setup"]["mount_type"] is None
+    assert overview["administrative"]["year_of_data_collection"] == "unknown"
+    assert overview["technical_setup"]["mount_type"] is None
 
 
 def test_mount_configuration_not_a_dict() -> None:
     sess = _make_session()
-    sess.tracked_eye = ("R",)
+    sess.tracked_eye = "R"
     sess.pupil_data_type = "AREA"
 
     overview = sess.create_overview()
-    tech = overview["Technical_setup"]
+    tech = overview["technical_setup"]
 
     assert tech["mount_type"] is None
     assert tech["eyes_recorded"] is None
@@ -308,7 +307,7 @@ def test_technical_setup_without_lab_config() -> None:
     sess.lab_config = "unknown"
 
     overview = sess.create_overview()
-    tech = overview["Technical_setup"]
+    tech = overview["technical_setup"]
 
     assert tech["eye_tracker_name"] is None
     assert tech["sampling_frequency_hz"] is None
@@ -322,9 +321,9 @@ def test_validations_without_accuracy_column() -> None:
     sess.validations = pl.DataFrame({"time": [100.0, 200.0]})
 
     overview = sess.create_overview()
-    cal = overview["Calibration_validation"]
+    cal = overview["calibration_validation"]
 
-    assert cal["avg_validation_error"] == "unknown"
+    assert cal["avg_validation_error_dva"] == "unknown"
     assert cal["num_validations"] == 2
 
 
@@ -335,9 +334,9 @@ def test_validations_with_null_accuracy() -> None:
     sess.validations = _validations([None, None])
 
     overview = sess.create_overview()
-    cal = overview["Calibration_validation"]
+    cal = overview["calibration_validation"]
 
-    assert cal["avg_validation_error"] == "unknown"
+    assert cal["avg_validation_error_dva"] == "unknown"
 
 
 def test_calibrations_with_accuracy_column() -> None:
@@ -355,9 +354,9 @@ def test_calibrations_with_accuracy_column() -> None:
     )
 
     overview = sess.create_overview()
-    cal = overview["Calibration_validation"]
+    cal = overview["calibration_validation"]
 
-    assert cal["avg_calibration_error"] == 0.2
+    assert cal["avg_calibration_error_dva"] == 0.2
 
 
 def test_calibrations_with_null_accuracy() -> None:
@@ -375,9 +374,9 @@ def test_calibrations_with_null_accuracy() -> None:
     )
 
     overview = sess.create_overview()
-    cal = overview["Calibration_validation"]
+    cal = overview["calibration_validation"]
 
-    assert cal["avg_calibration_error"] == "unknown"
+    assert cal["avg_calibration_error_dva"] == "unknown"
 
 
 def test_answers_csv_unreadable(tmp_path: Path, monkeypatch) -> None:
@@ -399,7 +398,7 @@ def test_answers_csv_unreadable(tmp_path: Path, monkeypatch) -> None:
         property(lambda self: _FakeSid(answers_dir)),
     ):
         overview = sess.create_overview()
-        comp = overview["Comprehension"]
+        comp = overview["comprehension"]
 
     assert comp["avg_comprehension_score"] == "unknown"
 
@@ -423,7 +422,7 @@ def test_answers_csv_all_null_is_correct(tmp_path: Path) -> None:
         property(lambda self: _FakeSid(answers_dir)),
     ):
         overview = sess.create_overview()
-        comp = overview["Comprehension"]
+        comp = overview["comprehension"]
 
     assert comp["avg_comprehension_score"] == "unknown"
     assert comp["avg_comprehension_score_local"] == "unknown"
@@ -448,7 +447,7 @@ def test_answers_csv_without_one_condition(tmp_path: Path) -> None:
         property(lambda self: _FakeSid(answers_dir)),
     ):
         overview = sess.create_overview()
-        comp = overview["Comprehension"]
+        comp = overview["comprehension"]
 
     assert comp["avg_comprehension_score"] == 0.5
     assert comp["avg_comprehension_score_local"] == 0.5
@@ -469,7 +468,7 @@ def test_answers_csv_missing_is_correct(tmp_path: Path) -> None:
         property(lambda self: _FakeSid(answers_dir)),
     ):
         overview = sess.create_overview()
-        comp = overview["Comprehension"]
+        comp = overview["comprehension"]
 
     assert comp["avg_comprehension_score"] == "unknown"
 
@@ -493,7 +492,7 @@ def test_answers_csv_practice_only(tmp_path: Path) -> None:
         property(lambda self: _FakeSid(answers_dir)),
     ):
         overview = sess.create_overview()
-        comp = overview["Comprehension"]
+        comp = overview["comprehension"]
 
     assert comp["avg_comprehension_score"] == "unknown"
 
@@ -516,7 +515,7 @@ def test_answers_csv_without_condition_number(tmp_path: Path) -> None:
         property(lambda self: _FakeSid(answers_dir)),
     ):
         overview = sess.create_overview()
-        comp = overview["Comprehension"]
+        comp = overview["comprehension"]
 
     assert comp["avg_comprehension_score"] == 0.5
     assert comp["avg_comprehension_score_local"] == "unknown"
@@ -527,9 +526,9 @@ def test_session_duration_without_time_column() -> None:
     sess.messages = pl.DataFrame({"content": ["a", "b"]})
 
     overview = sess.create_overview()
-    proc = overview["Experiment_procedure"]
+    proc = overview["experiment_procedure"]
 
-    assert proc["total_session_duration_ms"] == "unknown"
+    assert proc["total_session_duration_s"] == "unknown"
 
 
 def test_session_duration_with_null_timestamps() -> None:
@@ -537,9 +536,9 @@ def test_session_duration_with_null_timestamps() -> None:
     sess.messages = pl.DataFrame({"time": [None, None], "content": ["a", "b"]})
 
     overview = sess.create_overview()
-    proc = overview["Experiment_procedure"]
+    proc = overview["experiment_procedure"]
 
-    assert proc["total_session_duration_ms"] == "unknown"
+    assert proc["total_session_duration_s"] == "unknown"
 
 
 def test_reading_time_malformed_entries() -> None:
@@ -551,9 +550,9 @@ def test_reading_time_malformed_entries() -> None:
     ]
 
     overview = sess.create_overview()
-    proc = overview["Experiment_procedure"]
+    proc = overview["experiment_procedure"]
 
-    assert proc["total_reading_time_ms"] == 3.0
+    assert proc["total_reading_time_s"] == 3.0
 
 
 def test_reading_time_non_positive_total() -> None:
@@ -563,9 +562,9 @@ def test_reading_time_non_positive_total() -> None:
     ]
 
     overview = sess.create_overview()
-    proc = overview["Experiment_procedure"]
+    proc = overview["experiment_procedure"]
 
-    assert proc["total_reading_time_ms"] == "unknown"
+    assert proc["total_reading_time_s"] == "unknown"
 
 
 def test_reading_time_already_set() -> None:
@@ -576,9 +575,9 @@ def test_reading_time_already_set() -> None:
     ]
 
     overview = sess.create_overview()
-    proc = overview["Experiment_procedure"]
+    proc = overview["experiment_procedure"]
 
-    assert proc["total_reading_time_ms"] == 42.0
+    assert proc["total_reading_time_s"] == 42.0
 
 
 # --- Trial building ---
@@ -692,7 +691,7 @@ def test_trials_computed_from_answers_and_reading_times(
         "sid",
         property(lambda self: _FakeSid(answers_dir)),
     ):
-        trials = sess.create_overview()["Trials"]
+        trials = sess.create_overview()["trials"]
 
     trial = next(
         t
@@ -750,6 +749,6 @@ def test_trials_unknown_without_usable_answers(
     with contextlib.ExitStack() as stack:
         for p in patches:
             stack.enter_context(p)
-        trials = sess.create_overview()["Trials"]
+        trials = sess.create_overview()["trials"]
 
     assert trials == "unknown"

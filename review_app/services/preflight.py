@@ -48,7 +48,7 @@ def run_pipeline_preflight(dcn_name: str, *, force: bool = False) -> dict:
     _orig_output = pipe_settings.OUTPUT_DIR
     try:
         pipe_settings.DATASET_DIR = RAW_DATA_DIR / dcn_name
-        pipe_settings.OUTPUT_DIR = PREPROCESSED_DATA_DIR
+        pipe_settings.OUTPUT_DIR = PREPROCESSED_DATA_DIR / dcn_name
         result = _do_run(dcn_name)
     finally:
         pipe_settings.DATASET_DIR = _orig_dataset
