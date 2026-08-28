@@ -13,9 +13,12 @@ def _make_session():
         participant_id=1,
         session_identifier="001_EN_UK_1_ET1",
         is_pilot=False,
-        session_folder_path=Path("/tmp"),
-        session_file_path=Path("/tmp/test.log"),
-        session_file_name="test.log",
+        session_folder_path_unprocessed=Path("/tmp"),
+        session_file_path_unprocessed=Path("/tmp/test.log"),
+        language="EN",
+        country="United Kingdom",
+        city="London",
+        lab_number=1,
     )
 
 

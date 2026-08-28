@@ -132,8 +132,8 @@ def test_sections_are_present() -> None:
         "Calibration_validation",
         "Data_quality",
         "Experiment_procedure",
-        "Trials",
         "Stimuli",
+        "Trials",
         "Comprehension",
         "Data_formats",
     ]
@@ -625,6 +625,7 @@ _ANSWERS_ROWS = [
         "trial": "trial_1",
         "stimulus": "Lit_MagicMountain",
         "stimulus_id": 3,
+        "question_id": 1,
         "is_correct": True,
         "confirmation_rt_ms": 1000.0,
     },
@@ -632,6 +633,7 @@ _ANSWERS_ROWS = [
         "trial": "trial_1",
         "stimulus": "Lit_MagicMountain",
         "stimulus_id": 3,
+        "question_id": 2,
         "is_correct": False,
         "confirmation_rt_ms": 2000.0,
     },
@@ -639,6 +641,7 @@ _ANSWERS_ROWS = [
         "trial": "trial_2",
         "stimulus": "Lit_Alchemist",
         "stimulus_id": 4,
+        "question_id": 3,
         "is_correct": True,
         "confirmation_rt_ms": 1500.0,
     },
@@ -646,6 +649,7 @@ _ANSWERS_ROWS = [
         "trial": "PRACTICE_trial_1",
         "stimulus": "Enc_WikiMoon",
         "stimulus_id": 13,
+        "question_id": "session_interrupted",
         "is_correct": True,
         "confirmation_rt_ms": 500.0,
     },
@@ -661,11 +665,12 @@ _ANSWERS_ROWS = [
         "comprehension_score",
         "question_time_ms",
         "reading_time_ms",
+        "status",
     ),
     [
-        (1, False, "Lit_MagicMountain", 2, 0.5, 3000.0, 3000.0),
-        (2, False, "Lit_Alchemist", 1, 1.0, 1500.0, 3000.0),
-        (1, True, "Enc_WikiMoon", 1, 1.0, 500.0, 400.0),
+        (1, False, "Lit_MagicMountain", 2, 0.5, 3000.0, 3000.0, "completed"),
+        (2, False, "Lit_Alchemist", 1, 1.0, 1500.0, 3000.0, "completed"),
+        (1, True, None, None, None, None, None, "interrupted"),
     ],
 )
 def test_trials_computed_from_answers_and_reading_times(
@@ -677,6 +682,7 @@ def test_trials_computed_from_answers_and_reading_times(
     comprehension_score: float,
     question_time_ms: float,
     reading_time_ms: float,
+    status: str,
 ) -> None:
     answers_dir = _write_answers(tmp_path, _ANSWERS_ROWS)
     sess = _trial_sess(answers_dir)
@@ -698,6 +704,7 @@ def test_trials_computed_from_answers_and_reading_times(
     assert trial["comprehension_score"] == comprehension_score
     assert trial["comprehension_question_time_ms"] == question_time_ms
     assert trial["reading_time_ms"] == reading_time_ms
+    assert trial["status"] == status
 
 
 @pytest.mark.parametrize(
