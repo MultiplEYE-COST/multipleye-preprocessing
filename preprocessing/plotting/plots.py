@@ -18,6 +18,7 @@ def create_plots(
     session_identifier: str,
     directory: Path,
     aoi=False,
+    show=False,
 ):
     plot_dir = directory / f"{session_identifier}_plots"
     plot_dir.mkdir(exist_ok=True, parents=True)
@@ -27,13 +28,13 @@ def create_plots(
 
     for plot in plot_type:
         if plot == "main_sequence":
-            plot_main_sequence(gaze.events, plot_dir)
+            plot_main_sequence(gaze.events, plot_dir, show=show)
 
         elif plot == "gaze_overlay":
             dir = plot_dir / "gaze_overlay"
             dir.mkdir(exist_ok=True, parents=True)
             for stimulus in stimuli:
-                plot_gaze(gaze, stimulus, dir, aoi_image=aoi)
+                plot_gaze(gaze, stimulus, dir, aoi_image=aoi, show=show)
 
 
 def plot_gaze(
@@ -42,6 +43,7 @@ def plot_gaze(
     plots_dir: Path,
     duration_ms_in_cm: float = 0.03,
     aoi_image: bool = False,
+    show: bool = False,
 ) -> None:
     data = gaze.clone()
     data.unnest(["pixel", "position", "velocity"])
@@ -109,6 +111,10 @@ def plot_gaze(
         ax.set_xlim((0, data.experiment.screen.width_px))
         ax.set_ylim((data.experiment.screen.height_px, 0))
         fig.savefig(plots_dir / f"{stimulus.name}_{page.number}.png")
+
+        if show:
+            plt.show()
+
         plt.close(fig)
 
     for question in stimulus.questions:
@@ -176,6 +182,10 @@ def plot_gaze(
         ax.set_xlim((0, data.experiment.screen.width_px))
         ax.set_ylim((data.experiment.screen.height_px, 0))
         fig.savefig(plots_dir / f"{stimulus.name}_q{question.id}.png")
+
+        if show:
+            plt.show()
+
         plt.close(fig)
 
     for rating in stimulus.ratings:
@@ -226,10 +236,16 @@ def plot_gaze(
         ax.set_xlim((0, data.experiment.screen.width_px))
         ax.set_ylim((data.experiment.screen.height_px, 0))
         fig.savefig(plots_dir / f"{stimulus.name}_{stimulus.id}_{rating.name}.png")
+
+        if show:
+            plt.show()
+
         plt.close(fig)
 
 
-def plot_main_sequence(events: pm.EventDataFrame, plots_dir: Path) -> None:
+def plot_main_sequence(
+    events: pm.EventDataFrame, plots_dir: Path, show: bool = False
+) -> None:
     pm.plotting.main_sequence_plot(
         events,
         savepath=plots_dir / "main_sequence.png",
