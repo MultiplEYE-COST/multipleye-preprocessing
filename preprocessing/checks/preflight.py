@@ -16,7 +16,7 @@ import polars as pl
 from ..utils.data_path_utils import _ci_exists, _ci_glob, _ci_resolve
 from ..utils.logging import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 # Expected columns for format validation
 COMPLETED_STIMULI_COLS = {"stimulus_id", "stimulus_name", "trial_id", "completed"}

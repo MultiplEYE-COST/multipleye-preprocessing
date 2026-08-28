@@ -12,7 +12,7 @@ from ..data_collection.trial import Trial
 from ..models import Sid
 from ..utils.logging import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 T = TypeVar("T")
 
@@ -91,8 +91,8 @@ class Session:
 
     # data quality & sanity report
     sanity_report_path: Path | str = field(default="unknown", init=True)
-    blink_loss_ratio: float | str = field(default=None, init=True)
-    total_data_loss_ratio: float | str = field(default=None, init=True)
+    session_blink_loss_ratio: float | str = field(default=None, init=True)
+    session_total_data_loss_ratio: float | str = field(default=None, init=True)
 
     # preprocessing pm
     pm_gaze_path: Path | str = field(default="unknown", init=True)
@@ -121,7 +121,7 @@ class Session:
     answers: bool = field(default=True, init=True)
 
     # per-trial metrics
-    trials: list[Trial] | str = field(default="unknown", init=False)
+    trials: list[Trial] | str = field(default="unknown", init=True)
 
     def __str__(self) -> str:
         return pformat(self.create_overview(), indent=4)
@@ -249,7 +249,9 @@ class Session:
         flat_overview = {}
 
         for key, value in session_specs.items():
-            if isinstance(value, dict):
+            if key == "Trials":
+                trials = value
+            elif isinstance(value, dict):
                 if key == "Technical_setup":
                     tech_setup = value
                 else:
@@ -279,12 +281,17 @@ class Session:
             name_eye_tracker=tech_setup["eye_tracker_name"],
         )
 
+        trials = [Trial(**data) for data in trials]
+
         flat_overview["mount_type"] = tech_setup["mount_type"]
         flat_overview["head_stabilization"] = tech_setup["head_stabilization"]
         flat_overview["eyes_recorded"] = tech_setup["eyes_recorded"]
 
         session = cls(
-            **flat_overview, dataset_dir=Path(dataset_dir), lab_config=lab_config
+            **flat_overview,
+            dataset_dir=Path(dataset_dir),
+            lab_config=lab_config,
+            trials=trials,
         )
         session.load_session_stimuli(
             Path(session.dataset_dir) / session.stimulus_folder_name

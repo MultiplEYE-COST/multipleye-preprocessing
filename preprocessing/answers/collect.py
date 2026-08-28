@@ -83,7 +83,7 @@ def collect_session_answers(
       - preliminary_answer_onsets_ms (list[float])  onset-relative timestamps for each preliminary press
       - answer_source (string)
     """
-    logger = get_logger()
+    logger = get_logger(__name__)
 
     # Normalize mapping
     norm_map = {_normalize_trial_key(k): v for k, v in stimuli_trial_map.items()}

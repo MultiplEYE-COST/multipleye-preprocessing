@@ -33,6 +33,13 @@ class Settings:
         self._is_template_loaded = False
         self._is_auto_filled = False
         self._config_found = False
+        self._config_path = None
+
+    @property
+    def CONFIG_PATH(self) -> Path:
+        if self._config_path is None:
+            raise ValueError("Config path not set")
+        return self._config_path
 
     @property
     def DATA_COLLECTION_NAME(self) -> str | None:
@@ -670,17 +677,17 @@ class Settings:
 
         #: Mapping of eye tracker brands to known model names.
         self.EYETRACKER_NAMES = {
-            "eyelink": [  # TODO: Update list to mapping between same eyetrackers - use dict
-                "EyeLink 1000 Plus",
-                "EyeLink 1000+",
-                "EyeLink 1000-Plus",
-                "EyeLink II",
-                "EyeLink 1000",
-                "EyeLink Portable Duo",
-                "EyeLink Portable Duo 2000Hz Remote",
-                "Eyelink Duo",
-                "EyeLink Duo",
-                "Eyelink Portable Duo",
+            "eyelink": [  # TODO: Update list to mapping between same eyetrackers - use dict (DJ added comments below)
+                "EyeLink 1000 Plus",  # the only correct name
+                "EyeLink 1000+",  # this is a wrong name
+                "EyeLink 1000-Plus",  # wrong
+                "EyeLink II",  # ok
+                "EyeLink 1000",  # ok, not sold anymore btw
+                "EyeLink Portable Duo",  # ok
+                "EyeLink Portable Duo 2000Hz Remote",  # not sure what this is??
+                "Eyelink Duo",  # wrong, portable should be there and uppercase L
+                "EyeLink Duo",  # wrong
+                "Eyelink Portable Duo",  # wrong, uppercase L
             ],
         }
 
@@ -822,6 +829,7 @@ class Settings:
                     f'data_collection_name: "{collection_name}"',
                 )
             target_path.write_text(content)
+            self._config_path = target_path
         except OSError:
             # We don't log here to keep load() silent,
             # but we can check if it exists in get_config_status_message
@@ -902,6 +910,7 @@ class Settings:
 
         self._validate()
         self._loaded = True
+        self._config_path = path
 
     def update(self, config_dict: dict[str, Any]) -> None:
         """Update settings from a dictionary."""

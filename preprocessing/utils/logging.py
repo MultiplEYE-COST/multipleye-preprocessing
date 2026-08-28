@@ -127,7 +127,7 @@ def setup_logging(
         resolved_file_level = logging.getLevelName(resolved_file_level.upper())
 
     # --- Formatter definitions ---
-    base_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    base_format = "%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s"
 
     # ANSI colors (only for console)
     RESET = "\033[0m"

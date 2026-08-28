@@ -17,7 +17,7 @@ from ..utils.logging import get_logger
 
 def run_preprocessing(config_path: str | None = None):
     settings.load(config_path)
-    logger = get_logger()
+    logger = get_logger(__name__)
 
     # Check for configuration issues after loading
     status_msg = settings.get_config_status_message()

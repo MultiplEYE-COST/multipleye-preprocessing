@@ -5,7 +5,7 @@ import polars as pl
 
 from ..utils.logging import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def remap_space_to_following_word(aoi_file_path: str | Path) -> None:

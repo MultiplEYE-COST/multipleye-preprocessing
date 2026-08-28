@@ -127,7 +127,7 @@ class MultipleyeDataCollection:
         self.psychometric_tests = kwargs.get("psychometric_tests", [])
         self.excluded_sessions = excluded_sessions
         self.included_sessions = included_sessions
-        self.logger = get_logger()
+        self.logger = get_logger(__name__)
 
         self.logger.info(
             f"MultipleyeDataCollection initialized with data collection name: {self.data_collection_name}"

@@ -15,7 +15,7 @@ from ..mapping.aoi import enlarge_aois
 from ..utils.data_path_utils import _ci_resolve
 from ..utils.logging import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 warnings.filterwarnings(
     "ignore",
