@@ -193,11 +193,11 @@ class Session:
                 "obligatory_break_made": self.obligatory_break_made,
                 "num_optional_breaks_made": self.num_optional_breaks_made,
                 "total_break_time_s": self.total_break_time_s,
-                "total_reading_time_s": self.total_reading_time,
+                "total_reading_time_s": self.total_reading_time_s,
                 "total_session_duration_s": self.total_session_duration_s,
                 "randomization_version": self.randomization_version,
             },
-            "Stimuli": {
+            "stimuli": {
                 "stimulus_folder_name": self.stimulus_folder_name,
                 "stimulus_trial_mapping": self.stimulus_trial_mapping,
             },

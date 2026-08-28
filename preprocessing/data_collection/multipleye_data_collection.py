@@ -1053,14 +1053,14 @@ class MultipleyeDataCollection:
         ]
         blink_loss = [v for v in blink_loss if isinstance(v, (int, float))]
         reading_times = [
-            s.total_reading_time_ms
+            s.total_reading_time_s
             for s in non_pilot_sessions
-            if isinstance(s.total_reading_time_ms, (int, float))
+            if isinstance(s.total_reading_time_s, (int, float))
         ]
         session_durations = [
-            s.total_session_duration_ms
+            s.total_session_duration_s
             for s in non_pilot_sessions
-            if isinstance(s.total_session_duration_ms, (int, float))
+            if isinstance(s.total_session_duration_s, (int, float))
         ]
 
         def _mean_of(attr: str) -> float | None:

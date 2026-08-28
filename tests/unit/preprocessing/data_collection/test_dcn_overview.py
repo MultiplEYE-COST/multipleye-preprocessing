@@ -106,7 +106,7 @@ def _setup_session_with_data(
     session.avg_validation_error = avg_validation_error
     session._measure_total_data_loss_ratio = total_data_loss
     session._measure_blink_loss_ratio = blink_loss
-    session.total_reading_time_ms = total_reading_time
+    session.total_reading_time_s = total_reading_time
     session.total_session_duration_ms = total_session_duration
     session.avg_comprehension_score = avg_comprehension
     session.avg_comprehension_score_local = avg_comprehension_local
