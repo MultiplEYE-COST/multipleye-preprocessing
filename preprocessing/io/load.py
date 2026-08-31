@@ -376,7 +376,7 @@ def load_scanpaths(
         The session identifier.
     file_pattern : str, optional
         A pattern for matching CSV file names to extract relevant groups.
-        If None, defaults to settings.EVENT_DATA_FILE_GLOB formatted with event_type.
+        If None, defaults to settings.SCANPATH_FILENAME_REGEX formatted with event_type.
 
     Returns
     -------
@@ -397,6 +397,7 @@ def load_scanpaths(
         # go over groups in the name regex and add them as columns
         if match is None:
             logging.info(f"Skipping file {file} for scanpath loading")
+            continue
         else:
             for group_name in match.groupdict():
                 if group_name not in trial_df.columns:
@@ -405,6 +406,10 @@ def load_scanpaths(
                     )
 
         all_scanpaths = all_scanpaths.vstack(trial_df)
+
+    if len(all_scanpaths) == 0:
+        #return gaze untouched if no scanpaths files were found
+        return gaze
 
     # join loaded scanpaths into existing events frame
     matched_events = gaze.events.frame.join(
