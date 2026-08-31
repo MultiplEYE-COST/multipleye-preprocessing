@@ -168,6 +168,7 @@ multipleye_settings_preprocessing.yaml
 
 /template_and_notes/output/
 /preprocessed_data/
+/review_data/
 
 # outputs
 public/*
@@ -175,3 +176,6 @@ jupyter_execute/*
 
 uv.lock
 /templates_and_notes/overview_file_specs/
+
+# review web UI auto-downloaded JS
+review_app/static/htmx.min.js

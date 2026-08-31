@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 
 from preprocessing.answers.parser import (
-    parse_question_order,
     construct_question_id,
+    parse_question_order,
 )
 
 
@@ -12,8 +12,10 @@ from preprocessing.answers.parser import (
     "csv_text,expected_trials,expected_first_row",
     [
         (
-            """question_order_version,local_question_1,local_question_2,bridging_question_1,bridging_question_2,global_question_1,global_question_2\n"""
-            """6,12,11,21,22,32,31\n""",
+            (
+                """question_order_version,local_question_1,local_question_2,bridging_question_1,bridging_question_2,global_question_1,global_question_2\n"""
+                """6,12,11,21,22,32,31\n"""
+            ),
             [1],
             {
                 "question_order_version": 6,
@@ -26,9 +28,11 @@ from preprocessing.answers.parser import (
             },
         ),
         (
-            """question_order_version,local_question_1,local_question_2,bridging_question_1,bridging_question_2,global_question_1,global_question_2\n"""
-            """4,12,11,22,21,31,32\n"""
-            """2,12,11,21,22,31,32\n""",
+            (
+                """question_order_version,local_question_1,local_question_2,bridging_question_1,bridging_question_2,global_question_1,global_question_2\n"""
+                """4,12,11,22,21,31,32\n"""
+                """2,12,11,21,22,31,32\n"""
+            ),
             [1, 2],
             {
                 "question_order_version": 4,

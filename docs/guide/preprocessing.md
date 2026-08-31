@@ -24,6 +24,8 @@ proprietary EyeLink format to analysis-ready data.
 
 The pipeline processes data on a session level and consists of several key steps including EDF to
 ASC conversion, data parsing, gaze event detection, AOI mapping, and reading measures calculation.
+After all sessions are processed, psychometric tests are calculated (if enabled and data is
+available).
 For more information about the available reading measures, see {ref}`reading_measures`.
 For detailed technical specifications of each step, including file formats and quality control
 procedures, please refer to the {ref}`technical_architecture` section.

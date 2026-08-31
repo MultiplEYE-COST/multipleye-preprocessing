@@ -20,10 +20,11 @@ data_collection_name: "REPLACE_WITH_YOUR_COLLECTION_NAME"
 # The type of experiment being processed.
 experiment_type: "MultiplEYE" # MultiplEYE or MeRID
 
-# Whether to overwrite existing preprocessed files.
+# Whether to recalculate existing preprocessed files.
 # If false, already preprocessed sessions are skipped.
-# Note: If some files exist, overwrite once to ensure version consistency.
-overwrite: false
+# Note: If some files exist, recalculate once to ensure version consistency.
+# Note: Activate recalculate whenever changing input files e.g. the stimulus order
+recalculate: false
 
 # List of session identifiers to explicitly include. If not empty, only these are processed.
 include_sessions: [] # e.g., ["000_DA_DK_1_ET1"]
@@ -69,11 +70,38 @@ acceptable_data_loss_ratios: [0.0, 0.1]
 acceptable_recording_durations: [600, 7200]
 acceptable_num_practice_trials: 2
 acceptable_num_trials: 10
+# Minimum number of completed trials (stimulus_order_ids) before a session is flagged as incomplete.
+# MultiplEYE full session = 12, MeRID split = 6, crash = <6.
+acceptable_num_completed_trials: 6
+# Single validation classification thresholds (used for GOOD/MODERATE/BAD).
+single_validation_good_max: 0.305
+single_validation_moderate_max: 0.45
+
+# --- PSYCHOMETRIC TEST THRESHOLDS ---
+# Minimum reaction time for WikiVocab in seconds.
+psym_wikivocab_min_rt: 0.2
+
+# Maximum reaction time for WikiVocab in seconds. `.inf` (infinite) means no upper limit.
+psym_wikivocab_max_rt: .inf
+
+# Minimum reaction time for Stroop in seconds.
+psym_stroop_min_rt: 0.2
+
+# Maximum reaction time for Stroop in seconds.
+psym_stroop_max_rt: .inf
+
+# Minimum reaction time for Flanker in seconds.
+psym_flanker_min_rt: 0.0
+
+# Maximum reaction time for Flanker in seconds.
+psym_flanker_max_rt: .inf
 
 # --- EYE TRACKER LABELS (do not change) ---
 tracked_eye: ["L", "R", "RIGHT", "LEFT"]
 
 # --- PIPELINE STAGES ---
+# Whether to run the preflight input file check before processing.
+RUN_PREFLIGHT_CHECK: true
 # Whether to perform fixation detection.
 RUN_FIXATION_DETECTION: true
 # Whether to perform saccade detection.
@@ -84,6 +112,8 @@ RUN_READING_MEASURES: true
 RUN_COMPREHENSION_ANSWERS: true
 # Whether to create sanity check reports.
 RUN_SANITY_CHECKS: true
+# Whether to process psychometric tests.
+RUN_PSYCHOMETRIC_TESTS: true
 
 # --- INTERNAL (do not change) ---
 # Whether to force reconversion of EDF files to ASC even if output exists.
@@ -96,6 +126,7 @@ reading_measures_folder: "reading_measures/"
 sanity_checks_folder: "sanity_checks/"
 metadata_folder: "metadata/"
 answers_folder: "comp_answers/"
+psychometric_tests_folder: "psychometric_tests/"
 trial_cols: ["trial", "stimulus", "page"]
 trial_col: "trial"
 page_col: "page"

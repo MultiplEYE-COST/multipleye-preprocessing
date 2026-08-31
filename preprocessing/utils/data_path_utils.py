@@ -1,9 +1,63 @@
 """Utilities for working with paths, session identifiers, and further data locations."""
 
-import yaml
+import fnmatch
+import os
 from pathlib import Path
-from ..models.sid import Sid
+
+import yaml
+
 from preprocessing.config import settings
+
+from ..models.sid import Sid
+
+
+def _ci_exists(path: Path) -> bool:
+    """Check if a path exists, falling back to case-insensitive comparison."""
+    if path.exists():
+        return True
+    parent = path.parent
+    if not parent.exists():
+        return False
+    try:
+        entries = os.listdir(parent)
+    except OSError:
+        return False
+    target = path.name.casefold()
+    return any(entry.casefold() == target for entry in entries)
+
+
+def _ci_resolve(path: Path) -> Path:
+    """Resolve a path to its actual on-disk spelling (case correction)."""
+    if path.exists():
+        return path
+    parent = path.parent
+    if not parent.exists():
+        return path
+    try:
+        entries = os.listdir(parent)
+    except OSError:
+        return path
+    target = path.name.casefold()
+    for entry in entries:
+        if entry.casefold() == target:
+            return parent / entry
+    return path
+
+
+def _ci_glob(directory: Path, pattern: str) -> list[Path]:
+    """Case-insensitive glob, returning actual on-disk paths."""
+    if not directory.exists():
+        return []
+    try:
+        entries = os.listdir(directory)
+    except OSError:
+        return []
+    pattern_cf = pattern.casefold()
+    return [
+        directory / entry
+        for entry in entries
+        if fnmatch.fnmatch(entry.casefold(), pattern_cf)
+    ]
 
 
 def validate_psychometric_data(

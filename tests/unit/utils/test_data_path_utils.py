@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 import pytest
 
 from preprocessing.utils.data_path_utils import check_data_collection_exists

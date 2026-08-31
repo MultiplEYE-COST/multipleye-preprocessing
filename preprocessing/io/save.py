@@ -1,30 +1,26 @@
 """Functions for saving data."""
 
+import contextlib
 import json
-from pathlib import Path
 
 import polars as pl
-
 import pymovements as pm
-from ..config import settings
+
 from ..models.sid import Sid
-import contextlib
 
 
-def save_raw_data(directory: Path, sid: Sid, data: pm.Gaze) -> None:
+def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
     """
-    Saves raw gaze data in separate csv files per trial.
+    Saves raw gaze data with calculated position and velocity in separate csv files per trial.
 
     Parameters
     ----------
-    directory : Path
-        The base directory for preprocessed data.
     sid : Sid
         The session identifier.
     data : pm.Gaze
         The gaze data as a pymovements Gaze object.
     """
-    directory = Path(directory) / settings.RAW_DATA_FOLDER / str(sid)
+    directory = sid.raw_data_dir
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()
@@ -37,14 +33,23 @@ def save_raw_data(directory: Path, sid: Sid, data: pm.Gaze) -> None:
         df = trial.samples
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
-        name = f"{str(sid)}_{trial}_{stimulus}_raw_data.csv"
-        df = df["time", "pixel_x", "pixel_y", "pupil", "page"]
+        name = f"{sid!s}_{trial}_{stimulus}_raw_data.csv"
+        df = df[
+            "time",
+            "pixel_x",
+            "pixel_y",
+            "position_x",
+            "position_y",
+            "velocity_x",
+            "velocity_y",
+            "pupil",
+            "page",
+        ]
         df.write_csv(directory / name)
 
 
 def save_events_data(
     event_type: str,
-    directory: Path,
     sid: Sid,
     split_column: str,
     name_columns: list[str],
@@ -59,8 +64,6 @@ def save_events_data(
     ----------
     event_type : str
         What type of event should be stored. Either "fixation" or "saccade".
-    directory : Path
-        The directory where the events data should be stored.
     sid : Sid
         The session identifier.
     split_column : str
@@ -79,11 +82,7 @@ def save_events_data(
             "Only fixations and saccades are currently supported as events."
         )
 
-    directory = (
-        Path(directory) / settings.FIXATIONS_FOLDER / str(sid)
-        if event_type == "fixation"
-        else Path(directory) / settings.SACCADES_FOLDER / str(sid)
-    )
+    directory = sid.fixations_dir if event_type == "fixation" else sid.saccades_dir
     directory.mkdir(parents=True, exist_ok=True)
 
     data_copy = data.clone()
@@ -92,7 +91,7 @@ def save_events_data(
     events = data_copy.events.frame.filter(pl.col("name") == event_type)
 
     for group in events.partition_by(split_column):
-        name = f"{str(sid)}"
+        name = f"{sid!s}"
         for col in name_columns:
             if col not in group.columns:
                 raise ValueError(f"Column {col} not found in events data.")
@@ -104,20 +103,18 @@ def save_events_data(
         df.write_csv(directory / name)
 
 
-def save_scanpaths(directory: Path, sid: Sid, data: pm.Gaze) -> None:
+def save_scanpaths(sid: Sid, data: pm.Gaze) -> None:
     """
     Saves scanpaths in separate csv files per trial.
 
     Parameters
     ----------
-    directory : Path
-        The base directory for preprocessed data.
     sid : Sid
         The session identifier.
     data : pm.Gaze
         The gaze data as a pymovements Gaze object.
     """
-    directory = Path(directory) / settings.SCANPATHS_FOLDER / str(sid)
+    directory = sid.scanpaths_dir
     directory.mkdir(parents=True, exist_ok=True)
 
     new_data = data.clone()
@@ -140,7 +137,7 @@ def save_scanpaths(directory: Path, sid: Sid, data: pm.Gaze) -> None:
             continue
         trial = df["trial"][0]
         stimulus = df["stimulus"][0]
-        name = f"{str(sid)}_{trial}_{stimulus}_scanpath.csv"
+        name = f"{sid!s}_{trial}_{stimulus}_scanpath.csv"
 
         df = df[
             "onset",
@@ -164,20 +161,18 @@ def save_scanpaths(directory: Path, sid: Sid, data: pm.Gaze) -> None:
         df.write_csv(directory / name)
 
 
-def save_reading_measures(directory: Path, sid: Sid, data: pl.DataFrame) -> None:
+def save_reading_measures(sid: Sid, data: pl.DataFrame) -> None:
     """
     Saves reading measures in separate csv files per trial.
 
     Parameters
     ----------
-    directory : Path
-        The base directory for preprocessed data.
     sid : Sid
         The session identifier.
     data : pl.DataFrame
         The reading measures as a polars DataFrame.
     """
-    directory = Path(directory) / settings.READING_MEASURES_FOLDER / str(sid)
+    directory = sid.reading_measures_dir
     directory.mkdir(parents=True, exist_ok=True)
 
     trials = data.partition_by(by="trial", as_dict=False)
@@ -185,25 +180,23 @@ def save_reading_measures(directory: Path, sid: Sid, data: pl.DataFrame) -> None
     for trial in trials:
         trial_id = trial["trial"][0]
         stimulus = trial["stimulus"][0]
-        name = f"{str(sid)}_{trial_id}_{stimulus}_reading_measures.csv"
+        name = f"{sid!s}_{trial_id}_{stimulus}_reading_measures.csv"
         trial = trial.drop("stimulus", "trial")
         trial.write_csv(directory / name)
 
 
-def save_session_metadata(directory: Path, gaze: pm.Gaze, sid: Sid) -> None:
+def save_session_metadata(sid: Sid, gaze: pm.Gaze) -> None:
     """
     Saves session metadata in a json file and also saves the gaze object's metadata.
 
     Parameters
     ----------
-    directory : Path
-        The base directory for preprocessed data.
-    gaze : pm.Gaze
-        The gaze data as a pymovements Gaze object.
     sid : Sid
         The session identifier.
+    gaze : pm.Gaze
+        The gaze data as a pymovements Gaze object.
     """
-    metadata_directory = Path(directory) / settings.METADATA_FOLDER / str(sid)
+    metadata_directory = sid.metadata_dir
     metadata_directory.mkdir(parents=True, exist_ok=True)
 
     metadata = gaze._metadata
@@ -233,3 +226,9 @@ def save_session_metadata(directory: Path, gaze: pm.Gaze, sid: Sid) -> None:
 
     calibrations.write_csv(metadata_directory / "calibrations.tsv", separator="\t")
     gaze.save_calibrations(metadata_directory / "calibrations.feather")
+
+    if gaze.messages is not None and not gaze.messages.is_empty():
+        gaze.messages.write_csv(
+            metadata_directory / "messages.csv",
+            include_header=True,
+        )

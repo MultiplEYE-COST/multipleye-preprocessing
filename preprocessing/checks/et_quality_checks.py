@@ -1,6 +1,6 @@
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TextIO
-from collections.abc import Callable
 
 import polars as pl
 
@@ -44,11 +44,13 @@ def report_to_file_metadata(
 
     if percentage:
         values = [f"{value:.3%}" for value in values]
-    report_file.write(f"{result} {name}: {', '.join(map(str, values))}\n")
+    report_file.write(f"- {result} **{name}**: {', '.join(map(str, values))}\n")
 
 
 def check_comprehension_question_answers(
-    logfile: pl.DataFrame, stimuli: Stimulus | list[Stimulus], report_file: Path = None
+    logfile: pl.DataFrame,
+    stimuli: Stimulus | list[Stimulus],
+    report_file: Path | None = None,
 ):
     """compute the number of correct answers for each participant
     params: logfile as polars
@@ -69,18 +71,18 @@ def check_comprehension_question_answers(
         overall_correct_answers += len(correct_answers)
         overall_answers += len(answers)
         _report_to_file(
-            f"Correct answers for {stimulus.name}: {len(correct_answers)} out of {len(answers)} answers",
+            f"- Correct answers for **{stimulus.name}**: {len(correct_answers)} out of {len(answers)} answers",
             report_file,
         )
 
     if overall_answers != 0:
         _report_to_file(
-            f"Overall correct answers: {overall_correct_answers} out of {overall_answers} answers {overall_correct_answers / overall_answers:.2f}",
+            f"\n**Overall correct answers**: {overall_correct_answers} out of {overall_answers} answers ({overall_correct_answers / overall_answers:.2f})",
             report_file,
         )
     else:
         _report_to_file(
-            f"Overall correct answers: {overall_correct_answers} out of {overall_answers} answers",
+            f"\n**Overall correct answers**: {overall_correct_answers} out of {overall_answers} answers",
             report_file,
         )
 
@@ -149,13 +151,13 @@ def check_validation_requirements(
                     f"Validation after last stimulus: {m['time']}, score: {score}"
                 )
                 _report_to_file(
-                    f"Validation after last stimulus: {m['time']}, score: {score}",
+                    f"- ⚠️ Validation after last stimulus: {m['time']}, score: {score}",
                     report_file,
                 )
 
             elif score < 0.305:
                 _report_to_file(
-                    f"✅ Good validation at {m['time']} with score {m['accuracy_avg']}",
+                    f"- ✅ Good validation at {m['time']} with score {m['accuracy_avg']}",
                     report_file,
                 )
                 bad_val = False
@@ -186,7 +188,7 @@ def check_validation_requirements(
             if "start" in m["message"]:
                 real_num_stimuli += 1
                 in_stimulus = True
-                _report_to_file(f"{m['message']} at {m['time']}", report_file)
+                _report_to_file(f"- {m['message']} at {m['time']}", report_file)
                 if cal:
                     mes["no_val_before_stimulus"].append(
                         f"⚠️ {m['message']} without prior validation at {m['time']}. Only calibration at {m['time']}"
@@ -212,7 +214,7 @@ def check_validation_requirements(
             if "end" in m["message"]:
                 real_num_stimuli += 1
                 in_stimulus = False
-                _report_to_file(f"{m['message']} at {m['time']}", report_file)
+                _report_to_file(f"- {m['message']} at {m['time']}", report_file)
 
         else:
             cal_count += 1
@@ -233,61 +235,59 @@ def check_validation_requirements(
                     f"Calibration after last stimulus: {m['time']}"
                 )
                 _report_to_file(
-                    f"❌ Calibration after last stimulus: {m['time']}", report_file
+                    f"- ❌ Calibration after last stimulus: {m['time']}", report_file
                 )
 
             score = -1
 
     _report_to_file(
-        "\nValidation/Calibration summary\n------------------------------------------",
+        "\n## Validation/Calibration Summary",
         report_file,
     )
-    _report_to_file(f"Good validations: {good_vals}/{val_count}", report_file)
-    _report_to_file(f"Moderate validations: {moderate_vls}/{val_count}", report_file)
-    _report_to_file(f"Bad validations: {len(mes['bad_vals'])}/{val_count}", report_file)
+    _report_to_file(f"- Good validations: {good_vals}/{val_count}", report_file)
+    _report_to_file(f"- Moderate validations: {moderate_vls}/{val_count}", report_file)
+    _report_to_file(
+        f"- Bad validations: {len(mes['bad_vals'])}/{val_count}", report_file
+    )
 
-    _report_to_file("Stimulus start after bad/moderate validation", report_file)
+    _report_to_file("\n**Stimulus start after bad/moderate validation**", report_file)
     for start in mes["start_after_bad_val"]:
-        start = "\t" + start
-        _report_to_file(start, report_file)
+        _report_to_file(f"- {start}", report_file)
     for start in mes["start_after_moderate_val"]:
-        start = "\t" + start
-        _report_to_file(start, report_file)
+        _report_to_file(f"- {start}", report_file)
 
-    _report_to_file("Missing calibrations after bad/moderate validations", report_file)
+    _report_to_file(
+        "\n**Missing calibrations after bad/moderate validations**", report_file
+    )
     for start in mes["no_cal_after_bad_val"]:
-        start = "\t" + start
-        _report_to_file(start, report_file)
+        _report_to_file(f"- {start}", report_file)
 
-    _report_to_file("Necessary calibrations after bad validations", report_file)
+    _report_to_file("\n**Necessary calibrations after bad validations**", report_file)
     for cal in mes["necessary_cals"]:
-        cal = "\t" + cal
-        _report_to_file(cal, report_file)
+        _report_to_file(f"- {cal}", report_file)
 
-    _report_to_file("No validation before stimulus start", report_file)
+    _report_to_file("\n**No validation before stimulus start**", report_file)
     for start in mes["no_val_before_stimulus"]:
-        start = "\t" + start
-        _report_to_file(start, report_file)
+        _report_to_file(f"- {start}", report_file)
 
-    _report_to_file("Validation/calibration during stimulus presentation", report_file)
+    _report_to_file(
+        "\n**Validation/calibration during stimulus presentation**", report_file
+    )
     for vc in mes["val_cal_during_stimulus"]:
-        vc = "\t" + vc
-        _report_to_file(vc, report_file)
+        _report_to_file(f"- {vc}", report_file)
 
-    _report_to_file("Bad validations", report_file)
+    _report_to_file("\n**Bad validations**", report_file)
     for bad in mes["bad_vals"]:
-        bad = "\t" + bad
-        _report_to_file(bad, report_file)
+        _report_to_file(f"- {bad}", report_file)
 
-    _report_to_file("Moderate validations", report_file)
+    _report_to_file("\n**Moderate validations**", report_file)
     for moderate in mes["moderate_vals"]:
-        moderate = "\t" + moderate
-        _report_to_file(moderate, report_file)
+        _report_to_file(f"- {moderate}", report_file)
 
-    if val:
-        _report_to_file("✅ Final validation", report_file)
-    else:
-        _report_to_file("❌ No final validation!", report_file)
+    _report_to_file(
+        "\n" + ("- ✅ Final validation" if val else "- ❌ No final validation!"),
+        report_file,
+    )
 
 
 def check_metadata(
@@ -295,6 +295,8 @@ def check_metadata(
     calibrations: pl.DataFrame,
     validations: pl.DataFrame,
     report: ReportFunction,
+    total_data_loss_ratio: float | None = None,
+    blink_loss_ratio: float | None = None,
 ) -> None:
     """
     Check the metadata of the gaze data and write a report to file.
@@ -346,20 +348,30 @@ def check_metadata(
         validation_eye,
         tracked_eye,
     )
-    data_loss_ratio = metadata["data_loss_ratio"]
-    report(
-        "Data loss ratio",
-        round(data_loss_ratio, 3),
-        settings.ACCEPTABLE_DATA_LOSS_RATIOS,
-        percentage=True,
+    data_loss = (
+        total_data_loss_ratio
+        if total_data_loss_ratio is not None
+        else metadata.get("data_loss_ratio")
     )
-    data_loss_ratio_blinks = metadata["data_loss_ratio_blinks"]
-    report(
-        "Data loss ratio due to blinks",
-        round(data_loss_ratio_blinks, 3),
-        settings.ACCEPTABLE_DATA_LOSS_RATIOS,
-        percentage=True,
+    if data_loss is not None:
+        report(
+            "Total data loss ratio",
+            round(data_loss, 3),
+            settings.ACCEPTABLE_DATA_LOSS_RATIOS,
+            percentage=True,
+        )
+    blink_loss = (
+        blink_loss_ratio
+        if blink_loss_ratio is not None
+        else metadata.get("data_loss_ratio_blinks")
     )
+    if blink_loss is not None:
+        report(
+            "Blink loss ratio",
+            round(blink_loss, 3),
+            settings.ACCEPTABLE_DATA_LOSS_RATIOS,
+            percentage=True,
+        )
     total_recording_duration = metadata["total_recording_duration_ms"] / 60000
     report(
         "Total recording duration",

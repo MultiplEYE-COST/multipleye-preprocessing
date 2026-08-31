@@ -1,5 +1,6 @@
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
+from pathlib import Path
 
 __all__ = ["Sid"]
 
@@ -111,21 +112,59 @@ class Sid:
         """Returns the SID string without the restart postfix."""
         return f"{self.pid}_{self.lang}_{self.country}_{self.lab}_{self.session}"
 
+    @property
+    def raw_data_dir(self) -> Path:
+        from ..config import settings as _settings
+
+        return _settings.OUTPUT_DIR / _settings.RAW_DATA_FOLDER / str(self)
+
+    @property
+    def fixations_dir(self) -> Path:
+        from ..config import settings as _settings
+
+        return _settings.OUTPUT_DIR / _settings.FIXATIONS_FOLDER / str(self)
+
+    @property
+    def saccades_dir(self) -> Path:
+        from ..config import settings as _settings
+
+        return _settings.OUTPUT_DIR / _settings.SACCADES_FOLDER / str(self)
+
+    @property
+    def scanpaths_dir(self) -> Path:
+        from ..config import settings as _settings
+
+        return _settings.OUTPUT_DIR / _settings.SCANPATHS_FOLDER / str(self)
+
+    @property
+    def reading_measures_dir(self) -> Path:
+        from ..config import settings as _settings
+
+        return _settings.OUTPUT_DIR / _settings.READING_MEASURES_FOLDER / str(self)
+
+    @property
+    def metadata_dir(self) -> Path:
+        from ..config import settings as _settings
+
+        return _settings.OUTPUT_DIR / _settings.METADATA_FOLDER / str(self)
+
+    @property
+    def answers_dir(self) -> Path:
+        from ..config import settings as _settings
+
+        return _settings.OUTPUT_DIR / _settings.ANSWERS_FOLDER / str(self)
+
+    @property
+    def psychometric_tests_dir(self) -> Path:
+        from ..config import settings as _settings
+
+        return _settings.OUTPUT_DIR / _settings.PSYCHOMETRIC_TESTS_FOLDER / str(self)
+
     def __str__(self) -> str:
         base = self.id_no_postfix
         if self.postfix:
             return f"{base}_{self.postfix}"
         return base
-
-    @staticmethod
-    def get_session_save_name(session_idf: str, include_postfix: bool = False) -> str:
-        """Get a consistent session name for file names, optionally including restart postfixes."""
-        try:
-            sid = Sid(session_idf)
-            return str(sid) if include_postfix else sid.id_no_postfix
-        except (ValueError, TypeError):
-            # Fallback for non-compliant identifiers
-            return "_".join(session_idf.split("_")[:5])
 
     @staticmethod
     def is_valid_pid(pid: str) -> bool:

@@ -1,27 +1,28 @@
-import pytest
 import polars as pl
 import pymovements as pm
+import pytest
+
+from preprocessing.config import settings
+from preprocessing.io.load import (
+    load_reading_measures,
+    load_trial_level_events_data,
+    load_trial_level_raw_data,
+)
 from preprocessing.io.save import (
-    save_raw_data,
     save_events_data,
-    save_scanpaths,
+    save_raw_data,
     save_reading_measures,
+    save_scanpaths,
     save_session_metadata,
 )
-from preprocessing.io.load import (
-    load_trial_level_raw_data,
-    load_trial_level_events_data,
-    load_reading_measures,
-)
-from preprocessing.config import settings
 from preprocessing.models.sid import Sid
 
 SID_STRINGS = ["001_EN_UK_1_S1", "017_DA_DK_1_ET1_start_after_trial_3"]
 
-EVENT_FOLDERS = {
-    "fixation": settings.FIXATIONS_FOLDER,
-    "saccade": settings.SACCADES_FOLDER,
-}
+
+@pytest.fixture(autouse=True)
+def _set_output_dir(monkeypatch, tmp_path):
+    monkeypatch.setattr(type(settings), "OUTPUT_DIR", tmp_path)
 
 
 @pytest.fixture
@@ -35,13 +36,20 @@ def dummy_gaze():
             "trial": ["trial_1", "trial_1", "trial_1"],
             "stimulus": ["Enc_WikiMoon_1", "Enc_WikiMoon_1", "Enc_WikiMoon_1"],
             "page": ["page_1", "page_1", "page_1"],
+            "position_x": [100.0, 101.0, 102.0],
+            "position_y": [200.0, 201.0, 202.0],
+            "velocity_x": [100.0, 101.0, 102.0],
+            "velocity_y": [200.0, 201.0, 202.0],
         }
     )
     gaze = pm.Gaze(
         df,
         trial_columns=["trial", "stimulus", "page"],
         pixel_columns=["pixel_x", "pixel_y"],
+        position_columns=["position_x", "position_y"],
+        velocity_columns=["velocity_x", "velocity_y"],
     )
+
     gaze.events = pm.Events(
         pl.DataFrame(
             {
@@ -79,13 +87,12 @@ def dummy_gaze():
 @pytest.mark.parametrize("sid_str", SID_STRINGS)
 def test_save_load_raw_data_structure(tmp_path, dummy_gaze, sid_str):
     sid = Sid(sid_str)
-    save_raw_data(tmp_path, sid, dummy_gaze)
-    expected_path = tmp_path / settings.RAW_DATA_FOLDER / str(sid)
-    assert expected_path.exists()
-    assert (expected_path / f"{str(sid)}_trial_1_Enc_WikiMoon_1_raw_data.csv").exists()
+    save_raw_data(sid, dummy_gaze)
+    assert sid.raw_data_dir.exists()
+    assert (sid.raw_data_dir / f"{sid!s}_trial_1_Enc_WikiMoon_1_raw_data.csv").exists()
 
     loaded_gaze = load_trial_level_raw_data(
-        tmp_path, sid, trial_columns=["trial", "stimulus", "page"]
+        sid, trial_columns=["trial", "stimulus", "page"]
     )
     assert len(loaded_gaze.samples) == 3
 
@@ -96,28 +103,26 @@ def test_save_load_events_structure(tmp_path, dummy_gaze, event_type, sid_str):
     sid = Sid(sid_str)
     save_events_data(
         event_type,
-        tmp_path,
         sid,
         "trial",
         ["stimulus"],
         ["name", "start", "end", "trial", "stimulus", "page"],
         dummy_gaze,
     )
-    expected_path = tmp_path / EVENT_FOLDERS[event_type] / str(sid)
-    assert expected_path.exists()
-    assert (expected_path / f"{str(sid)}_Enc_WikiMoon_1_{event_type}.csv").exists()
+    expected_dir = sid.fixations_dir if event_type == "fixation" else sid.saccades_dir
+    assert expected_dir.exists()
+    assert (expected_dir / f"{sid!s}_Enc_WikiMoon_1_{event_type}.csv").exists()
 
-    loaded_gaze = load_trial_level_events_data(dummy_gaze, tmp_path, sid, event_type)
+    loaded_gaze = load_trial_level_events_data(dummy_gaze, sid, event_type)
     assert len(loaded_gaze.events.frame.filter(pl.col("name") == event_type)) >= 1
 
 
 @pytest.mark.parametrize("sid_str", SID_STRINGS)
 def test_save_scanpaths_structure(tmp_path, dummy_gaze, sid_str):
     sid = Sid(sid_str)
-    save_scanpaths(tmp_path, sid, dummy_gaze)
-    expected_path = tmp_path / settings.SCANPATHS_FOLDER / str(sid)
-    assert expected_path.exists()
-    assert (expected_path / f"{str(sid)}_trial_1_Enc_WikiMoon_1_scanpath.csv").exists()
+    save_scanpaths(sid, dummy_gaze)
+    assert sid.scanpaths_dir.exists()
+    assert (sid.scanpaths_dir / f"{sid!s}_trial_1_Enc_WikiMoon_1_scanpath.csv").exists()
 
 
 @pytest.mark.parametrize("sid_str", SID_STRINGS)
@@ -126,37 +131,35 @@ def test_save_load_reading_measures_structure(tmp_path, sid_str):
     df_rm = pl.DataFrame(
         {"trial": ["trial_1"], "stimulus": ["Enc_WikiMoon_1"], "val": [1.0]}
     )
-    save_reading_measures(tmp_path, sid, df_rm)
-    expected_path = tmp_path / settings.READING_MEASURES_FOLDER / str(sid)
-    assert expected_path.exists()
+    save_reading_measures(sid, df_rm)
+    assert sid.reading_measures_dir.exists()
     assert (
-        expected_path / f"{str(sid)}_trial_1_Enc_WikiMoon_1_reading_measures.csv"
+        sid.reading_measures_dir
+        / f"{sid!s}_trial_1_Enc_WikiMoon_1_reading_measures.csv"
     ).exists()
 
-    loaded_rm = load_reading_measures(tmp_path, sid)
+    loaded_rm = load_reading_measures(sid)
     assert len(loaded_rm) == 1
 
 
 @pytest.mark.parametrize("sid_str", SID_STRINGS)
 def test_save_load_metadata_structure(tmp_path, dummy_gaze, sid_str):
     sid = Sid(sid_str)
-    save_raw_data(tmp_path, sid, dummy_gaze)
-    save_session_metadata(tmp_path, dummy_gaze, sid)
-    expected_path = tmp_path / settings.METADATA_FOLDER / str(sid)
-    assert expected_path.exists()
-    assert (expected_path / "gaze_metadata.json").exists()
-    assert (expected_path / "calibrations.feather").exists()
-    assert (expected_path / "validations.feather").exists()
-    assert (expected_path / "calibrations.tsv").exists()
-    assert (expected_path / "validations.tsv").exists()
+    save_raw_data(sid, dummy_gaze)
+    save_session_metadata(sid, dummy_gaze)
+    assert sid.metadata_dir.exists()
+    assert (sid.metadata_dir / "gaze_metadata.json").exists()
+    assert (sid.metadata_dir / "calibrations.feather").exists()
+    assert (sid.metadata_dir / "validations.feather").exists()
+    assert (sid.metadata_dir / "calibrations.tsv").exists()
+    assert (sid.metadata_dir / "validations.tsv").exists()
 
     # Ensure experiment.yaml exists (usually saved by gaze.save)
-    if not (expected_path / "experiment.yaml").exists():
-        with open(expected_path / "experiment.yaml", "w") as f:
+    if not (sid.metadata_dir / "experiment.yaml").exists():
+        with open(sid.metadata_dir / "experiment.yaml", "w") as f:
             f.write("sampling_rate: 100")
 
     loaded_gaze = load_trial_level_raw_data(
-        tmp_path,
         sid,
         trial_columns=["trial", "stimulus", "page"],
         load_metadata=True,
@@ -174,7 +177,6 @@ def test_save_events_data_invalid_event_type(tmp_path, dummy_gaze, invalid_type)
     ):
         save_events_data(
             invalid_type,
-            tmp_path,
             sid,
             "trial",
             ["stimulus"],
@@ -189,13 +191,12 @@ def test_load_trial_level_events_data_invalid_event_type(
 ):
     sid = Sid("001_EN_UK_1_S1")
     with pytest.raises(ValueError, match="event_type must be "):
-        load_trial_level_events_data(dummy_gaze, tmp_path, sid, invalid_type)
+        load_trial_level_events_data(dummy_gaze, sid, invalid_type)
 
 
 def test_load_reading_measures_with_actual_filenames(tmp_path):
     sid = Sid("017_DA_DK_1_ET1")
-    reading_measures_dir = tmp_path / settings.READING_MEASURES_FOLDER / str(sid)
-    reading_measures_dir.mkdir(parents=True)
+    sid.reading_measures_dir.mkdir(parents=True)
 
     # Files as reported in the issue
     filenames = [
@@ -206,10 +207,10 @@ def test_load_reading_measures_with_actual_filenames(tmp_path):
 
     for filename in filenames:
         df = pl.DataFrame({"measure": [1.0], "trial": ["dummy"], "stimulus": ["dummy"]})
-        df.write_csv(reading_measures_dir / filename)
+        df.write_csv(sid.reading_measures_dir / filename)
 
     # Test loading
-    df_loaded = load_reading_measures(tmp_path, sid)
+    df_loaded = load_reading_measures(sid)
 
     assert len(df_loaded) == 3
     assert set(df_loaded["trial"].unique()) == {

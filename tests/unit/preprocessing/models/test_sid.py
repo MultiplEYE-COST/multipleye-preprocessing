@@ -1,4 +1,6 @@
 import pytest
+
+from preprocessing.config import settings
 from preprocessing.models.sid import Sid
 
 
@@ -197,32 +199,6 @@ def test_sid_id_no_postfix(sid_str, expected_no_postfix):
 
 
 @pytest.mark.parametrize(
-    "session_idf, expected_save_name",
-    [
-        ("001_EN_UK_1_PT1", "001_EN_UK_1_PT1"),
-        ("002_ZH_CH_LAB2_S2_restart", "002_ZH_CH_LAB2_S2"),
-        ("003_DE_DE_1_ET1_full_restart", "003_DE_DE_1_ET1"),
-        (
-            "004_FR_FR_1_PT1_start_after_trial_10",
-            "004_FR_FR_1_PT1",
-        ),
-        ("non_compliant_id_extra_part", "non_compliant_id_extra_part"),
-        ("short", "short"),
-    ],
-)
-def test_sid_get_session_save_name(session_idf, expected_save_name):
-    assert Sid.get_session_save_name(session_idf) == expected_save_name
-
-
-def test_sid_get_session_save_name_include_postfix():
-    sid_str = "003_DE_DE_1_ET1_full_restart"
-    assert (
-        Sid.get_session_save_name(sid_str, include_postfix=False) == "003_DE_DE_1_ET1"
-    )
-    assert Sid.get_session_save_name(sid_str, include_postfix=True) == sid_str
-
-
-@pytest.mark.parametrize(
     "sid1_str, sid2_str, expected_match",
     [
         ("001_EN_UK_1_S1", "001_EN_UK_1_PT1", True),
@@ -243,3 +219,27 @@ def test_sid_equals_soft(sid1_str, sid2_str, expected_match):
     sid2 = Sid(sid2_str)
     assert sid1.equals_soft(sid2) == expected_match
     assert sid2.equals_soft(sid1) == expected_match
+
+
+FOLDER_PROPERTIES = [
+    ("raw_data_dir", settings.RAW_DATA_FOLDER),
+    ("fixations_dir", settings.FIXATIONS_FOLDER),
+    ("saccades_dir", settings.SACCADES_FOLDER),
+    ("scanpaths_dir", settings.SCANPATHS_FOLDER),
+    ("reading_measures_dir", settings.READING_MEASURES_FOLDER),
+    ("metadata_dir", settings.METADATA_FOLDER),
+    ("answers_dir", settings.ANSWERS_FOLDER),
+    ("psychometric_tests_dir", settings.PSYCHOMETRIC_TESTS_FOLDER),
+]
+
+
+@pytest.mark.parametrize("prop_name, subfolder", FOLDER_PROPERTIES)
+@pytest.mark.parametrize(
+    "sid_str",
+    ["001_EN_UK_1_S1", "003_DE_DE_1_ET1_full_restart"],
+)
+def test_sid_dir_properties(monkeypatch, tmp_path, prop_name, subfolder, sid_str):
+    monkeypatch.setattr(type(settings), "OUTPUT_DIR", tmp_path)
+    sid = Sid(sid_str)
+    expected = tmp_path / subfolder / str(sid)
+    assert getattr(sid, prop_name) == expected

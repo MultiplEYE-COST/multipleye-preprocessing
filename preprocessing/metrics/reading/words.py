@@ -1,16 +1,16 @@
 import polars as pl
 
+from ...config import settings
+
 
 def all_tokens_from_aois(
     aois: pl.DataFrame,
-    trial: str = None,
+    trial: str | None = None,
 ) -> pl.DataFrame:
     """
     Returns every AOI token on the page:
     words, spaces, punctuation — everything that has a word_idx.
     """
-    from ...config import settings
-
     aois = (
         aois.with_columns([pl.lit(trial).cast(pl.Utf8).alias(settings.TRIAL_COL)])
         if settings.TRIAL_COL not in aois.columns
@@ -29,8 +29,6 @@ def all_tokens_from_aois(
 def mark_skipped_tokens(
     all_tokens: pl.DataFrame, fixations: pl.DataFrame
 ) -> pl.DataFrame:
-    from ...config import settings
-
     fixated_tokens = (
         fixations.select([settings.TRIAL_COL, settings.PAGE_COL, settings.WORD_IDX_COL])
         .drop_nulls()
