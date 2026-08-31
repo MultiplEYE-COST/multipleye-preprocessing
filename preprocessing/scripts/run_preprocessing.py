@@ -96,19 +96,19 @@ def run_preprocessing(config_path: str | None = None):
         raw_data_folder = sess.sid.raw_data_dir
         num_expected_files = len(sess.completed_stimuli_ids)
         metadata_exists = (sess.sid.metadata_dir / "gaze_metadata.json").exists()
+        files = list(raw_data_folder.glob("*.csv"))
+        num_files = len(files)
 
-        try:
-            files = list(raw_data_folder.glob("*.csv"))
-            num_files = len(files)
+        if num_files > 0:
             # Check if a previous version of this pipeline saved the raw data without velocity and position information
             test_file = files[0]
             preprocessed = "position_x" in pl.read_csv(test_file, n_rows=0).columns
-        except IndexError:
-            num_files = 0
+        else:
             preprocessed = False
 
         if (
             num_expected_files == num_files
+            and raw_data_folder.exists()
             and preprocessed
             and metadata_exists
             and not settings.RECALCULATE
@@ -163,6 +163,8 @@ def run_preprocessing(config_path: str | None = None):
             preprocessing.preprocess_gaze(
                 gaze,
             )
+
+            #save raw data
             preprocessing.save_raw_data(sess.sid, gaze)
 
         sess.pm_gaze_metadata = gaze._metadata
@@ -195,14 +197,11 @@ def run_preprocessing(config_path: str | None = None):
                 )
             else:
                 num_expected_files = len(sess.completed_stimuli_ids)
-
-                try:
-                    num_files = len(list(fixation_data_folder.glob("*.csv")))
-                except FileNotFoundError:
-                    num_files = 0
+                num_files = len(list(fixation_data_folder.glob("*.csv")))
 
                 if (
                     num_expected_files == num_files
+                    and fixation_data_folder.exists()
                     and not settings.RECALCULATE
                     and not recalculated_upstream
                 ):
@@ -238,13 +237,12 @@ def run_preprocessing(config_path: str | None = None):
                         with contextlib.suppress(Warning):
                             gaze.events.unnest()
 
-                try:
-                    num_files = len(list(saccade_data_folder.glob("*.csv")))
-                except FileNotFoundError:
-                    num_files = 0
+                num_files = len(list(saccade_data_folder.glob("*.csv")))
+
 
                 if (
                     num_expected_files == num_files
+                    and saccade_data_folder.exists()
                     and not settings.RECALCULATE
                     and not recalculated_upstream
                 ):
@@ -326,13 +324,11 @@ def run_preprocessing(config_path: str | None = None):
                 num_expected_files = len(sess.completed_stimuli_ids)
 
                 scanpaths_data_folder = sess.sid.scanpaths_dir
-                try:
-                    num_files = len(list(scanpaths_data_folder.glob("*.csv")))
-                except FileNotFoundError:
-                    num_files = 0
+                num_files = len(list(scanpaths_data_folder.glob("*.csv")))
 
                 if (
                     num_files == num_expected_files
+                    and scanpaths_data_folder.exists()
                     and not settings.RECALCULATE
                     and not recalculated_upstream
                 ):
@@ -363,13 +359,11 @@ def run_preprocessing(config_path: str | None = None):
                 )
 
             num_expected_files = len(sess.completed_stimuli_ids)
-            try:
-                num_files = len(list(rm_folder.glob("*.csv")))
-            except FileNotFoundError:
-                num_files = 0
+            num_files = len(list(rm_folder.glob("*.csv")))
 
             if (
                 num_files == num_expected_files
+                and rm_folder.exists()
                 and not settings.RECALCULATE
                 and not recalculated_upstream
             ):
