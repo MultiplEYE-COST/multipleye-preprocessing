@@ -82,11 +82,8 @@ session was restarted:
 
 - [session_id]
 
-Could you confirm this was a restart, and move the redundant/outdated files to the
+Could you confirm this was a restart, and let us know which redundant/outdated files she should move to the
 `00_oldFiles_toBeDeleted` folder so it is clear which files belong to the final data collection?
-As a reminder, only the management team can permanently delete files, so please place anything
-outdated there rather than deleting it yourself, and let us know once it's done so we can remove
-it.
 
 ---
 
@@ -115,6 +112,11 @@ Could you confirm which folder is the correct/final one, and move the others to
 `00_oldFiles_toBeDeleted`?
 
 ---
+**Metadata form**
+
+Please uploade the final metadata form into the documentation folder
+
+---
 
 **7. Open questions**
 
@@ -126,8 +128,8 @@ A few additional clarifications before we can proceed:
 ---
 
 Please use the `README-Folder Structure and Data Upload.txt` in your switch drive folder for reference, which covers
-where each type of file should live. Please move all files and folders not adhering to the readme to `00_oldFiles_toBeDeleted`
-or inform us why you think the data is needed and should stay in the current location.
+where each type of file should live. Please tell us which files and folders should be move such that your folder is adhering to the readme to `00_oldFiles_toBeDeleted`
+or inform us why additional data is needed and should stay in the current location.
 
 Once these points are resolved, please let us know so we can proceed with preprocessing your
 data.
