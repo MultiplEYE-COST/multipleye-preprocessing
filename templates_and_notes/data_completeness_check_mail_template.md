@@ -114,11 +114,15 @@ Could you confirm which folder is the correct/final one, and move the others to
 ---
 **Metadata form**
 
-Please uploade the final metadata form into the documentation folder
+Please uploade the final metadata form into the documentation folder.
 
 ---
+**Participant Questionnaire**
 
-**7. Open questions**
+Please uploade the final participant questionnaire data into the respective folder.
+
+---
+**Open questions**
 
 A few additional clarifications before we can proceed:
 
