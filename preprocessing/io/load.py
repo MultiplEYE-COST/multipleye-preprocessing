@@ -475,7 +475,11 @@ def load_scanpaths(
 
     # join loaded scanpaths into existing events frame
     key_cols = ["onset", "trial", "stimulus", "page", "name"]
-    imported_cols = [col for col in all_scanpaths.columns if col not in gaze.events.frame.columns or col in key_cols]
+    imported_cols = [
+        col
+        for col in all_scanpaths.columns
+        if col not in gaze.events.frame.columns or col in key_cols
+    ]
 
     matched_events = gaze.events.frame.join(
         all_scanpaths.select(imported_cols), on=key_cols, how="left"

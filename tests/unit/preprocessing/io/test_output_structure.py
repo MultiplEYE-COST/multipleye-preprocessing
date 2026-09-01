@@ -141,7 +141,9 @@ def test_save_load_scanpaths_structure(tmp_path, dummy_gaze, sid_str):
     ]
 
     assert all(col in loaded_gaze.events.frame.columns for col in aoi_cols)
-    assert not any("_right" in col_name for col_name in loaded_gaze.events.frame.columns)
+    assert not any(
+        "_right" in col_name for col_name in loaded_gaze.events.frame.columns
+    )
 
 
 @pytest.mark.parametrize("sid_str", SID_STRINGS)
