@@ -1,14 +1,26 @@
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 import yaml
 
 from preprocessing.data_collection.session import Session
+from preprocessing.data_collection.stimulus import LabConfig
+from preprocessing.data_collection.trial import Trial
 
 
-class DummyTrial:
-    def __init__(self, **kwargs):
-        self._data = kwargs
+def _make_session():
+    return Session(
+        participant_id=1,
+        language="en",
+        country="US",
+        city="Nowhere",
+        lab_number=1,
+        session_identifier="S1",
+        is_pilot=False,
+        lab_config=SimpleNamespace(sampling_frequency_hz=500),
+    )
 
 
 def test_from_yaml_parses_lab_config_and_trials_and_calls_load_stimuli(
@@ -16,7 +28,7 @@ def test_from_yaml_parses_lab_config_and_trials_and_calls_load_stimuli(
 ):
     yaml_path = tmp_path / "session.yaml"
     content = {
-        "Administrative": {
+        "administrative": {
             "participant_id": 1,
             "language": "English",
             "country": "USA",
@@ -25,7 +37,7 @@ def test_from_yaml_parses_lab_config_and_trials_and_calls_load_stimuli(
             "session_identifier": "S1",
             "is_pilot": False,
         },
-        "Technical_setup": {
+        "technical_setup": {
             "screen_resolution_width_px": 1920,
             "screen_resolution_height_px": 1080,
             "screen_size_width_cm": 47.5,
@@ -40,13 +52,13 @@ def test_from_yaml_parses_lab_config_and_trials_and_calls_load_stimuli(
             "head_stabilization": "chinrest",
             "eyes_recorded": "monocular",
         },
-        "Stimuli": {
+        "stimuli": {
             "stimulus_folder_name": "stimuli_folder",
             "randomization_version": 1,
             "completed_stimuli_ids": [1],
             "stimulus_trial_mapping": {"1": "stimA"},
         },
-        "Trials": [
+        "trials": [
             {
                 "trial_number": 1,
                 "stimulus_id": 1,
@@ -84,30 +96,13 @@ def test_from_yaml_parses_lab_config_and_trials_and_calls_load_stimuli(
 def test_from_yaml_without_technical_setup_raises(tmp_path):
     yaml_path = tmp_path / "session_no_tech.yaml"
     content = {
-        "Administrative": {"participant_id": 1, "language": "English"},
-        "Trials": [],
+        "administrative": {"participant_id": 1, "language": "English"},
+        "trials": [],
     }
     yaml_path.write_text(yaml.safe_dump(content), encoding="utf8")
 
     with pytest.raises(NameError):
         Session.from_yaml(yaml_path, tmp_path)
-
-
-# python
-from types import SimpleNamespace
-
-
-def _make_session():
-    return Session(
-        participant_id=1,
-        language="en",
-        country="US",
-        city="Nowhere",
-        lab_number=1,
-        session_identifier="S1",
-        is_pilot=False,
-        lab_config=SimpleNamespace(sampling_frequency_hz=500),
-    )
 
 
 def test_add_and_get_pm_metadata_full():
@@ -160,9 +155,86 @@ def test_add_and_get_pm_metadata_full():
 
 def test_add_pm_metadata_non_dict():
     s = _make_session()
-    s.recording_day_eyelink = "orig_day"
+    s.recording_day_eyelink = "day"
 
     s.add_pm_metadata(None)
 
-    assert s.recording_day_eyelink == "orig_day"
+    assert s.recording_day_eyelink == "day"
     assert s.recording_month_eyelink == "unknown"
+
+
+def test_session_yaml_round_trip(tmp_path: Path):
+    session = Session(
+        participant_id=18,
+        language="SwissGerman",
+        country="Switzerland",
+        city="Basel",
+        lab_number=1,
+        session_identifier="003_BL_CH_1_ET1",
+        is_pilot=False,
+        lab_config=LabConfig(
+            screen_resolution=(1920, 1080),
+            screen_size_cm=(53.0, 30.0),
+            screen_distance_cm=60.0,
+            image_resolution=(1024, 768),
+            image_size_cm=(30.0, 22.5),
+            name_eye_tracker="EyeLink 1000 Plus",
+        ),
+        trials=[
+            Trial(
+                trial_number=1,
+                stimulus_id=1,
+                stimulus_name="EmBebbiSyJazz",
+                is_practice=False,
+                num_questions=3,
+                comprehension_score=0.667,
+                comprehension_question_time_ms=2500.0,
+                reading_time_ms=12000.0,
+                status="completed",
+            )
+        ],
+        stimulus_folder_name="stimuli_v1",
+        completed_stimuli_ids=[1],
+        stimulus_order_ids=[1],
+        stimulus_trial_mapping={"TRIAL_1": "EmBebbiSyJazz"},
+        mount_type="desktop",
+        head_stabilization="stabilized",
+        eyes_recorded="monocular",
+    )
+
+    overview = session.create_overview()
+
+    yaml_file = tmp_path / "session.yaml"
+    with open(yaml_file, "w", encoding="utf8") as f:
+        yaml.safe_dump(overview, f, sort_keys=False)
+
+    with patch.object(
+        Session, "load_session_stimuli", return_value=None
+    ) as mocked_load:
+        loaded = Session.from_yaml(yaml_file=yaml_file, dataset_dir=tmp_path)
+
+    mocked_load.assert_called_once_with(tmp_path / session.stimulus_folder_name)
+
+    assert loaded.participant_id == session.participant_id
+    assert loaded.session_identifier == session.session_identifier
+    assert loaded.language == session.language
+    assert loaded.country == session.country
+    assert loaded.city == session.city
+    assert loaded.lab_number == session.lab_number
+    assert loaded.stimulus_folder_name == session.stimulus_folder_name
+    assert loaded.stimulus_trial_mapping == session.stimulus_trial_mapping
+    assert loaded.mount_type == session.mount_type
+    assert loaded.head_stabilization == session.head_stabilization
+    assert loaded.eyes_recorded == session.eyes_recorded
+
+    assert loaded.lab_config.name_eye_tracker == session.lab_config.name_eye_tracker
+    assert loaded.lab_config.screen_resolution == session.lab_config.screen_resolution
+    assert loaded.lab_config.screen_size_cm == session.lab_config.screen_size_cm
+    assert loaded.lab_config.image_resolution == session.lab_config.image_resolution
+    assert loaded.lab_config.image_size_cm == session.lab_config.image_size_cm
+
+    assert isinstance(loaded.trials, list)
+    assert len(loaded.trials) == 1
+    assert loaded.trials[0].trial_number == 1
+    assert loaded.trials[0].stimulus_name == "EmBebbiSyJazz"
+    assert loaded.trials[0].status == "completed"

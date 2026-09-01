@@ -73,10 +73,10 @@ class Session:
     avg_comprehension_score_local: float | str = field(default="unknown", init=True)
     avg_comprehension_score_global: float | str = field(default="unknown", init=True)
     avg_comprehension_score_bridging: float | str = field(default="unknown", init=True)
-    avg_calibration_error: float | str = field(default="unknown", init=True)
+    avg_calibration_error_dva: float | str = field(default="unknown", init=True)
     num_calibrations: int | str = field(default="unknown", init=True)
     num_validations: int | str = field(default="unknown", init=True)
-    avg_validation_error: float | str = field(default="unknown", init=True)
+    avg_validation_error_dva: float | str = field(default="unknown", init=True)
 
     # eye tracking metadata
     tracked_eye: str = field(default="unknown", init=True)
@@ -87,7 +87,7 @@ class Session:
 
     # completed trials
     num_completed_trials: int = field(default=0, init=True)
-    was_session_interrupted: bool = field(default="unknown", init=True)
+    was_session_interrupted: bool = field(default=False, init=True)
 
     # data quality & sanity report
     sanity_report_path: Path | str = field(default="unknown", init=True)
@@ -164,8 +164,8 @@ class Session:
             "calibration_validation": {
                 "num_calibrations": self.num_calibrations,
                 "num_validations": self.num_validations,
-                "avg_calibration_error_dva": self.avg_calibration_error,
-                "avg_validation_error_dva": self.avg_validation_error,
+                "avg_calibration_error_dva": self.avg_calibration_error_dva,
+                "avg_validation_error_dva": self.avg_validation_error_dva,
                 "num_good_validations": self.num_good_validations,
                 "num_moderate_validations": self.num_moderate_validations,
                 "num_bad_validations": self.num_bad_validations,
@@ -230,10 +230,10 @@ class Session:
         flat_overview = {}
 
         for key, value in session_specs.items():
-            if key == "Trials":
+            if key == "trials":
                 trials = value
             elif isinstance(value, dict):
-                if key == "Technical_setup":
+                if key == "technical_setup":
                     tech_setup = value
                 else:
                     flat_overview.update(value)
@@ -483,7 +483,7 @@ class Session:
         ):
             vals = self.validations["accuracy_avg"].drop_nulls().to_list()
             if vals:
-                self.avg_validation_error = round(sum(vals) / len(vals), 3)
+                self.avg_validation_error_dva = round(sum(vals) / len(vals), 3)
 
         if (
             isinstance(self.calibrations, pl.DataFrame)
@@ -492,7 +492,7 @@ class Session:
         ):
             vals = self.calibrations["accuracy_avg"].drop_nulls().to_list()
             if vals:
-                self.avg_calibration_error = round(sum(vals) / len(vals), 3)
+                self.avg_calibration_error_dva = round(sum(vals) / len(vals), 3)
 
         if (
             not isinstance(self.validations, str)
@@ -579,6 +579,11 @@ class Session:
         list[Trial] | str
             Per-trial metrics, or "unknown" when the answers CSV is missing.
         """
+
+        # if trials have been loaded they will not be computed again
+        if self.trials != "unknown":
+            return self.trials
+
         answers_csv = self.sid.answers_dir / f"{self.sid}_answers.csv"
         if not answers_csv.exists():
             return "unknown"

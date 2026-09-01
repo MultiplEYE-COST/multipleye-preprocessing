@@ -1034,14 +1034,14 @@ class MultipleyeDataCollection:
             }
 
         calib_errors = [
-            s.avg_calibration_error
+            s.avg_calibration_error_dva
             for s in non_pilot_sessions
-            if isinstance(s.avg_calibration_error, (int, float))
+            if isinstance(s.avg_calibration_error_dva, (int, float))
         ]
         val_errors = [
-            s.avg_validation_error
+            s.avg_validation_error_dva
             for s in non_pilot_sessions
-            if isinstance(s.avg_validation_error, (int, float))
+            if isinstance(s.avg_validation_error_dva, (int, float))
         ]
         data_loss = [
             getattr(s, "_measure_total_data_loss_ratio", None)
@@ -1238,61 +1238,6 @@ class MultipleyeDataCollection:
             self.sessions[session].load_session_stimuli(
                 self.stimulus_dir,
             )
-
-    def _load_session_stimuli(
-        self,
-        stimulus_dir: Path,
-        lang: str,
-        country: str,
-        lab_num: int,
-        stimulus_order_version: int,
-        session_identifier: str,
-        stimulus_names: None | list = None,
-    ) -> list[Stimulus]:
-        """
-        Load the stimuli from the specified directory.
-        :param stimulus_dir: The directory where the stimuli are stored.
-        :param lang: The language of the stimuli.
-        :param country: The country of the stimuli.
-        :param stimulus_names: The names of the stimuli to load. If None, the predefined stimuli names in the
-        global variable self.stimulus_names are used.
-        :param stimulus_order_version: The version of the questions to load. Specifies how the questions are ordered and the
-        shuffling of the answer options.
-        :param lab_num: The lab number.
-
-        """
-        stimuli = []
-        if stimulus_names is None:
-            stimulus_names = [
-                name
-                for name, num in settings.STIMULUS_NAME_MAPPING.items()
-                if num in self.sessions[session_identifier].completed_stimuli_ids
-            ]
-
-        for stimulus_name in stimulus_names:
-            trial_mapping = self.sessions[session_identifier].stimulus_trial_mapping
-            # get the trial id from the mapping, keys are ids and values are strings
-            trial_id = [
-                key for key, value in trial_mapping.items() if value == stimulus_name
-            ]
-            if len(trial_id) == 0:
-                raise KeyError(
-                    f"Stimulus name {stimulus_name} not found in the trial mapping for session "
-                    f"{session_identifier}. Please check the completed_stimuli.csv file."
-                )
-
-            stimulus = Stimulus.load(
-                stimulus_dir,
-                lang,
-                country,
-                lab_num,
-                stimulus_name,
-                stimulus_order_version,
-                trial_id[0],
-            )
-            stimuli.append(stimulus)
-
-        return stimuli
 
     def _load_stimulus_order_version_from_logfile(self, session_identifier: str) -> int:
         """

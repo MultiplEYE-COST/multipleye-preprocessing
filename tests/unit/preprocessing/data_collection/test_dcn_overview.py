@@ -102,8 +102,8 @@ def _setup_session_with_data(
     avg_comprehension_bridging: float = 0.6,
     num_completed_trials: int = 10,
 ) -> None:
-    session.avg_calibration_error = avg_calibration_error
-    session.avg_validation_error = avg_validation_error
+    session.avg_calibration_error_dva = avg_calibration_error
+    session.avg_validation_error_dva = avg_validation_error
     session._measure_total_data_loss_ratio = total_data_loss
     session._measure_blink_loss_ratio = blink_loss
     session.total_reading_time_s = total_reading_time
