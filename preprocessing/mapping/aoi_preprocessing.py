@@ -101,9 +101,9 @@ def _add_custom_uoa_chinese(aoi_file: Path, custom_file_name: str = "") -> None:
 
     if not uoa_file.exists():
         raise FileNotFoundError(
-            f"We could not find a matching uoa file for {aoi_file.name}. PLease make "
+            f"We could not find a matching uoa file for {aoi_file.name}. Please make "
             f"sure that the uoa file is named exactly as the corresponding aoi file and "
-            f"that it is in your data folder ina folder called 'custom_units_of_analysis'."
+            f"that it is in your data folder in a folder called 'custom_units_of_analysis'."
         )
 
     uoa_data = pd.read_csv(uoa_file, dtype={"segment": str})[
