@@ -164,7 +164,7 @@ def run_preprocessing(config_path: str | None = None):
                 gaze,
             )
 
-            #save raw data
+            # save raw data
             preprocessing.save_raw_data(sess.sid, gaze)
 
         sess.pm_gaze_metadata = gaze._metadata
@@ -238,7 +238,6 @@ def run_preprocessing(config_path: str | None = None):
                             gaze.events.unnest()
 
                 num_files = len(list(saccade_data_folder.glob("*.csv")))
-
 
                 if (
                     num_expected_files == num_files

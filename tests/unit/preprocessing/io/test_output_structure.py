@@ -5,9 +5,9 @@ import pytest
 from preprocessing.config import settings
 from preprocessing.io.load import (
     load_reading_measures,
+    load_scanpaths,
     load_trial_level_events_data,
     load_trial_level_raw_data,
-    load_scanpaths
 )
 from preprocessing.io.save import (
     save_events_data,
@@ -126,7 +126,19 @@ def test_save_load_scanpaths_structure(tmp_path, dummy_gaze, sid_str):
     assert (sid.scanpaths_dir / f"{sid!s}_trial_1_Enc_WikiMoon_1_scanpath.csv").exists()
 
     loaded_gaze = load_scanpaths(gaze=dummy_gaze, sid=sid)
-    aoi_cols = ["Char_idx", "char", "top_left_x", "top_left_y", "width", "height", "char_idx_in_line", "line_idx", "word_idx", "word_idx_in_line", "word"]
+    aoi_cols = [
+        "Char_idx",
+        "char",
+        "top_left_x",
+        "top_left_y",
+        "width",
+        "height",
+        "char_idx_in_line",
+        "line_idx",
+        "word_idx",
+        "word_idx_in_line",
+        "word",
+    ]
 
     assert all(col in loaded_gaze.columns for col in aoi_cols)
     assert not any("_right" in col_name for col_name in loaded_gaze.columns)

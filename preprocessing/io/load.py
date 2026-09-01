@@ -408,7 +408,7 @@ def load_scanpaths(
         all_scanpaths = all_scanpaths.vstack(trial_df)
 
     if len(all_scanpaths) == 0:
-        #return gaze untouched if no scanpaths files were found
+        # return gaze untouched if no scanpaths files were found
         return gaze
 
     # join loaded scanpaths into existing events frame
