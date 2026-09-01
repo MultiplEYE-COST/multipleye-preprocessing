@@ -127,7 +127,7 @@ def test_save_load_scanpaths_structure(tmp_path, dummy_gaze, sid_str):
 
     loaded_gaze = load_scanpaths(gaze=dummy_gaze, sid=sid)
     aoi_cols = [
-        "Char_idx",
+        "char_idx",
         "char",
         "top_left_x",
         "top_left_y",
@@ -140,8 +140,8 @@ def test_save_load_scanpaths_structure(tmp_path, dummy_gaze, sid_str):
         "word",
     ]
 
-    assert all(col in loaded_gaze.columns for col in aoi_cols)
-    assert not any("_right" in col_name for col_name in loaded_gaze.columns)
+    assert all(col in loaded_gaze.events.frame.columns for col in aoi_cols)
+    assert not any("_right" in col_name for col_name in loaded_gaze.events.frame.columns)
 
 
 @pytest.mark.parametrize("sid_str", SID_STRINGS)
