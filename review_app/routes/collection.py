@@ -96,10 +96,10 @@ async def dcn_stats(dcn_name: str) -> JSONResponse:
             "avg_comprehension_score",
             "session_total_data_loss_ratio",
             "session_blink_loss_ratio",
-            "avg_validation_error",
+            "avg_validation_error_dva",
             "num_calibrations",
             "num_validations",
-            "total_session_duration",
+            "total_session_duration_s",
         ):
             val = get_field(ov, key)
             if val is not None and isinstance(val, (int, float)):

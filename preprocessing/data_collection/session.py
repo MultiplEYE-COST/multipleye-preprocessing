@@ -115,35 +115,35 @@ class Session:
         Returns
         -------
         dict
-            Overview with sections: Administrative, Technical_setup, Tracking,
-            Calibration_validation, Data_quality, Experiment_procedure,
-            Comprehension, and Data_formats.
+            Overview with sections: administrative, technical_setup, tracking,
+            calibration_validation, data_quality, experiment_procedure,
+            comprehension, and data_formats.
         """
         self._create_stats()
 
         return {
-            "Administrative": {
+            "administrative": {
                 "participant_id": self.participant_id,
                 "session_identifier": self.session_identifier,
                 "is_pilot": self.is_pilot,
                 "year_of_data_collection": self._get_metadata("year", "unknown"),
                 "month_of_data_collection": self._get_metadata("month", "unknown"),
             },
-            "Technical_setup": self._technical_setup(),
-            "Tracking": {
+            "technical_setup": self._technical_setup(),
+            "tracking": {
                 "tracked_eye": self.tracked_eye,
                 "tracked_eye_consistent": self.tracked_eye_consistent,
             },
-            "Calibration_validation": {
+            "calibration_validation": {
                 "num_calibrations": self.num_calibrations,
                 "num_validations": self.num_validations,
-                "avg_calibration_error": self.avg_calibration_error,
-                "avg_validation_error": self.avg_validation_error,
+                "avg_calibration_error_dva": self.avg_calibration_error,
+                "avg_validation_error_dva": self.avg_validation_error,
                 "num_good_validations": self.num_good_validations,
                 "num_moderate_validations": self.num_moderate_validations,
                 "num_bad_validations": self.num_bad_validations,
             },
-            "Data_quality": {
+            "data_quality": {
                 "session_total_data_loss_ratio": getattr(
                     self,
                     "_measure_total_data_loss_ratio",
@@ -155,7 +155,7 @@ class Session:
                     None,
                 ),
             },
-            "Experiment_procedure": {
+            "experiment_procedure": {
                 "question_order": self.question_order,
                 "stimulus_order_ids": self.stimulus_order_ids,
                 "num_completed_trials": len(self.stimulus_order_ids)
@@ -164,22 +164,22 @@ class Session:
                 "was_session_interrupted": self.interrupted,
                 "obligatory_break_made": self.obligatory_break_made,
                 "num_optional_breaks_made": self.num_optional_breaks_made,
-                "total_break_time": self.total_break_time,
-                "total_reading_time": self.total_reading_time,
-                "total_session_duration": self.total_session_duration,
+                "total_break_time_s": self.total_break_time,
+                "total_reading_time_s": self.total_reading_time,
+                "total_session_duration_s": self.total_session_duration,
             },
-            "Trials": (
+            "trials": (
                 [asdict(t) for t in self.trials]
                 if isinstance(self.trials, list)
                 else self.trials
             ),
-            "Comprehension": {
+            "comprehension": {
                 "avg_comprehension_score": self.avg_comprehension_score,
                 "avg_comprehension_score_local": self.avg_comprehension_score_local,
                 "avg_comprehension_score_global": self.avg_comprehension_score_global,
                 "avg_comprehension_score_bridging": self.avg_comprehension_score_bridging,
             },
-            "Data_formats": {
+            "data_formats": {
                 "raw_data": self.raw_data,
                 "fixations": self.fixations,
                 "saccades": self.saccades,
@@ -217,21 +217,21 @@ class Session:
         image_size_w, image_size_h = _pair(_resolve("image_size_cm"))
 
         return {
-            "Eye_tracker_name": _resolve("name_eye_tracker", None),
-            "Sampling_frequency_hz": _resolve("sampling_frequency_hz", None),
-            "Mount_type": mount.get("mount_type"),
-            "Head_stabilization": mount.get("head_stabilization"),
-            "Eyes_recorded": mount.get("eyes_recorded"),
-            "Pupil_data_type": self._get_metadata("pupil_data_type"),
-            "Screen_resolution_width_px": screen_res_w,
-            "Screen_resolution_height_px": screen_res_h,
-            "Screen_size_width_cm": screen_size_w,
-            "Screen_size_height_cm": screen_size_h,
-            "Screen_distance_cm": _resolve("screen_distance_cm", None),
-            "Image_resolution_width_px": image_res_w,
-            "Image_resolution_height_px": image_res_h,
-            "Image_size_width_cm": image_size_w,
-            "Image_size_height_cm": image_size_h,
+            "eye_tracker_name": _resolve("name_eye_tracker", None),
+            "sampling_frequency_hz": _resolve("sampling_frequency_hz", None),
+            "mount_type": mount.get("mount_type"),
+            "head_stabilization": mount.get("head_stabilization"),
+            "eyes_recorded": mount.get("eyes_recorded"),
+            "pupil_data_type": self._get_metadata("pupil_data_type"),
+            "screen_resolution_width_px": screen_res_w,
+            "screen_resolution_height_px": screen_res_h,
+            "screen_size_width_cm": screen_size_w,
+            "screen_size_height_cm": screen_size_h,
+            "screen_distance_cm": _resolve("screen_distance_cm", None),
+            "image_resolution_width_px": image_res_w,
+            "image_resolution_height_px": image_res_h,
+            "image_size_width_cm": image_size_w,
+            "image_size_height_cm": image_size_h,
         }
 
     def _compute_comprehension_scores(self) -> None:

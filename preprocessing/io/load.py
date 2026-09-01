@@ -16,6 +16,61 @@ from ..data_collection.stimulus import LabConfig
 from ..models.sid import Sid
 
 
+def _blink_loss_table(
+    per_group_blink: pl.DataFrame,
+    per_group_sample_count: pl.DataFrame,
+    group_cols: list[str],
+    duration_col: str,
+    sr: float,
+) -> pl.DataFrame:
+    """Build a blink-loss table grouped by a given set of columns.
+
+    Joins summed blink durations per group with the sample count per group and
+    derives the blink-loss ratio and recording duration.
+
+    Parameters
+    ----------
+    per_group_blink : pl.DataFrame
+        Blink events grouped by ``group_cols`` with a ``blink_duration_ms`` column.
+    per_group_sample_count : pl.DataFrame
+        Sample counts grouped by ``group_cols`` with a ``sample_count`` column.
+    group_cols : list of str
+        Columns used for grouping (e.g. per-page or per-trial columns).
+    duration_col : str
+        Name of the output recording-duration column.
+    sr : float
+        Sampling rate in Hz.
+
+    Returns
+    -------
+    pl.DataFrame
+        A table with ``group_cols``, ``blink_loss_ratio``, ``blink_duration_ms`` and
+        ``duration_col`` columns.
+    """
+    return (
+        per_group_blink.join(
+            per_group_sample_count,
+            on=group_cols,
+            how="right",
+        )
+        .with_columns(
+            (
+                pl.col("blink_duration_ms").fill_null(0)
+                / (pl.col("sample_count") * 1000.0 / sr)
+            ).alias("blink_loss_ratio")
+        )
+        .with_columns((pl.col("sample_count") * 1000.0 / sr).alias(duration_col))
+        .select(
+            [
+                *group_cols,
+                "blink_loss_ratio",
+                "blink_duration_ms",
+                duration_col,
+            ]
+        )
+    )
+
+
 def load_gaze_data(
     asc_file: Path,
     lab_config: LabConfig,
@@ -107,33 +162,40 @@ def load_gaze_data(
 
         blink_events = gaze.events.frame.filter(pl.col("name").str.contains("blink"))
         if not blink_events.is_empty():
-            per_trial_blink = blink_events.group_by(trial_cols).agg(
+            # Per-page blink loss: one row per page, time-weighted within the page.
+            per_page_blink = blink_events.group_by(trial_cols).agg(
                 pl.col("duration").sum().alias("blink_duration_ms")
             )
-            per_trial_sample_count = gaze.samples.group_by(trial_cols).agg(
+            per_page_sample_count = gaze.samples.group_by(trial_cols).agg(
                 pl.len().alias("sample_count")
             )
-            gaze._per_trial_blink_loss = (
-                per_trial_blink.join(per_trial_sample_count, on=trial_cols, how="right")
-                .with_columns(
-                    (
-                        pl.col("blink_duration_ms").fill_null(0)
-                        / (pl.col("sample_count") * 1000.0 / sr)
-                    ).alias("blink_loss_ratio")
-                )
-                .with_columns(
-                    (pl.col("sample_count") * 1000.0 / sr).alias("trial_duration_ms")
-                )
-                .select(
-                    [
-                        *trial_cols,
-                        "blink_loss_ratio",
-                        "blink_duration_ms",
-                        "trial_duration_ms",
-                    ]
-                )
+            gaze._per_page_blink_loss = _blink_loss_table(
+                per_page_blink,
+                per_page_sample_count,
+                group_cols=trial_cols,
+                duration_col="page_duration_ms",
+                sr=sr,
+            )
+
+            # Per-trial blink loss: one row per trial (time-weighted within the
+            # trial). Trials are not weighted by length against each other; the
+            # sanity report takes a plain, equal-weighted mean over trial rows.
+            per_trial_cols = ["trial", "stimulus"]
+            per_trial_blink = blink_events.group_by(per_trial_cols).agg(
+                pl.col("duration").sum().alias("blink_duration_ms")
+            )
+            per_trial_sample_count = gaze.samples.group_by(per_trial_cols).agg(
+                pl.len().alias("sample_count")
+            )
+            gaze._per_trial_blink_loss = _blink_loss_table(
+                per_trial_blink,
+                per_trial_sample_count,
+                group_cols=per_trial_cols,
+                duration_col="trial_duration_ms",
+                sr=sr,
             )
         else:
+            gaze._per_page_blink_loss = None
             gaze._per_trial_blink_loss = None
 
     # Clear parsed events to avoid save_raw_data crash.

@@ -151,10 +151,19 @@ def run_preprocessing(config_path: str | None = None):
                 pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio")
             ).item()
 
-            # Compute per-trial data loss
-            gaze._per_trial_data_loss = gaze.samples.group_by(gaze.trial_columns).agg(
+            # Per-page data loss: group by trial_columns (which include "page"),
+            # so each row is one page. The ratio is time-weighted *within* the page
+            # (lost samples / expected samples over the page's time span).
+            gaze._per_page_data_loss = gaze.samples.group_by(gaze.trial_columns).agg(
                 pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio")
             )
+            # Per-trial data loss: group by trial only (not page). Each trial gets one
+            # independent ratio (time-weighted within the trial). Trials are NOT
+            # weighted by their length against each other -- that is handled by the
+            # plain, equal-weighted mean across trial rows in the sanity report.
+            gaze._per_trial_data_loss = gaze.samples.group_by(
+                ["trial", "stimulus"]
+            ).agg(pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio"))
 
             preprocessing.save_session_metadata(sess.sid, gaze)
 
@@ -183,6 +192,8 @@ def run_preprocessing(config_path: str | None = None):
             "_measure_blink_loss_ratio",
             None,
         )
+        sess._per_page_data_loss = getattr(gaze, "_per_page_data_loss", None)
+        sess._per_page_blink_loss = getattr(gaze, "_per_page_blink_loss", None)
         sess._per_trial_data_loss = getattr(gaze, "_per_trial_data_loss", None)
         sess._per_trial_blink_loss = getattr(gaze, "_per_trial_blink_loss", None)
 

@@ -339,22 +339,38 @@ warrant manual review.
 
 ## Per-trial Data Loss
 
-**Mean per-trial data loss and blink loss ratios, plus a TSV breakdown per trial.**
-The markdown section shows the mean across all trials. The full trial-level detail is written to
-`per_trial_data_loss_{session}.tsv` in the same directory.
+**Mean per-trial and per-page data loss / blink loss ratios, plus TSV breakdowns.**
+The markdown section shows the mean across all trials, followed by a per-page-type
+summary (mean data loss over the pages of each type). Two TSVs are written to the same
+directory:
 
-Columns in the TSV:
+- `per_trial_data_loss_{session}.tsv`: one row per trial.
+- `per_page_data_loss_{session}.tsv`: one row per page, with a `page_type` column
+  (`reading`, `question` or `rating`).
 
-- `trial`, `stimulus`, `page`: trial identifiers
+**Weighting:** each per-trial value is the time-weighted ratio within that trial, but the
+**across-trial mean uses a plain, equal-weighted mean** over trial rows — trials are not
+weighted by their recording length. Pages may be weighted by their recording duration.
+
+Columns in `per_trial_data_loss_{session}.tsv`:
+
+- `trial`, `stimulus`: trial identifiers
 - `data_loss_ratio`: fraction of missing samples per trial
 - `blink_loss_ratio`: fraction of trial time lost to blinks
 - `blink_duration_ms`: total blink duration in that trial
 - `trial_duration_ms`: trial recording duration
 
-*Acceptable:* Per-trial data loss below 10%.
+Columns in `per_page_data_loss_{session}.tsv`:
 
-*Problematic:* Individual trials exceeding 20% suggest tracking failures for that particular
-stimulus.
+- `trial`, `stimulus`, `page`: page identifiers
+- `page_type`: coarse page category (`reading`, `question`, `rating`)
+- `data_loss_ratio`: fraction of missing samples per page
+- `blink_loss_ratio`: fraction of page time lost to blinks
+- `blink_duration_ms`: total blink duration on that page
+- `page_duration_ms`: page recording duration
+
+*Problematic:* Above 2% is a warning signal. Above 10% is substantial (tracking failures for
+that particular stimulus).
 
 ---
 

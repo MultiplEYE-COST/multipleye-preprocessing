@@ -645,6 +645,8 @@ class MultipleyeDataCollection:
             _report_to_file("## Per-trial Data Loss", report_file_path)
             per_trial_loss = self._compute_per_trial_loss_table(session_name)
             if per_trial_loss is not None and not per_trial_loss.is_empty():
+                # One row per trial. The mean over rows weights every trial equally:
+                # trials are NOT weighted by their recording length.
                 num_trials = per_trial_loss.height
                 mean_data_loss = (
                     per_trial_loss["data_loss_ratio"].mean()
@@ -664,7 +666,8 @@ class MultipleyeDataCollection:
                     )
                 if mean_blink_loss is not None:
                     _report_to_file(
-                        f"- Mean per-trial blink loss: {mean_blink_loss:.3f}",
+                        f"- Mean per-trial blink loss: {mean_blink_loss:.3f} "
+                        f"(across {num_trials} trials)",
                         report_file_path,
                     )
 
@@ -672,6 +675,22 @@ class MultipleyeDataCollection:
                     session_results / f"per_trial_data_loss_{session_name}.tsv",
                     separator="\t",
                 )
+
+                per_page_loss = self._compute_per_page_loss_table(session_name)
+                if per_page_loss is not None and not per_page_loss.is_empty():
+                    per_page_loss.write_csv(
+                        session_results / f"per_page_data_loss_{session_name}.tsv",
+                        separator="\t",
+                    )
+                    _report_to_file("Data loss by page type:", report_file_path)
+                    by_page_type = self._data_loss_by_page_type(session_name)
+                    if by_page_type is not None:
+                        for row in by_page_type.iter_rows(named=True):
+                            _report_to_file(
+                                f"- {row['page_type']}: {row['mean_data_loss']:.3f} "
+                                f"(mean over {row['num_pages']} pages)",
+                                report_file_path,
+                            )
             else:
                 _report_to_file("- No per-trial metrics available.", report_file_path)
 
@@ -740,91 +759,89 @@ class MultipleyeDataCollection:
         )
 
         overview = {
-            "Administrative": {
-                "Title": self.data_collection_name,
-                "Dataset_type": self.type,
-                "Dataset_description": dataset_description,
-                "Number_of_sessions": num_sessions,
-                "Number_of_pilots": num_pilots,
-                "Number of eye-tracking (ET) sessions per participant": (
-                    self.num_sessions
-                ),
-                "City": self.city,
-                "Lab_number": self.lab_number,
-                "Country": self.country,
-                "Tested_language": self.language,
+            "administrative": {
+                "title": self.data_collection_name,
+                "dataset_type": self.type,
+                "dataset_description": dataset_description,
+                "number_of_sessions": num_sessions,
+                "number_of_pilots": num_pilots,
+                "number_of_et_sessions_per_participant": self.num_sessions,
+                "city": self.city,
+                "lab_number": self.lab_number,
+                "country": self.country,
+                "tested_language": self.language,
             },
-            "Language_details": {
-                "Metadata_form_exists": metadata_form_exists,
-                "Language_script": metadata_form.get("Script"),
-                "Language_family": metadata_form.get("Language_family"),
-                "Start_date_of_data_collection": metadata_form.get(
+            "language_details": {
+                "metadata_form_exists": metadata_form_exists,
+                "language_script": metadata_form.get("Script"),
+                "language_family": metadata_form.get("Language_family"),
+                "start_date_of_data_collection": metadata_form.get(
                     "Start_date_of_data_collection"
                 ),
-                "End_date_of_data_collection": metadata_form.get(
+                "end_date_of_data_collection": metadata_form.get(
                     "End_date_of_data_collection"
                 ),
             },
-            "Data_availability": {
-                "Raw_data_available": True,
-                "Fixations_available": True,
-                "Saccades_available": True,
-                "Reading_measures_available": True,
+            "data_availability": {
+                "raw_data_available": True,
+                "fixations_available": True,
+                "saccades_available": True,
+                "reading_measures_available": True,
             },
-            "Psychometric_tests": {
-                "Tests_available": getattr(
+            "psychometric_tests": {
+                "tests_available": getattr(
                     self.lab_configuration, "psychometric_tests", None
                 ),
             },
-            "Technical_setup": {
-                "Eye_tracker_name": getattr(
+            "technical_setup": {
+                "eye_tracker_name": getattr(
                     self.lab_configuration, "name_eye_tracker", None
                 ),
-                "Sampling_frequency_hz": getattr(
+                "sampling_frequency_hz": getattr(
                     self.lab_configuration, "sampling_frequency_hz", None
                 ),
-                "Monitor_name": metadata_form.get("Monitor_name"),
-                "Screen_resolution_width_px": (
+                "monitor_name": metadata_form.get("Monitor_name"),
+                "screen_resolution_width_px": (
                     self.lab_configuration.screen_resolution[0]
                     if getattr(self.lab_configuration, "screen_resolution", None)
                     else None
                 ),
-                "Screen_resolution_height_px": (
+                "screen_resolution_height_px": (
                     self.lab_configuration.screen_resolution[1]
                     if getattr(self.lab_configuration, "screen_resolution", None)
                     else None
                 ),
             },
-            "Processing": {
-                "Preprocessing_date": datetime.now(tz=UTC).strftime("%Y-%m-%d"),
-                "Pipeline_version": self._get_pipeline_version(),
-                "Number_of_stimulus_versions": len(
+            "processing": {
+                "preprocessing_date": datetime.now(tz=UTC).strftime("%Y-%m-%d"),
+                "pipeline_version": self._get_pipeline_version(),
+                "number_of_stimulus_versions": len(
                     self.stim_order_versions["version_number"].unique()
                 )
                 if hasattr(self, "stim_order_versions")
                 and len(self.stim_order_versions) > 0
                 else 0,
                 # Flags from metadata_form.json
-                "Required_pq_fixing": metadata_form.get("Required_pq_fixing"),
-                "Psychotests_restructuring": metadata_form.get(
+                "required_pq_fixing": metadata_form.get("Required_pq_fixing"),
+                "psychotests_restructuring": metadata_form.get(
                     "Psychotests_restructuring"
                 ),
-                "Custom_units_of_analysis": metadata_form.get(
+                "custom_units_of_analysis": metadata_form.get(
                     "Custom_units_of_analysis"
                 ),
-                "Answer_option_shuffling_bug": metadata_form.get(
+                "answer_option_shuffling_bug": metadata_form.get(
                     "Answer_option_shuffling_bug"
                 ),
             },
-            "Data_quality": {
-                "Attrition_rate": self._compute_attrition_rate(),
+            "data_quality": {
+                "attrition_rate": self._compute_attrition_rate(),
                 **self._compute_dcn_averages(),
             },
         }
 
         # Add warnings to overview
         if hasattr(logging, "_captured_warnings") and logging._captured_warnings:
-            overview["Warnings"] = list(set(logging._captured_warnings))
+            overview["warnings"] = list(set(logging._captured_warnings))
 
         with open(overview_path, "w", encoding="utf8") as f:
             yaml.dump(overview, f, sort_keys=False)
@@ -909,8 +926,8 @@ class MultipleyeDataCollection:
         non_pilot_sessions = [s for s in self.sessions.values() if not s.is_pilot]
         if not non_pilot_sessions:
             return {
-                "mean_calibration_error": None,
-                "mean_validation_error": None,
+                "mean_calibration_error_dva": None,
+                "mean_validation_error_dva": None,
                 "mean_data_loss_ratio": None,
                 "mean_blink_ratio": None,
                 "mean_total_reading_time_ms": None,
@@ -975,12 +992,12 @@ class MultipleyeDataCollection:
                 mean_wpm = self._compute_dcn_wpm(non_pilot_sessions, total_reading_s)
 
         return {
-            "mean_calibration_error": (
+            "mean_calibration_error_dva": (
                 round(sum(calib_errors) / len(calib_errors), 2)
                 if calib_errors
                 else None
             ),
-            "mean_validation_error": (
+            "mean_validation_error_dva": (
                 round(sum(val_errors) / len(val_errors), 2) if val_errors else None
             ),
             "mean_data_loss_ratio": (
@@ -1895,12 +1912,89 @@ class MultipleyeDataCollection:
         if data_loss_df is None and blink_loss_df is None:
             return None
 
-        trial_cols = ["trial", "stimulus", "page"]
+        trial_cols = ["trial", "stimulus"]
         if data_loss_df is not None and blink_loss_df is not None:
             return data_loss_df.join(blink_loss_df, on=trial_cols, how="left")
         if data_loss_df is not None:
             return data_loss_df
         return blink_loss_df
+
+    def _compute_per_page_loss_table(self, session_name: str):
+        data_loss_df = getattr(self.sessions[session_name], "_per_page_data_loss", None)
+        blink_loss_df = getattr(
+            self.sessions[session_name], "_per_page_blink_loss", None
+        )
+
+        if data_loss_df is None and blink_loss_df is None:
+            return None
+
+        page_cols = ["trial", "stimulus", "page"]
+        if data_loss_df is not None and blink_loss_df is not None:
+            table = data_loss_df.join(blink_loss_df, on=page_cols, how="left")
+        elif data_loss_df is not None:
+            table = data_loss_df
+        else:
+            table = blink_loss_df
+
+        return table.with_columns(
+            pl.col("page")
+            .map_elements(
+                self._page_type,
+                return_dtype=pl.Utf8,
+            )
+            .alias("page_type")
+        )
+
+    def _data_loss_by_page_type(self, session_name: str):
+        """Aggregate mean data-loss ratio per page type.
+
+        Parameters
+        ----------
+        session_name : str
+            The session identifier.
+
+        Returns
+        -------
+        pl.DataFrame | None
+            A DataFrame with ``page_type``, ``mean_data_loss`` and ``num_pages``
+            columns, or ``None`` if no per-page data-loss data is available.
+        """
+        per_page_loss = self._compute_per_page_loss_table(session_name)
+        if per_page_loss is None or per_page_loss.is_empty():
+            return None
+        if "data_loss_ratio" not in per_page_loss.columns:
+            return None
+        return (
+            per_page_loss.group_by("page_type")
+            .agg(
+                pl.col("data_loss_ratio").mean().alias("mean_data_loss"),
+                pl.len().alias("num_pages"),
+            )
+            .sort("page_type")
+        )
+
+    def _page_type(self, page: str) -> str:
+        """Classify a page name into a coarse page type.
+
+        Parameters
+        ----------
+        page : str
+            The page name from the gaze trial_columns.
+
+        Returns
+        -------
+        str
+            One of "reading", "question", "rating", or "other".
+        """
+        if page.startswith("page_"):
+            return "reading"
+        if page.startswith("question_"):
+            return "question"
+        if page.startswith("familiarity_rating_screen") or page == (
+            "subject_difficulty_screen"
+        ):
+            return "rating"
+        return "other"
 
     def _load_psychometric_tests(self, session_identifier: str):
         # Match the eye-tracking session to a psychometric test folder
