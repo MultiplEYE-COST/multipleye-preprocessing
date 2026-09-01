@@ -278,15 +278,21 @@ def prepare_language_folder(data_collection_name: str | None = None):
 
     if len(aoi_files) == 24:
         logger.info(
-            "Applying AOI fixes (remapping space, repairing labels, renaming header)..."
+            "Applying AOI fixes (remapping space, repairing labels, renaming header,)..."
         )
+        if settings.CUSTOM_UOAS:
+            logger.info(
+                "Adding custom units of analysis (aois). For all subsequent steps such as aoi mapping and "
+                "scanpaths, the custom units of analysis will be used."
+            )
+
         for aoi_file in aoi_files:
+            logger.debug(f"Applying fixes to {aoi_file}...")
             remap_space_to_following_word(aoi_file)
             repair_word_labels(aoi_file)
             rename_aoi_columns(aoi_file)
 
             if settings.CUSTOM_UOAS:
-                logger.info("Adding custom units of analysis (aois)")
                 add_custom_aois(aoi_file, settings.LANGUAGE)
 
         # Create a marker file to indicate that these files have been fixed

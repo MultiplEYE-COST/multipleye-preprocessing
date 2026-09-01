@@ -14,6 +14,7 @@ import difflib
 from pathlib import Path
 
 import pandas as pd
+
 from preprocessing import settings
 
 
@@ -53,8 +54,10 @@ def add_custom_aois(aoi_file: Path, language: str) -> None:
     if language == "ZH":
         _add_custom_uoa_chinese(aoi_file)
     elif language == "KL":
-        pass
-
+        # for KL currently, the questions are not supported
+        if not "question" in aoi_file.name:
+            custom_name = aoi_file.stem + "_morph.csv"
+            _add_custom_uoa_chinese(aoi_file, custom_name)
     else:
         raise Warning(
             f"You requested adding custom units of analysis to the aoi files. Currently, your language {language} "
@@ -62,7 +65,7 @@ def add_custom_aois(aoi_file: Path, language: str) -> None:
         )
 
 
-def _add_custom_uoa_chinese(aoi_file: Path) -> None:
+def _add_custom_uoa_chinese(aoi_file: Path, custom_file_name: str = "") -> None:
     """
     The custom units of analysis can be added as follows for ZH:
     - They are in a directory called "custom_units_of_analysis" in the data folder
@@ -91,8 +94,10 @@ def _add_custom_uoa_chinese(aoi_file: Path) -> None:
 
     """
 
-    uoa_dir = settings.DATASET_DIR / "custom_units_of_analysis"
-    uoa_file = uoa_dir / aoi_file.name
+    if custom_file_name:
+        uoa_file = settings.DATASET_DIR / "custom_units_of_analysis" / custom_file_name
+    else:
+        uoa_file = settings.DATASET_DIR / "custom_units_of_analysis" / aoi_file.name
 
     if not uoa_file.exists():
         raise FileNotFoundError(
@@ -101,7 +106,9 @@ def _add_custom_uoa_chinese(aoi_file: Path) -> None:
             f"that it is in your data folder ina folder called 'custom_units_of_analysis'."
         )
 
-    uoa_data = pd.read_csv(uoa_file, dtype={"segment": str})
+    uoa_data = pd.read_csv(uoa_file, dtype={"segment": str})[
+        ["word", "word_idx", "char", "char_idx", "page"]
+    ]
     aoi_data = pd.read_csv(aoi_file, dtype={"segment": str})
 
     if "questions" in uoa_file.name:
