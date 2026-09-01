@@ -33,6 +33,11 @@ def mock_multipleye_instance():
         instance.included_sessions = []
         # Provide a mocked logger used by the method under test
         instance.logger = MagicMock()
+        instance.language = "en"
+        instance.country = "EE"
+        instance.year = 2025
+        instance.city = "Tartu"
+        instance.lab_number = 1
         return instance
 
 
@@ -71,7 +76,7 @@ def test_add_recorded_sessions_logging(
         patch("os.scandir", return_value=[mock_entry, valid_entry]),
         patch("pathlib.Path.glob", return_value=[Path("001_EE_EN_1_ET1_test.edf")]),
     ):
-        instance.add_recorded_sessions(data_root, regex)
+        instance.add_recorded_sessions(session_folder_regex=regex)
 
         warning_msg = f"Folder in eye-tracking-sessions '{folder_name}' does not match the eye-tracking session regex pattern {regex}. Not considered an eye-tracking session."
 

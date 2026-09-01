@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass
@@ -30,10 +31,11 @@ class Trial:
     """
 
     trial_number: int
-    stimulus_id: int
-    stimulus_name: str
+    stimulus_id: int | None
+    stimulus_name: str | None
     is_practice: bool
-    num_questions: int
-    comprehension_score: float
-    comprehension_question_time_ms: float
-    reading_time_ms: float
+    status: Literal["completed", "interrupted"]
+    num_questions: int | None
+    comprehension_score: float | None
+    comprehension_question_time_ms: float | None
+    reading_time_ms: float | None

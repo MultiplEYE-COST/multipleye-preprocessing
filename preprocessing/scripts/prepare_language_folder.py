@@ -18,7 +18,7 @@ from ..utils.fix_multipleye_aoi_files import (
 )
 from ..utils.logging import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def prepare_language_folder(data_collection_name: str | None = None):
@@ -198,6 +198,16 @@ def prepare_language_folder(data_collection_name: str | None = None):
                 f"The stimulus config folder not found in '{stimulus_folder_path}'. "
                 "Please check and restructure or possibly unzip the stimulus folder."
             )
+
+    # copy the preprocessing config file. Will always be copied
+    config_file_path = settings.CONFIG_PATH
+    content = config_file_path.read_text()
+
+    new_path = settings.OUTPUT_DIR / config_file_path.name
+    new_path.parent.mkdir(parents=True, exist_ok=True)
+    new_path.write_text(content)
+
+    logger.info(f"Copied preprocessing config file from {config_file_path}")
 
     # if aoi files are not yet split into questions and texts, do it here:
     source_aoi_path = (

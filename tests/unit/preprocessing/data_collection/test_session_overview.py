@@ -14,9 +14,12 @@ def _make_session(overrides: dict | None = None) -> Session:
         "participant_id": 1,
         "session_identifier": "001_EN_UK_1_ET1",
         "is_pilot": False,
-        "session_folder_path": Path("/tmp"),
-        "session_file_path": Path("/tmp/test.log"),
-        "session_file_name": "test.log",
+        "session_folder_path_unprocessed": Path("/tmp"),
+        "session_file_path_unprocessed": Path("/tmp/test.log"),
+        "language": "EN",
+        "country": "UK",
+        "city": "London",
+        "lab_number": 1,
         **(overrides or {}),
     }
     return Session(**fields)
@@ -36,16 +39,14 @@ def _mock_lab_config() -> LabConfig:
 
 
 def _seed_metadata(sess: Session) -> None:
-    sess.pm_gaze_metadata = {
-        "tracked_eye": "R",
-        "data_loss_ratio": 0.02,
-        "mount_configuration": {
-            "mount_type": "Desktop",
-            "head_stabilization": "stabilized",
-            "eyes_recorded": "binocular / monocular",
-        },
-        "pupil_data_type": "AREA",
-    }
+    sess.tracked_eye = "R"
+    sess.mount_type = "Desktop"
+    sess.head_stabilization = "stabilized"
+    sess.eyes_recorded = "binocular / monocular"
+    sess.pupil_data_type = "AREA"
+    sess.pm_data_loss = 0.02
+    sess.pm_blink_data_loss = 0.01
+
     sess.lab_config = _mock_lab_config()
 
 
@@ -131,6 +132,7 @@ def test_sections_are_present() -> None:
         "calibration_validation",
         "data_quality",
         "experiment_procedure",
+        "stimuli",
         "trials",
         "comprehension",
         "data_formats",
@@ -280,7 +282,7 @@ def test_unprocessed_session_defaults() -> None:
 
 def test_metadata_not_a_dict() -> None:
     sess = _make_session()
-    sess.pm_gaze_metadata = "unknown"
+    sess.add_pm_metadata(None)
 
     overview = sess.create_overview()
 
@@ -290,11 +292,8 @@ def test_metadata_not_a_dict() -> None:
 
 def test_mount_configuration_not_a_dict() -> None:
     sess = _make_session()
-    sess.pm_gaze_metadata = {
-        "tracked_eye": "R",
-        "mount_configuration": "unknown",
-        "pupil_data_type": "AREA",
-    }
+    sess.tracked_eye = "R"
+    sess.pupil_data_type = "AREA"
 
     overview = sess.create_overview()
     tech = overview["technical_setup"]
@@ -571,7 +570,7 @@ def test_reading_time_non_positive_total() -> None:
 
 def test_reading_time_already_set() -> None:
     sess = _sess_with_validation_data()
-    sess.total_reading_time = 42.0
+    sess.total_reading_time_s = 42.0
     sess.stimulus_start_end_ts = [
         {"stimulus": "a", "trial": "trial_1", "start_ts": 1000.0, "stop_ts": 4000.0},
     ]
@@ -626,6 +625,7 @@ _ANSWERS_ROWS = [
         "trial": "trial_1",
         "stimulus": "Lit_MagicMountain",
         "stimulus_id": 3,
+        "question_id": 1,
         "is_correct": True,
         "confirmation_rt_ms": 1000.0,
     },
@@ -633,6 +633,7 @@ _ANSWERS_ROWS = [
         "trial": "trial_1",
         "stimulus": "Lit_MagicMountain",
         "stimulus_id": 3,
+        "question_id": 2,
         "is_correct": False,
         "confirmation_rt_ms": 2000.0,
     },
@@ -640,6 +641,7 @@ _ANSWERS_ROWS = [
         "trial": "trial_2",
         "stimulus": "Lit_Alchemist",
         "stimulus_id": 4,
+        "question_id": 3,
         "is_correct": True,
         "confirmation_rt_ms": 1500.0,
     },
@@ -647,6 +649,7 @@ _ANSWERS_ROWS = [
         "trial": "PRACTICE_trial_1",
         "stimulus": "Enc_WikiMoon",
         "stimulus_id": 13,
+        "question_id": "session_interrupted",
         "is_correct": True,
         "confirmation_rt_ms": 500.0,
     },
@@ -662,11 +665,12 @@ _ANSWERS_ROWS = [
         "comprehension_score",
         "question_time_ms",
         "reading_time_ms",
+        "status",
     ),
     [
-        (1, False, "Lit_MagicMountain", 2, 0.5, 3000.0, 3000.0),
-        (2, False, "Lit_Alchemist", 1, 1.0, 1500.0, 3000.0),
-        (1, True, "Enc_WikiMoon", 1, 1.0, 500.0, 400.0),
+        (1, False, "Lit_MagicMountain", 2, 0.5, 3000.0, 3000.0, "completed"),
+        (2, False, "Lit_Alchemist", 1, 1.0, 1500.0, 3000.0, "completed"),
+        (1, True, None, None, None, None, None, "interrupted"),
     ],
 )
 def test_trials_computed_from_answers_and_reading_times(
@@ -678,6 +682,7 @@ def test_trials_computed_from_answers_and_reading_times(
     comprehension_score: float,
     question_time_ms: float,
     reading_time_ms: float,
+    status: str,
 ) -> None:
     answers_dir = _write_answers(tmp_path, _ANSWERS_ROWS)
     sess = _trial_sess(answers_dir)
@@ -699,6 +704,7 @@ def test_trials_computed_from_answers_and_reading_times(
     assert trial["comprehension_score"] == comprehension_score
     assert trial["comprehension_question_time_ms"] == question_time_ms
     assert trial["reading_time_ms"] == reading_time_ms
+    assert trial["status"] == status
 
 
 @pytest.mark.parametrize(

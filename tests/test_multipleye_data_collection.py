@@ -35,15 +35,6 @@ class TestMultipleyeDataCollection(TestCase):
         self.assertEqual(test_collection.lab_number, 1)
         self.assertEqual(len(test_collection.sessions), 1)
 
-    def test_create_gaze_frame(self):
-        self.fail()
-
-    def test_get_gaze_frame(self):
-        self.fail()
-
-    def test_create_sanity_check_report(self):
-        self.fail()
-
 
 @pytest.fixture
 def data_collection():

@@ -1,8 +1,10 @@
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from pprint import pformat
 from typing import TypeVar
 
 import polars as pl
+import yaml
 
 from ..config import settings
 from ..data_collection.stimulus import LabConfig, Stimulus
@@ -10,7 +12,7 @@ from ..data_collection.trial import Trial
 from ..models import Sid
 from ..utils.logging import get_logger
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 T = TypeVar("T")
 
@@ -19,96 +21,117 @@ T = TypeVar("T")
 class Session:
     # general info
     participant_id: int
-
+    language: str
+    country: str
+    city: str
+    lab_number: int
     session_identifier: str
     is_pilot: bool
+    month_of_data_collection: str = field(default="unknown", init=True)
+    year_of_data_collection: str = field(default="unknown", init=True)
+    loaded_from_yaml: bool = field(default=False, init=True)
 
     # paths and files
-    session_folder_path: Path
-    session_file_path: Path
-    session_file_name: str
-    asc_path: Path | str = field(default="unknown", init=False)
+    session_folder_path_unprocessed: Path = field(default="not available", init=True)
+    session_file_path_unprocessed: Path = field(default="not available", init=True)
+    asc_path: Path = field(default="unknown", init=True)
+    dataset_dir: Path = field(default="unknown", init=True)
 
     # stimuli
-    # TODO: move stimuli, completed stimuli, stimuli trial mapping to one thing
-    stimuli: list[Stimulus] | str = field(default="unknown", init=False)
-    randomization_version: int | str = field(default="unknown", init=False)
-    stimulus_folder_name: str = field(default="unknown", init=False)
-    completed_stimuli_ids: list[int] | str = field(default="unknown", init=False)
-    completed_stimuli_names: list[str] | str = field(default="unknown", init=False)
-    question_order: dict[str, list[str]] | str = field(default="unknown", init=False)
-    stimulus_order_ids: list[int] | str = field(default="unknown", init=False)
+    # TODO: move stimuli, completed stimuli, stimuli trial mapping to one thing?
+    stimuli: list[Stimulus] | str = field(default="unknown", init=True)
+    randomization_version: int | str = field(default="unknown", init=True)
+    stimulus_folder_name: str = field(default="unknown", init=True)
+    completed_stimuli_ids: list[int] | str = field(default="unknown", init=True)
+    completed_stimuli_names: list[str] | str = field(default="unknown", init=True)
+    question_order: dict[str, list[str]] | str = field(default="unknown", init=True)
+    stimulus_order_ids: list[int] | str = field(default="unknown", init=True)
     messages: pl.DataFrame | list[dict[str, str]] | str = field(
-        default="unknown", init=False
+        default="unknown", init=True
     )
     uncategorized_messages: list[dict[str, str]] | str = field(
-        default="unknown", init=False
+        default="unknown", init=True
     )
-    stimuli_trial_mapping: dict[str, str] | str = field(default="unknown", init=False)
+    stimulus_trial_mapping: dict[str, str] | str = field(default="unknown", init=True)
     stimulus_start_end_ts: list[dict[str, str | float]] | str = field(
-        default="unknown", init=False
+        default="unknown", init=True
     )
 
-    logfile: str = field(default="unknown", init=False)
-    interrupted: bool | str = field(default="unknown", init=False)
-    lab_config: LabConfig | str = field(default="unknown", init=False)
+    logfile: str = field(default="unknown", init=True)
+    lab_config: LabConfig | str = field(default="unknown", init=True)
 
     # stats
-    total_reading_time: float | str = field(default="unknown", init=False)
-    total_session_duration: float | str = field(default="unknown", init=False)
-    obligatory_break_made: bool | str = field(default="unknown", init=False)
-    num_optional_breaks_made: int | str = field(default="unknown", init=False)
-    total_break_time: float | str = field(default="unknown", init=False)
+    total_reading_time_s: float | str = field(default="unknown", init=True)
+    total_session_duration_s: float | str = field(default="unknown", init=True)
+    obligatory_break_made: bool | str = field(default="unknown", init=True)
+    num_optional_breaks_made: int | str = field(default="unknown", init=True)
+    total_break_time_s: float | str = field(default="unknown", init=True)
 
     # calibrations & validations
-    calibrations: pl.DataFrame | str = field(default="unknown", init=False)
-    validations: pl.DataFrame | str = field(default="unknown", init=False)
-    avg_comprehension_score: float | str = field(default="unknown", init=False)
-    avg_comprehension_score_local: float | str = field(default="unknown", init=False)
-    avg_comprehension_score_global: float | str = field(default="unknown", init=False)
-    avg_comprehension_score_bridging: float | str = field(default="unknown", init=False)
-    avg_calibration_error: float | str = field(default="unknown", init=False)
-    num_calibrations: int | str = field(default="unknown", init=False)
-    num_validations: int | str = field(default="unknown", init=False)
-    avg_validation_error: float | str = field(default="unknown", init=False)
+    calibrations: pl.DataFrame | str = field(default="unknown", init=True)
+    validations: pl.DataFrame | str = field(default="unknown", init=True)
+    avg_comprehension_score: float | str = field(default="unknown", init=True)
+    avg_comprehension_score_local: float | str = field(default="unknown", init=True)
+    avg_comprehension_score_global: float | str = field(default="unknown", init=True)
+    avg_comprehension_score_bridging: float | str = field(default="unknown", init=True)
+    avg_calibration_error_dva: float | str = field(default="unknown", init=True)
+    num_calibrations: int | str = field(default="unknown", init=True)
+    num_validations: int | str = field(default="unknown", init=True)
+    avg_validation_error_dva: float | str = field(default="unknown", init=True)
 
     # eye tracking metadata
-    tracked_eye: str = field(default="unknown", init=False)
-    tracked_eye_consistent: bool = field(default=True, init=False)
-    num_good_validations: int = field(default=0, init=False)
-    num_moderate_validations: int = field(default=0, init=False)
-    num_bad_validations: int = field(default=0, init=False)
+    tracked_eye: str = field(default="unknown", init=True)
+    tracked_eye_consistent: bool = field(default=True, init=True)
+    num_good_validations: int = field(default=0, init=True)
+    num_moderate_validations: int = field(default=0, init=True)
+    num_bad_validations: int = field(default=0, init=True)
 
     # completed trials
-    num_completed_trials: int = field(default=0, init=False)
+    num_completed_trials: int = field(default=0, init=True)
+    was_session_interrupted: bool = field(default=False, init=True)
 
-    # sanity report
-    sanity_report_path: Path | str = field(default="unknown", init=False)
+    # data quality & sanity report
+    sanity_report_path: Path | str = field(default="unknown", init=True)
+    session_blink_loss_ratio: float | str = field(default=None, init=True)
+    session_total_data_loss_ratio: float | str = field(default=None, init=True)
 
     # preprocessing pm
-    pm_gaze_path: Path | str = field(default="unknown", init=False)
-    pm_gaze_metadata: dict | str = field(default="unknown", init=False)
+    pm_gaze_path: Path | str = field(default="unknown", init=True)
+    # parsed from pm metadata
+    # recording details eyelink (if the eyelink settings are wrong, these will be too!)
+    recording_start_time_eyelink_hh_mm_ss: str = field(default="unknown", init=True)
+    recording_day_eyelink: str = field(default="unknown", init=True)
+    recording_month_eyelink: str = field(default="unknown", init=True)
+    recording_year_eyelink: str = field(default="unknown", init=True)
+    pupil_data_type: str = field(default="unknown", init=True)
+    total_recording_duration_ms: float = field(default="unknown", init=True)
+    mount_type: str = field(default=None, init=True)
+    head_stabilization: str = field(default=None, init=True)
+    eyes_recorded: str = field(default=None, init=True)
 
     # psychometric tests
-    psychometric_tests_session: str = field(default="unknown", init=False)
+    psychometric_tests_session: str = field(default="unknown", init=True)
 
     # data formats
     # True by default: our pipeline produces all formats. Other pipelines may
     # set these to False when a format is not generated.
-    raw_data: bool = field(default=True, init=False)
-    fixations: bool = field(default=True, init=False)
-    saccades: bool = field(default=True, init=False)
-    reading_measures: bool = field(default=True, init=False)
-    answers: bool = field(default=True, init=False)
+    raw_data: bool = field(default=True, init=True)
+    fixations: bool = field(default=True, init=True)
+    saccades: bool = field(default=True, init=True)
+    reading_measures: bool = field(default=True, init=True)
+    answers: bool = field(default=True, init=True)
 
     # per-trial metrics
-    trials: list[Trial] | str = field(default="unknown", init=False)
+    trials: list[Trial] | str = field(default="unknown", init=True)
+
+    def __str__(self) -> str:
+        return pformat(self.create_overview(), indent=4)
 
     @property
     def sid(self) -> "Sid":
         return Sid(self.session_identifier)
 
-    def create_overview(self) -> dict:
+    def create_overview(self):
         """
         Create a topic-grouped overview of the session.
 
@@ -121,13 +144,32 @@ class Session:
         """
         self._create_stats()
 
+        # if the data loss has been loaded it will not be recomputed again
+        if not self.loaded_from_yaml:
+            self.session_blink_loss_ratio = getattr(
+                self,
+                "_measure_blink_loss_ratio",
+                None,
+            )
+
+            self.session_total_data_loss_ratio = getattr(
+                self,
+                "_measure_total_data_loss_ratio",
+                None,
+            )
+
         return {
             "administrative": {
                 "participant_id": self.participant_id,
                 "session_identifier": self.session_identifier,
                 "is_pilot": self.is_pilot,
-                "year_of_data_collection": self._get_metadata("year", "unknown"),
-                "month_of_data_collection": self._get_metadata("month", "unknown"),
+                # TODO: needs to be changed to be parsed from the logfile
+                "year_of_data_collection": self.recording_year_eyelink,
+                "month_of_data_collection": self.recording_month_eyelink,
+                "language": self.language,
+                "country": self.country,
+                "city": self.city,
+                "lab_number": self.lab_number,
             },
             "technical_setup": self._technical_setup(),
             "tracking": {
@@ -137,36 +179,34 @@ class Session:
             "calibration_validation": {
                 "num_calibrations": self.num_calibrations,
                 "num_validations": self.num_validations,
-                "avg_calibration_error_dva": self.avg_calibration_error,
-                "avg_validation_error_dva": self.avg_validation_error,
+                "avg_calibration_error_dva": self.avg_calibration_error_dva,
+                "avg_validation_error_dva": self.avg_validation_error_dva,
                 "num_good_validations": self.num_good_validations,
                 "num_moderate_validations": self.num_moderate_validations,
                 "num_bad_validations": self.num_bad_validations,
             },
             "data_quality": {
-                "session_total_data_loss_ratio": getattr(
-                    self,
-                    "_measure_total_data_loss_ratio",
-                    None,
-                ),
-                "session_blink_loss_ratio": getattr(
-                    self,
-                    "_measure_blink_loss_ratio",
-                    None,
-                ),
+                "session_total_data_loss_ratio": self.session_total_data_loss_ratio,
+                "session_blink_loss_ratio": self.session_blink_loss_ratio,
             },
             "experiment_procedure": {
                 "question_order": self.question_order,
                 "stimulus_order_ids": self.stimulus_order_ids,
+                "completed_stimuli_ids": self.completed_stimuli_ids,
                 "num_completed_trials": len(self.stimulus_order_ids)
                 if isinstance(self.stimulus_order_ids, list)
                 else None,
-                "was_session_interrupted": self.interrupted,
+                "was_session_interrupted": self.was_session_interrupted,
                 "obligatory_break_made": self.obligatory_break_made,
                 "num_optional_breaks_made": self.num_optional_breaks_made,
-                "total_break_time_s": self.total_break_time,
-                "total_reading_time_s": self.total_reading_time,
-                "total_session_duration_s": self.total_session_duration,
+                "total_break_time_s": self.total_break_time_s,
+                "total_reading_time_s": self.total_reading_time_s,
+                "total_session_duration_s": self.total_session_duration_s,
+                "randomization_version": self.randomization_version,
+            },
+            "stimuli": {
+                "stimulus_folder_name": self.stimulus_folder_name,
+                "stimulus_trial_mapping": self.stimulus_trial_mapping,
             },
             "trials": (
                 [asdict(t) for t in self.trials]
@@ -188,18 +228,159 @@ class Session:
             },
         }
 
-    def _get_metadata(self, key: str, default: T = "unknown") -> str | T:
-        """Return a value from pm_gaze_metadata without raising on missing keys."""
-        if isinstance(self.pm_gaze_metadata, dict):
-            return self.pm_gaze_metadata.get(key, default)
-        return default
+    @classmethod
+    def from_yaml(cls, yaml_file: Path, dataset_dir: Path) -> "Session":
+        with open(yaml_file, "r", encoding="utf8") as f:
+            session_specs = yaml.safe_load(f)
+
+        # Flatten nested overview sections while remaining compatible with already-flat files.
+        flat_overview = {}
+
+        for key, value in session_specs.items():
+            if key == "trials":
+                trials = value
+            elif isinstance(value, dict):
+                if key == "technical_setup":
+                    tech_setup = value
+                else:
+                    flat_overview.update(value)
+            else:
+                flat_overview[key] = value
+
+        # parse technical setup into lab config
+        lab_config = LabConfig(
+            screen_resolution=(
+                tech_setup["screen_resolution_width_px"],
+                tech_setup["screen_resolution_height_px"],
+            ),
+            screen_size_cm=(
+                tech_setup["screen_size_width_cm"],
+                tech_setup["screen_size_height_cm"],
+            ),
+            screen_distance_cm=tech_setup["screen_distance_cm"],
+            image_resolution=(
+                tech_setup["image_resolution_width_px"],
+                tech_setup["image_resolution_height_px"],
+            ),
+            image_size_cm=(
+                tech_setup["image_size_width_cm"],
+                tech_setup["image_size_height_cm"],
+            ),
+            name_eye_tracker=tech_setup["eye_tracker_name"],
+        )
+
+        # if there had been trials written to the yaml file as a list
+        if isinstance(trials, list) and trials != []:
+            trials = [Trial(**data) for data in trials]
+
+        flat_overview["mount_type"] = tech_setup["mount_type"]
+        flat_overview["head_stabilization"] = tech_setup["head_stabilization"]
+        flat_overview["eyes_recorded"] = tech_setup["eyes_recorded"]
+
+        session = cls(
+            **flat_overview,
+            dataset_dir=Path(dataset_dir),
+            lab_config=lab_config,
+            trials=trials,
+            loaded_from_yaml=True,
+        )
+        session.load_session_stimuli(
+            Path(session.dataset_dir) / session.stimulus_folder_name
+        )
+
+        return session
+
+    def load_session_stimuli(
+        self,
+        stimulus_dir: Path,
+        stimulus_names: None | list = None,
+    ) -> None:
+        """
+        Load the stimuli from the specified directory.
+        :param stimulus_dir: The directory where the stimuli are stored.
+        :param stimulus_names: The names of the stimuli to load.
+        If None, the predefined stimuli names in the settings are used.
+        """
+
+        if self.stimulus_folder_name == "unknown":
+            self.stimulus_folder_name = stimulus_dir.name
+
+        stimuli = []
+        if stimulus_names is None:
+            stimulus_names = [
+                name
+                for name, num in settings.STIMULUS_NAME_MAPPING.items()
+                if num in self.completed_stimuli_ids
+            ]
+
+        for stimulus_name in stimulus_names:
+            trial_mapping = self.stimulus_trial_mapping
+            # get the trial id from the mapping, keys are ids and values are strings
+            trial_id = [
+                key for key, value in trial_mapping.items() if value == stimulus_name
+            ]
+            if len(trial_id) == 0:
+                raise KeyError(
+                    f"Stimulus name {stimulus_name} not found in the trial mapping for session "
+                    f"{self.session_identifier}. Please check the completed_stimuli.csv file."
+                )
+
+            stimulus = Stimulus.load(
+                stimulus_dir,
+                self.language,
+                self.country,
+                self.lab_number,
+                stimulus_name,
+                self.randomization_version,
+                trial_id[0],
+            )
+            stimuli.append(stimulus)
+
+        self.stimuli = stimuli
+
+    def add_pm_metadata(self, metadata: dict) -> None:
+        """Adds the metadata for a gaze object in pymovements to the session's metadata."""
+
+        if isinstance(metadata, dict):
+            self.recording_day_eyelink = metadata["day"]
+            self.recording_month_eyelink = metadata["month"]
+            self.recording_year_eyelink = metadata["year"]
+            self.recording_start_time_eyelink_hh_mm_ss = metadata["time"]
+            self.tracked_eye = metadata["tracked_eye"]
+            self.pupil_data_type = metadata["pupil_data_type"]
+            self.total_recording_duration_ms = float(
+                metadata["total_recording_duration_ms"]
+            )
+
+            self.pm_blink_data_loss = metadata["data_loss_ratio_blinks"]
+            self.pm_data_loss = metadata["data_loss_ratio"]
+
+            if isinstance(metadata["mount_configuration"], dict):
+                self.mount_type = metadata["mount_configuration"]["mount_type"]
+                self.head_stabilization = metadata["mount_configuration"][
+                    "head_stabilization"
+                ]
+                self.eyes_recorded = metadata["mount_configuration"]["eyes_recorded"]
+
+    def get_pm_metadata(self) -> dict:
+
+        metadata = {}
+
+        metadata["day"] = self.recording_day_eyelink
+        metadata["month"] = self.recording_month_eyelink
+        metadata["year"] = self.recording_year_eyelink
+        metadata["time"] = self.recording_start_time_eyelink_hh_mm_ss
+        metadata["tracked_eye"] = self.tracked_eye
+        metadata["total_recording_duration_ms"] = self.total_recording_duration_ms
+        metadata["sampling_rate"] = self.lab_config.sampling_frequency_hz
+        metadata["data_loss_ratio"] = self.pm_data_loss
+        metadata["data_loss_ratio_blinks"] = self.pm_blink_data_loss
+
+        return metadata
 
     def _technical_setup(self) -> dict:
         """Assemble the technical setup section from lab config and gaze metadata."""
         cfg = self.lab_config if isinstance(self.lab_config, LabConfig) else None
-        mount = self._get_metadata("mount_configuration", {})
-        if not isinstance(mount, dict):
-            mount = {}
 
         def _resolve(attr: str, fallback: object = None) -> object:
             if cfg is not None:
@@ -219,10 +400,10 @@ class Session:
         return {
             "eye_tracker_name": _resolve("name_eye_tracker", None),
             "sampling_frequency_hz": _resolve("sampling_frequency_hz", None),
-            "mount_type": mount.get("mount_type"),
-            "head_stabilization": mount.get("head_stabilization"),
-            "eyes_recorded": mount.get("eyes_recorded"),
-            "pupil_data_type": self._get_metadata("pupil_data_type"),
+            "mount_type": self.mount_type,
+            "head_stabilization": self.head_stabilization,
+            "eyes_recorded": self.eyes_recorded,
+            "pupil_data_type": self.pupil_data_type,
             "screen_resolution_width_px": screen_res_w,
             "screen_resolution_height_px": screen_res_h,
             "screen_size_width_cm": screen_size_w,
@@ -304,8 +485,6 @@ class Session:
         self.num_calibrations = len(self.calibrations)
         self.num_validations = len(self.validations)
 
-        self.tracked_eye = self._get_metadata("tracked_eye", "unknown")
-
         # Mean calibration and validation error (accuracy_avg column), if present.
         if (
             isinstance(self.validations, pl.DataFrame)
@@ -314,7 +493,7 @@ class Session:
         ):
             vals = self.validations["accuracy_avg"].drop_nulls().to_list()
             if vals:
-                self.avg_validation_error = round(sum(vals) / len(vals), 3)
+                self.avg_validation_error_dva = round(sum(vals) / len(vals), 3)
 
         if (
             isinstance(self.calibrations, pl.DataFrame)
@@ -323,7 +502,7 @@ class Session:
         ):
             vals = self.calibrations["accuracy_avg"].drop_nulls().to_list()
             if vals:
-                self.avg_calibration_error = round(sum(vals) / len(vals), 3)
+                self.avg_calibration_error_dva = round(sum(vals) / len(vals), 3)
 
         if (
             not isinstance(self.validations, str)
@@ -357,12 +536,12 @@ class Session:
 
         duration = self._compute_session_duration()
         if duration is not None:
-            self.total_session_duration = duration
+            self.total_session_duration_s = duration
 
-        if self.total_reading_time == "unknown":
+        if self.total_reading_time_s == "unknown":
             reading = self._compute_total_reading_time()
             if reading is not None:
-                self.total_reading_time = reading
+                self.total_reading_time_s = reading
 
     def _compute_total_reading_time(self) -> float | None:
         """Return total reading time in seconds from stimulus start/end timestamps.
@@ -410,8 +589,16 @@ class Session:
         list[Trial] | str
             Per-trial metrics, or "unknown" when the answers CSV is missing.
         """
+
+        # if trials have been loaded they will not be computed again and just be returned as loaded
+        if self.loaded_from_yaml:
+            return self.trials
+
         answers_csv = self.sid.answers_dir / f"{self.sid}_answers.csv"
         if not answers_csv.exists():
+            # if there is no file found but trials are also non-empty, those will be used
+            if self.trials != "unknown" and self.trials != []:
+                return self.trials
             return "unknown"
 
         try:
@@ -448,18 +635,38 @@ class Session:
             except ValueError:
                 trial_number = 0
 
-            trials.append(
-                Trial(
-                    trial_number=trial_number,
-                    stimulus_id=int(first["stimulus_id"]),
-                    stimulus_name=str(first["stimulus"]),
-                    is_practice=str(trial_id).startswith("PRACTICE_"),
-                    num_questions=group.height,
-                    comprehension_score=score,
-                    comprehension_question_time_ms=question_time,
-                    reading_time_ms=round(reading_by_trial.get(str(trial_id), 0.0), 3),
+            if first["question_id"] == "session_interrupted":
+                trials.append(
+                    Trial(
+                        trial_number=trial_number,
+                        stimulus_id=None,
+                        stimulus_name=None,
+                        is_practice=str(trial_id).startswith("PRACTICE_"),
+                        num_questions=None,
+                        comprehension_score=None,
+                        comprehension_question_time_ms=None,
+                        reading_time_ms=None,
+                        status="interrupted",
+                    )
                 )
-            )
+
+            else:
+                trials.append(
+                    Trial(
+                        trial_number=trial_number,
+                        stimulus_id=int(first["stimulus_id"]),
+                        stimulus_name=str(first["stimulus"]),
+                        is_practice=str(trial_id).startswith("PRACTICE_"),
+                        num_questions=group.height,
+                        comprehension_score=score,
+                        comprehension_question_time_ms=question_time,
+                        reading_time_ms=round(
+                            reading_by_trial.get(str(trial_id), 0.0), 3
+                        ),
+                        status="completed",
+                    )
+                )
 
         trials.sort(key=lambda t: (t.is_practice, t.trial_number))
+
         return trials

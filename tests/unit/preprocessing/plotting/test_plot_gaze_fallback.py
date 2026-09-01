@@ -7,7 +7,7 @@ from preprocessing.config import settings
 from preprocessing.data_collection.stimulus import (
     Stimulus,
 )
-from preprocessing.plotting.plot import plot_gaze
+from preprocessing.plotting.plots import plot_gaze
 
 
 @pytest.fixture

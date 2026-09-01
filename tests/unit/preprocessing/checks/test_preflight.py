@@ -19,8 +19,13 @@ from preprocessing.config import settings
 @dataclass
 class FakeSession:
     session_identifier: str
-    session_file_path: Path
-    session_folder_path: Path
+    session_file_path_unprocessed: Path
+    session_folder_path_unprocessed: Path
+    language: str
+    country: str
+    lab_number: int
+    city: str = "City"
+    year: int = 2024
 
 
 @dataclass
@@ -144,8 +149,13 @@ def preflight_env(tmp_path: Path):
 
     session = FakeSession(
         session_identifier=session_id,
-        session_file_path=edf_path,
-        session_folder_path=sess_folder,
+        session_file_path_unprocessed=edf_path,
+        session_folder_path_unprocessed=sess_folder,
+        language="EN",
+        country="UK",
+        lab_number=1,
+        city="City",
+        year=2024,
     )
 
     dc = FakeDataCollection(
@@ -176,14 +186,14 @@ def preflight_env(tmp_path: Path):
         # ---- EDF -----------------------------------------------------------
         (
             "edf_missing",
-            lambda env: env[0].sessions[env[1]].session_file_path.unlink(),
+            lambda env: env[0].sessions[env[1]].session_file_path_unprocessed.unlink(),
             1,
         ),
         # ---- logfiles folder -----------------------------------------------
         (
             "logfiles_folder_missing",
             lambda env: _rmtree(
-                env[0].sessions[env[1]].session_folder_path / "logfiles"
+                env[0].sessions[env[1]].session_folder_path_unprocessed / "logfiles"
             ),
             1,
         ),
@@ -191,7 +201,7 @@ def preflight_env(tmp_path: Path):
         (
             "experiment_log_missing",
             lambda env: _remove_glob(
-                env[0].sessions[env[1]].session_folder_path / "logfiles",
+                env[0].sessions[env[1]].session_folder_path_unprocessed / "logfiles",
                 "EXPERIMENT_*.txt",
             ),
             1,
@@ -199,7 +209,7 @@ def preflight_env(tmp_path: Path):
         (
             "experiment_log_duplicate",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "EXPERIMENT_LOGFILE_002.txt"
             ).write_text("duplicate experiment log", encoding="utf-8"),
@@ -209,7 +219,7 @@ def preflight_env(tmp_path: Path):
         (
             "general_log_missing",
             lambda env: _remove_glob(
-                env[0].sessions[env[1]].session_folder_path / "logfiles",
+                env[0].sessions[env[1]].session_folder_path_unprocessed / "logfiles",
                 "GENERAL_LOGFILE_*.txt",
             ),
             1,
@@ -217,7 +227,7 @@ def preflight_env(tmp_path: Path):
         (
             "general_log_duplicate",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "GENERAL_LOGFILE_002.txt"
             ).write_text("duplicate general log", encoding="utf-8"),
@@ -227,7 +237,7 @@ def preflight_env(tmp_path: Path):
         (
             "data_logfile_missing",
             lambda env: _remove_glob(
-                env[0].sessions[env[1]].session_folder_path / "logfiles",
+                env[0].sessions[env[1]].session_folder_path_unprocessed / "logfiles",
                 "DATA_LOGFILE_*.txt",
             ),
             1,
@@ -235,7 +245,7 @@ def preflight_env(tmp_path: Path):
         (
             "data_logfile_duplicate",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "DATA_LOGFILE_002.txt"
             ).write_text("duplicate data log", encoding="utf-8"),
@@ -245,7 +255,7 @@ def preflight_env(tmp_path: Path):
         (
             "completed_stimuli_missing",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "completed_stimuli.csv"
             ).unlink(),
@@ -254,7 +264,7 @@ def preflight_env(tmp_path: Path):
         (
             "completed_stimuli_unparseable",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "completed_stimuli.csv"
             ).write_text("not,a,csv\n"),
@@ -263,7 +273,7 @@ def preflight_env(tmp_path: Path):
         (
             "completed_stimuli_wrong_columns",
             lambda env: _write_csv(
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "completed_stimuli.csv",
                 ["foo", "bar"],
@@ -275,7 +285,7 @@ def preflight_env(tmp_path: Path):
         (
             "question_order_missing",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "question_order_versions.csv"
             ).unlink(),
@@ -284,7 +294,7 @@ def preflight_env(tmp_path: Path):
         (
             "question_order_unparseable",
             lambda env: (
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "question_order_versions.csv"
             ).write_text("broken"),
@@ -293,7 +303,7 @@ def preflight_env(tmp_path: Path):
         (
             "question_order_wrong_columns",
             lambda env: _write_csv(
-                env[0].sessions[env[1]].session_folder_path
+                env[0].sessions[env[1]].session_folder_path_unprocessed
                 / "logfiles"
                 / "question_order_versions.csv",
                 ["a", "b"],
@@ -379,9 +389,9 @@ def preflight_env(tmp_path: Path):
                 (
                     env[0].stimulus_dir / "multipleye_stimuli_experiment_EN.xlsx"
                 ).unlink(),
-                env[0].sessions[env[1]].session_file_path.unlink(),
+                env[0].sessions[env[1]].session_file_path_unprocessed.unlink(),
                 (
-                    env[0].sessions[env[1]].session_folder_path
+                    env[0].sessions[env[1]].session_folder_path_unprocessed
                     / "logfiles"
                     / "completed_stimuli.csv"
                 ).unlink(),
@@ -507,8 +517,13 @@ def test_preflight_multiple_sessions(tmp_path: Path):
 
         sessions[sid] = FakeSession(
             session_identifier=sid,
-            session_file_path=edf,
-            session_folder_path=sess_dir,
+            session_file_path_unprocessed=edf,
+            session_folder_path_unprocessed=sess_dir,
+            language="EN",
+            country="UK",
+            lab_number=1,
+            city=city,
+            year=year,
         )
 
     dc = FakeDataCollection(
@@ -535,7 +550,7 @@ def test_preflight_multiple_sessions(tmp_path: Path):
 def test_preflight_duplicate_experiment_log_message(preflight_env):
     """Multiple EXPERIMENT_*.txt files produce a descriptive message."""
     dc, sid = preflight_env
-    logfiles = dc.sessions[sid].session_folder_path / "logfiles"
+    logfiles = dc.sessions[sid].session_folder_path_unprocessed / "logfiles"
     (logfiles / "EXPERIMENT_LOGFILE_002.txt").write_text(
         "duplicate experiment log", encoding="utf-8"
     )
@@ -600,8 +615,13 @@ def test_preflight_stimulus_dir_empty_with_archive(tmp_path: Path):
 
     session = FakeSession(
         session_identifier=sid,
-        session_file_path=sess_folder / "data.edf",
-        session_folder_path=sess_folder,
+        session_file_path_unprocessed=sess_folder / "data.edf",
+        session_folder_path_unprocessed=sess_folder,
+        language="EN",
+        country="UK",
+        lab_number=1,
+        city="City",
+        year=2024,
     )
     dc = FakeDataCollection(
         stimulus_dir=stim_dir,
@@ -959,8 +979,13 @@ def test_pt_does_not_inflate_error_count(tmp_path: Path, monkeypatch):
 
     session = FakeSession(
         session_identifier=sid,
-        session_file_path=sess_folder / "data.edf",
-        session_folder_path=sess_folder,
+        session_file_path_unprocessed=sess_folder / "data.edf",
+        session_folder_path_unprocessed=sess_folder,
+        language="EN",
+        country="UK",
+        lab_number=1,
+        city=city,
+        year=year,
     )
     dc = FakeDataCollection(
         stimulus_dir=stim_dir,

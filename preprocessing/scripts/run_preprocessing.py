@@ -9,6 +9,7 @@ from tqdm import tqdm
 import preprocessing
 from preprocessing import settings
 from preprocessing.checks.quality_thresholds import write_quality_thresholds
+from preprocessing.plotting.plots import create_plots
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
 from ..utils.logging import get_logger
@@ -16,7 +17,7 @@ from ..utils.logging import get_logger
 
 def run_preprocessing(config_path: str | None = None):
     settings.load(config_path)
-    logger = get_logger()
+    logger = get_logger(__name__)
 
     # Check for configuration issues after loading
     status_msg = settings.get_config_status_message()
@@ -76,10 +77,6 @@ def run_preprocessing(config_path: str | None = None):
 
     data_collection.convert_edf_to_asc()
     data_collection.prepare_session_level_information()
-
-    # for sess in multipleye:
-    #     if sess.stimuli == 'unknown':
-    #         print(sess.session_identifier)
 
     sessions = [s for s in data_collection]
 
@@ -174,7 +171,7 @@ def run_preprocessing(config_path: str | None = None):
             )
             preprocessing.save_raw_data(sess.sid, gaze)
 
-        sess.pm_gaze_metadata = gaze._metadata
+        sess.add_pm_metadata(gaze._metadata)
         sess.calibrations = gaze.calibrations
         sess.validations = gaze.validations
         sess.messages = gaze.messages
@@ -419,7 +416,7 @@ def run_preprocessing(config_path: str | None = None):
                 recalculated_upstream = True
                 pbar.set_description(f"Collecting comprehension answers {sess.sid}")
                 question_order_csv = (
-                    sess.session_folder_path
+                    sess.session_folder_path_unprocessed
                     / "logfiles"
                     / "question_order_versions.csv"
                 )
@@ -444,19 +441,20 @@ def run_preprocessing(config_path: str | None = None):
                         # We only fallback if we really didn't find anything in ASC
                         # OR if extraction was disabled and raw data was missing (gaze is None)
                         parsed_answers = preprocessing.parse_answers_from_logfile(
-                            sess.logfile, sess.stimuli_trial_mapping
+                            sess.logfile, sess.stimulus_trial_mapping
                         )
                         if not parsed_answers.is_empty():
                             source = "logfile"
 
                     preprocessing.collect_session_answers(
                         question_order_csv=question_order_csv,
-                        stimuli_trial_map=sess.stimuli_trial_mapping,
+                        stimuli_trial_map=sess.stimulus_trial_mapping,
                         stimuli=sess.stimuli,
                         parsed_answers=parsed_answers,
                         out_path=answers_csv,
                         source=source,
                         completed_stimuli_ids=sess.completed_stimuli_ids,
+                        was_session_interrupted=sess.was_session_interrupted,
                     )
                     sess.answers = True
         else:
@@ -472,10 +470,19 @@ def run_preprocessing(config_path: str | None = None):
                 data_collection.create_sanity_check_report(
                     gaze,
                     sess.session_identifier,
-                    plotting=True,
+                    overwrite=True,
                     recalculate=(settings.RECALCULATE or recalculated_upstream),
                     output_dir=settings.OUTPUT_DIR,
                 )
+
+                create_plots(
+                    gaze,
+                    ["main_sequence", "gaze_overlay"],
+                    stimuli=sess.stimuli,
+                    session_identifier=sess.session_identifier,
+                    directory=settings.OUTPUT_DIR / "visualizations",
+                )
+
         else:
             pbar.set_description(f"Skipping sanity checks {sess.sid}:")
 

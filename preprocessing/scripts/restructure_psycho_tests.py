@@ -10,7 +10,7 @@ from preprocessing.models.sid import Sid
 from preprocessing.utils import get_logger, validate_psychometric_data
 from preprocessing.utils.file_utils import _copytree
 
-logger = get_logger()
+logger = get_logger(__name__)
 
 
 def fix_psycho_tests_structure(

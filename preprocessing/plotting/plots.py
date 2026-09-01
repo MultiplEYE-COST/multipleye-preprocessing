@@ -11,12 +11,75 @@ from ..config import settings
 from ..data_collection.stimulus import Stimulus
 
 
+def create_plots(
+    gaze,
+    plot_type: str | list[str],
+    session_identifier: str,
+    directory: Path,
+    stimuli: list[Stimulus] | None = None,
+    aoi=False,
+    show=False,
+):
+    """Create plots for the given gaze data.
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        The gaze data to plot.
+    plot_type : str or list of str
+        The type of plot(s) to create.
+    session_identifier : str
+        The identifier for the session.
+    directory : Path
+        The directory where the plots will be saved.
+    stimuli : list of Stimulus, optional
+        The stimuli to use for the plots. Required for some plot types.
+    aoi : bool, optional
+        Whether to draw the gaze overlay on the images containing the aoi boxes. Default is False.
+    show : bool, optional
+        Whether to display the plots directly (if in a notebook for example). Default is False.
+    """
+
+    plot_dir = directory / f"{session_identifier}_plots"
+    plot_dir.mkdir(exist_ok=True, parents=True)
+
+    if type(plot_type) is not list:
+        plot_type = [plot_type]
+
+    if stimuli is None and ("gaze_overlay" in plot_type or "heatmap" in plot_type):
+        raise ValueError(
+            "You need to provide the stimuli in order to plot the gaze overlay or the heatmap."
+        )
+
+    for plot in plot_type:
+        if plot == "main_sequence":
+            plot_main_sequence(gaze.events, plot_dir, show=show)
+
+        elif plot == "gaze_overlay":
+            directory = plot_dir / "gaze_overlay"
+            directory.mkdir(exist_ok=True, parents=True)
+            for stimulus in stimuli:
+                plot_gaze(gaze, stimulus, directory, aoi_image=aoi, show=show)
+
+        elif plot == "time_series":
+            directory = plot_dir / "time_series"
+            directory.mkdir(exist_ok=True, parents=True)
+            plot_time_series(gaze, directory)
+
+        elif plot == "heatmap":
+            directory = plot_dir / "heatmap"
+            directory.mkdir(exist_ok=True, parents=True)
+            for stimulus in stimuli:
+                plot_heatmap(gaze, directory, stimulus)
+
+
 def plot_gaze(
     gaze: pm.Gaze,
     stimulus: Stimulus,
     plots_dir: Path,
     duration_ms_in_cm: float = 0.03,
     aoi_image: bool = False,
+    show: bool = False,
 ) -> None:
     data = gaze.clone()
     data.unnest(["pixel", "position", "velocity"])
@@ -84,6 +147,10 @@ def plot_gaze(
         ax.set_xlim((0, data.experiment.screen.width_px))
         ax.set_ylim((data.experiment.screen.height_px, 0))
         fig.savefig(plots_dir / f"{stimulus.name}_{page.number}.png")
+
+        if show:
+            plt.show()
+
         plt.close(fig)
 
     for question in stimulus.questions:
@@ -151,6 +218,10 @@ def plot_gaze(
         ax.set_xlim((0, data.experiment.screen.width_px))
         ax.set_ylim((data.experiment.screen.height_px, 0))
         fig.savefig(plots_dir / f"{stimulus.name}_q{question.id}.png")
+
+        if show:
+            plt.show()
+
         plt.close(fig)
 
     for rating in stimulus.ratings:
@@ -201,11 +272,42 @@ def plot_gaze(
         ax.set_xlim((0, data.experiment.screen.width_px))
         ax.set_ylim((data.experiment.screen.height_px, 0))
         fig.savefig(plots_dir / f"{stimulus.name}_{stimulus.id}_{rating.name}.png")
+
+        if show:
+            plt.show()
+
         plt.close(fig)
 
 
-def plot_main_sequence(events: pm.EventDataFrame, plots_dir: Path) -> None:
+def plot_main_sequence(
+    events: pm.EventDataFrame, plots_dir: Path, show: bool = False
+) -> None:
     pm.plotting.main_sequence_plot(
         events,
         savepath=plots_dir / "main_sequence.png",
     )
+
+
+def plot_time_series(gaze: pm.Gaze, plots_dir: Path) -> None:
+    pm.plotting.tsplot(
+        gaze,
+        savepath=plots_dir / "time_series.png",
+    )
+
+
+def plot_heatmap(
+    gaze: pm.Gaze, plots_dir: Path, stimulus: Stimulus, aoi: bool = False
+) -> None:
+
+    for page in stimulus.pages:
+        if aoi:
+            path_to_stim_img = page.aoi_image_path
+        else:
+            path_to_stim_img = page.image_path
+
+        pm.plotting.heatmap(
+            gaze,
+            savepath=plots_dir / f"heatmap_{page.image_path.name}.png",
+            add_stimulus=True,
+            path_to_image_stimulus=path_to_stim_img,
+        )
