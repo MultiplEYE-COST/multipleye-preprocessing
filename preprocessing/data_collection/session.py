@@ -29,6 +29,7 @@ class Session:
     is_pilot: bool
     month_of_data_collection: str = field(default="unknown", init=True)
     year_of_data_collection: str = field(default="unknown", init=True)
+    loaded_from_yaml: bool = field(default=False, init=True)
 
     # paths and files
     session_folder_path_unprocessed: Path = field(default="not available", init=True)
@@ -143,6 +144,20 @@ class Session:
         """
         self._create_stats()
 
+        # if the data loss has been loaded it will not be recomputed again
+        if not self.loaded_from_yaml:
+            self.session_blink_loss_ratio = getattr(
+                self,
+                "_measure_blink_loss_ratio",
+                None,
+            )
+
+            self.session_total_data_loss_ratio = getattr(
+                self,
+                "_measure_total_data_loss_ratio",
+                None,
+            )
+
         return {
             "administrative": {
                 "participant_id": self.participant_id,
@@ -171,16 +186,8 @@ class Session:
                 "num_bad_validations": self.num_bad_validations,
             },
             "data_quality": {
-                "session_total_data_loss_ratio": getattr(
-                    self,
-                    "_measure_total_data_loss_ratio",
-                    None,
-                ),
-                "session_blink_loss_ratio": getattr(
-                    self,
-                    "_measure_blink_loss_ratio",
-                    None,
-                ),
+                "session_total_data_loss_ratio": self.session_total_data_loss_ratio,
+                "session_blink_loss_ratio": self.session_blink_loss_ratio,
             },
             "experiment_procedure": {
                 "question_order": self.question_order,
@@ -262,7 +269,9 @@ class Session:
             name_eye_tracker=tech_setup["eye_tracker_name"],
         )
 
-        trials = [Trial(**data) for data in trials]
+        # if there had been trials written to the yaml file as a list
+        if isinstance(trials, list) and trials != []:
+            trials = [Trial(**data) for data in trials]
 
         flat_overview["mount_type"] = tech_setup["mount_type"]
         flat_overview["head_stabilization"] = tech_setup["head_stabilization"]
@@ -273,6 +282,7 @@ class Session:
             dataset_dir=Path(dataset_dir),
             lab_config=lab_config,
             trials=trials,
+            loaded_from_yaml=True,
         )
         session.load_session_stimuli(
             Path(session.dataset_dir) / session.stimulus_folder_name
@@ -580,12 +590,15 @@ class Session:
             Per-trial metrics, or "unknown" when the answers CSV is missing.
         """
 
-        # if trials have been loaded they will not be computed again
-        if self.trials != "unknown":
+        # if trials have been loaded they will not be computed again and just be returned as loaded
+        if self.loaded_from_yaml:
             return self.trials
 
         answers_csv = self.sid.answers_dir / f"{self.sid}_answers.csv"
         if not answers_csv.exists():
+            # if there is no file found but trials are also non-empty, those will be used
+            if self.trials != "unknown" and self.trials != []:
+                return self.trials
             return "unknown"
 
         try:

@@ -614,13 +614,13 @@ class MultipleyeDataCollection:
         )
 
         return cls(
-            data_collection_name=flat_overview["Title"],
-            stimulus_language=flat_overview["Tested_language"],
-            country=flat_overview["Country"],
+            data_collection_name=flat_overview["title"],
+            stimulus_language=flat_overview["tested_language"],
+            country=flat_overview["country"],
             year=int(year),
-            eye_tracker=flat_overview["Eye_tracker_name"],
-            lab_number=int(flat_overview["Lab_number"]),
-            city=flat_overview["City"],
+            eye_tracker=flat_overview["eye_tracker_name"],
+            lab_number=int(flat_overview["lab_number"]),
+            city=flat_overview["city"],
             stimulus_dir=stimulus_folder_path,
             lab_configuration=lab_configuration_data,
             config_file=config_file,
