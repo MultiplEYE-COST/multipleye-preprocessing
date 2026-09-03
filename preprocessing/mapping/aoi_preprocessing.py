@@ -52,12 +52,12 @@ def add_custom_aois(aoi_file: Path, language: str) -> None:
     """
 
     if language == "ZH":
-        _add_custom_uoa_chinese(aoi_file)
+        _add_custom_uoa(aoi_file, "segment", "segment_idx")
     elif language == "KL":
         # for KL currently, the questions are not supported
         if not "question" in aoi_file.name:
             custom_name = aoi_file.stem + "_morph.csv"
-            _add_custom_uoa_chinese(aoi_file, custom_name)
+            _add_custom_uoa(aoi_file, "morph_token", "morph_idx", custom_name)
     else:
         raise Warning(
             f"You requested adding custom units of analysis to the aoi files. Currently, your language {language} "
@@ -65,7 +65,9 @@ def add_custom_aois(aoi_file: Path, language: str) -> None:
         )
 
 
-def _add_custom_uoa_chinese(aoi_file: Path, custom_file_name: str = "") -> None:
+def _add_custom_uoa(
+    aoi_file: Path, uoa_column_name, uoa_idx_colum_name, custom_file_name: str = ""
+) -> None:
     """
     The custom units of analysis can be added as follows for ZH:
     - They are in a directory called "custom_units_of_analysis" in the data folder
@@ -106,25 +108,31 @@ def _add_custom_uoa_chinese(aoi_file: Path, custom_file_name: str = "") -> None:
             f"that it is in your data folder in a folder called 'custom_units_of_analysis'."
         )
 
-    uoa_data = pd.read_csv(uoa_file, dtype={"segment": str})[
-        ["word", "word_idx", "char", "char_idx", "page"]
-    ]
-    aoi_data = pd.read_csv(aoi_file, dtype={"segment": str})
-
     if "questions" in uoa_file.name:
+        uoa_data = pd.read_csv(uoa_file, dtype={uoa_column_name: str})[
+            [
+                uoa_column_name,
+                uoa_idx_colum_name,
+                "char",
+                "char_idx",
+                "page",
+                "question_image_version",
+            ]
+        ]
         uoa_data = uoa_data[
             uoa_data["question_image_version"] == "question_images_version_1"
         ]
-        uoa_data = uoa_data.rename(
-            {
-                "word": "unit_of_analysis",
-                "word_idx": "unit_of_analysis_idx",
-                "segment": "word",
-                "segment_idx": "word_idx",
-            },
-            axis="columns",
-        )
-        uoa_data = uoa_data[["word", "word_idx", "char", "char_idx", "page"]]
+
+        uoa_data = uoa_data[
+            [uoa_column_name, uoa_idx_colum_name, "char", "char_idx", "page"]
+        ]
+
+    else:
+        uoa_data = pd.read_csv(uoa_file, dtype={uoa_column_name: str})[
+            [uoa_column_name, uoa_idx_colum_name, "char", "char_idx", "page"]
+        ]
+
+    aoi_data = pd.read_csv(aoi_file, dtype={uoa_column_name: str})
 
     uoa_data = uoa_data.sort_values(by=["page"], ascending=False).reset_index()
     aoi_data = aoi_data.sort_values(by=["page"], ascending=False).reset_index()
@@ -147,10 +155,11 @@ def _add_custom_uoa_chinese(aoi_file: Path, custom_file_name: str = "") -> None:
         assert aoi_chars == uoa_chars
     except AssertionError:
         raise AssertionError(
-            f"There is a mismatch in the character columns of {uoa_file.name}. They do not contain the same characters."
+            f"There is a mismatch in the character columns of {uoa_file.name} and it original aoi file. "
+            f"They do not contain the same characters."
         )
 
-    # join the word and word idx on page and char idx
+    # join the segment and segment idx on page and char idx
     new_aois = aoi_data.merge(uoa_data, on=["page", "char_idx", "char"])
 
     # rename columns
@@ -159,8 +168,8 @@ def _add_custom_uoa_chinese(aoi_file: Path, custom_file_name: str = "") -> None:
             "unit_of_analysis_idx": "secondary_unit_of_analysis_idx",
             "unit_of_analysis": "secondary_unit_of_analysis",
             "unit_of_analysis_idx_in_line": "secondary_unit_of_analysis_idx_in_line",
-            "word": "unit_of_analysis",
-            "word_idx": "unit_of_analysis_idx",
+            uoa_column_name: "unit_of_analysis",
+            uoa_idx_colum_name: "unit_of_analysis_idx",
         },
         axis="columns",
     )
@@ -169,9 +178,27 @@ def _add_custom_uoa_chinese(aoi_file: Path, custom_file_name: str = "") -> None:
     new_aois["unit_of_analysis_idx_in_line"] = (
         new_aois.groupby(["page", "line_idx"])["unit_of_analysis_idx"]
         .rank(method="dense")
-        .astype(int)
+        .astype(pd.Int64Dtype())
     )
 
-    new_aois.drop(columns=["index_x", "index_y"], inplace=True)
+    col_order = [
+        "char_idx",
+        "char",
+        "top_left_x",
+        "top_left_y",
+        "width",
+        "height",
+        "char_idx_in_line",
+        "line_idx",
+        "page",
+        "unit_of_analysis",
+        "unit_of_analysis_idx",
+        "unit_of_analysis_idx_in_line",
+        "secondary_unit_of_analysis_idx",
+        "secondary_unit_of_analysis_idx_in_line",
+        "secondary_unit_of_analysis",
+    ]
+
+    new_aois = new_aois[col_order]
     new_aois.sort_values(by=["page", "line_idx", "char_idx"], inplace=True)
     new_aois.to_csv(aoi_file, index=False)
