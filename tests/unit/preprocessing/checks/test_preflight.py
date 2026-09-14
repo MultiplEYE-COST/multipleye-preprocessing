@@ -34,6 +34,7 @@ class FakeDataCollection:
     city: str = "City"
     year: int = 2024
     sessions: dict[str, FakeSession] = field(default_factory=dict)
+    num_sessions: int = 2
 
 
 def _write_csv(path: Path, columns: list[str], rows: list[list[str]]) -> None:
@@ -647,7 +648,7 @@ def test_preflight_warnings_only(preflight_env):
 # ---------------------------------------------------------------------------
 
 
-def _build_completeness_env(sids):
+def _build_completeness_env(sids, num_sessions: int = 2):
     """Build a FakeDataCollection from a list of (sid, is_pilot) tuples."""
     sessions: dict[str, FakeSession] = {}
     for entry in sids:
@@ -664,6 +665,7 @@ def _build_completeness_env(sids):
         country="UK",
         lab_number=1,
         sessions=sessions,
+        num_sessions=num_sessions,
     )
 
 
@@ -706,8 +708,8 @@ def _build_completeness_env(sids):
                 ("002_EN_UK_1_ET1", False),
                 ("002_EN_UK_1_ET2", False),
             ],
-            "1/2 participants have all 3 expected ET sessions",
-            ["002_EN_UK_1", "missing: ET3"],
+            "1/2 participants have all 2 expected ET sessions",
+            ["001_EN_UK_1", "more sessions than expected"],
         ),
         (
             [
@@ -723,7 +725,7 @@ def _build_completeness_env(sids):
         "all_present",
         "missing_et2",
         "missing_et1",
-        "three_sessions",
+        "extra_sessions",
         "pilots_excluded",
     ],
 )
@@ -749,10 +751,31 @@ def test_session_completeness_warnings(sids, expected_summary, expected_missing)
     ids=["empty", "single_session"],
 )
 def test_session_completeness_no_warning(sids):
-    dc = _build_completeness_env(sids)
+    dc = _build_completeness_env(sids, num_sessions=1)
     warnings: dict[str, list[str]] = {}
     _check_session_completeness(dc, warnings)
     assert "Session completeness" not in warnings
+
+
+def test_session_completeness_extra_sessions_multipleye_hint():
+    """Expected 1 session (MultiplEYE) but a participant has 2: warn + config hint."""
+    dc = _build_completeness_env(
+        [
+            ("001_EN_UK_1_ET1", False),
+            ("001_EN_UK_1_ET2", False),
+            ("002_EN_UK_1_ET1", False),
+        ],
+        num_sessions=1,
+    )
+    warnings: dict[str, list[str]] = {}
+    _check_session_completeness(dc, warnings)
+
+    assert "Session completeness" in warnings
+    joined = "\n".join(warnings["Session completeness"])
+    assert "1/2 participants have all 1 expected ET sessions" in joined
+    assert "001_EN_UK_1" in joined
+    assert "more sessions than expected" in joined
+    assert "experiment_type" in joined
 
 
 # ---------------------------------------------------------------------------

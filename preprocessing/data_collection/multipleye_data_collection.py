@@ -63,11 +63,19 @@ def eyelink(method):
 def _compute_session_completeness(data_collection) -> dict:
     """Compute session completeness stats grouped by participant base ID.
 
+    The expected number of sessions per participant is taken from the data
+    collection's ``num_sessions`` (1 for MultiplEYE, 2 for MeRID). Participants
+    with fewer sessions are listed under ``incomplete_participants``; those with
+    more sessions than expected are listed under ``extra_sessions_participants``.
+
     Returns a dict with keys ``expected_sessions_per_participant``,
-    ``total_participants``, ``complete_participants``, and
-    ``incomplete_participants`` (a list of base IDs with missing sessions).
+    ``total_participants`` and ``complete_participants`` (plus the two optional
+    lists above).
+
     Non-pilot sessions only; sessions with non-parseable SIDs are skipped.
     """
+    expected_sessions = getattr(data_collection, "num_sessions", 1) or 1
+
     base_sessions: dict[str, set[int]] = {}
     for session in data_collection.sessions.values():
         if getattr(session, "is_pilot", False):
@@ -80,28 +88,35 @@ def _compute_session_completeness(data_collection) -> dict:
 
     if not base_sessions:
         return {
-            "expected_sessions_per_participant": 0,
+            "expected_sessions_per_participant": expected_sessions,
             "total_participants": 0,
             "complete_participants": 0,
         }
 
-    max_sessions = max(len(v) for v in base_sessions.values())
     total = len(base_sessions)
-    complete = sum(1 for v in base_sessions.values() if len(v) == max_sessions)
+    complete = sum(1 for ids in base_sessions.values() if len(ids) == expected_sessions)
 
     result: dict = {
-        "expected_sessions_per_participant": max_sessions,
+        "expected_sessions_per_participant": expected_sessions,
         "total_participants": total,
         "complete_participants": complete,
     }
 
     incomplete = sorted(
         base_id
-        for base_id, session_ids in base_sessions.items()
-        if len(session_ids) < max_sessions
+        for base_id, ids in base_sessions.items()
+        if len(ids) < expected_sessions
     )
     if incomplete:
         result["incomplete_participants"] = incomplete
+
+    extra = sorted(
+        base_id
+        for base_id, ids in base_sessions.items()
+        if len(ids) > expected_sessions
+    )
+    if extra:
+        result["extra_sessions_participants"] = extra
 
     return result
 
