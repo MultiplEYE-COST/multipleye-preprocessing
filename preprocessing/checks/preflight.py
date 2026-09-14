@@ -446,16 +446,20 @@ def _check_session_completeness(
     data_collection,
     warnings: dict[str, list[str]],
 ) -> None:
-    """Check that every participant has all expected sessions.
+    """Warn when participants do not have the expected number of ET sessions.
 
-    Groups sessions by base_id (participant + language + country + lab)
-    and detects the expected number of sessions from the data pattern.
-    Participants with fewer sessions than the maximum observed for any
-    participant are reported as warnings.
+    Groups sessions by base_id (participant + language + country + lab). The
+    expected number of sessions per participant comes from the data collection's
+    ``num_sessions`` (1 for MultiplEYE, 2 for MeRID). Participants with fewer
+    sessions are reported as missing; participants with more sessions than
+    expected are also reported, since extra sessions per participant are not the
+    MeRID multi-session format.
 
     Non-pilot sessions only; sessions with non-parseable SIDs are skipped.
     """
     from ..models.sid import Sid
+
+    expected_sessions = getattr(data_collection, "num_sessions", 1) or 1
 
     base_sessions: dict[str, set[int]] = {}
     for session in data_collection.sessions.values():
@@ -470,26 +474,36 @@ def _check_session_completeness(
     if not base_sessions:
         return
 
-    max_sessions = max(len(v) for v in base_sessions.values())
-    if max_sessions <= 1:
+    max_observed = max(len(v) for v in base_sessions.values())
+    has_extra = max_observed > expected_sessions
+    if expected_sessions <= 1 and not has_extra:
         return
 
     total_participants = len(base_sessions)
-    complete = sum(1 for v in base_sessions.values() if len(v) == max_sessions)
+    complete = sum(1 for ids in base_sessions.values() if len(ids) == expected_sessions)
     incomplete = [
         f"{base_id} (has session(s): {sorted(session_ids)}, "
-        f"missing: ET{','.join(str(s) for s in sorted(set(range(1, max_sessions + 1)) - session_ids))})"
+        f"missing: ET{','.join(str(s) for s in sorted(set(range(1, expected_sessions + 1)) - session_ids))})"
         for base_id, session_ids in sorted(base_sessions.items())
-        if len(session_ids) < max_sessions
+        if len(session_ids) < expected_sessions
+    ]
+    extra = [
+        f"{base_id} (has session(s): {sorted(session_ids)}, "
+        f"expected: {expected_sessions}) — more sessions than expected; "
+        f"check the `experiment_type` config setting"
+        for base_id, session_ids in sorted(base_sessions.items())
+        if len(session_ids) > expected_sessions
     ]
 
     msg = (
         f"Session completeness: {complete}/{total_participants} participants "
-        f"have all {max_sessions} expected ET sessions."
+        f"have all {expected_sessions} expected ET sessions."
     )
     warnings.setdefault("Session completeness", []).append(msg)
     if incomplete:
         warnings["Session completeness"].extend(incomplete)
+    if extra:
+        warnings["Session completeness"].extend(extra)
 
 
 def _format_message(groups: dict[str, list[str]]) -> str:

@@ -179,6 +179,19 @@ class TestAdministrative:
         assert a["number_of_pilots"] == 0
         assert "number_of_et_sessions_per_participant" in a
 
+    def test_session_completeness(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        sc = _admin(overview)["session_completeness"]
+
+        assert sc["expected_sessions_per_participant"] == 1
+        assert sc["total_participants"] == 3
+        assert sc["complete_participants"] == 3
+        assert "incomplete_participants" not in sc
+        assert "extra_sessions_participants" not in sc
+
 
 class TestProcessing:
     def test_processing_metadata(
