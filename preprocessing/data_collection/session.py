@@ -113,6 +113,9 @@ class Session:
     # psychometric tests
     psychometric_tests_session: str = field(default="unknown", init=False)
 
+    # participant info (from the participant questionnaire + psychometric sessions)
+    participant_info: dict | str = field(default="unknown", init=False)
+
     # data formats
     # True by default: our pipeline produces all formats. Other pipelines may
     # set these to False when a format is not generated.
@@ -150,6 +153,7 @@ class Session:
                 "year_of_data_collection": self._get_metadata("year", "unknown"),
                 "month_of_data_collection": self._get_metadata("month", "unknown"),
             },
+            "participant": self.participant_info,
             "technical_setup": self._technical_setup(),
             "tracking": {
                 "tracked_eye": self.tracked_eye,

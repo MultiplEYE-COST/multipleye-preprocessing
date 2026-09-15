@@ -126,6 +126,7 @@ def test_sections_are_present() -> None:
 
     assert list(overview.keys()) == [
         "administrative",
+        "participant",
         "technical_setup",
         "tracking",
         "calibration_validation",
