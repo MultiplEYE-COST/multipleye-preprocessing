@@ -490,6 +490,7 @@ class Settings:
             r"transition_screen",
             r"final_validation",
             r"validation_before_stimulus",
+            r"!CAL\s+(?:CALIBRATION|VALIDATION).*",
             r"show_final_screen",
             r"optional_break_screen",
             r"fixation_trigger:.*",

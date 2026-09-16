@@ -1,3 +1,4 @@
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TypeVar
@@ -13,6 +14,18 @@ from ..utils.logging import get_logger
 logger = get_logger()
 
 T = TypeVar("T")
+
+_CALIBRATION_QUALITY_REGEX = re.compile(
+    r"!CAL\s+CALIBRATION\b.*?\b(GOOD|FAILED)\b",
+    re.IGNORECASE,
+)
+_VALIDATION_QUALITY_REGEX = re.compile(
+    r"!CAL\s+VALIDATION\s+"
+    r"(?:HV\d+\s+\S+\s+(?:LEFT|RIGHT)|[LR])\s+"
+    r"(?P<grade>GOOD|FAIR|POOR|ABORTED)\b",
+    re.IGNORECASE,
+)
+_QUALITY_LINE_REGEX = re.compile(r"!CAL\s+(?:CALIBRATION|VALIDATION)", re.IGNORECASE)
 
 
 def _parse_rating_option(key: object) -> int | None:
@@ -90,6 +103,9 @@ class Session:
     avg_comprehension_score_global: float | str = field(default="unknown", init=False)
     avg_comprehension_score_bridging: float | str = field(default="unknown", init=False)
     avg_calibration_error: float | str = field(default="unknown", init=False)
+    calibration_quality: str = field(default="unknown", init=False)
+    validation_quality: str = field(default="unknown", init=False)
+    num_aborted_validations: int = field(default=0, init=False)
     num_calibrations: int | str = field(default="unknown", init=False)
     num_validations: int | str = field(default="unknown", init=False)
     avg_validation_error: float | str = field(default="unknown", init=False)
@@ -165,6 +181,9 @@ class Session:
                 "num_validations": self.num_validations,
                 "avg_calibration_error_dva": self.avg_calibration_error,
                 "avg_validation_error_dva": self.avg_validation_error,
+                "calibration_quality": self.calibration_quality,
+                "validation_quality": self.validation_quality,
+                "num_aborted_validations": self.num_aborted_validations,
                 "num_good_validations": self.num_good_validations,
                 "num_moderate_validations": self.num_moderate_validations,
                 "num_bad_validations": self.num_bad_validations,
@@ -336,9 +355,101 @@ class Session:
         max_t = max(times)
         return round((max_t - min_t) / 1000, 3)
 
+    def _quality_message_lines(self) -> list[str]:
+        """Return lines carrying EyeLink calibration or validation grades.
+
+        Prefer the already-parsed messages frame. Fall back to reading the ASC
+        when the message filter did not include the ``!CAL`` lines, which is the
+        case for older message CSVs and the default message patterns.
+        """
+        if isinstance(self.messages, pl.DataFrame) and not self.messages.is_empty():
+            if "content" in self.messages.columns:
+                lines = [
+                    str(value)
+                    for value in self.messages["content"].drop_nulls().to_list()
+                ]
+                if any(_QUALITY_LINE_REGEX.search(line) for line in lines):
+                    return lines
+        elif isinstance(self.messages, list):
+            lines = [
+                str(item.get("content", item.get("message", "")))
+                for item in self.messages
+                if isinstance(item, dict)
+            ]
+            if any(_QUALITY_LINE_REGEX.search(line) for line in lines):
+                return lines
+
+        path = self.asc_path
+        if not isinstance(path, (str, Path)) or str(path) == "unknown":
+            return []
+        asc = Path(path)
+        if not asc.exists():
+            return []
+        try:
+            with open(asc, encoding="utf-8", errors="ignore") as f:
+                return [line for line in f if "!CAL" in line]
+        except OSError:
+            return []
+
+    def _compute_calibration_quality(self, lines: list[str] | None = None) -> str:
+        """Return the calibration quality flag from the ASC messages or file.
+
+        EyeLink reports calibration quality only as a ``GOOD``/``FAILED`` flag on
+        the ``!CAL CALIBRATION ...`` line (there is no numeric calibration error;
+        that is only reported for validations). Returns ``"GOOD"`` or
+        ``"FAILED"`` when all calibrations agree, ``"MIXED"`` when they differ,
+        and ``"unknown"`` when no calibration line or ASC file is available.
+        """
+        flags: list[str] = []
+        for line in self._quality_message_lines() if lines is None else lines:
+            match = _CALIBRATION_QUALITY_REGEX.search(line)
+            if match:
+                flags.append(match.group(1).upper())
+
+        if not flags:
+            return "unknown"
+        if all(flag == "GOOD" for flag in flags):
+            return "GOOD"
+        if all(flag == "FAILED" for flag in flags):
+            return "FAILED"
+        return "MIXED"
+
+    def _compute_validation_quality(
+        self,
+        lines: list[str] | None = None,
+    ) -> tuple[str, int]:
+        """Return the worst validation grade and the number of aborted validations.
+
+        ``GOOD``/``FAIR``/``POOR`` come from the validation summary lines.
+        ``ABORTED`` comes from the dedicated aborted-validation lines. The
+        returned grade is the worst scored grade; it is ``ABORTED`` when only
+        aborted validations exist and ``unknown`` when no validation line exists.
+        """
+        grades: list[str] = []
+        for line in self._quality_message_lines() if lines is None else lines:
+            match = _VALIDATION_QUALITY_REGEX.search(line)
+            if match:
+                grades.append(match.group("grade").upper())
+
+        num_aborted = sum(1 for grade in grades if grade == "ABORTED")
+        scored = [grade for grade in grades if grade in {"GOOD", "FAIR", "POOR"}]
+
+        if not scored:
+            return ("ABORTED" if num_aborted else "unknown", num_aborted)
+        if "POOR" in scored:
+            return "POOR", num_aborted
+        if "FAIR" in scored:
+            return "FAIR", num_aborted
+        return "GOOD", num_aborted
+
     def _create_stats(self):
         self.num_calibrations = len(self.calibrations)
         self.num_validations = len(self.validations)
+        quality_lines = self._quality_message_lines()
+        self.calibration_quality = self._compute_calibration_quality(quality_lines)
+        self.validation_quality, self.num_aborted_validations = (
+            self._compute_validation_quality(quality_lines)
+        )
 
         self.tracked_eye = self._get_metadata("tracked_eye", "unknown")
 

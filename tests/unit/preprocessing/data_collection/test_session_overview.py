@@ -82,6 +82,9 @@ def test_create_overview_includes_new_fields() -> None:
     assert tracking["tracked_eye"] == "R"
     assert tracking["tracked_eye_consistent"] is True
     cal = overview["calibration_validation"]
+    assert cal["calibration_quality"] == "unknown"
+    assert cal["validation_quality"] == "unknown"
+    assert cal["num_aborted_validations"] == 0
     assert cal["num_good_validations"] == 1
     assert cal["num_moderate_validations"] == 1
     assert cal["num_bad_validations"] == 1
@@ -1008,3 +1011,117 @@ def test_trials_skip_group_with_missing_stimulus_id(tmp_path: Path) -> None:
     assert isinstance(trials, list)
     assert [t["trial_number"] for t in trials] == [1]
     assert trials[0]["stimulus_id"] == 3
+
+
+def test_calibration_quality_aggregation(tmp_path: Path) -> None:
+    asc = tmp_path / "session.asc"
+    sess = _make_session()
+    sess.asc_path = asc
+
+    asc.write_text(
+        "MSG\t1 !CAL CALIBRATION HV9 L LEFT    GOOD \n"
+        "MSG\t2 !CAL CALIBRATION HV9 R RIGHT   GOOD \n",
+        encoding="utf-8",
+    )
+    assert sess._compute_calibration_quality() == "GOOD"
+
+    asc.write_text("MSG\t1 !CAL CALIBRATION HV9 R RIGHT  FAILED\n", encoding="utf-8")
+    assert sess._compute_calibration_quality() == "FAILED"
+
+    asc.write_text(
+        "MSG\t1 !CAL CALIBRATION HV9 L LEFT  GOOD\n"
+        "MSG\t2 !CAL CALIBRATION HV9 R RIGHT FAILED\n",
+        encoding="utf-8",
+    )
+    assert sess._compute_calibration_quality() == "MIXED"
+
+
+def test_calibration_quality_unknown_without_asc(tmp_path: Path) -> None:
+    sess = _make_session()
+    assert sess._compute_calibration_quality() == "unknown"
+
+    sess.asc_path = tmp_path / "missing.asc"
+    assert sess._compute_calibration_quality() == "unknown"
+
+
+def test_overview_includes_calibration_quality(tmp_path: Path) -> None:
+    asc = tmp_path / "session.asc"
+    asc.write_text("MSG\t1 !CAL CALIBRATION HV9 L LEFT GOOD\n", encoding="utf-8")
+
+    sess = _sess_with_validation_data()
+    sess.asc_path = asc
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["calibration_quality"] == "GOOD"
+
+
+def test_quality_fields_from_messages() -> None:
+    sess = _sess_with_validation_data()
+    sess.asc_path = "unknown"
+    sess.messages = pl.DataFrame(
+        {
+            "time": [1, 2, 3, 4, 5],
+            "content": [
+                "!CAL CALIBRATION HV9 L LEFT GOOD",
+                "!CAL CALIBRATION HV9 R RIGHT FAILED",
+                "!CAL VALIDATION HV9 L LEFT GOOD ERROR 0.13 avg. 0.60 max",
+                "!CAL VALIDATION HV9 R RIGHT POOR ERROR 0.66 avg. 3.03 max",
+                "!CAL VALIDATION L ABORTED",
+            ],
+        }
+    )
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["calibration_quality"] == "MIXED"
+    assert cal["validation_quality"] == "POOR"
+    assert cal["num_aborted_validations"] == 1
+
+
+def test_validation_quality_all_aborted() -> None:
+    sess = _sess_with_validation_data()
+    sess.asc_path = "unknown"
+    sess.messages = pl.DataFrame(
+        {
+            "time": [1, 2],
+            "content": [
+                "!CAL VALIDATION L ABORTED",
+                "!CAL VALIDATION R ABORTED",
+            ],
+        }
+    )
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["validation_quality"] == "ABORTED"
+    assert cal["num_aborted_validations"] == 2
+
+
+def test_validation_quality_unknown_without_quality_lines() -> None:
+    sess = _sess_with_validation_data()
+    sess.asc_path = "unknown"
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["validation_quality"] == "unknown"
+    assert cal["num_aborted_validations"] == 0
+
+
+def test_quality_lines_fall_back_to_asc(tmp_path: Path) -> None:
+    asc = tmp_path / "session.asc"
+    asc.write_text(
+        "MSG\t1 !CAL CALIBRATION HV9 L LEFT GOOD\n"
+        "MSG\t2 !CAL VALIDATION HV9 L LEFT FAIR ERROR 0.63 avg. 1.59 max\n",
+        encoding="utf-8",
+    )
+
+    sess = _sess_with_validation_data()
+    sess.asc_path = asc
+    sess.messages = pl.DataFrame(
+        {"time": [1], "content": ["start_recording_trial_1"]},
+    )
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["calibration_quality"] == "GOOD"
+    assert cal["validation_quality"] == "FAIR"

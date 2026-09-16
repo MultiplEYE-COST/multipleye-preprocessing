@@ -1,3 +1,4 @@
+import re
 from unittest.mock import patch
 
 import polars as pl
@@ -54,6 +55,18 @@ def lab_config():
 @pytest.mark.filterwarnings("ignore:No eye tracker vendor found")
 @pytest.mark.filterwarnings("ignore:No eye tracker model found")
 @pytest.mark.filterwarnings("ignore:No eye tracker software version found")
+def test_experiment_msg_patterns_include_quality_lines() -> None:
+    lines = [
+        "!CAL CALIBRATION HV9 L LEFT GOOD",
+        "!CAL VALIDATION HV9 L LEFT GOOD ERROR 0.13 avg. 0.60 max",
+        "!CAL VALIDATION L ABORTED",
+    ]
+    for line in lines:
+        assert any(
+            re.match(pattern, line) for pattern in settings.EXPERIMENT_MSG_PATTERNS
+        ), line
+
+
 def test_load_gaze_data_with_messages(synthetic_asc, lab_config):
     # Load with messages=True
     gaze = load_gaze_data(

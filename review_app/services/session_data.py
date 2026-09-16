@@ -93,6 +93,21 @@ CHECK_REGISTRY: list[dict] = [
         "category": "Calibration",
     },
     {
+        "field": "calibration_quality",
+        "label": "Calibration quality",
+        "category": "Calibration",
+    },
+    {
+        "field": "validation_quality",
+        "label": "Validation quality",
+        "category": "Calibration",
+    },
+    {
+        "field": "num_aborted_validations",
+        "label": "Aborted validations",
+        "category": "Calibration",
+    },
+    {
         "field": "avg_validation_error_dva",
         "label": "Avg validation error",
         "category": "Calibration",
