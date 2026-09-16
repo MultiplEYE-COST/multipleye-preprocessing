@@ -121,6 +121,21 @@ def _compute_session_completeness(data_collection) -> dict:
     return result
 
 
+def _build_stimulus_start_end_ts(sum_df: pd.DataFrame) -> list[dict]:
+    """Build the per-stimulus reading-time records stored on the session.
+
+    Selects the reading-time rows (excluding the synthetic "time before pages and
+    breaks" rows) and keeps ``type`` and ``duration_ms`` alongside ``start_ts``/
+    ``stop_ts``. Downstream consumers (e.g. ``Session._compute_rt_per_stim``) need
+    ``type`` and ``duration_ms``; dropping them silently breaks those computations.
+    """
+    records = sum_df[
+        ["stimulus", "trial", "type", "duration_ms", "start_ts", "stop_ts"]
+    ].dropna()
+    records = records[~records["type"].str.contains("time before")]
+    return records.to_dict(orient="records")
+
+
 class MultipleyeDataCollection:
     participant_data_path: Path | str | None
     crashed_session_ids: list[str] = []
@@ -1861,13 +1876,9 @@ class MultipleyeDataCollection:
             sep="\t",
         )
 
-        start_end_per_stimulus = sum_df[
-            ["stimulus", "trial", "start_ts", "stop_ts"]
-        ].dropna()[~sum_df["type"].str.contains("time before")]
+        start_end_per_stimulus = _build_stimulus_start_end_ts(sum_df)
 
-        self.sessions[
-            session_identifier
-        ].stimulus_start_end_ts = start_end_per_stimulus.to_dict(orient="records")
+        self.sessions[session_identifier].stimulus_start_end_ts = start_end_per_stimulus
 
         total_times = pd.DataFrame(
             {
