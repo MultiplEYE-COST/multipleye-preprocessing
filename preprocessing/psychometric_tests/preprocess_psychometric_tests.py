@@ -170,7 +170,7 @@ def preprocess_all_sessions(test_session_folder: Path | None = None) -> Path:
                 for k in [
                     "LWMC_MU_score",
                     "LWMC_OS_score",
-                    "LWMC_SS_score",
+                    "LWMC_SentS_score",
                     "LWMC_SSTM_score",
                     "LWMC_Total_score_mean",
                     "LWMC_OS_processingTask_score",
@@ -702,12 +702,12 @@ def preprocess_lwmc(lwmc_dir: Path) -> dict:
 
     - MU (Memory Update): proportion of items recalled correctly (per-trial mean, then mean over trials).
     - OS (Operation Span): mean of per-trial recall correctness (unweighted by list length).
-    - SS (Sentence Span): mean of per-trial recall correctness (unweighted by list length).
+    - SentS (Sentence Span): mean of per-trial recall correctness (unweighted by list length).
     - SSTM (Spatial Short-Term Memory): overall score normalised by 240 from ``SSTM-<id>.dat``.
 
     **Implementation notes**:
 
-    - MU/OS/SS data are taken from the CSV export (not the .dat files).
+    - MU/OS/SentS data are taken from the CSV export (not the .dat files).
       We compute a trial index from ``base_text_intertrial.started`` and then, for each task,
       compute the mean of the per-trial mean correctness values. This avoids overweighting
       trials with more items.
@@ -725,8 +725,8 @@ def preprocess_lwmc(lwmc_dir: Path) -> dict:
     - MU_score = mean(Trial_Score_MU) across all trials
     - Trial_Score_OS = sum(correct_items_in_trial) / num_items_in_trial
     - OS_score = mean(Trial_Score_OS) across all trials
-    - Trial_Score_SS = sum(correct_items_in_trial) / num_items_in_trial
-    - SS_score = mean(Trial_Score_SS) across all trials
+    - Trial_Score_SentS = sum(correct_items_in_trial) / num_items_in_trial
+    - SentS_score = mean(Trial_Score_SentS) across all trials
     - SSTM_score = SSTM_raw_score / 240.0
 
     Parameters
@@ -755,9 +755,9 @@ def preprocess_lwmc(lwmc_dir: Path) -> dict:
         "os_key_resp_recall.corr",
         "os_key_resp_recall.rt",  # OS columns
         "os_key_resp_equation.corr",  # OS processing task
-        "ss_key_resp_recall.corr",
-        "ss_key_resp_recall.rt",  # SS columns
-        "ss_key_resp_sentence.corr",  # SS processing task
+        "sents_key_resp_recall.corr",
+        "sents_key_resp_recall.rt",  # SentS columns
+        "sents_key_resp_sentence.corr",  # SentS processing task
     ]
     try:
         df = _find_one_filetype_with_columns(lwmc_dir, required_cols, allow_nan=True)
@@ -825,25 +825,25 @@ def preprocess_lwmc(lwmc_dir: Path) -> dict:
             raise ValueError(f"No valid {label} trials found after grouping")
         return float(corr_per_trial.mean()), float(time_per_trial.mean())
 
-    # 2) Compute MU/OS/SS from CSV columns
+    # 2) Compute MU/OS/SentS from CSV columns
     mu_score, mu_time = _per_trial_mean_then_mean(
         "mu_key_resp_recall.is_correct", "mu_key_resp_recall.rt", "MU"
     )
     os_score, os_time = _per_trial_mean_then_mean(
         "os_key_resp_recall.corr", "os_key_resp_recall.rt", "OS"
     )
-    ss_score, ss_time = _per_trial_mean_then_mean(
-        "ss_key_resp_recall.corr", "ss_key_resp_recall.rt", "SS"
+    sents_score, sents_time = _per_trial_mean_then_mean(
+        "sents_key_resp_recall.corr", "sents_key_resp_recall.rt", "SentS"
     )
 
-    # 2b) Compute processing task scores for OS and SS
+    # 2b) Compute processing task scores for OS and SentS
     def _compute_processing_score(col: str) -> float:
         if col not in df.columns:
             return nan
         return float(df[col].mean())
 
     os_proc_score = _compute_processing_score("os_key_resp_equation.corr")
-    ss_proc_score = _compute_processing_score("ss_key_resp_sentence.corr")
+    sents_proc_score = _compute_processing_score("sents_key_resp_sentence.corr")
 
     # 3) SSTM from legacy .dat
     def _participant_id_from_dir(d: Path) -> str:
@@ -877,7 +877,7 @@ def preprocess_lwmc(lwmc_dir: Path) -> dict:
     sstm_score = sstm_raw / 240.0
 
     # 4) Total mean
-    total = (mu_score + os_score + ss_score + sstm_score) / 4.0
+    total = (mu_score + os_score + sents_score + sstm_score) / 4.0
 
     return {
         "LWMC_MU_score": mu_score,
@@ -885,9 +885,9 @@ def preprocess_lwmc(lwmc_dir: Path) -> dict:
         "LWMC_OS_score": os_score,
         "LWMC_OS_time_sec": os_time,
         "LWMC_OS_processingTask_score": os_proc_score,
-        "LWMC_SS_score": ss_score,
-        "LWMC_SS_time_sec": ss_time,
-        "LWMC_SentS_processingTask_score": ss_proc_score,
+        "LWMC_SentS_score": sents_score,
+        "LWMC_SentS_time_sec": sents_time,
+        "LWMC_SentS_processingTask_score": sents_proc_score,
         "LWMC_SSTM_score": sstm_score,
         "LWMC_Total_score_mean": total,
     }
