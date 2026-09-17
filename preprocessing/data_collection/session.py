@@ -1,3 +1,4 @@
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TypeVar
@@ -13,6 +14,8 @@ from ..utils.logging import get_logger
 logger = get_logger()
 
 T = TypeVar("T")
+
+_CALIBRATION_QUALITY_REGEX = re.compile(r"!CAL\s+CALIBRATION\b.*?\b(GOOD|FAILED)\b")
 
 
 def _parse_rating_option(key: object) -> int | None:
@@ -89,6 +92,7 @@ class Session:
     avg_comprehension_score_global: float | str = field(default="unknown", init=False)
     avg_comprehension_score_bridging: float | str = field(default="unknown", init=False)
     avg_calibration_error: float | str = field(default="unknown", init=False)
+    calibration_quality: str = field(default="unknown", init=False)
     num_calibrations: int | str = field(default="unknown", init=False)
     num_validations: int | str = field(default="unknown", init=False)
     avg_validation_error: float | str = field(default="unknown", init=False)
@@ -160,6 +164,7 @@ class Session:
                 "num_validations": self.num_validations,
                 "avg_calibration_error_dva": self.avg_calibration_error,
                 "avg_validation_error_dva": self.avg_validation_error,
+                "calibration_quality": self.calibration_quality,
                 "num_good_validations": self.num_good_validations,
                 "num_moderate_validations": self.num_moderate_validations,
                 "num_bad_validations": self.num_bad_validations,
@@ -330,9 +335,46 @@ class Session:
         max_t = max(times)
         return round((max_t - min_t) / 1000, 3)
 
+    def _compute_calibration_quality(self) -> str:
+        """Return the calibration quality flag read from the session ASC file.
+
+        EyeLink reports calibration quality only as a ``GOOD``/``FAILED`` flag on
+        the ``!CAL CALIBRATION ...`` line (there is no numeric calibration error;
+        that is only reported for validations). Returns ``"GOOD"`` or
+        ``"FAILED"`` when all calibrations agree, ``"MIXED"`` when they differ,
+        and ``"unknown"`` when no calibration line or ASC file is available.
+        """
+        path = self.asc_path
+        if not isinstance(path, (str, Path)) or str(path) == "unknown":
+            return "unknown"
+        asc = Path(path)
+        if not asc.exists():
+            return "unknown"
+
+        flags: list[str] = []
+        try:
+            with open(asc, encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    if "!CAL" not in line or "CALIBRATION" not in line:
+                        continue
+                    match = _CALIBRATION_QUALITY_REGEX.search(line)
+                    if match:
+                        flags.append(match.group(1))
+        except OSError:
+            return "unknown"
+
+        if not flags:
+            return "unknown"
+        if all(flag == "GOOD" for flag in flags):
+            return "GOOD"
+        if all(flag == "FAILED" for flag in flags):
+            return "FAILED"
+        return "MIXED"
+
     def _create_stats(self):
         self.num_calibrations = len(self.calibrations)
         self.num_validations = len(self.validations)
+        self.calibration_quality = self._compute_calibration_quality()
 
         self.tracked_eye = self._get_metadata("tracked_eye", "unknown")
 
