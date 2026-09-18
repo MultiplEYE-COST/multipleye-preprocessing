@@ -87,6 +87,9 @@ def test_check_registry_covers_expected_fields() -> None:
     assert "familiarity_1" in fields
     assert "familiarity_2" in fields
     assert "subjective_difficulty" in fields
+    assert "gender" in fields
+    assert "bi_monolingualism" in fields
+    assert "has_pt_data_same_day_as_session" in fields
 
 
 def test_compute_checks_num_completed_trials_pass() -> None:

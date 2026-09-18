@@ -232,6 +232,48 @@ CHECK_REGISTRY: list[dict] = [
         "label": "Avg bridging comprehension score",
         "category": "Comprehension",
     },
+    # Participant
+    {"field": "gender", "label": "Gender", "category": "Participant"},
+    {
+        "field": "bi_monolingualism",
+        "label": "Language background",
+        "category": "Participant",
+    },
+    {
+        "field": "psychometric_tests",
+        "label": "Psychometric tests available",
+        "category": "Participant",
+    },
+    {
+        "field": "tests_conducted_this_session",
+        "label": "PT tests this session",
+        "category": "Participant",
+    },
+    {
+        "field": "tests_conducted_separate_session",
+        "label": "PT tests separate session",
+        "category": "Participant",
+    },
+    {
+        "field": "has_pt_data_same_day_as_session",
+        "label": "PT data same day",
+        "category": "Participant",
+    },
+    {
+        "field": "gap_to_previous_session_days",
+        "label": "Gap to previous session (days)",
+        "category": "Participant",
+    },
+    {
+        "field": "gap_to_next_session_days",
+        "label": "Gap to next session (days)",
+        "category": "Participant",
+    },
+    {
+        "field": "gap_to_psychometric_tests_days",
+        "label": "Gap to psychometric tests (days)",
+        "category": "Participant",
+    },
     # Data presence
     {"field": "raw_data", "label": "Raw data present", "category": "Data Files"},
     {"field": "fixations", "label": "Fixations present", "category": "Data Files"},
