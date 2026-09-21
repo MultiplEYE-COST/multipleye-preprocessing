@@ -15,6 +15,7 @@ import polars as pl
 
 from ..utils.data_path_utils import _ci_exists, _ci_glob, _ci_resolve
 from ..utils.logging import get_logger
+from ..data_collection.session import Session
 
 logger = get_logger()
 
@@ -276,7 +277,7 @@ def _check_shared_files(
 
 def _check_skipped_sessions(data_collection, groups: dict[str, list[str]]) -> None:
     """Record sessions that were skipped during discovery (missing EDF)."""
-    skipped: list[str] = getattr(data_collection, "skipped_session_ids", [])
+    skipped: dict[str, Session] = getattr(data_collection, "skipped_sessions", [])
     if skipped:
         groups["EDF data file"] = sorted(skipped)
 
