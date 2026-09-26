@@ -1,6 +1,5 @@
 """Functions for saving data."""
 
-import contextlib
 import json
 
 import polars as pl
@@ -23,18 +22,15 @@ def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
     directory = sid.raw_data_dir
     directory.mkdir(parents=True, exist_ok=True)
 
-    new_data = data.clone()
-
-    trials = new_data.split(by="trial", as_dict=False)
+    trials = data.split(by=["trial", "stimulus"])
 
     for trial in trials:
-        with contextlib.suppress(Warning):
-            trial.unnest()
-        df = trial.samples
-        trial = df["trial"][0]
-        stimulus = df["stimulus"][0]
-        name = f"{sid!s}_{trial}_{stimulus}_raw_data.csv"
-        df = df[
+        trial_id = trial.metadata["trial"]
+        stimulus = trial.metadata["stimulus"]
+        filename = f"{sid!s}_{trial_id}_{stimulus}_raw_data.csv"
+
+        trial.unnest()
+        trial.samples = trial.samples[
             "time",
             "pixel_x",
             "pixel_y",
@@ -45,7 +41,8 @@ def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
             "pupil",
             "page",
         ]
-        df.write_csv(directory / name)
+
+        trial.save_samples(directory / filename)
 
 
 def save_events_data(
