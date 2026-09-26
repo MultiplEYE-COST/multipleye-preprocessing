@@ -1,6 +1,5 @@
 """Functions for saving data."""
 
-import contextlib
 import json
 
 import polars as pl
@@ -30,8 +29,7 @@ def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
         stimulus = trial.metadata["stimulus"]
         filename = f"{sid!s}_{trial_id}_{stimulus}_raw_data.csv"
 
-        with contextlib.suppress(Warning):
-            trial.unnest()
+        trial.unnest()
         trial.samples = trial.samples[
             "time",
             "pixel_x",
