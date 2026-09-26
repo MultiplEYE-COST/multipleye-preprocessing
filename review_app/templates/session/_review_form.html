@@ -1,0 +1,60 @@
+{% set base = "/api/dcn/" ~ dcn ~ "/session/" ~ detail.sid ~ "/review" %}
+{% set reviewer = detail.review.reviewer if detail.review.reviewer else "" %}
+{% set fmt_date = detail.review.reviewed_at.replace("T", " ").split("+")[0].split("Z")[0] if detail.review.reviewed_at else "" %}
+{% set action = review_action if review_action else ("saved" if fmt_date else "loaded") %}
+{% set cur_status = detail.review.status %}
+{% set cur_issue = detail.review.type_of_issue %}
+{% set is_flagged = cur_status in ("flagged", "excluded") %}
+<div style="display:flex;gap:6px;margin-bottom:0.5rem;flex-wrap:wrap">
+  {% for s in ["unreviewed", "accepted", "flagged", "excluded"] %}
+  <button class="btn btn-sm btn-status {{ 'active' if cur_status == s else '' }}"
+          data-status-key="{{ s }}"
+          title="Shortcut: {{ loop.index }}">
+    {{ s }} <span class="kbd">{{ loop.index }}</span>
+  </button>
+  {% endfor %}
+</div>
+
+<div style="display:flex;gap:6px;margin-bottom:0.75rem;flex-wrap:wrap">
+  {% set issue_types = [
+    ("calibration_validation", "Cal-/Validation", "7"),
+    ("data_loss", "Data loss", "8"),
+    ("incomplete", "Incomplete", "9"),
+    ("see_comment", "See comment", "0"),
+  ] %}
+  {% for key, label, kbd in issue_types %}
+  <button class="btn btn-sm btn-issue {{ 'active' if cur_issue == key else '' }} {{ 'issue-disabled' if not is_flagged else '' }}"
+          data-issue-key="{{ key }}"
+          title="Shortcut: {{ kbd }}">
+    {{ label }} <span class="kbd">{{ kbd }}</span>
+  </button>
+  {% endfor %}
+</div>
+
+<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.5rem">
+  <span id="reviewer-label">{% if reviewer %}reviewed by: {{ reviewer }} · {% endif %}</span>
+  {% if fmt_date %}{{ action }} {{ fmt_date }}{% else %}no review saved yet{% endif %}
+</div>
+
+<form hx-post="{{ base }}?status={{ cur_status }}&type_of_issue={{ cur_issue }}&needs_reprocessing={{ 'true' if detail.review.needs_reprocessing else 'false' }}"
+      hx-target="#review-form"
+      hx-swap="innerHTML">
+  <textarea name="comment" rows="3" tabindex="1"
+            style="width:100%;margin-bottom:0.5rem;padding:0.4rem;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text);font-family:var(--font);font-size:0.85rem">{{ detail.review.comment }}</textarea>
+  <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem">
+    <button type="submit" class="btn btn-primary btn-sm">Save <span class="kbd">Ctrl+Enter</span></button>
+    <label style="font-size:0.85rem;color:var(--text-secondary);display:flex;align-items:center;gap:0.3rem;cursor:pointer">
+      <input type="checkbox" name="needs_reprocessing" value="true"
+             {{ 'checked' if detail.review.needs_reprocessing else '' }}
+             style="accent-color:var(--accent)">
+      Needs reprocessing
+    </label>
+    <span id="save-feedback" style="font-size:0.8rem;color:var(--text-secondary);margin-left:0.5rem"></span>
+  </div>
+</form>
+<script nonce="">
+(function(){
+  var rl=document.getElementById('reviewer-label');
+  if(rl&&!rl.textContent.trim()){var r=window.getReviewer();if(r)rl.textContent='reviewed by: '+r+' · ';}
+})();
+</script>

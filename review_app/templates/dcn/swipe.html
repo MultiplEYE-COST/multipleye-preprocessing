@@ -1,0 +1,687 @@
+{% extends "base.html" %}
+{% block title %}Swipe — {{ dcn.dcn_name }}{% endblock %}
+{% block head_extra %}
+<style>
+/* ---- layout ---- */
+.swipe-layout{display:flex;gap:1.5rem;align-items:flex-start;margin-top:0.5rem}
+.swipe-card-wrapper{flex:1;max-width:680px;margin:0 auto}
+
+/* ---- outer session card ---- */
+.session-card{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.12);position:relative;transition:transform 0.45s cubic-bezier(.4,0,.2,1),opacity 0.45s}
+.session-card.session-up{transform:translateY(-120%);opacity:0}
+.session-card.session-down{transform:translateY(120%);opacity:0}
+
+.session-card-header{padding:0.75rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.session-card-header h2{margin:0;font-size:1rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.session-card-header .subtitle{font-size:0.78rem;color:var(--text-secondary);white-space:nowrap}
+.session-body-row{display:flex;gap:0}
+.session-nav-side{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0.5rem 0.5rem 0.5rem 1rem;flex-shrink:0}
+.session-nav-side button{width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:1.1rem;cursor:pointer;transition:all 0.12s;display:flex;align-items:center;justify-content:center;line-height:1}
+.session-nav-side button:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.session-nav-side button:disabled{opacity:0.25;cursor:default}
+.session-nav-side button:disabled:hover{background:var(--bg);color:var(--text);border-color:var(--border)}
+.session-card-body{flex:1;padding:0.5rem;min-width:0}
+
+/* ---- inner plot card ---- */
+.plot-card-wrapper{display:flex;justify-content:center}
+.plot-card{background:#fff;border:2px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.06);width:100%;max-width:560px;transition:transform 0.25s cubic-bezier(.4,0,.2,1),opacity 0.25s}
+[data-theme="dark"] .plot-card{background:var(--bg)}
+.plot-card.plot-judged-keep{border-color:#16a34a}
+.plot-card.plot-judged-flag{border-color:#dc2626}
+.plot-card.plot-left{transform:translateX(-120%) rotate(-8deg);opacity:0}
+.plot-card.plot-right{transform:translateX(120%) rotate(8deg);opacity:0}
+.plot-card.plot-down{transform:translateY(100%);opacity:0}
+.plot-card.plot-undo{transform:scale(0.85);opacity:0}
+
+.plot-image-wrap{position:relative}
+.plot-card-image{width:100%;height:360px;object-fit:contain;background:var(--bg);display:block}
+.plot-spinner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:1;transition:opacity 0.2s}
+.plot-spinner.hidden{opacity:0;pointer-events:none}
+.plot-spinner::after{content:"";width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:kf-spin 0.7s linear infinite}
+@keyframes kf-spin{to{transform:rotate(360deg)}}
+
+.plot-caption{padding:0.25rem 1rem;font-size:0.8rem;color:var(--text-secondary);text-align:center;font-style:italic;display:flex;align-items:center;justify-content:center;gap:6px}
+.plot-caption .plot-counter{font-size:0.72rem;color:var(--text-secondary);font-style:normal;font-weight:600;padding:1px 6px;background:var(--bg);border-radius:4px}
+
+/* ---- judge buttons (inside plot card) ---- */
+.plot-card .judge-buttons{display:flex;gap:6px;padding:0 1rem 0.35rem}
+.plot-card .judge-buttons button{flex:1;padding:0.6rem;border-radius:10px;border:none;font-size:0.85rem;font-weight:700;cursor:pointer;transition:transform 0.12s;display:flex;align-items:center;justify-content:center;gap:6px}
+.plot-card .judge-buttons button:hover{transform:scale(1.04)}
+.plot-card .judge-buttons button .kbd{display:inline-block;background:rgba(0,0,0,0.15);border-radius:3px;padding:0 5px;font-size:0.7rem;font-weight:400}
+.btn-flag{background:#ef4444;color:#fff}
+.btn-flag:hover{background:#dc2626}
+.btn-skip{background:var(--border);color:var(--text-secondary)}
+.btn-skip:hover{background:var(--text-secondary);color:#fff}
+.btn-keep{background:#22c55e;color:#fff}
+.btn-keep:hover{background:#16a34a}
+
+/* ---- comment (inside plot card) ---- */
+.plot-card .comment-section{padding:0 1rem 0.5rem}
+.plot-card .comment-section textarea{width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:0.8rem;resize:none;height:2.2rem;font-family:inherit;transition:height 0.2s}
+.plot-card .comment-section textarea:focus{height:3.6rem;outline:none;border-color:var(--accent)}
+
+/* ---- session failed checks ---- */
+.session-flagged{padding:0.35rem 1.25rem;font-size:0.78rem;display:flex;flex-wrap:wrap;gap:4px 12px;background:var(--bg);border-top:1px solid var(--border)}
+
+/* ---- right sidebar stats ---- */
+.swipe-sidebar{width:200px;flex-shrink:0;position:sticky;top:80px;display:flex;flex-direction:column;align-items:flex-end}
+.swipe-sidebar .swipe-stats,.swipe-sidebar .swipe-kbd-hint{width:100%}
+.swipe-stats{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.85rem;font-size:0.82rem}
+.swipe-stats h3{margin:0 0 0.5rem;font-size:0.88rem}
+.swipe-stats .progress-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin:6px 0}
+.swipe-stats .progress-bar .fill{height:100%;border-radius:3px;background:var(--accent);transition:width 0.3s}
+.swipe-stats .stat-group{margin-bottom:0.5rem}
+.swipe-stats .stat-group:last-child{margin-bottom:0}
+.swipe-stats .stat-group-title{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-secondary);margin-bottom:2px}
+.swipe-stats .stat-row{display:flex;justify-content:space-between;margin:3px 0;color:var(--text-secondary)}
+.swipe-stats .stat-row .val{font-weight:600}
+.swipe-stats .stat-row .val.keep{color:var(--pass)}
+.swipe-stats .stat-row .val.flag{color:var(--fail)}
+.swipe-stats .stat-row .val.skip{color:var(--text-secondary)}
+.swipe-stats .stat-row .val.complete{color:var(--pass)}
+.swipe-stats .stat-row .val.skipped{color:var(--warn)}
+
+.swipe-kbd-hint{font-size:0.72rem;color:var(--text-secondary);margin-top:0.75rem;line-height:1.7}
+.swipe-kbd-hint kbd{display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:0 5px;font-size:0.65rem;min-width:18px;text-align:center}
+
+/* ---- empty state ---- */
+.swipe-empty{text-align:center;padding:3rem;color:var(--text-secondary)}
+.swipe-empty h2{font-size:1.5rem;margin-bottom:0.5rem}
+</style>
+{% endblock %}
+
+{% block sidebar_center %}
+{% include "_session_nav.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="swipe-layout">
+  <div class="swipe-card-wrapper">
+    <h2 style="margin-bottom:0.75rem">Swipe <span style="font-size:0.85rem;color:var(--text-secondary)">per-plot gaze review</span></h2>
+    <div class="session-card" id="session-card" style="display:none">
+      <div class="session-body-row">
+        <div class="session-nav-side">
+          <button id="btn-prev-session" onclick="window._prevSession()" title="Previous session (↑)">↑</button>
+          <button id="btn-next-session" onclick="window._nextSession()" title="Next session (↓)">↓</button>
+        </div>
+        <div class="session-card-body" id="session-body">
+          <!-- plot card dynamically inserted here -->
+        </div>
+      </div>
+      <div class="session-card-header" style="border-bottom:none;border-top:1px solid var(--border)">
+        <h2 id="session-sid"></h2>
+        <span class="subtitle" id="session-subtitle"></span>
+        <span id="session-badges" style="display:flex;gap:4px"></span>
+      </div>
+      <div id="session-flagged" class="session-flagged" style="display:none"></div>
+    </div>
+    <div id="no-more-cards" class="swipe-empty" style="display:none">
+      <h2>All caught up!</h2>
+      <p>You have reviewed all sessions in this collection.</p>
+      <a href="/dcn/{{ dcn.dcn_name }}" class="btn">&larr; back to {{ dcn.dcn_name }}</a>
+    </div>
+  </div>
+
+  <div class="swipe-sidebar" id="swipe-sidebar">
+    <a href="/dcn/{{ dcn.dcn_name }}" class="btn" style="flex-shrink:0;white-space:nowrap;width:fit-content;margin-bottom:0.75rem">&larr; back to {{ dcn.dcn_name }}</a>
+    <div class="swipe-stats" id="swipe-stats">
+      <h3>Progress</h3>
+      <div class="stat-group">
+        <div class="progress-bar" id="progress-bar"><div class="fill" id="progress-fill" style="width:{{ stats.progress_pct }}%"></div></div>
+        <div class="stat-row"><span>Plots</span><span class="val" id="stat-plots">{{ stats.plots_judged }} / {{ stats.total_plots }}</span></div>
+      </div>
+      <div class="stat-group">
+        <div class="stat-group-title">Plots</div>
+        <div class="stat-row"><span style="color:var(--pass)">✓ Keep</span><span class="val keep" id="stat-keep">{{ stats.keep }}</span></div>
+        <div class="stat-row"><span style="color:var(--fail)">✗ Flag</span><span class="val flag" id="stat-flag">{{ stats.flag }}</span></div>
+        <div class="stat-row"><span style="color:var(--text-secondary)">▶ Skip</span><span class="val skip" id="stat-skip">{{ stats.skip }}</span></div>
+      </div>
+      <div class="stat-group">
+        <div class="stat-group-title">Sessions</div>
+        <div class="stat-row"><span style="color:var(--pass)">✓ Done</span><span class="val complete" id="stat-complete">{{ stats.sessions_complete }} / {{ stats.total_sessions }}</span></div>
+      </div>
+    </div>
+    <div class="swipe-kbd-hint">
+      <div style="margin-bottom:4px"><strong>Judge</strong></div>
+      <div style="display:flex;flex-wrap:wrap;gap:2px 6px">
+        <span style="white-space:nowrap"><kbd>A</kbd> Flag</span>
+        <span style="white-space:nowrap"><kbd>D</kbd> Keep</span>
+        <span style="white-space:nowrap"><kbd>S</kbd> Skip</span>
+        <span style="white-space:nowrap"><kbd>W</kbd> Undo</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:2px 6px;margin-top:2px">
+        <span style="white-space:nowrap"><kbd>C</kbd> Focus comment</span>
+      </div>
+      <div style="margin-top:4px"><strong>Sessions</strong></div>
+      <div style="display:flex;flex-wrap:wrap;gap:2px 6px">
+        <span style="white-space:nowrap"><kbd>&uarr;</kbd> Prev</span>
+        <span style="white-space:nowrap"><kbd>&darr;</kbd> Next</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+"use strict";
+var sessions = {{ sessions | tojson }};
+var stats = {{ stats | tojson }};
+var dcnName = (window.location.pathname.match(/\/dcn\/([^/]+)/)||[])[1]||"";
+
+if (!sessions || !sessions.length) {
+  document.getElementById("session-card").style.display = "none";
+  document.getElementById("no-more-cards").style.display = "";
+  return;
+}
+
+/* ---- state ---- */
+var startSid = {{ start_sid | tojson }};
+var idx = 0;
+if(startSid){
+  var found = sessions.findIndex(function(s){ return s.sid === startSid; });
+  if(found >= 0) idx = found;
+}
+var history = [];   // [{sid, plot, judgment}]
+
+/* ---- update URL with current session ---- */
+function updateUrlSid(sid){
+  var base = window.location.pathname;
+  var url = base + "?session=" + encodeURIComponent(sid);
+  window.history.replaceState(null, "", url);
+}
+var plotIdx = {};
+var animating = false;
+var sessionAnimating = false;
+var _currentPlotJudgment = null;
+var _showSkipBtn = true;
+var _skipJudged = false;
+var _lastFastJudge = 0;
+function _dismissSkipBtn(){ _showSkipBtn = false; }
+function _dismissSkipJudged(){ _skipJudged = false; }
+
+
+sessions.forEach(function(s){ plotIdx[s.sid] = 0; });
+
+/* ---- DOM refs ---- */
+var card = document.getElementById("session-card");
+var body = document.getElementById("session-body");
+var header = document.getElementById("session-sid");
+var subtitle = document.getElementById("session-subtitle");
+var badges = document.getElementById("session-badges");
+var noMore = document.getElementById("no-more-cards");
+
+/* ---- helpers ---- */
+function api(path){
+  var m = window.location.pathname.match(/\/dcn\/([^/]+)/);
+  return m ? "/api/dcn/"+encodeURIComponent(m[1])+path : "";
+}
+
+function updateStats(st){
+  if(!st)return;
+  var e=function(i){return document.getElementById(i);};
+  if(e("stat-plots"))e("stat-plots").textContent=st.plots_judged+" / "+st.total_plots;
+  if(e("stat-keep"))e("stat-keep").textContent=st.keep;
+  if(e("stat-flag"))e("stat-flag").textContent=st.flag;
+  if(e("stat-skip"))e("stat-skip").textContent=st.skip;
+  if(e("stat-complete"))e("stat-complete").textContent=st.sessions_complete+" / "+st.total_sessions;
+  if(e("progress-fill"))e("progress-fill").style.width=st.progress_pct+"%";
+}
+
+function updateNavHighlight(sid){
+  document.querySelectorAll(".session-nav-item").forEach(function(el){
+    el.classList.toggle("active", el.dataset.sid === sid);
+  });
+  var active = document.querySelector(".session-nav-item.active");
+  if(active) active.scrollIntoView({block:"nearest",behavior:"smooth"});
+}
+
+/* ---- render current session ---- */
+function renderSession(){
+  if(idx >= sessions.length){
+    card.style.display = "none";
+    noMore.style.display = "";
+    return;
+  }
+  noMore.style.display = "none";
+  card.style.display = "";
+
+  var s = sessions[idx];
+  var pi = plotIdx[s.sid] || 0;
+  if(pi >= s.plots.length) pi = 0;
+  plotIdx[s.sid] = pi;
+
+  /* session header — clickable link to detail page */
+  header.innerHTML = '<a href="/dcn/'+encodeURIComponent(dcnName)+'/session/'+encodeURIComponent(s.sid)+'" style="color:inherit;text-decoration:none;cursor:pointer" target="_blank">'+_escHtml(s.sid)+'</a>';
+  var parts = ["PID "+s.pid];
+  if(s.num_calibrations) parts.push("Cal: "+s.num_calibrations);
+  if(s.num_validations) parts.push("Val: "+s.num_validations);
+  if(s.n_fail_flags) parts.push(s.n_fail_flags+" \u2717");
+  if(s.n_warn_flags) parts.push(s.n_warn_flags+" \u26A0");
+  subtitle.textContent = parts.join(" \u00B7 ");
+
+  var bc = {unreviewed:"badge-unreviewed",accepted:"badge-pass",flagged:"badge-fail",excluded:"badge-warn"};
+  var bh = "";
+  if(s.is_pilot) bh += '<span class="badge badge-warn">pilot</span> ';
+  if(s.review_status && s.review_status!=="unreviewed") bh += '<span class="badge '+bc[s.review_status]+'">'+s.review_status+'</span> ';
+  if(s.needs_reprocessing) bh += '<span class="pill" style="background:#eab308;color:#fff;border:none;font-size:0.72rem">reprocess</span>';
+  badges.innerHTML = bh;
+
+  /* failed checks below body */
+  var fc = document.getElementById("session-flagged");
+  if(fc){
+    if(s.flagged_checks && s.flagged_checks.length){
+      var html = '';
+      s.flagged_checks.forEach(function(c){
+        var icon = c.status === "fail" ? "\u2717" : "\u26A0";
+        var color = c.status === "fail" ? "var(--fail)" : "var(--warn)";
+        html += '<span style="color:'+color+'">'+icon+' '+_escHtml(c.label)+'</span>';
+      });
+      fc.innerHTML = html;
+      fc.style.display = "";
+    } else {
+      fc.style.display = "none";
+      fc.innerHTML = "";
+    }
+  }
+
+  /* prev/next nav buttons */
+  var pb = document.getElementById("btn-prev-session");
+  var nb = document.getElementById("btn-next-session");
+  if(pb) pb.disabled = idx <= 0;
+  if(nb) nb.disabled = idx >= sessions.length - 1;
+
+  /* render current plot */
+  renderPlot(s, pi);
+
+  /* session nav */
+  updateNavHighlight(s.sid);
+
+  /* update URL for shareable link */
+  updateUrlSid(s.sid);
+
+  /* preload adjacent plots (skip when spamming) */
+  if(!animating) preloadPlots(s, pi);
+}
+
+var imgEl = null, captionEl = null;
+
+/* fast path: update image/caption/border without replacing body innerHTML */
+function _fastRenderPlot(s, pi){
+  var plots = s.plots || [];
+  var p = plots[pi];
+  if(!p) return;
+  var pc = document.getElementById("plot-card");
+  if(!pc){ renderPlot(s, pi); return; }
+  var img = document.getElementById("plot-img");
+  var cap = document.getElementById("plot-caption");
+  if(img){
+    var spinner = document.getElementById("plot-spinner");
+    if(spinner) spinner.classList.remove("hidden");
+    img.src = p.url;
+  }
+  if(cap){
+    var parts = [];
+    if(plots.length > 1) parts.push('<span class="plot-counter">'+(pi+1)+'/'+plots.length+'</span>');
+    parts.push(p.stimulus);
+    if(p.page) parts.push(p.page);
+    if(p.activity) parts.push(p.activity);
+    cap.innerHTML = parts.join(" \u2014 ");
+  }
+  pc.className = "plot-card";
+  if(p.judgment === "keep") pc.classList.add("plot-judged-keep");
+  else if(p.judgment === "flag") pc.classList.add("plot-judged-flag");
+  _currentPlotJudgment = p.judgment;
+}
+
+function renderPlot(s, pi){
+  var plots = s.plots || [];
+  var p = plots[pi];
+  if(!p) return;
+
+  var judgedClass = "";
+  if(p.judgment === "keep"){ judgedClass = " plot-judged-keep"; }
+  else if(p.judgment === "flag"){ judgedClass = " plot-judged-flag"; }
+
+  /* caption with plot counter */
+  var capParts = [];
+  if(plots.length > 1) capParts.push('<span class="plot-counter">'+(pi+1)+'/'+plots.length+'</span>');
+  capParts.push(p.stimulus);
+  if(p.page) capParts.push(p.page);
+  if(p.activity) capParts.push(p.activity);
+  var capText = capParts.join(" \u2014 ");
+  var skipRow = "";
+  if(p.judgment && plots.length > 1 && _showSkipBtn){
+    skipRow = '<div style="text-align:center;padding:4px 0 2px"><button id="skip-unjudged-btn" style="border:1px solid var(--accent);background:var(--bg);color:var(--accent);font-size:0.82rem;font-weight:700;cursor:pointer;padding:4px 16px;border-radius:6px">Next unjudged \u2192</button></div>';
+  }
+
+  /* comment */
+  var c = p.comment || "";
+  var commentHtml =
+    '<div class="comment-section">'+
+    '<textarea id="comment-input" placeholder="'+(c?"Edit comment (Ctrl+Enter)":"Comment (Ctrl+Enter)")+'" rows="1">'+_escHtml(c)+'</textarea>'+
+    '</div>';
+
+  /* undo button — small, centered, above caption */
+  var canUndo = history.length > 0;
+  var undoHtml = canUndo
+    ? '<div style="text-align:center;padding:2px 0"><button onclick="window._undo()" style="border:none;background:transparent;color:var(--accent);font-size:0.75rem;font-weight:600;cursor:pointer;padding:2px 8px">\u21A9 Undo <span class="kbd">W</span></button></div>'
+    : '<div style="text-align:center;padding:2px 0"><span style="color:var(--text-secondary);font-size:0.75rem;opacity:0.35">\u21A9 Undo <span class="kbd">W</span></span></div>';
+
+  body.innerHTML =
+    '<div class="plot-card-wrapper">'+
+    '<div class="plot-card' + judgedClass + '" id="plot-card">'+
+    '<div class="plot-image-wrap">'+
+    '<div class="plot-spinner" id="plot-spinner"></div>'+
+    '<img class="plot-card-image" id="plot-img" src="'+p.url+'" alt="Gaze plot" fetchpriority="high" onload="document.getElementById(\'plot-spinner\')?.classList.add(\'hidden\')" onerror="document.getElementById(\'plot-spinner\')?.classList.add(\'hidden\')">'+
+    '</div>'+
+    '<div class="plot-caption" id="plot-caption">'+capText+'</div>'+
+    skipRow+
+    undoHtml+
+    '<div class="judge-buttons">'+
+    '<button class="btn-flag" onclick="window._judge(\'flag\')">\u2717 Flag <span class="kbd">A</span></button>'+
+    '<button class="btn-skip" onclick="window._judge(\'skip\')">\u25B6 Skip <span class="kbd">S</span></button>'+
+    '<button class="btn-keep" onclick="window._judge(\'keep\')">\u2713 Keep <span class="kbd">D</span></button>'+
+    '</div>'+
+    commentHtml+
+    '</div>'+
+    '</div>';
+
+  imgEl = document.getElementById("plot-img");
+  captionEl = document.getElementById("plot-caption");
+
+  /* re-bind comment events (DOM replaced) */
+  var ci = document.getElementById("comment-input");
+  if(ci){
+    commentInput = ci;
+    commentInput.addEventListener("keydown", function(e){
+      if(e.key === "Enter" && (e.ctrlKey || e.metaKey)){ e.preventDefault(); _saveComment(); }
+    });
+    commentInput.addEventListener("blur", function(){ _saveComment(); });
+  }
+
+  _currentPlotJudgment = p.judgment;
+}
+
+function _escHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ---- preload ---- */
+var preloadCache = {};
+function preloadPlots(s, ci){
+  if(!s||!s.plots)return;
+  [ci, ci+1, ci+2, ci-1].forEach(function(i){
+    if(i>=0&&i<s.plots.length){
+      var u=s.plots[i].url;
+      if(!preloadCache[u]){ preloadCache[u]=true; var img=new Image(); img.src=u; }
+    }
+  });
+}
+
+/* ---- api calls ---- */
+function _judgeApi(sid, plot, judgment, cb){
+  fetch(api("/swipe/judge?sid="+encodeURIComponent(sid)+"&plot="+encodeURIComponent(plot)+"&judgment="+encodeURIComponent(judgment)),{method:"POST"})
+  .then(function(r){return r.json();}).then(function(d){ if(d.stats) updateStats(d.stats); if(cb) cb(d); });
+}
+
+function _undoApi(sid, plot, cb){
+  fetch(api("/swipe/undo?sid="+encodeURIComponent(sid)+"&plot="+encodeURIComponent(plot)),{method:"POST"})
+  .then(function(r){return r.json();}).then(function(d){ if(d.stats) updateStats(d.stats); if(cb) cb(d); });
+}
+
+function _commentApi(sid, plot, comment){
+  fetch(api("/swipe/comment?sid="+encodeURIComponent(sid)+"&plot="+encodeURIComponent(plot)+"&comment="+encodeURIComponent(comment)),{method:"POST"})
+  .then(function(r){return r.json();}).then(function(d){ if(d.stats) updateStats(d.stats); });
+}
+
+/* ---- judgment flow ---- */
+function _getNextUnjudgedIdx(s, current, wrap){
+  for(var n = 1; n < s.plots.length; n++){
+    var tryIdx = (current + n) % s.plots.length;
+    var j = s.plots[tryIdx].judgment;
+    if(!j || j === "skip") return tryIdx;
+  }
+  return wrap ? -1 : -1;
+}
+function _nextPlotInSession(){
+  var s = sessions[idx];
+  if(!s||!s.plots||!s.plots.length) return false;
+  if(_skipJudged){
+    var next = _getNextUnjudgedIdx(s, plotIdx[s.sid]||0, false);
+    if(next >= 0){ plotIdx[s.sid] = next; return true; }
+    /* all plots judged in this session — move on */
+    _skipJudged = false;
+    setTimeout(function(){ _nextSession(); }, 200);
+    return false;
+  }
+  plotIdx[s.sid] = (plotIdx[s.sid]||0) + 1;
+  if(plotIdx[s.sid] >= s.plots.length){
+    setTimeout(function(){ _nextSession(); }, 200);
+    return false;
+  }
+  return true;
+}
+
+window._judge = function(judgment){
+  _dismissSkipBtn();
+  if(sessionAnimating || idx >= sessions.length) return;
+  var s = sessions[idx];
+  if(!s) return;
+  var pi = plotIdx[s.sid] || 0;
+  var p = s.plots[pi];
+  if(!p) return;
+
+  s.plots[pi].judgment = judgment;
+  _judgeApi(s.sid, p.name, judgment);
+
+  /* fast path during spam: skip animation, history, full render */
+  if(animating){
+    var now = Date.now();
+    if(now - _lastFastJudge < 60) return; /* throttle: let backend keep up */
+    _lastFastJudge = now;
+    if(_skipJudged){
+      var next = _getNextUnjudgedIdx(s, pi, false);
+      if(next >= 0){ plotIdx[s.sid] = next; _fastRenderPlot(s, next); return; }
+      _skipJudged = false;
+      idx++;
+      if(idx >= sessions.length){ card.style.display="none"; noMore.style.display=""; return; }
+      renderSession();
+      return;
+    }
+    plotIdx[s.sid] = (plotIdx[s.sid]||0) + 1;
+    if(plotIdx[s.sid] >= s.plots.length){
+      plotIdx[s.sid] = 0;
+      idx++;
+      if(idx >= sessions.length){ card.style.display="none"; noMore.style.display=""; return; }
+      renderSession();
+    } else {
+      _fastRenderPlot(s, plotIdx[s.sid]);
+    }
+    return;
+  }
+
+  history.push({sid:s.sid, plot:p.name, judgment:p.judgment});
+
+  var dir = judgment === "keep" ? "right" : judgment === "flag" ? "left" : "down";
+  _animatePlot(dir, function(){
+    if(_nextPlotInSession()){ renderSession(); }
+    else { renderSession(); }
+  });
+};
+
+window._undo = function(){
+  _dismissSkipBtn();
+  if(animating || sessionAnimating || history.length === 0) return;
+  var h = history.pop();
+  if(!h) return;
+
+  var sidx = sessions.findIndex(function(s){ return s.sid === h.sid; });
+  if(sidx === -1) return;
+
+  idx = sidx;
+  var s = sessions[idx];
+  var pi = s.plots.findIndex(function(p){ return p.name === h.plot; });
+  if(pi !== -1) {
+    plotIdx[s.sid] = pi;
+    s.plots[pi].judgment = h.judgment;
+  }
+  _undoApi(h.sid, h.plot);
+  renderSession();
+};
+
+window._prevPlot = function(){
+  var s = sessions[idx]; if(!s||!s.plots||!s.plots.length) return;
+  plotIdx[s.sid] = (plotIdx[s.sid]||0) - 1;
+  if(plotIdx[s.sid] < 0) plotIdx[s.sid] = s.plots.length - 1;
+  renderSession();
+};
+window._nextPlot = function(){
+  var s = sessions[idx]; if(!s||!s.plots||!s.plots.length) return;
+  plotIdx[s.sid] = (plotIdx[s.sid]||0) + 1;
+  if(plotIdx[s.sid] >= s.plots.length) plotIdx[s.sid] = s.plots.length - 1;
+  renderSession();
+};
+
+window._nextUnjudged = function(){
+  _dismissSkipBtn();
+  _skipJudged = true;
+  var s = sessions[idx];
+  if(!s||!s.plots||!s.plots.length) return;
+  var target = _getNextUnjudgedIdx(s, plotIdx[s.sid]||0, true);
+  if(target >= 0){
+    _animatePlot("down", function(){
+      plotIdx[s.sid] = target;
+      renderSession();
+    });
+  }
+};
+
+/* ---- session navigation ---- */
+window._goToSession = function(sid){
+  _dismissSkipBtn(); _dismissSkipJudged();
+  if(sessionAnimating) return;
+  var ni = sessions.findIndex(function(s){ return s.sid === sid; });
+  if(ni === -1 || ni === idx) return;
+  idx = ni;
+  plotIdx[sid] = plotIdx[sid] || 0;
+  renderSession();
+};
+
+window._prevSession = function(){
+  _dismissSkipBtn(); _dismissSkipJudged();
+  if(idx <= 0) return;
+  if(sessionAnimating){ idx--; renderSession(); return; }
+  _animateSession("down", "up", function(){
+    idx--;
+    plotIdx[sessions[idx].sid] = plotIdx[sessions[idx].sid] || 0;
+    renderSession();
+  });
+};
+window._nextSession = function(){
+  _dismissSkipBtn(); _dismissSkipJudged();
+  if(idx >= sessions.length - 1){
+    idx = sessions.length;
+    renderSession();
+    return;
+  }
+  if(sessionAnimating){
+    idx++;
+    plotIdx[sessions[idx].sid] = plotIdx[sessions[idx].sid] || 0;
+    renderSession();
+    return;
+  }
+  _animateSession("up", "down", function(){
+    idx++;
+    plotIdx[sessions[idx].sid] = plotIdx[sessions[idx].sid] || 0;
+    renderSession();
+  });
+};
+
+
+/* ---- animations ---- */
+function _animatePlot(dir, cb){
+  var pc = document.getElementById("plot-card");
+  if(!pc || animating){ if(cb) cb(); return; }
+  animating = true;
+  pc.classList.add("plot-"+dir);
+  setTimeout(function(){
+    animating = false;
+    if(cb) cb();
+  }, 250);
+}
+
+function _animateSession(exitDir, enterDir, cb){
+  if(sessionAnimating){ if(cb) cb(); return; }
+  sessionAnimating = true;
+  card.classList.add("session-"+exitDir);
+  setTimeout(function(){
+    card.classList.remove("session-"+exitDir, "session-up", "session-down");
+    /* entrance: position card offscreen, render, animate in */
+    card.style.transition = "none";
+    card.style.opacity = "0";
+    if(enterDir === "up") card.style.transform = "translateY(-120%)";
+    else card.style.transform = "translateY(120%)";
+    cb();
+    void card.offsetHeight;
+    card.style.transition = "";
+    card.style.opacity = "1";
+    card.style.transform = "";
+    setTimeout(function(){
+      card.style.opacity = "";
+      sessionAnimating = false;
+    }, 350);
+  }, 450);
+}
+
+/* ---- comment auto-save ---- */
+var commentInput = null;  // set by renderPlot
+
+function _saveComment(){
+  var s = sessions[idx];
+  if(!s) return;
+  var pi = plotIdx[s.sid] || 0;
+  var p = s.plots[pi];
+  if(!p) return;
+  if(!commentInput) return;
+  var val = commentInput.value.trim();
+  if(val === (p.comment||"")) return;
+  p.comment = val;
+  _commentApi(s.sid, p.name, val);
+}
+
+/* ---- keyboard ---- */
+document.addEventListener("keydown", function(e){
+  if(e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+  if(!document.getElementById("session-card")) return;
+  if(card.style.display === "none") return;
+
+  if(e.key === "a" || e.key === "A"){ e.preventDefault(); window._judge("flag"); }
+  else if(e.key === "d" || e.key === "D"){ e.preventDefault(); window._judge("keep"); }
+  else if(e.key === "s" || e.key === "S"){ e.preventDefault(); window._judge("skip"); }
+  else if(e.key === "w" || e.key === "W"){ e.preventDefault(); window._undo(); }
+  else if((e.key === "c" || e.key === "C") && !e.ctrlKey && !e.metaKey){ e.preventDefault(); var ci = document.getElementById("comment-input"); if(ci) ci.focus(); }
+  else if(e.key === "ArrowUp"){ e.preventDefault(); window._prevSession(); }
+  else if(e.key === "ArrowDown"){ e.preventDefault(); window._nextSession(); }
+});
+
+/* ---- session nav click handler ---- */
+document.getElementById("session-nav-list").addEventListener("click", function(e){
+  var item = e.target.closest(".session-nav-item");
+  if(!item) return;
+  window._goToSession(item.dataset.sid);
+});
+
+window._swipeGoToSession = window._goToSession;
+
+/* ---- delegated click for skip-unjudged button ---- */
+card.addEventListener("click", function(e){
+  if(e.target && e.target.id === "skip-unjudged-btn") window._nextUnjudged();
+});
+
+/* ---- init ---- */
+renderSession();
+})();
+</script>
+{% endblock %}

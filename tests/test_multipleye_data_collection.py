@@ -1,9 +1,10 @@
-from unittest import TestCase
-import pytest
 from pathlib import Path
+from unittest import TestCase
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from preprocessing.data_collection import MultipleyeDataCollection
-from unittest.mock import patch, MagicMock, mock_open
 
 
 @pytest.mark.skip(reason="Not complete")
@@ -14,7 +15,7 @@ class TestMultipleyeDataCollection(TestCase):
         # For example, you could create a temporary directory or file
         # self.test_dir = tempfile.TemporaryDirectory()
 
-        self.this_repo = Path().resolve().parent
+        self.this_repo = Path.cwd().parent
 
         self.data_collection_folder = "MultiplEYE_toy_X_x_1_1"
         self.data_folder_path = self.this_repo / "tests" / self.data_collection_folder
@@ -68,11 +69,10 @@ def data_collection():
 
 @patch("multipleye_data_collection.load_data")
 @patch("multipleye_data_collection.preprocess")
-@patch("builtins.open", new_callable=mock_open)
 @patch("pickle.dump")
 @pytest.mark.skip(reason="Not complete")
 def test_create_gaze_frame(
-    mock_pickle, mock_open_file, mock_preprocess, mock_load_data, data_collection
+    mock_pickle, mock_preprocess, mock_load_data, data_collection
 ):
     mock_gaze = MagicMock()
     mock_load_data.return_value = mock_gaze
