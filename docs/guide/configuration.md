@@ -2,58 +2,115 @@
 
 # Configuration
 
-The configuration of the preprocessing pipeline is handled by the `config.py` and `constants.py`
-files.
-You can find these files in the `preprocessing/` directory.
-As the names suggest, `config.py` contains user-configurable settings for your specific data
-collection, while `constants.py` contains technical constants that should be kept as default values
-unless you know what you are doing.
-Edits must be made manually. While some processing commands can be passed explicit variables,
-it is best just to set the values once centrally, so throughout the pipeline no values need to be
-passed.
+The MultiplEYE pEYEpline uses a central configuration system to manage all parameters,
+ensuring reproducible and consistent data processing.
 
-For detailed information about the pipeline architecture and how configuration parameters are used in each processing step, please refer to the {ref}`technical_architecture` section.
+## Loading Precedence
+
+The pEYEpline searches for configuration in the following order:
+
+1. **CLI Argument**: `--config_path your_config.yaml` when running the preprocessing script.
+2. **Environment Variable**: `MULTIPLEYE_CONFIG` pointing to a YAML file.
+3. **Local Default**: `multipleye_settings_preprocessing.yaml` in your current working directory.
+
+**If no configuration is found**, the pEYEpline will:
+
+1. Copy a template to `multipleye_settings_preprocessing.yaml` in your current directory.
+2. Display a message with instructions.
+3. **Stop execution**.
+
+You must then edit the file (at least set `data_collection_name`) and rerun the command.
+
+## Initial Setup
+
+When you run the pEYEpline for the first time in a new directory, it will create a template for you.
+
+```bash
+uv run run_preprocessing
+```
+
+After it stops, open `multipleye_settings_preprocessing.yaml` and configure your session.
 
 ## Configuration Settings
 
-The main configuration file (`preprocessing/config.py`) contains the following key settings:
+Settings are divided into user-configurable parameters and internal constants.
 
-### Data Collection Configuration
+### User Settings (Required & Common)
 
-- `BASE_DATA_DIR`: Root `data/` directory where your data is stored
-- `DATA_COLLECTION_ID`: Identifier for your data collection (e.g., "MultiplEYE_SQ_CH_Zurich_1_2025")
-  inside `BASE_DATA_DIR`.
-- `PSYCHOMETRIC_TESTS_DIR`: Directory containing psychometric test sessions
+- `DATA_COLLECTION_NAME`: **(Required)** A unique identifier for your collection.
+    - Format: `MultiplEYE_[LANG]_[COUNTRY]_[CITY]_[LAB_NO]_[YEAR]`
+    - Example: `MultiplEYE_EN_UK_London_1_2026`
+    - **Note**: This name has been given to you by the MultiplEYE project.
+      It is used to determine data and output paths. If it doesn't match the
+      required 6-part format, the pEYEpline might fail to resolve certain paths.
+- `OVERWRITE`: `true` to reprocess existing data, `false` (default) to skip already processed
+  sessions.
+- `EXPERIMENT_TYPE`: `MultiplEYE` (default) or `MeRID`.
+- `INCLUDE_SESSIONS` / `EXCLUDE_SESSIONS`: Optional lists to filter which sessions are processed.
+- `INCLUDE_PILOTS`: `true` to include data from pilot folders (default: `false`).
+- `EXPECTED_SAMPLING_RATE_HZ`: The sampling rate of your eye tracker (default: `1000`).
 
-[//]: # (- `OUTPUT_DIR`: Directory where processed results will be saved)
+#### Less commonly changed user settings
 
-### Psychometric Test Settings
+- `DATASET_DIR`: The path where your raw data is located. By default, this is
+  `data/[DATA_COLLECTION_NAME]`.
+- `OUTPUT_DIR`: The path where preprocessed data will be saved. By default, this is
+  `preprocessed_data/[DATA_COLLECTION_NAME]`.
 
-- ...
+A copy of the config file used for a run is saved to
+`[OUTPUT_DIR]/metadata/[config_filename]` and overwritten on every re-run, so the
+output folder always records the exact settings the data was processed with.
 
-### Processing Parameters
+### Event Detection Settings
 
-- ...
+These control fixation/saccade detection and velocity estimation. The defaults match the
+published MultiplEYE pipeline; **only change them if you are a core developer**. Whatever
+values are used are recorded in the dataset overview `processing_config` section.
 
-## Constants
+- `FIXATION_METHOD`: fixation detection method (`ivt` or `idt`; default: `ivt`).
+- `FIXATION_MINIMUM_DURATION_MS`: minimum fixation duration in milliseconds (default: `100`).
+- `FIXATION_VELOCITY_THRESHOLD`: IVT velocity threshold in degrees/second (default: `20.0`).
+- `SACCADE_METHOD`: saccade detection method (default: `microsaccades`).
+- `SACCADE_MINIMUM_DURATION`: minimum saccade duration in samples (default: `6`).
+- `SACCADE_THRESHOLD_FACTOR`: noise-adaptive velocity threshold factor (default: `6.0`).
+- `VELOCITY_ESTIMATION_METHOD`: velocity estimation method (default: `savitzky_golay`).
+- `VELOCITY_SMOOTHING_WINDOW_MS`: velocity window length in milliseconds (default: `50`).
+- `VELOCITY_POLYNOMIAL_DEGREE`: Savitzky-Golay polynomial degree (default: `2`).
 
-The constants file (`preprocessing/constants.py`) contains technical parameters that should not need
-modification:
+### Quality Check Thresholds
 
-- Standard data structure
-- Sanity check acceptable thresholds
-- Eyetracker names and stimulus name mappings
+These settings define the criteria for "GOOD" data quality. **Do not change these** unless you are a
+core developer, as they ensure consistency across the MultiplEYE project.
 
-## Modifying Configuration
+- `ACCEPTABLE_NUM_CALIBRATIONS`: [min, max] range for calibrations.
+- `ACCEPTABLE_NUM_VALIDATION`: [min, max] range for validations.
+- `ACCEPTABLE_AVG_VALIDATION_SCORES`: Acceptable average accuracy.
+- `ACCEPTABLE_DATA_LOSS_RATIOS`: Max allowed data loss.
+- `ACCEPTABLE_RECORDING_DURATIONS`: Acceptable session duration range.
+- `ACCEPTABLE_NUM_PRACTICE_TRIALS`: Expected number of practice trials.
+- `ACCEPTABLE_NUM_TRIALS`: Expected minimum number of trials.
 
-To modify the configuration for your data collection:
+### Logging Settings
 
-1. Open `preprocessing/config.py`
-2. Update the `DATA_COLLECTION_ID` and directory paths as needed
-3. Adjust any test-specific parameters if your data format differs
-4. Save the file - changes will take effect on the next run
+- `LOG_LEVEL`: General log level (default: `INFO`).
+- `CONSOLE_LOG_LEVEL`: What you see in the terminal.
+- `FILE_LOG_LEVEL`: What is saved to `preprocessing_logs.txt` (usually `DEBUG`).
 
-```{note}
-Is is useful to test with a small subset of data first and backing up your `config.py`
-before making changes.
+## Programmatic Usage (Notebooks)
+
+If you are using the package in a Python script or Jupyter notebook:
+
+```python
+from preprocessing import settings
+
+# Load a specific config file
+settings.load("path/to/your_config.yaml")
+
+# Access settings
+print(settings.DATA_COLLECTION_NAME)
 ```
+
+## Internal Constants
+
+The `settings` object also contains technical parameters like folder names (`RAW_DATA_FOLDER`, etc.)
+and regex patterns. These are marked as internal in the template and should not be modified.

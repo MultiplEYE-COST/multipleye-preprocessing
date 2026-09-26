@@ -164,11 +164,17 @@ cython_debug/
 
 .DS_Store
 
+multipleye_settings_preprocessing.yaml
+
 /template_and_notes/output/
 /preprocessed_data/
+/review_data/
 
 # outputs
 public/*
 jupyter_execute/*
 
 uv.lock
+
+# review web UI auto-downloaded JS
+review_app/static/htmx.min.js

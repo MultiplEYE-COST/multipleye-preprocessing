@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}MultiplEYE Data Review — Collections{% endblock %}
+{% block content %}
+<div class="topbar"><h2>Data Collections</h2></div>
+{% if dcns %}
+{% set processed = dcns | selectattr("is_processed") | list %}
+{% set raw = dcns | rejectattr("is_processed") | selectattr("has_raw_data") | list %}
+{% set empty = dcns | rejectattr("is_processed") | rejectattr("has_raw_data") | list %}
+
+{% if processed %}
+<h3 style="margin-bottom:0.75rem;font-size:0.9rem;color:var(--text-secondary)">Processed</h3>
+<div class="grid grid-2">
+{% for d in processed %}
+{% set card_style = "cursor:pointer" %}
+{% if d.n_sessions > 0 %}
+{% set pct_at = (d.n_reviewed_accepted / d.n_sessions * 100) %}
+{% set pct_fg = (d.n_reviewed_flagged / d.n_sessions * 100) %}
+{% set pct_ex = (d.n_reviewed_excluded / d.n_sessions * 100) %}
+{% set pct_ur = (d.n_reviewed_unreviewed / d.n_sessions * 100) %}
+{% set ur_e = pct_ur %}
+{% set at_e = pct_ur + pct_at %}
+{% set fg_e = pct_ur + pct_at + pct_fg %}
+{% set stops = [] %}
+{% if ur_e > 0 %}{% set _ = stops.append("transparent 0% " ~ ur_e ~ "%") %}{% endif %}
+{% if pct_at > 0 %}{% set _ = stops.append("rgba(22,163,74,0.12) " ~ ur_e ~ "% " ~ at_e ~ "%") %}{% endif %}
+{% if pct_fg > 0 %}{% set _ = stops.append("rgba(220,38,38,0.12) " ~ at_e ~ "% " ~ fg_e ~ "%") %}{% endif %}
+{% if pct_ex > 0 %}{% set _ = stops.append("rgba(217,119,6,0.12) " ~ fg_e ~ "% 100%") %}{% endif %}
+{% set card_style = card_style ~ ";background-image:linear-gradient(to right," ~ stops | join(",") ~ ");background-color:var(--bg-card)" %}
+{% endif %}
+<a href="/dcn/{{ d.dcn_name }}" style="text-decoration:none;color:inherit">
+  <div class="card" style="{{ card_style }}">
+    <div style="display:flex;justify-content:space-between;align-items:start">
+      <strong style="font-size:0.9rem">{{ d.dcn_name }}</strong>
+      <span class="pill pill-{{ d.preflight_status }}">{{ d.preflight_status }}</span>
+    </div>
+    <div style="margin-top:6px;font-size:0.8rem;color:var(--text-secondary)">
+      <span title="{{ lang_name(d.language) }}">{{ d.language }}</span> · {{ d.country }} · {{ d.year }}
+    </div>
+    <div style="margin-top:6px;font-size:0.8rem;display:flex;flex-wrap:wrap;gap:4px">
+      <span style="white-space:nowrap">{{ d.n_sessions }} sessions{% if d.n_pilots %} ({{ d.n_pilots }} pilots){% endif %}</span>
+    </div>
+    {% if d.n_sessions > 0 %}
+    <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+      <span class="badge badge-unreviewed">{{ d.n_reviewed_unreviewed }} unreviewed</span>
+      <span class="badge badge-pass">{{ d.n_reviewed_accepted }} ok</span>
+      <span class="badge badge-fail">{{ d.n_reviewed_flagged }} flagged</span>
+      <span class="badge badge-warn">{{ d.n_reviewed_excluded }} excluded</span>
+      {% if d.dcn_type %}<span class="pill" style="margin-left:auto;background:var(--border);color:var(--text-secondary)">{{ d.dcn_type }}</span>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</a>
+{% endfor %}
+</div>
+{% endif %}
+
+{% if raw %}
+<div style="margin-top:2rem"></div>
+<h3 style="margin-bottom:0.75rem;font-size:0.9rem;color:var(--text-secondary)">Not processed</h3>
+<div class="grid grid-2">
+{% for d in raw %}
+<a href="/dcn/{{ d.dcn_name }}" style="text-decoration:none;color:inherit">
+  <div class="card" style="cursor:pointer">
+    <div style="display:flex;justify-content:space-between;align-items:start">
+      <strong style="font-size:0.9rem">{{ d.dcn_name }}</strong>
+      <span class="pill pill-{{ d.preflight_status }}">{{ d.preflight_status }}</span>
+    </div>
+    <div style="margin-top:6px;font-size:0.8rem;color:var(--text-secondary)">
+      <span title="{{ lang_name(d.language) }}">{{ d.language }}</span> · {{ d.country }} · {{ d.year }}
+    </div>
+  </div>
+</a>
+{% endfor %}
+</div>
+{% endif %}
+
+{% if empty %}
+<div style="margin-top:2rem"></div>
+<h3 style="margin-bottom:0.75rem;font-size:0.9rem;color:var(--text-secondary)">No data</h3>
+<div class="grid grid-2">
+{% for d in empty %}
+<div class="card" style="opacity:0.5">
+  <div style="display:flex;justify-content:space-between;align-items:start">
+    <strong style="font-size:0.9rem">{{ d.dcn_name }}</strong>
+    <span class="badge badge-unreviewed">no data</span>
+  </div>
+  <div style="margin-top:6px;font-size:0.8rem;color:var(--text-secondary)">
+      <span title="{{ lang_name(d.language) }}">{{ d.language }}</span> · {{ d.country }} · {{ d.year }}
+  </div>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="card"><p>No data collections found.</p></div>
+{% endif %}
+{% endblock %}

@@ -3,8 +3,9 @@
 import argparse
 from pathlib import Path
 
-from ..config import PSYCHOMETRIC_TESTS_DIR
+from .. import settings
 from ..psychometric_tests.preprocess_psychometric_tests import preprocess_all_sessions
+from ..utils.logging import get_logger
 
 
 def process_all_psychometric_test_sessions():
@@ -16,11 +17,14 @@ def process_all_psychometric_test_sessions():
         "--test-session-folder",
         type=str,
         help="Path to the folder containing the psychometric test sessions.",
-        default=PSYCHOMETRIC_TESTS_DIR,
+        default=settings.PSYCHOMETRIC_TESTS_DIR,
     )
 
     args = parser.parse_args()
+    logger = get_logger()
 
-    print(f"Processing psychometric test sessions from {args.test_session_folder}")
+    logger.info(
+        f"Processing psychometric test sessions from {args.test_session_folder}"
+    )
 
     preprocess_all_sessions(Path(args.test_session_folder))
