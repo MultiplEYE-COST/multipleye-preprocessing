@@ -57,9 +57,6 @@ class ExperimenterDoc:
     et_sheet_name = "Documentation Experiment"
     pt_sheet_name = "Documentation Psychometr. Tests"
 
-    et_header_idx = 2
-    pt_header_idx = 0
-
     def __init__(
             self,
             et_frame: pl.DataFrame | None,
@@ -88,8 +85,9 @@ class ExperimenterDoc:
         if cls.et_sheet_name in doc_frame.keys():
             et_frame = doc_frame[cls.et_sheet_name]
             et_frame.columns = cls.et_columns
-            et_col_desc = et_frame.row(cls.et_header_idx)
-            et_frame = et_frame.slice(cls.et_header_idx+1)
+            et_header_idx = et_frame["date"].to_list().index("Date (dd-mm-yyyy)")
+            et_col_desc = et_frame.row(et_header_idx)
+            et_frame = et_frame.slice(et_header_idx+1)
         else:
             print(f"Documentation sheet does not contain a sheet named {cls.et_sheet_name}. Skipping")
             et_frame = None
@@ -98,11 +96,45 @@ class ExperimenterDoc:
         if cls.pt_sheet_name in doc_frame.keys():
             pt_frame = doc_frame[cls.pt_sheet_name]
             pt_frame.columns = cls.pt_columns
-            pt_col_desc = pt_frame.row(cls.pt_header_idx)
-            pt_frame = pt_frame.slice(cls.pt_header_idx+1)
+            pt_header_idx = pt_frame["date"].to_list().index("Date (dd-mm-yyyy)")
+            pt_col_desc = pt_frame.row(pt_header_idx)
+            pt_frame = pt_frame.slice(pt_header_idx+1)
         else:
             print(f"Documentation sheet does not contain a sheet named {cls.pt_sheet_name}. Skipping")
             pt_frame = None
             pt_col_desc = None
 
         return cls(et_frame, et_col_desc, pt_frame, pt_col_desc)
+
+    def get_pids(
+            self,
+            sheet: str
+    ) -> tuple[list[int], list[str]]:
+        """Try to convert all p_ids on sheet ("et" or "pt") to integers. 
+        Returns list of recovered integer participant ids and a list of unconvertable participant ids.
+        """
+
+        if sheet not in ("et", "pt"):
+            raise ValueError(f"sheet must be 'et' or 'pt' not {sheet}")
+
+        if sheet == "et":
+            pid_col = self.et_frame["participant_id"]
+        else:
+            pid_col = self.pt_frame["participant_id"]
+
+        pid_int = list(pid_col.cast(pl.Int32, strict=False))
+
+        invalid_ids = []
+
+        for str_id, int_id in zip(pid_col, pid_int):
+            if not int_id:
+                invalid_ids.append(str_id)
+                continue
+
+        valid_ids = [id for id in pid_int if id]
+
+        return (invalid_ids, valid_ids)
+
+
+        
+        

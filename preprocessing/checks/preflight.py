@@ -83,6 +83,10 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
         for msg in warnings["Session completeness"]:
             lines.append(f"\n  {msg}")
 
+    if "Doc sheet evaluation" in warnings:
+        for msg in warnings["Doc sheet evaluation"]:
+            lines.append(f"\n {msg}")
+
     if "Participant questionnaire" in warnings:
         for msg in warnings["Participant questionnaire"]:
             lines.append(f"\n  {msg}")
@@ -113,6 +117,7 @@ def run_preflight_check(data_collection) -> None:
     _check_sessions(data_collection, errors, warnings)
     _check_stimulus_order_coverage(data_collection, errors)
     _check_session_completeness(data_collection, warnings)
+    _check_doc_sheet_pids(data_collection, warnings)
 
     pt_warnings: list[str] = []
     _check_psychometric_tests(data_collection, pt_warnings)
@@ -520,6 +525,33 @@ def _check_session_completeness(
         warnings["Session completeness"].extend(incomplete)
     if extra:
         warnings["Session completeness"].extend(extra)
+
+def _check_doc_sheet_pids(
+    data_collection,
+    warnings: dict[str, list[str]],
+) -> None:
+
+    session_ids = [session.participant_id for session in data_collection.sessions.values()]
+
+    invalid_ids, int_ids = data_collection.experimenter_doc.get_pids(sheet="et")
+
+    missing_ids = []
+    for id in int_ids:
+        if id not in session_ids:
+            missing_ids.append(id)
+
+    msg = (
+        f"Experimenter doc sheet eval of et participant IDs:"
+        f"\n {len(invalid_ids)} Participant IDs in the ET experimenter sheet could not be converted to integers"
+        f"\n {len(missing_ids)} Participant IDS in the ET experimenter sheet do not have corresponding ET sessions."
+    )
+    warnings.setdefault("Doc sheet evaluation", []).append(msg)
+
+    for id in missing_ids:
+        warnings["Doc sheet evaluation"].append(f"Participant {id:03} in documentation sheet not in session data. Please check!")
+
+    for id in invalid_ids:
+        warnings["Doc sheet evaluation"].append(f"Participant ID {id} in the Experimenter documentation sheet could not be converted to an integer. Impossible to verify whether session data exists.")
 
 
 def _format_message(groups: dict[str, list[str]]) -> str:
