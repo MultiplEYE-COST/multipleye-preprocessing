@@ -934,3 +934,45 @@ def test_trials_unknown_without_usable_answers(
         trials = sess.create_overview()["trials"]
 
     assert trials == "unknown"
+
+
+def test_calibration_quality_aggregation(tmp_path: Path) -> None:
+    asc = tmp_path / "session.asc"
+    sess = _make_session()
+    sess.asc_path = asc
+
+    asc.write_text(
+        "MSG\t1 !CAL CALIBRATION HV9 L LEFT    GOOD \n"
+        "MSG\t2 !CAL CALIBRATION HV9 R RIGHT   GOOD \n",
+        encoding="utf-8",
+    )
+    assert sess._compute_calibration_quality() == "GOOD"
+
+    asc.write_text("MSG\t1 !CAL CALIBRATION HV9 R RIGHT  FAILED\n", encoding="utf-8")
+    assert sess._compute_calibration_quality() == "FAILED"
+
+    asc.write_text(
+        "MSG\t1 !CAL CALIBRATION HV9 L LEFT  GOOD\n"
+        "MSG\t2 !CAL CALIBRATION HV9 R RIGHT FAILED\n",
+        encoding="utf-8",
+    )
+    assert sess._compute_calibration_quality() == "MIXED"
+
+
+def test_calibration_quality_unknown_without_asc(tmp_path: Path) -> None:
+    sess = _make_session()
+    assert sess._compute_calibration_quality() == "unknown"
+
+    sess.asc_path = tmp_path / "missing.asc"
+    assert sess._compute_calibration_quality() == "unknown"
+
+
+def test_overview_includes_calibration_quality(tmp_path: Path) -> None:
+    asc = tmp_path / "session.asc"
+    asc.write_text("MSG\t1 !CAL CALIBRATION HV9 L LEFT GOOD\n", encoding="utf-8")
+
+    sess = _sess_with_validation_data()
+    sess.asc_path = asc
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["calibration_quality"] == "GOOD"
