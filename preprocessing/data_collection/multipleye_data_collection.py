@@ -583,7 +583,7 @@ class MultipleyeDataCollection:
         )
 
         # import raw data from experimenter doc file
-        base_name = "_".join([stimulus_language, country, city, lab_number])
+        base_name = f"{stimulus_language}_{country}_{city}_{lab_number}"
         doc_sheet_path = (
             settings.DATASET_DIR
             / "documentation"

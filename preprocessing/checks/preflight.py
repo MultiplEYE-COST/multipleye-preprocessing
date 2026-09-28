@@ -117,7 +117,10 @@ def run_preflight_check(data_collection) -> None:
     _check_sessions(data_collection, errors, warnings)
     _check_stimulus_order_coverage(data_collection, errors)
     _check_session_completeness(data_collection, warnings)
-    _check_doc_sheet_pids(data_collection, warnings)
+    if data_collection.experimenter_doc:
+        _check_doc_sheet_pids(data_collection, warnings)
+    else:
+        warnings.setdefault("Doc sheet evaluation", []).append("No experimenter documentation sheet found. If this is a full data collection, please reach out to the lab!")
 
     pt_warnings: list[str] = []
     _check_psychometric_tests(data_collection, pt_warnings)
