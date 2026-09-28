@@ -526,12 +526,15 @@ def _check_session_completeness(
     if extra:
         warnings["Session completeness"].extend(extra)
 
+
 def _check_doc_sheet_pids(
     data_collection,
     warnings: dict[str, list[str]],
 ) -> None:
 
-    session_ids = [session.participant_id for session in data_collection.sessions.values()]
+    session_ids = [
+        session.participant_id for session in data_collection.sessions.values()
+    ]
 
     invalid_ids, int_ids = data_collection.experimenter_doc.get_pids(sheet="et")
 
@@ -548,10 +551,14 @@ def _check_doc_sheet_pids(
     warnings.setdefault("Doc sheet evaluation", []).append(msg)
 
     for id in missing_ids:
-        warnings["Doc sheet evaluation"].append(f"Participant {id:03} in documentation sheet not in session data. Please check!")
+        warnings["Doc sheet evaluation"].append(
+            f"Participant {id:03} in documentation sheet not in session data. Please check!"
+        )
 
     for id in invalid_ids:
-        warnings["Doc sheet evaluation"].append(f"Participant ID {id} in the Experimenter documentation sheet could not be converted to an integer. Impossible to verify whether session data exists.")
+        warnings["Doc sheet evaluation"].append(
+            f"Participant ID {id} in the Experimenter documentation sheet could not be converted to an integer. Impossible to verify whether session data exists."
+        )
 
 
 def _format_message(groups: dict[str, list[str]]) -> str:

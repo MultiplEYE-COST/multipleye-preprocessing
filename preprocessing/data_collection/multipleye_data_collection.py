@@ -35,9 +35,9 @@ from ..checks.formal_experiment_checks import (
     sanity_check_gaze_frame,
 )
 from ..config import settings
+from ..data_collection.experimenter_doc import ExperimenterDoc
 from ..data_collection.session import Session
 from ..data_collection.stimulus import LabConfig, Stimulus
-from ..data_collection.experimenter_doc import ExperimenterDoc
 from ..models.dcn import Dcn
 from ..models.sid import Sid
 from ..plotting.plot import plot_gaze, plot_main_sequence
@@ -582,9 +582,13 @@ class MultipleyeDataCollection:
             else data_dir / "psychometric-tests"
         )
 
-        #import raw data from experimenter doc file
+        # import raw data from experimenter doc file
         base_name = "_".join([stimulus_language, country, city, lab_number])
-        doc_sheet_path = settings.DATASET_DIR / "documentation" / f"MultiplEYE_Experimenter_Session_Documentation_{base_name}.xlsx"
+        doc_sheet_path = (
+            settings.DATASET_DIR
+            / "documentation"
+            / f"MultiplEYE_Experimenter_Session_Documentation_{base_name}.xlsx"
+        )
         doc_sheet_path = _ci_resolve(doc_sheet_path)
         if doc_sheet_path.exists():
             doc_sheet = ExperimenterDoc.create_from_excel(doc_sheet_path)
