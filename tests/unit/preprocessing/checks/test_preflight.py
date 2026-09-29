@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import polars as pl
 import pytest
 import yaml
-import polars as pl
 
 from preprocessing.checks.preflight import (
     PreflightError,
@@ -16,6 +16,7 @@ from preprocessing.checks.preflight import (
     run_preflight_check,
 )
 from preprocessing.config import settings
+from preprocessing.data_collection.experimenter_doc import ExperimenterDoc
 
 
 @dataclass
@@ -23,6 +24,7 @@ class FakeSession:
     session_identifier: str
     session_file_path: Path
     session_folder_path: Path
+    participant_id: int
     is_pilot: bool = False
 
 
@@ -37,10 +39,6 @@ class FakeDataCollection:
     year: int = 2024
     sessions: dict[str, FakeSession] = field(default_factory=dict)
     num_sessions: int = 2
-
-@dataclass
-class FakeExperimenterDoc:
-    et_frame: pl.DataFrame
 
 
 def _write_csv(path: Path, columns: list[str], rows: list[list[str]]) -> None:
@@ -96,7 +94,6 @@ def preflight_env(tmp_path: Path):
     (config_dir / f"stimulus_order_versions_{lang}_{country}_{labnum}.csv").write_text(
         "participant_id,version_number\n001,1\n", encoding="utf-8"
     )
-
 
     # Image/AOI folders
     for folder_name in [
@@ -156,12 +153,14 @@ def preflight_env(tmp_path: Path):
         session_identifier=session_id,
         session_file_path=edf_path,
         session_folder_path=sess_folder,
+        participant_id=int(session_id[:3]),
     )
 
-    ed = FakeExperimenterDoc(
-        et_frame=pl.DataFrame(data={
-            "participant_id":["001", "002", "abc"]
-        })
+    ed = ExperimenterDoc(
+        et_frame=pl.DataFrame(data={"participant_id": ["001", "002", "abc"]}),
+        et_col_desc=("participant_id"),
+        pt_frame=pl.DataFrame(data={"participant_id": ["001", "002", "abc"]}),
+        pt_col_desc=("participant_id"),
     )
 
     dc = FakeDataCollection(
@@ -170,7 +169,7 @@ def preflight_env(tmp_path: Path):
         country="UK",
         lab_number=1,
         sessions={session_id: session},
-        experimenter_doc=ed
+        experimenter_doc=ed,
     )
 
     return dc, session_id
@@ -526,12 +525,14 @@ def test_preflight_multiple_sessions(tmp_path: Path):
             session_identifier=sid,
             session_file_path=edf,
             session_folder_path=sess_dir,
+            participant_id=idx,
         )
 
-    ed = FakeExperimenterDoc(
-        et_frame=pl.DataFrame(data={
-            "participant_id":["000","001","002","abc"]
-        })
+    ed = ExperimenterDoc(
+        et_frame=pl.DataFrame(data={"participant_id": ["000", "001", "002", "abc"]}),
+        et_col_desc=("participant_id"),
+        pt_frame=pl.DataFrame(data={"participant_id": ["000", "001", "002", "abc"]}),
+        pt_col_desc=("participant_id"),
     )
 
     dc = FakeDataCollection(
@@ -542,7 +543,7 @@ def test_preflight_multiple_sessions(tmp_path: Path):
         city=city,
         year=year,
         sessions=sessions,
-        experimenter_doc=ed
+        experimenter_doc=ed,
     )
 
     with pytest.raises(PreflightError) as exc_info:
@@ -626,8 +627,8 @@ def test_preflight_stimulus_dir_empty_with_archive(tmp_path: Path):
         session_identifier=sid,
         session_file_path=sess_folder / "data.edf",
         session_folder_path=sess_folder,
+        participant_id=int(sid[:3]),
     )
-
 
     dc = FakeDataCollection(
         stimulus_dir=stim_dir,
@@ -635,7 +636,7 @@ def test_preflight_stimulus_dir_empty_with_archive(tmp_path: Path):
         country="UK",
         lab_number=1,
         sessions={sid: session},
-        experimenter_doc = None
+        experimenter_doc=None,
     )
 
     with pytest.raises(PreflightError) as exc_info:
@@ -682,6 +683,7 @@ def _build_completeness_env(sids, num_sessions: int = 2):
             session_file_path=Path("/fake") / sid / "data.edf",
             session_folder_path=Path("/fake") / sid,
             is_pilot=is_pilot,
+            participant_id=int(sid[:3]),
         )
     return FakeDataCollection(
         stimulus_dir=Path("/fake"),
@@ -690,7 +692,7 @@ def _build_completeness_env(sids, num_sessions: int = 2):
         lab_number=1,
         sessions=sessions,
         num_sessions=num_sessions,
-        experimenter_doc=None
+        experimenter_doc=None,
     )
 
 
@@ -853,7 +855,7 @@ def pt_env(tmp_path: Path, monkeypatch):
         country="UK",
         lab_number=1,
         sessions={},
-        experimenter_doc = None
+        experimenter_doc=None,
     )
     return dc, pt_dir
 
@@ -979,7 +981,7 @@ def test_pt_check_no_folder(tmp_path: Path, monkeypatch):
         country="UK",
         lab_number=1,
         sessions={},
-        experimenter_doc=None
+        experimenter_doc=None,
     )
     pt_warnings: list[str] = []
     _check_psychometric_tests(dc, pt_warnings)
@@ -1024,7 +1026,7 @@ def test_pt_check_data_issues(
         country="UK",
         lab_number=1,
         sessions={},
-        experimenter_doc=None
+        experimenter_doc=None,
     )
     pt_warnings: list[str] = []
     _check_psychometric_tests(dc, pt_warnings)
@@ -1127,6 +1129,7 @@ def test_pt_does_not_inflate_error_count(tmp_path: Path, monkeypatch):
         session_identifier=sid,
         session_file_path=sess_folder / "data.edf",
         session_folder_path=sess_folder,
+        participant_id=int(sid[:3]),
     )
     dc = FakeDataCollection(
         stimulus_dir=stim_dir,
@@ -1136,7 +1139,7 @@ def test_pt_does_not_inflate_error_count(tmp_path: Path, monkeypatch):
         city=city,
         year=year,
         sessions={sid: session},
-        experimenter_doc=None
+        experimenter_doc=None,
     )
 
     with pytest.raises(PreflightError) as exc_info:
