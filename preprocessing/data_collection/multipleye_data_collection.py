@@ -35,6 +35,7 @@ from ..checks.formal_experiment_checks import (
     sanity_check_gaze_frame,
 )
 from ..config import settings
+from ..data_collection.experimenter_doc import ExperimenterDoc
 from ..data_collection.session import Session
 from ..data_collection.stimulus import LabConfig, Stimulus
 from ..models.dcn import Dcn
@@ -152,6 +153,7 @@ class MultipleyeDataCollection:
         data_root: Path,
         lab_configuration: LabConfig,
         session_folder_regex: str,
+        experimenter_doc: ExperimenterDoc | None,
         included_sessions: list[str] | None = None,
         excluded_sessions: list[str] | None = None,
         # stimuli: list[Stimulus],
@@ -159,6 +161,7 @@ class MultipleyeDataCollection:
     ):
         self.sessions: dict[str, Session] = {}
         self.skipped_session_ids: list[str] = []
+        self.experimenter_doc = experimenter_doc
         # TODO: in theory this can be multiple languages for the stimuli..
         self.language = stimulus_language
         self.country = country
@@ -579,12 +582,26 @@ class MultipleyeDataCollection:
             else data_dir / "psychometric-tests"
         )
 
+        # import raw data from experimenter doc file
+        base_name = f"{stimulus_language}_{country}_{city}_{lab_number}"
+        doc_sheet_path = (
+            settings.DATASET_DIR
+            / "documentation"
+            / f"MultiplEYE_Experimenter_Session_Documentation_{base_name}.xlsx"
+        )
+        doc_sheet_path = _ci_resolve(doc_sheet_path)
+        if doc_sheet_path.exists():
+            doc_sheet = ExperimenterDoc.create_from_excel(doc_sheet_path)
+        else:
+            doc_sheet = None
+
         return cls(
             data_collection_name=data_folder_name,
             stimulus_language=stimulus_language,
             country=country,
             year=int(year),
             eye_tracker=eye_tracker,
+            experimenter_doc=doc_sheet,
             session_folder_regex=session_folder_regex,
             config_file=config_file,
             stimulus_dir=stimulus_folder_path,
