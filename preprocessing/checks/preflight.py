@@ -12,8 +12,8 @@ import sys
 from pathlib import Path
 
 import polars as pl
+
 from ..data_collection.session import Session
-from ..models.sid import Sid
 from ..models.sid import Sid
 from ..utils.data_path_utils import _ci_exists, _ci_glob, _ci_resolve
 from ..utils.logging import get_logger
@@ -298,6 +298,7 @@ def _check_skipped_sessions(data_collection, groups: dict[str, list[str]]) -> No
         groups["EDF data file"] = sorted(skipped)
 
     print(groups)
+
 
 def _check_sessions(
     data_collection, errors: dict[str, list[str]], warnings: dict[str, list[str]]
