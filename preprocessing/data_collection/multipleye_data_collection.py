@@ -372,6 +372,8 @@ class MultipleyeDataCollection:
                 "You can download the EyeLink Developers Kit from the SR Research support forum."
             )
 
+        # Create copy of sessions dict without unconvertable sessions
+        converted_sessions = {}
         for session_identifier, session in tqdm(
             self.sessions.items(), desc="Converting EDF to ASC"
         ):
@@ -387,6 +389,7 @@ class MultipleyeDataCollection:
                     f"ASC already exists in output folder for {session_identifier}. Skipping conversion."
                 )
                 session.asc_path = output_asc_path
+                converted_sessions[session_identifier] = session
                 continue
 
             # Run conversion if ASC doesn't exist in output folder or force is enabled
@@ -404,11 +407,14 @@ class MultipleyeDataCollection:
                 output_asc_folder.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(local_asc_path, output_asc_path)
                 session.asc_path = output_asc_path
+                converted_sessions[session_identifier] = session
             else:
                 self.logger.error(
-                    f"Failed to convert EDF to ASC for {session_identifier}"
+                    f"Failed to convert EDF to ASC for {session_identifier}. Only processing comprehension answers."
                 )
+                self.skipped_sessions[session_identifier] = session
 
+        self.sessions = converted_sessions
         self.logger.info("EDF to ASC conversion completed.")
 
     @staticmethod
