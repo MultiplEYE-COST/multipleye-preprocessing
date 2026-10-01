@@ -13,6 +13,7 @@ from pathlib import Path
 
 import polars as pl
 
+from ..data_collection.session import Session
 from ..models.sid import Sid
 from ..utils.data_path_utils import _ci_exists, _ci_glob, _ci_resolve
 from ..utils.logging import get_logger
@@ -73,7 +74,11 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
     for label in list(warnings.keys()):
         if label.startswith("Image folder:"):
             for path in warnings[label]:
-                lines.append(f"\n  {label} not found:\n      {os.path.relpath(path)}")
+                lines.append(f"  {label} not found:\n      {os.path.relpath(path)}")
+
+        if label == "EDF data file":
+            for sid in warnings[label]:
+                lines.append(f"\n {label} not found in {sid}")
 
     if "Psychometric tests" in warnings:
         for msg in warnings["Psychometric tests"]:
@@ -87,6 +92,7 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
         for msg in warnings["Participant questionnaire"]:
             lines.append(f"\n  {msg}")
 
+    lines.append(f"{'=' * 56}")
     print("\n".join(lines), file=sys.stderr)
 
 
@@ -109,7 +115,7 @@ def run_preflight_check(data_collection) -> None:
     warnings: dict[str, list[str]] = {}
 
     _check_shared_files(data_collection, errors, warnings)
-    _check_skipped_sessions(data_collection, errors)
+    _check_skipped_sessions(data_collection, warnings)
     _check_sessions(data_collection, errors, warnings)
     _check_stimulus_order_coverage(data_collection, errors)
     _check_session_completeness(data_collection, warnings)
@@ -287,9 +293,11 @@ def _check_shared_files(
 
 def _check_skipped_sessions(data_collection, groups: dict[str, list[str]]) -> None:
     """Record sessions that were skipped during discovery (missing EDF)."""
-    skipped: list[str] = getattr(data_collection, "skipped_session_ids", [])
+    skipped: dict[str, Session] = getattr(data_collection, "skipped_sessions", [])
     if skipped:
         groups["EDF data file"] = sorted(skipped)
+
+    print(groups)
 
 
 def _check_sessions(
