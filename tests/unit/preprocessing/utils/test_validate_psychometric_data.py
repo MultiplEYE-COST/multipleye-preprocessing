@@ -1,6 +1,8 @@
 import logging
+
 import pytest
 import yaml
+
 from preprocessing.utils.data_path_utils import validate_psychometric_data
 
 

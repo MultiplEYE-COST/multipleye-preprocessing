@@ -24,6 +24,6 @@ def _copytree(src: Path, dst: Path, **kwargs) -> None:
 
 
 __all__ = [
-    "_to_win_long_path",
     "_copytree",
+    "_to_win_long_path",
 ]

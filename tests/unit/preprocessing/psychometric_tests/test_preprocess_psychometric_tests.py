@@ -9,14 +9,14 @@ from numpy import float64
 
 from preprocessing.config import settings
 from preprocessing.psychometric_tests.preprocess_psychometric_tests import (
-    _reaction_time_accuracy,
     _find_one_filetype_with_columns,
-    preprocess_stroop,
+    _reaction_time_accuracy,
     preprocess_flanker,
+    preprocess_lwmc,
     preprocess_plab,
     preprocess_ran,
+    preprocess_stroop,
     preprocess_wikivocab,
-    preprocess_lwmc,
 )
 
 
@@ -764,19 +764,10 @@ def _make_wmc_csv(folder: Path, make_text_file):
         "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
         "os_key_resp_recall.corr,os_key_resp_recall.rt,"
         "os_key_resp_equation.corr,"
-        "ss_key_resp_recall.corr,ss_key_resp_recall.rt,"
-        "ss_key_resp_sentence.corr\n"
+        "sents_key_resp_recall.corr,sents_key_resp_recall.rt,"
+        "sents_key_resp_sentence.corr\n"
     )
-    body = "".join(
-        [
-            # Trial 1
-            "False,1,1,100,1,10,1,0,5,1\n",
-            "False,,0,200,,,1,1,15,0\n",
-            # Trial 2
-            "False,2,1,300,0,30,0,1,25,1\n",
-            "False,,1,400,,,1,0,35,0\n",
-        ]
-    )
+    body = "False,1,1,100,1,10,1,0,5,1\nFalse,,0,200,,,1,1,15,0\nFalse,2,1,300,0,30,0,1,25,1\nFalse,,1,400,,,1,0,35,0\n"
     make_text_file(folder / "wmc.csv", header=header, body=body)
 
 
@@ -801,8 +792,8 @@ def test_preprocess_lwmc_basic(tmp_path: Path, make_text_file):
     assert out["LWMC_OS_score"] == pytest.approx(0.5)
     assert out["LWMC_OS_time_sec"] == pytest.approx(20.0)
     assert out["LWMC_OS_processingTask_score"] == pytest.approx(0.75)
-    assert out["LWMC_SS_score"] == pytest.approx(0.5)
-    assert out["LWMC_SS_time_sec"] == pytest.approx(20.0)
+    assert out["LWMC_SentS_score"] == pytest.approx(0.5)
+    assert out["LWMC_SentS_time_sec"] == pytest.approx(20.0)
     assert out["LWMC_SentS_processingTask_score"] == pytest.approx(0.5)
     assert out["LWMC_SSTM_score"] == pytest.approx(0.5)
     assert out["LWMC_Total_score_mean"] == pytest.approx((0.75 + 0.5 + 0.5 + 0.5) / 4)
@@ -820,8 +811,8 @@ def test_preprocess_lwmc_basic(tmp_path: Path, make_text_file):
                     "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
                     "os_key_resp_recall.corr,os_key_resp_recall.rt,"
                     "os_key_resp_equation.corr,"
-                    "ss_key_resp_recall.corr,ss_key_resp_recall.rt,"
-                    "ss_key_resp_sentence.corr\n"
+                    "sents_key_resp_recall.corr,sents_key_resp_recall.rt,"
+                    "sents_key_resp_sentence.corr\n"
                 ),
                 body="""True,1,1,100,1,10,1,1,5,1\nTrue,,1,100,1,10,1,1,5,1\n""",
             ),
@@ -865,8 +856,8 @@ def test_preprocess_lwmc_basic(tmp_path: Path, make_text_file):
                     "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
                     "os_key_resp_recall.corr,os_key_resp_recall.rt,"
                     "os_key_resp_equation.corr,"
-                    "ss_key_resp_recall.corr,ss_key_resp_recall.rt,"
-                    "ss_key_resp_sentence.corr\n"
+                    "sents_key_resp_recall.corr,sents_key_resp_recall.rt,"
+                    "sents_key_resp_sentence.corr\n"
                 ),
                 body=("False,1,,100,1,10,1,1,5,1\nFalse,,,200,,,1,1,15,1\n"),
             ),

@@ -1,7 +1,7 @@
 import importlib
 import json
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from glob import glob
 from pathlib import Path
 from typing import Literal
@@ -11,8 +11,8 @@ import pymovements as pm
 from pymovements.stimulus import TextStimulus
 
 from ..config import settings
-from ..utils.data_path_utils import _ci_resolve
 from ..mapping.aoi import enlarge_aois
+from ..utils.data_path_utils import _ci_resolve
 from ..utils.logging import get_logger
 
 logger = get_logger()
@@ -97,6 +97,11 @@ class Stimulus:
     instructions: list[Instruction]
     ratings: list[Rating]
     trial_id: str
+    full_identifier: str = field(default="")
+
+    def __post_init__(self):
+        if not self.full_identifier:
+            self.full_identifier = f"{self.name}_{self.id}"
 
     @classmethod
     def load(
@@ -277,6 +282,7 @@ class Stimulus:
         stim = cls(
             id=stimulus_id,
             name=stimulus_name,
+            full_identifier=stimulus_name + f"_{stimulus_id}",
             type=stimulus_type,
             pages=pages,
             text_stimulus=text_stimulus,
@@ -353,7 +359,7 @@ class LabConfig:
 
         psychometric_tests = json_config.get("Psychometric_tests", {})
         if not isinstance(psychometric_tests, dict):
-            raise ValueError(
+            raise TypeError(
                 f"'Psychometric_tests' in lab configuration JSON must be an object (dict), "
                 f"got {type(psychometric_tests).__name__}. "
                 f"Check file: {json_config_path}"

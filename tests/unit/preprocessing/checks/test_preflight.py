@@ -10,8 +10,9 @@ import yaml
 
 from preprocessing.checks.preflight import (
     PreflightError,
-    run_preflight_check,
     _check_psychometric_tests,
+    _check_session_completeness,
+    run_preflight_check,
 )
 from preprocessing.config import settings
 
@@ -21,6 +22,7 @@ class FakeSession:
     session_identifier: str
     session_file_path: Path
     session_folder_path: Path
+    is_pilot: bool = False
 
 
 @dataclass
@@ -32,6 +34,7 @@ class FakeDataCollection:
     city: str = "City"
     year: int = 2024
     sessions: dict[str, FakeSession] = field(default_factory=dict)
+    num_sessions: int = 2
 
 
 def _write_csv(path: Path, columns: list[str], rows: list[list[str]]) -> None:
@@ -120,6 +123,7 @@ def preflight_env(tmp_path: Path):
     (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text(
         "experiment data", encoding="utf-8"
     )
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("logfile data", encoding="utf-8")
     (logfiles / "GENERAL_LOGFILE_001.txt").write_text("general data", encoding="utf-8")
 
     _write_csv(
@@ -211,6 +215,33 @@ def preflight_env(tmp_path: Path):
                 env[0].sessions[env[1]].session_folder_path / "logfiles",
                 "GENERAL_LOGFILE_*.txt",
             ),
+            1,
+        ),
+        (
+            "general_log_duplicate",
+            lambda env: (
+                env[0].sessions[env[1]].session_folder_path
+                / "logfiles"
+                / "GENERAL_LOGFILE_002.txt"
+            ).write_text("duplicate general log", encoding="utf-8"),
+            1,
+        ),
+        # ---- DATA_LOGFILE_*.txt ---------------------------------------------
+        (
+            "data_logfile_missing",
+            lambda env: _remove_glob(
+                env[0].sessions[env[1]].session_folder_path / "logfiles",
+                "DATA_LOGFILE_*.txt",
+            ),
+            1,
+        ),
+        (
+            "data_logfile_duplicate",
+            lambda env: (
+                env[0].sessions[env[1]].session_folder_path
+                / "logfiles"
+                / "DATA_LOGFILE_002.txt"
+            ).write_text("duplicate data log", encoding="utf-8"),
             1,
         ),
         # ---- completed_stimuli.csv -----------------------------------------
@@ -454,6 +485,7 @@ def test_preflight_multiple_sessions(tmp_path: Path):
             (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text(
                 "data", encoding="utf-8"
             )
+        (logfiles / "DATA_LOGFILE_001.txt").write_text("data", encoding="utf-8")
         (logfiles / "GENERAL_LOGFILE_001.txt").write_text("data", encoding="utf-8")
         _write_csv(
             logfiles / "completed_stimuli.csv",
@@ -547,8 +579,9 @@ def test_preflight_stimulus_dir_empty_with_archive(tmp_path: Path):
     (sess_folder / "data.edf").write_text("data", encoding="utf-8")
     logfiles = sess_folder / "logfiles"
     logfiles.mkdir()
-    (logfiles / "EXPERIMENT_001.txt").write_text("data", encoding="utf-8")
-    (logfiles / "GENERAL_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("data", encoding="utf-8")
+    (logfiles / "GENERAL_LOGFILE_001.txt").write_text("data", encoding="utf-8")
     _write_csv(
         logfiles / "completed_stimuli.csv",
         ["stimulus_id", "stimulus_name", "trial_id", "completed"],
@@ -608,6 +641,141 @@ def test_preflight_warnings_only(preflight_env):
     shutil.rmtree(dc.stimulus_dir / "aoi_question_images_en_uk_1", ignore_errors=True)
 
     run_preflight_check(dc)  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# Session completeness check
+# ---------------------------------------------------------------------------
+
+
+def _build_completeness_env(sids, num_sessions: int = 2):
+    """Build a FakeDataCollection from a list of (sid, is_pilot) tuples."""
+    sessions: dict[str, FakeSession] = {}
+    for entry in sids:
+        sid, is_pilot = entry if isinstance(entry, tuple) else (entry, False)
+        sessions[sid] = FakeSession(
+            session_identifier=sid,
+            session_file_path=Path("/fake") / sid / "data.edf",
+            session_folder_path=Path("/fake") / sid,
+            is_pilot=is_pilot,
+        )
+    return FakeDataCollection(
+        stimulus_dir=Path("/fake"),
+        language="EN",
+        country="UK",
+        lab_number=1,
+        sessions=sessions,
+        num_sessions=num_sessions,
+    )
+
+
+@pytest.mark.parametrize(
+    "sids, expected_summary, expected_missing",
+    [
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("002_EN_UK_1_ET1", False),
+                ("002_EN_UK_1_ET2", False),
+            ],
+            "2/2 participants have all 2 expected ET sessions",
+            [],
+        ),
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("002_EN_UK_1_ET1", False),
+            ],
+            "1/2 participants have all 2 expected ET sessions",
+            ["002_EN_UK_1", "missing: ET2"],
+        ),
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("002_EN_UK_1_ET2", False),
+            ],
+            "1/2 participants have all 2 expected ET sessions",
+            ["002_EN_UK_1", "missing: ET1"],
+        ),
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("001_EN_UK_1_ET3", False),
+                ("002_EN_UK_1_ET1", False),
+                ("002_EN_UK_1_ET2", False),
+            ],
+            "1/2 participants have all 2 expected ET sessions",
+            ["001_EN_UK_1", "more sessions than expected"],
+        ),
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("002_EN_UK_1_ET1", True),
+            ],
+            "1/1 participants have all 2 expected ET sessions",
+            [],
+        ),
+    ],
+    ids=[
+        "all_present",
+        "missing_et2",
+        "missing_et1",
+        "extra_sessions",
+        "pilots_excluded",
+    ],
+)
+def test_session_completeness_warnings(sids, expected_summary, expected_missing):
+    dc = _build_completeness_env(sids)
+    warnings: dict[str, list[str]] = {}
+    _check_session_completeness(dc, warnings)
+    assert "Session completeness" in warnings
+    msgs = warnings["Session completeness"]
+    assert expected_summary in msgs[0]
+    for substr in expected_missing:
+        assert any(substr in m for m in msgs), (
+            f"Expected '{substr}' in messages: {msgs}"
+        )
+
+
+@pytest.mark.parametrize(
+    "sids",
+    [
+        [],
+        ["000_EN_UK_1_ET1", "001_EN_UK_1_ET1", "002_EN_UK_1_ET1"],
+    ],
+    ids=["empty", "single_session"],
+)
+def test_session_completeness_no_warning(sids):
+    dc = _build_completeness_env(sids, num_sessions=1)
+    warnings: dict[str, list[str]] = {}
+    _check_session_completeness(dc, warnings)
+    assert "Session completeness" not in warnings
+
+
+def test_session_completeness_extra_sessions_multipleye_hint():
+    """Expected 1 session (MultiplEYE) but a participant has 2: warn + config hint."""
+    dc = _build_completeness_env(
+        [
+            ("001_EN_UK_1_ET1", False),
+            ("001_EN_UK_1_ET2", False),
+            ("002_EN_UK_1_ET1", False),
+        ],
+        num_sessions=1,
+    )
+    warnings: dict[str, list[str]] = {}
+    _check_session_completeness(dc, warnings)
+
+    assert "Session completeness" in warnings
+    joined = "\n".join(warnings["Session completeness"])
+    assert "1/2 participants have all 1 expected ET sessions" in joined
+    assert "001_EN_UK_1" in joined
+    assert "more sessions than expected" in joined
+    assert "experiment_type" in joined
 
 
 # ---------------------------------------------------------------------------
@@ -692,7 +860,8 @@ def _make_task_first(
     tests = tests if tests is not None else ["PLAB", "RAN"]
     config_dir = base / f"participant_configs_{lang}_{country}_{lab}"
     config_dir.mkdir(parents=True)
-    yaml.safe_dump({"dummy": True}, open(config_dir / "001_EN_UK_1_S1.yaml", "w"))
+    with open(config_dir / "001_EN_UK_1_S1.yaml", "w") as f:
+        yaml.safe_dump({"dummy": True}, f)
 
     data_dir = base / f"psychometric_test_{lang}_{country}_{lab}"
     for t in tests:
@@ -838,7 +1007,7 @@ def test_pt_check_data_issues(
 
 def test_pt_check_flag_disabled(pt_env, monkeypatch):
     """No warnings when RUN_PSYCHOMETRIC_TESTS is False."""
-    dc, pt_dir = pt_env
+    dc, _pt_dir = pt_env
     monkeypatch.setattr(settings, "RUN_PSYCHOMETRIC_TESTS", False)
     pt_warnings: list[str] = []
     _check_psychometric_tests(dc, pt_warnings)
@@ -905,6 +1074,7 @@ def test_pt_does_not_inflate_error_count(tmp_path: Path, monkeypatch):
     logfiles = sess_folder / "logfiles"
     logfiles.mkdir()
     (logfiles / "EXPERIMENT_LOGFILE_001.txt").write_text("x")
+    (logfiles / "DATA_LOGFILE_001.txt").write_text("x")
     (logfiles / "GENERAL_LOGFILE_001.txt").write_text("x")
     _write_csv(
         logfiles / "completed_stimuli.csv",

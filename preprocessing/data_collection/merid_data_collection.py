@@ -1,10 +1,11 @@
 import warnings
 
-from ..data_collection.multipleye_data_collection import MultipleyeDataCollection
-from ..models.sid import Sid
 from preprocessing.scripts.prepare_language_folder import (
     extract_stimulus_version_number_from_asc,
 )
+
+from ..data_collection.multipleye_data_collection import MultipleyeDataCollection
+from ..models.sid import Sid
 
 
 class MeridDataCollection(MultipleyeDataCollection):
@@ -112,4 +113,3 @@ class MeridDataCollection(MultipleyeDataCollection):
         warnings.warn(
             "Not yet implemented: loading psychometric tests for MeRID data collection."
         )
-        pass

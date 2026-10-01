@@ -1,8 +1,8 @@
 import math
 from pathlib import Path
 
-import PIL
 import matplotlib.pyplot as plt
+import PIL
 import polars as pl
 import pymovements as pm
 from matplotlib.patches import Circle
@@ -204,7 +204,7 @@ def plot_gaze(
         plt.close(fig)
 
 
-def plot_main_sequence(events: pm.EventDataFrame, plots_dir: Path) -> None:
+def plot_main_sequence(events: pm.Events, plots_dir: Path) -> None:
     pm.plotting.main_sequence_plot(
         events,
         savepath=plots_dir / "main_sequence.png",

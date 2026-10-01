@@ -1,5 +1,5 @@
-import pytest
 import polars as pl
+import pytest
 
 from preprocessing.metrics.reading.fixations import annotate_fixations
 from preprocessing.metrics.reading.reading_measures import build_word_level_table

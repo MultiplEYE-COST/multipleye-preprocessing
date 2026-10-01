@@ -1,12 +1,13 @@
 """Tests for session data service."""
 
-from review_app.services.session_data import (
-    read_overview,
-    compute_checks,
-    _is_checkable,
-    CHECK_REGISTRY,
-)
 from pathlib import Path
+
+from review_app.services.session_data import (
+    CHECK_REGISTRY,
+    _is_checkable,
+    compute_checks,
+    read_overview,
+)
 
 
 def test_read_overview_missing(tmp_path: Path) -> None:
@@ -25,19 +26,19 @@ def test_compute_checks_with_thresholds() -> None:
     overview = {
         "num_calibrations": 11,
         "num_validations": 7,
-        "data_loss_ratio": 0.02,
+        "session_total_data_loss_ratio": 0.02,
     }
     thresholds = {
         "num_calibrations": [3, 30],
         "num_validations": [13, 30],
-        "data_loss_ratio": [0.0, 0.1],
+        "session_total_data_loss_ratio": [0.0, 0.1],
     }
     checks = compute_checks(overview, thresholds)
     check_map = {c.check_id: c for c in checks}
 
     assert check_map["num_calibrations"].status == "pass"
     assert check_map["num_validations"].status == "fail"
-    assert check_map["data_loss_ratio"].status == "pass"
+    assert check_map["session_total_data_loss_ratio"].status == "pass"
 
 
 def test_compute_checks_skips_non_checkable() -> None:
@@ -73,13 +74,19 @@ def test_check_registry_covers_expected_fields() -> None:
     fields = {e["field"] for e in CHECK_REGISTRY}
     assert "num_calibrations" in fields
     assert "num_validations" in fields
-    assert "avg_validation_error" in fields
-    assert "data_loss_ratio" in fields
+    assert "avg_validation_error_dva" in fields
+    assert "session_total_data_loss_ratio" in fields
+    assert "session_blink_loss_ratio" in fields
     assert "tracked_eye" in fields
     assert "tracked_eye_consistent" in fields
     assert "avg_comprehension_score" in fields
-    assert "total_session_duration" in fields
+    assert "total_session_duration_s" in fields
     assert "num_completed_trials" in fields
+    assert "total_question_time_ms" in fields
+    assert "total_rating_time_ms" in fields
+    assert "familiarity_1" in fields
+    assert "familiarity_2" in fields
+    assert "subjective_difficulty" in fields
 
 
 def test_compute_checks_num_completed_trials_pass() -> None:
@@ -114,18 +121,18 @@ def test_compute_checks_scalar_threshold_does_not_crash() -> None:
     (scalar = upper bound) are tested in ``test_thresholds.py``.
     """
     overview = {
-        "data_loss_ratio": 0.02,
+        "session_total_data_loss_ratio": 0.02,
         "num_practice_trials": 2,
     }
     thresholds = {
-        "data_loss_ratio": 0.1,
+        "session_total_data_loss_ratio": 0.1,
         "num_practice_trials": 2,
     }
     checks = compute_checks(overview, thresholds)
     check_map = {c.check_id: c for c in checks}
 
-    assert check_map["data_loss_ratio"].status == "pass"
-    assert check_map["data_loss_ratio"].threshold == "0.1"
+    assert check_map["session_total_data_loss_ratio"].status == "pass"
+    assert check_map["session_total_data_loss_ratio"].threshold == "0.1"
 
     assert check_map["num_practice_trials"].status == "pass"
     assert check_map["num_practice_trials"].threshold == "2"

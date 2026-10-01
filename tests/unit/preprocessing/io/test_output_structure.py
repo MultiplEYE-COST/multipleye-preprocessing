@@ -1,19 +1,21 @@
-import pytest
 import polars as pl
 import pymovements as pm
+import pytest
+
+from preprocessing.config import settings
+from preprocessing.io.load import (
+    load_reading_measures,
+    load_scanpaths,
+    load_trial_level_events_data,
+    load_trial_level_raw_data,
+)
 from preprocessing.io.save import (
-    save_raw_data,
     save_events_data,
-    save_scanpaths,
+    save_raw_data,
     save_reading_measures,
+    save_scanpaths,
     save_session_metadata,
 )
-from preprocessing.io.load import (
-    load_trial_level_raw_data,
-    load_trial_level_events_data,
-    load_reading_measures,
-)
-from preprocessing.config import settings
 from preprocessing.models.sid import Sid
 
 SID_STRINGS = ["001_EN_UK_1_S1", "017_DA_DK_1_ET1_start_after_trial_3"]
@@ -35,13 +37,20 @@ def dummy_gaze():
             "trial": ["trial_1", "trial_1", "trial_1"],
             "stimulus": ["Enc_WikiMoon_1", "Enc_WikiMoon_1", "Enc_WikiMoon_1"],
             "page": ["page_1", "page_1", "page_1"],
+            "position_x": [100.0, 101.0, 102.0],
+            "position_y": [200.0, 201.0, 202.0],
+            "velocity_x": [100.0, 101.0, 102.0],
+            "velocity_y": [200.0, 201.0, 202.0],
         }
     )
     gaze = pm.Gaze(
         df,
         trial_columns=["trial", "stimulus", "page"],
         pixel_columns=["pixel_x", "pixel_y"],
+        position_columns=["position_x", "position_y"],
+        velocity_columns=["velocity_x", "velocity_y"],
     )
+
     gaze.events = pm.Events(
         pl.DataFrame(
             {
@@ -81,9 +90,7 @@ def test_save_load_raw_data_structure(tmp_path, dummy_gaze, sid_str):
     sid = Sid(sid_str)
     save_raw_data(sid, dummy_gaze)
     assert sid.raw_data_dir.exists()
-    assert (
-        sid.raw_data_dir / f"{str(sid)}_trial_1_Enc_WikiMoon_1_raw_data.csv"
-    ).exists()
+    assert (sid.raw_data_dir / f"{sid!s}_trial_1_Enc_WikiMoon_1_raw_data.csv").exists()
 
     loaded_gaze = load_trial_level_raw_data(
         sid, trial_columns=["trial", "stimulus", "page"]
@@ -105,20 +112,38 @@ def test_save_load_events_structure(tmp_path, dummy_gaze, event_type, sid_str):
     )
     expected_dir = sid.fixations_dir if event_type == "fixation" else sid.saccades_dir
     assert expected_dir.exists()
-    assert (expected_dir / f"{str(sid)}_Enc_WikiMoon_1_{event_type}.csv").exists()
+    assert (expected_dir / f"{sid!s}_Enc_WikiMoon_1_{event_type}.csv").exists()
 
     loaded_gaze = load_trial_level_events_data(dummy_gaze, sid, event_type)
     assert len(loaded_gaze.events.frame.filter(pl.col("name") == event_type)) >= 1
 
 
 @pytest.mark.parametrize("sid_str", SID_STRINGS)
-def test_save_scanpaths_structure(tmp_path, dummy_gaze, sid_str):
+def test_save_load_scanpaths_structure(tmp_path, dummy_gaze, sid_str):
     sid = Sid(sid_str)
     save_scanpaths(sid, dummy_gaze)
     assert sid.scanpaths_dir.exists()
-    assert (
-        sid.scanpaths_dir / f"{str(sid)}_trial_1_Enc_WikiMoon_1_scanpath.csv"
-    ).exists()
+    assert (sid.scanpaths_dir / f"{sid!s}_trial_1_Enc_WikiMoon_1_scanpath.csv").exists()
+
+    loaded_gaze = load_scanpaths(gaze=dummy_gaze, sid=sid)
+    aoi_cols = [
+        "char_idx",
+        "char",
+        "top_left_x",
+        "top_left_y",
+        "width",
+        "height",
+        "char_idx_in_line",
+        "line_idx",
+        "word_idx",
+        "word_idx_in_line",
+        "word",
+    ]
+
+    assert all(col in loaded_gaze.events.frame.columns for col in aoi_cols)
+    assert not any(
+        "_right" in col_name for col_name in loaded_gaze.events.frame.columns
+    )
 
 
 @pytest.mark.parametrize("sid_str", SID_STRINGS)
@@ -131,7 +156,7 @@ def test_save_load_reading_measures_structure(tmp_path, sid_str):
     assert sid.reading_measures_dir.exists()
     assert (
         sid.reading_measures_dir
-        / f"{str(sid)}_trial_1_Enc_WikiMoon_1_reading_measures.csv"
+        / f"{sid!s}_trial_1_Enc_WikiMoon_1_reading_measures.csv"
     ).exists()
 
     loaded_rm = load_reading_measures(sid)

@@ -1,11 +1,11 @@
 """Main script for the psychmetric test processing."""
 
 import argparse
-from ..utils.logging import get_logger
 from pathlib import Path
 
 from .. import settings
 from ..psychometric_tests.preprocess_psychometric_tests import preprocess_all_sessions
+from ..utils.logging import get_logger
 
 
 def process_all_psychometric_test_sessions():

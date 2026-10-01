@@ -1,6 +1,7 @@
 import pytest
-from preprocessing.models.sid import Sid
+
 from preprocessing.config import settings
+from preprocessing.models.sid import Sid
 
 
 @pytest.mark.parametrize(

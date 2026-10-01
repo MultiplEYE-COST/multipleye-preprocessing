@@ -20,10 +20,11 @@ data_collection_name: "REPLACE_WITH_YOUR_COLLECTION_NAME"
 # The type of experiment being processed.
 experiment_type: "MultiplEYE" # MultiplEYE or MeRID
 
-# Whether to overwrite existing preprocessed files.
+# Whether to recalculate existing preprocessed files.
 # If false, already preprocessed sessions are skipped.
-# Note: If some files exist, overwrite once to ensure version consistency.
-overwrite: false
+# Note: If some files exist, recalculate once to ensure version consistency.
+# Note: Activate recalculate whenever changing input files e.g. the stimulus order
+recalculate: false
 
 # List of session identifiers to explicitly include. If not empty, only these are processed.
 include_sessions: [] # e.g., ["000_DA_DK_1_ET1"]
@@ -97,6 +98,26 @@ psym_flanker_max_rt: .inf
 
 # --- EYE TRACKER LABELS (do not change) ---
 tracked_eye: ["L", "R", "RIGHT", "LEFT"]
+
+# --- EVENT DETECTION (do not change) ---
+# Fixation detection method passed to pymovements.
+fixation_method: "ivt"
+# Minimum fixation duration in milliseconds.
+fixation_minimum_duration_ms: 100
+# Velocity threshold for IVT fixation detection in degrees/second.
+fixation_velocity_threshold: 20.0
+# Saccade detection method passed to pymovements.
+saccade_method: "microsaccades"
+# Minimum saccade duration in samples.
+saccade_minimum_duration: 6
+# Noise-adaptive velocity threshold factor for saccade detection.
+saccade_threshold_factor: 6.0
+# Velocity estimation method (e.g. "savitzky_golay").
+velocity_estimation_method: "savitzky_golay"
+# Length of the velocity smoothing/differentiation window in milliseconds.
+velocity_smoothing_window_ms: 50
+# Polynomial degree used in the Savitzky-Golay velocity filter.
+velocity_polynomial_degree: 2
 
 # --- PIPELINE STAGES ---
 # Whether to run the preflight input file check before processing.

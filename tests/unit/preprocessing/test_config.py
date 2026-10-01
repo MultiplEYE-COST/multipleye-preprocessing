@@ -1,6 +1,7 @@
+import logging
+import re
 from pathlib import Path
 
-import logging
 import pytest
 import yaml
 
@@ -24,6 +25,15 @@ def settings_obj():
         ("FORCE_RECONVERT_ASC", False),
         ("SANITY_CHECKS_FOLDER", Path("sanity_checks/")),
         ("METADATA_FOLDER", Path("metadata/")),
+        ("FIXATION_METHOD", "ivt"),
+        ("FIXATION_MINIMUM_DURATION_MS", 100),
+        ("FIXATION_VELOCITY_THRESHOLD", 20.0),
+        ("SACCADE_METHOD", "microsaccades"),
+        ("SACCADE_MINIMUM_DURATION", 6),
+        ("SACCADE_THRESHOLD_FACTOR", 6.0),
+        ("VELOCITY_ESTIMATION_METHOD", "savitzky_golay"),
+        ("VELOCITY_SMOOTHING_WINDOW_MS", 50),
+        ("VELOCITY_POLYNOMIAL_DEGREE", 2),
     ],
 )
 def test_settings_default_values(settings_obj, attr, expected):
@@ -156,9 +166,9 @@ def test_settings_validation_cases(settings_obj):
 
 def test_prepare_language_folder_none_error():
     """Test that prepare_language_folder raises a ValueError when name is None and no config."""
-    from preprocessing.scripts.prepare_language_folder import prepare_language_folder
-    from preprocessing.config import Settings
     import preprocessing
+    from preprocessing.config import Settings
+    from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
     # Use a fresh settings object without a config file
     s = Settings()
@@ -210,7 +220,7 @@ def test_settings_precedence_env_var(tmp_path, monkeypatch):
 
 def test_settings_copies_template_silently(tmp_path, monkeypatch, caplog):
     """Test that missing config copies template silently during load."""
-    from preprocessing.config import Settings, TEMPLATE_RELATIVE_PATH
+    from preprocessing.config import TEMPLATE_RELATIVE_PATH, Settings
 
     template_path = Settings()._repo_root / TEMPLATE_RELATIVE_PATH
     template_contents = template_path.read_text(encoding="utf-8")
@@ -327,11 +337,33 @@ def test_settings_regex_reactivity(settings_obj):
 
     # Verify it works
     match = settings_obj.START_RECORDING_REGEX.match(
-        "MSG 123 start_recording_trial_1_page_1"
+        "start_recording_trial_1_stimulus_Test_1_page_1"
     )
     assert match is not None
     assert match.group("my_trial") == "trial_1"
     assert match.group("my_page") == "page_1"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "showing_subject_difficulty_screen",
+        "showing_familiarity_rating_screen_1",
+        "showing_familiarity_rating_screen_2",
+        "validation_before_stimulus",
+    ],
+)
+def test_experiment_msg_patterns_include_rating_and_validation(settings_obj, message):
+    """Regression test: these messages were dropped from the message whitelist.
+
+    PR #204 replaced full ASC message capture with EXPERIMENT_MSG_PATTERNS and
+    omitted these messages, causing the sanity check to report every rating
+    screen and pre-stimulus validation as missing even though they exist in the
+    ASC file.
+    """
+    assert any(
+        re.match(pattern, message) for pattern in settings_obj.EXPERIMENT_MSG_PATTERNS
+    ), f"{message} is not matched by any EXPERIMENT_MSG_PATTERNS entry"
 
 
 def test_settings_gaze_patterns_reactivity(settings_obj):
@@ -379,3 +411,67 @@ def test_settings_case_insensitivity(settings_obj, key, value, attr):
     settings_obj._loaded = True  # Prevent auto-loading legacy config
     settings_obj.update({key: value})
     assert getattr(settings_obj, attr) == value
+
+
+def test_load_from_yaml_records_config_source(settings_obj, tmp_path):
+    """Test that load_from_yaml stores the resolved absolute config path."""
+    config_file = tmp_path / "some_config.yaml"
+    config_file.write_text("data_collection_name: MultiplEYE_EN_UK_London_1_2026\n")
+
+    settings_obj.load(path=config_file)
+
+    assert settings_obj._config_source == config_file.resolve()
+
+
+def test_load_from_yaml_config_source_none_before_load(settings_obj):
+    """Test that _config_source starts as None before any load call."""
+    assert settings_obj._config_source is None
+
+
+def test_copy_config_to_writes_file(settings_obj, tmp_path):
+    """Test that copy_config_to writes the config to the metadata subfolder."""
+    config_file = tmp_path / "multipleye_settings_preprocessing.yaml"
+    config_file.write_text("data_collection_name: MultiplEYE_EN_UK_London_1_2026\n")
+
+    settings_obj.load(path=config_file)
+    settings_obj.DATA_COLLECTION_NAME = "MultiplEYE_EN_UK_London_1_2026"
+    output_dir = tmp_path / "preprocessed_data" / "MultiplEYE_EN_UK_London_1_2026"
+    output_dir.mkdir(parents=True)
+
+    dest = settings_obj.copy_config_to(output_dir)
+
+    expected = output_dir / "metadata" / "multipleye_settings_preprocessing.yaml"
+    assert dest == expected
+    assert expected.exists()
+    assert expected.read_text() == config_file.read_text()
+
+
+def test_copy_config_to_overwrites_existing(settings_obj, tmp_path):
+    """Test that a second call to copy_config_to overwrites the existing copy."""
+    config_file = tmp_path / "my_config.yaml"
+    config_file.write_text("data_collection_name: MultiplEYE_EN_UK_London_1_2026\n")
+
+    settings_obj.load(path=config_file)
+    output_dir = tmp_path / "preprocessed_data" / "MultiplEYE_EN_UK_London_1_2026"
+    output_dir.mkdir(parents=True)
+
+    settings_obj.copy_config_to(output_dir)
+    config_file.write_text(
+        "data_collection_name: MultiplEYE_EN_UK_London_1_2026\nnew_key: true\n"
+    )
+    settings_obj.copy_config_to(output_dir)
+
+    dest = output_dir / "metadata" / "my_config.yaml"
+    assert dest.read_text() == config_file.read_text()
+
+
+def test_copy_config_to_no_source_logs_warning(tmp_path, caplog):
+    """Test that copy_config_to warns when no config source was recorded."""
+    from preprocessing.config import Settings
+
+    s = Settings()
+    with caplog.at_level(logging.WARNING):
+        dest = s.copy_config_to(tmp_path)
+
+    assert dest is None
+    assert "No config source path recorded" in caplog.text

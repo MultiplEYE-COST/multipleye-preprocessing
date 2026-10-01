@@ -1,6 +1,6 @@
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
-import re
 
 __all__ = ["Sid"]
 

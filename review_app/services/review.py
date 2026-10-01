@@ -4,14 +4,14 @@ Uses atomic write (tempfile -> os.replace) to prevent file corruption.
 Reviews are stored keyed by SID in ``review_data/<DCN>/reviews.yaml``.
 """
 
-import yaml
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from ..models import ReviewAnnotation
+import yaml
+
 from ..config import reviews_file_path
-
+from ..models import ReviewAnnotation
 
 REVIEW_STATUSES = {"unreviewed", "accepted", "flagged", "excluded"}
 
@@ -88,7 +88,7 @@ def save_review(
             f"Invalid issue type: {type_of_issue}. Must be one of {list(ISSUE_TYPES.keys())}"
         )
 
-    reviewed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    reviewed_at = datetime.now(UTC).isoformat(timespec="seconds")
 
     annotation = ReviewAnnotation(
         status=status,

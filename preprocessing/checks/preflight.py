@@ -13,6 +13,7 @@ from pathlib import Path
 
 import polars as pl
 
+from ..models.sid import Sid
 from ..utils.data_path_utils import _ci_exists, _ci_glob, _ci_resolve
 from ..utils.logging import get_logger
 
@@ -52,6 +53,7 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
         f"  Preflight check \u2014 {n_total} warning(s)",
         f"{'=' * 56}",
     ]
+    print(warnings)
 
     shared_labels = [
         "Stimulus definition xlsx",
@@ -77,6 +79,14 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
         for msg in warnings["Psychometric tests"]:
             lines.append(f"\n  {msg}")
 
+    if "Session completeness" in warnings:
+        for msg in warnings["Session completeness"]:
+            lines.append(f"\n  {msg}")
+
+    if "Participant questionnaire" in warnings:
+        for msg in warnings["Participant questionnaire"]:
+            lines.append(f"\n  {msg}")
+
     print("\n".join(lines), file=sys.stderr)
 
 
@@ -100,8 +110,9 @@ def run_preflight_check(data_collection) -> None:
 
     _check_shared_files(data_collection, errors, warnings)
     _check_skipped_sessions(data_collection, errors)
-    _check_sessions(data_collection, errors)
+    _check_sessions(data_collection, errors, warnings)
     _check_stimulus_order_coverage(data_collection, errors)
+    _check_session_completeness(data_collection, warnings)
 
     pt_warnings: list[str] = []
     _check_psychometric_tests(data_collection, pt_warnings)
@@ -281,52 +292,75 @@ def _check_skipped_sessions(data_collection, groups: dict[str, list[str]]) -> No
         groups["EDF data file"] = sorted(skipped)
 
 
-def _check_sessions(data_collection, groups: dict[str, list[str]]) -> None:
+def _check_sessions(
+    data_collection, errors: dict[str, list[str]], warnings: dict[str, list[str]]
+) -> None:
     """Run per-session input file checks."""
     for session in data_collection.sessions.values():
         sid = session.session_identifier
 
         # 1. EDF data file
         if not _ci_exists(session.session_file_path):
-            groups.setdefault("EDF data file", []).append(sid)
+            errors.setdefault("EDF data file", []).append(sid)
 
         # 2. Logfiles folder
         logfiles: Path = session.session_folder_path / "logfiles"
         if not _ci_exists(logfiles):
-            groups.setdefault("Logfiles folder", []).append(sid)
+            errors.setdefault("Logfiles folder", []).append(sid)
             continue
 
         # 3. EXPERIMENT_*.txt
         experiment_logs = _ci_glob(logfiles, "EXPERIMENT_*.txt")
         if len(experiment_logs) == 0:
-            groups.setdefault("EXPERIMENT_*.txt", []).append(sid)
+            errors.setdefault("EXPERIMENT_*.txt", []).append(sid)
         elif len(experiment_logs) > 1:
-            groups.setdefault("Multiple EXPERIMENT_*.txt logfiles", []).append(
+            errors.setdefault("Multiple EXPERIMENT_*.txt logfiles", []).append(
                 f"{sid} ({len(experiment_logs)} files)"
             )
 
-        # 4. GENERAL_LOGFILE_*.txt
+        # 4. DATA_LOGFILE_*.txt
+        data_logs = _ci_glob(logfiles, "DATA_LOGFILE_*.txt")
+        if len(data_logs) == 0:
+            errors.setdefault("DATA_LOGFILE_*.txt", []).append(sid)
+        elif len(data_logs) > 1:
+            errors.setdefault("Multiple DATA_LOGFILE_*.txt logfiles", []).append(
+                f"{sid} ({len(data_logs)} files)"
+            )
+
+        # 5. GENERAL_LOGFILE_*.txt
         general_logs = _ci_glob(logfiles, "GENERAL_LOGFILE_*.txt")
         if len(general_logs) == 0:
-            groups.setdefault("GENERAL_LOGFILE_*.txt", []).append(sid)
+            errors.setdefault("GENERAL_LOGFILE_*.txt", []).append(sid)
+        elif len(general_logs) > 1:
+            errors.setdefault("Multiple GENERAL_LOGFILE_*.txt logfiles", []).append(
+                f"{sid} ({len(general_logs)} files)"
+            )
 
-        # 5. completed_stimuli.csv
+        # 6. completed_stimuli.csv
         _check_parseable_csv(
             logfiles / "completed_stimuli.csv",
             "completed_stimuli.csv",
-            groups,
+            errors,
             sid,
             COMPLETED_STIMULI_COLS,
         )
 
-        # 6. question_order_versions.csv
+        # 7. question_order_versions.csv
         _check_parseable_csv(
             logfiles / "question_order_versions.csv",
             "question_order_versions.csv",
-            groups,
+            errors,
             sid,
             QUESTION_ORDER_COLS,
         )
+
+        # 8. participant questionnaire file
+        sid = Sid(sid)
+        path = session.session_folder_path / f"{sid.base_id}_pq_data.json"
+        if not _ci_exists(path):
+            warnings.setdefault("Participant questionnaire", []).append(
+                f"Participant questionnaire JSON missing for {sid!s}"
+            )
 
 
 def _check_parseable_csv(
@@ -424,6 +458,70 @@ def _check_stimulus_order_coverage(
         )
 
 
+def _check_session_completeness(
+    data_collection,
+    warnings: dict[str, list[str]],
+) -> None:
+    """Warn when participants do not have the expected number of ET sessions.
+
+    Groups sessions by base_id (participant + language + country + lab). The
+    expected number of sessions per participant comes from the data collection's
+    ``num_sessions`` (1 for MultiplEYE, 2 for MeRID). Participants with fewer
+    sessions are reported as missing; participants with more sessions than
+    expected are also reported, since extra sessions per participant are not the
+    MeRID multi-session format.
+
+    Non-pilot sessions only; sessions with non-parseable SIDs are skipped.
+    """
+    from ..models.sid import Sid
+
+    expected_sessions = getattr(data_collection, "num_sessions", 1) or 1
+
+    base_sessions: dict[str, set[int]] = {}
+    for session in data_collection.sessions.values():
+        if getattr(session, "is_pilot", False):
+            continue
+        try:
+            sid = Sid(session.session_identifier)
+        except (ValueError, TypeError):
+            continue
+        base_sessions.setdefault(sid.base_id, set()).add(sid.session_id)
+
+    if not base_sessions:
+        return
+
+    max_observed = max(len(v) for v in base_sessions.values())
+    has_extra = max_observed > expected_sessions
+    if expected_sessions <= 1 and not has_extra:
+        return
+
+    total_participants = len(base_sessions)
+    complete = sum(1 for ids in base_sessions.values() if len(ids) == expected_sessions)
+    incomplete = [
+        f"{base_id} (has session(s): {sorted(session_ids)}, "
+        f"missing: ET{','.join(str(s) for s in sorted(set(range(1, expected_sessions + 1)) - session_ids))})"
+        for base_id, session_ids in sorted(base_sessions.items())
+        if len(session_ids) < expected_sessions
+    ]
+    extra = [
+        f"{base_id} (has session(s): {sorted(session_ids)}, "
+        f"expected: {expected_sessions}) — more sessions than expected; "
+        f"check the `experiment_type` config setting"
+        for base_id, session_ids in sorted(base_sessions.items())
+        if len(session_ids) > expected_sessions
+    ]
+
+    msg = (
+        f"Session completeness: {complete}/{total_participants} participants "
+        f"have all {expected_sessions} expected ET sessions."
+    )
+    warnings.setdefault("Session completeness", []).append(msg)
+    if incomplete:
+        warnings["Session completeness"].extend(incomplete)
+    if extra:
+        warnings["Session completeness"].extend(extra)
+
+
 def _format_message(groups: dict[str, list[str]]) -> str:
     """Transform the grouped error dict into a human-readable message."""
     n_total = sum(len(v) for v in groups.values())
@@ -464,7 +562,10 @@ def _format_message(groups: dict[str, list[str]]) -> str:
         "Logfiles folder",
         "EXPERIMENT_*.txt",
         "Multiple EXPERIMENT_*.txt logfiles",
+        "DATA_LOGFILE_*.txt",
+        "Multiple DATA_LOGFILE_*.txt logfiles",
         "GENERAL_LOGFILE_*.txt",
+        "Multiple GENERAL_LOGFILE_*.txt logfiles",
         "completed_stimuli.csv",
         "question_order_versions.csv",
         "Stimulus order versions coverage",
@@ -482,7 +583,10 @@ def _format_message(groups: dict[str, list[str]]) -> str:
         "Logfiles folder",
         "EXPERIMENT_*.txt",
         "Multiple EXPERIMENT_*.txt logfiles",
+        "DATA_LOGFILE_*.txt",
+        "Multiple DATA_LOGFILE_*.txt logfiles",
         "GENERAL_LOGFILE_*.txt",
+        "Multiple GENERAL_LOGFILE_*.txt logfiles",
         "completed_stimuli.csv",
         "question_order_versions.csv",
         "Stimulus order versions coverage",

@@ -127,7 +127,7 @@
       <table>
         <thead><tr><th>Check</th><th>Value</th><th>Threshold</th><th>Status</th></tr></thead>
         <tbody>
-        {% for c in detail.checks %}
+        {% for c in detail.checks | sort_checks %}
         <tr>
           <td>{{ c.label }}</td>
           <td>{{ c.value }}</td>

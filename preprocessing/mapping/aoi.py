@@ -1,7 +1,6 @@
 """Mapping of fixations to AOIs."""
 
 import polars as pl
-
 import pymovements as pm
 
 

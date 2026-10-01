@@ -14,8 +14,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from ..models.dcn import Dcn
 from preprocessing import config
+
+from ..models.dcn import Dcn
 
 
 def rename_aoi_header(data_collection_name: str) -> None:

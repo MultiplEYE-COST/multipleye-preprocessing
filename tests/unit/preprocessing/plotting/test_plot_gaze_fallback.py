@@ -1,11 +1,13 @@
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-from preprocessing.plotting.plot import plot_gaze
+
+import pytest
+
+from preprocessing.config import settings
 from preprocessing.data_collection.stimulus import (
     Stimulus,
 )
-from preprocessing.config import settings
+from preprocessing.plotting.plot import plot_gaze
 
 
 @pytest.fixture
@@ -62,9 +64,17 @@ def mock_gaze():
 
 
 @patch("PIL.Image.open")
+@patch("matplotlib.pyplot.plot")
+@patch("matplotlib.pyplot.close")
 @patch("matplotlib.pyplot.subplots")
 def test_plot_gaze_aoi_fallback(
-    mock_subplots, mock_image_open, mock_gaze, mock_stimulus, tmp_path
+    mock_subplots,
+    mock_plt_close,
+    mock_plt_plot,
+    mock_image_open,
+    mock_gaze,
+    mock_stimulus,
+    tmp_path,
 ):
     mock_ax = MagicMock()
     mock_fig = MagicMock()
@@ -91,9 +101,17 @@ def test_plot_gaze_aoi_fallback(
 
 
 @patch("PIL.Image.open")
+@patch("matplotlib.pyplot.plot")
+@patch("matplotlib.pyplot.close")
 @patch("matplotlib.pyplot.subplots")
 def test_plot_gaze_aoi_no_fallback(
-    mock_subplots, mock_image_open, mock_gaze, mock_stimulus, tmp_path
+    mock_subplots,
+    mock_plt_close,
+    mock_plt_plot,
+    mock_image_open,
+    mock_gaze,
+    mock_stimulus,
+    tmp_path,
 ):
     mock_ax = MagicMock()
     mock_fig = MagicMock()

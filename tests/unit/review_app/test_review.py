@@ -5,10 +5,10 @@ from pathlib import Path
 import yaml
 
 from review_app.services.review import (
-    save_review,
-    load_review,
-    REVIEW_STATUSES,
     ISSUE_TYPES,
+    REVIEW_STATUSES,
+    load_review,
+    save_review,
 )
 
 

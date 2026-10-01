@@ -4,7 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-
 ReviewStatus = Literal["unreviewed", "accepted", "flagged", "excluded"]
 CheckStatus = Literal["pass", "warn", "fail"]
 

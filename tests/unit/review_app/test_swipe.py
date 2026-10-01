@@ -1,8 +1,9 @@
 """Tests for swipe service — per-plot judgment read/write."""
 
+from pathlib import Path
+
 import pytest
 import yaml
-from pathlib import Path
 
 
 def test_load_judgments_missing(monkeypatch):
@@ -15,7 +16,7 @@ def test_load_judgments_missing(monkeypatch):
 def test_save_and_load_plot_judgment(tmp_path, monkeypatch):
     monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
-    from review_app.services.swipe import save_plot_judgment, load_judgments
+    from review_app.services.swipe import load_judgments, save_plot_judgment
 
     save_plot_judgment("dcn1", "sid1", "plot_a", "keep")
     data = load_judgments("dcn1")
@@ -26,7 +27,7 @@ def test_save_and_load_plot_judgment(tmp_path, monkeypatch):
 def test_save_multiple_plots(tmp_path, monkeypatch):
     monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
-    from review_app.services.swipe import save_plot_judgment, load_judgments
+    from review_app.services.swipe import load_judgments, save_plot_judgment
 
     save_plot_judgment("dcn1", "sid1", "plot_a", "keep")
     save_plot_judgment("dcn1", "sid1", "plot_b", "flag")
@@ -39,9 +40,9 @@ def test_remove_plot_judgment(tmp_path, monkeypatch):
     monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
     from review_app.services.swipe import (
-        save_plot_judgment,
-        remove_plot_judgment,
         load_judgments,
+        remove_plot_judgment,
+        save_plot_judgment,
     )
 
     save_plot_judgment("dcn1", "sid1", "plot_a", "keep")
@@ -57,9 +58,9 @@ def test_remove_last_plot_removes_session(tmp_path, monkeypatch):
     monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
     from review_app.services.swipe import (
-        save_plot_judgment,
-        remove_plot_judgment,
         load_judgments,
+        remove_plot_judgment,
+        save_plot_judgment,
     )
 
     save_plot_judgment("dcn1", "sid1", "plot_a", "keep")
@@ -72,7 +73,7 @@ def test_remove_last_plot_removes_session(tmp_path, monkeypatch):
 def test_save_plot_comment(tmp_path, monkeypatch):
     monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
-    from review_app.services.swipe import save_plot_comment, load_judgments
+    from review_app.services.swipe import load_judgments, save_plot_comment
 
     save_plot_comment("dcn1", "sid1", "plot_a", "Looks good")
     data = load_judgments("dcn1")
@@ -83,7 +84,7 @@ def test_save_plot_comment(tmp_path, monkeypatch):
 def test_save_empty_comment_removes_it(tmp_path, monkeypatch):
     monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
-    from review_app.services.swipe import save_plot_comment, load_judgments
+    from review_app.services.swipe import load_judgments, save_plot_comment
 
     save_plot_comment("dcn1", "sid1", "plot_a", "Some note")
     save_plot_comment("dcn1", "sid1", "plot_a", "")
@@ -95,8 +96,9 @@ def test_save_empty_comment_removes_it(tmp_path, monkeypatch):
 def test_invalid_judgment_raises(tmp_path, monkeypatch):
     monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
-    from review_app.services.swipe import save_plot_judgment
     import pytest
+
+    from review_app.services.swipe import save_plot_judgment
 
     with pytest.raises(ValueError, match="Invalid judgment"):
         save_plot_judgment("dcn1", "sid1", "plot_a", "bogus")
@@ -105,7 +107,7 @@ def test_invalid_judgment_raises(tmp_path, monkeypatch):
 def test_yaml_format(tmp_path, monkeypatch):
     monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
-    from review_app.services.swipe import save_plot_judgment, save_plot_comment
+    from review_app.services.swipe import save_plot_comment, save_plot_judgment
 
     save_plot_judgment("dcn1", "sid1", "plot_a", "keep")
     save_plot_judgment("dcn1", "sid1", "plot_b", "flag")
@@ -129,8 +131,8 @@ def test_load_session_judgment(tmp_path, monkeypatch):
     monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
     from review_app.services.swipe import (
-        save_plot_judgment,
         load_session_judgment,
+        save_plot_judgment,
     )
 
     save_plot_judgment("dcn1", "sid1", "plot_a", "keep")
@@ -142,8 +144,8 @@ def test_load_session_judgment_mixed(tmp_path, monkeypatch):
     monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
     from review_app.services.swipe import (
-        save_plot_judgment,
         load_session_judgment,
+        save_plot_judgment,
     )
 
     save_plot_judgment("dcn1", "sid1", "plot_a", "keep")
@@ -163,8 +165,8 @@ def test_load_plot_judgments_dict(tmp_path, monkeypatch):
     monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
     from review_app.services.swipe import (
-        save_plot_judgment,
         load_plot_judgments_dict,
+        save_plot_judgment,
     )
 
     save_plot_judgment("dcn1", "sid1", "plot_a", "flag")
@@ -175,7 +177,7 @@ def test_load_plot_judgments_dict(tmp_path, monkeypatch):
 def test_load_plot_comments_dict(tmp_path, monkeypatch):
     monkeypatch.setattr("review_app.config.REVIEW_DATA_DIR", tmp_path)
 
-    from review_app.services.swipe import save_plot_comment, load_plot_comments_dict
+    from review_app.services.swipe import load_plot_comments_dict, save_plot_comment
 
     save_plot_comment("dcn1", "sid1", "plot_a", "Comment text")
     result = load_plot_comments_dict("dcn1", "sid1")

@@ -1,5 +1,6 @@
-import polars as pl
 import re
+
+import polars as pl
 
 
 def _result_schema() -> dict:

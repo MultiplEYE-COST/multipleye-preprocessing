@@ -6,10 +6,9 @@ import signal
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
-from ..templating import render
 from ..config import PREPROCESSED_DATA_DIR
 from ..services.dcn import list_dcns
-
+from ..templating import render
 
 router = APIRouter()
 

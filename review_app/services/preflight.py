@@ -8,7 +8,7 @@ loads instantly — the user clicks "Re-run" to refresh.
 
 import io
 from contextlib import redirect_stderr
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import yaml
 
@@ -48,7 +48,7 @@ def run_pipeline_preflight(dcn_name: str, *, force: bool = False) -> dict:
     _orig_output = pipe_settings.OUTPUT_DIR
     try:
         pipe_settings.DATASET_DIR = RAW_DATA_DIR / dcn_name
-        pipe_settings.OUTPUT_DIR = PREPROCESSED_DATA_DIR
+        pipe_settings.OUTPUT_DIR = PREPROCESSED_DATA_DIR / dcn_name
         result = _do_run(dcn_name)
     finally:
         pipe_settings.DATASET_DIR = _orig_dataset
@@ -136,4 +136,4 @@ def _do_run(dcn_name: str) -> dict:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")

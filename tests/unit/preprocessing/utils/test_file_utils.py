@@ -31,6 +31,7 @@ class TestToWinLongPath:
             "/home/user/my documents/file.txt",
         ],
     )
+    @patch("os.name", "posix")
     def test_unix_returns_absolute_path_without_prefix(self, path_str):
         result = _to_win_long_path(Path(path_str))
         assert result == os.path.abspath(path_str)
@@ -43,6 +44,7 @@ class TestToWinLongPath:
             "another/./docs/../file.txt",
         ],
     )
+    @patch("os.name", "posix")
     def test_unix_resolves_relative_to_absolute(self, path_str):
         result = _to_win_long_path(Path(path_str))
         assert result == os.path.abspath(path_str)
@@ -129,11 +131,11 @@ class TestCopytree:
         src = source_dir
         dst = tmp_path / "dest"
 
-        with patch("os.name", "nt" if is_windows else "posix"):
-            with patch(
-                "preprocessing.utils.file_utils.shutil.copytree"
-            ) as mock_copytree:
-                _copytree(src, dst, dirs_exist_ok=True)
+        with (
+            patch("os.name", "nt" if is_windows else "posix"),
+            patch("preprocessing.utils.file_utils.shutil.copytree") as mock_copytree,
+        ):
+            _copytree(src, dst, dirs_exist_ok=True)
 
         call_args, call_kwargs = mock_copytree.call_args
         src_arg, dst_arg = call_args[0], call_args[1]

@@ -1,5 +1,6 @@
-import pytest
 import pandas as pd
+import pytest
+
 from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
 )

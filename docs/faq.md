@@ -18,22 +18,22 @@ If you have a question that is not answered there, please reach out to the maint
 
 ## General
 
-:::{dropdown} Who is this pipeline intended for?
+:::{dropdown} Who is the pEYEpline intended for?
 :open:
 
-There are two primary use cases for this pipeline:
-* Researchers who are part of the MultiplEYE network and have collected eye-tracking and / or psychometric test data. You can use this pipeline to preprocess the data.
+There are two primary use cases for the pEYEpline:
+* Researchers who are part of the MultiplEYE network and have collected eye-tracking and / or psychometric test data. You can use the pEYEpline to preprocess the data.
 * Students or researchers who are interested in learning about eye-tracking data preprocessing.
-You can use this pipeline to explore the preprocessing steps and understand how raw eye-tracking data is transformed
+You can use the pEYEpline to explore the preprocessing steps and understand how raw eye-tracking data is transformed
 into a standardized format for analysis. In this case, we refer to the tutorial notebook described in {ref}`getting_started`.
 :::
 
-:::{dropdown} Can I use the pipeline with eye-tracking data other than MultiplEYE?
+:::{dropdown} Can I use the pEYEpline with eye-tracking data other than MultiplEYE?
 
-At the moment, the pipeline is designed to work with data collected in the MultiplEYE project.
+At the moment, the pEYEpline is designed to work with data collected in the MultiplEYE project.
 However, if your data is in a compatible format and you are willing to adapt the code,
-it may be possible to use the pipeline for other eye-tracking datasets. In any case, please contact the maintainers if you
-are interested to adapt the pipeline to other datasets.
+it may be possible to use the pEYEpline for other eye-tracking datasets. In any case, please contact the maintainers if you
+are interested to adapt the pEYEpline to other datasets.
 :::
 
 :::{dropdown} How long does preprocessing typically take?
@@ -41,6 +41,15 @@ are interested to adapt the pipeline to other datasets.
 Given that the .edf files need to be converted to .asc files first, the preprocessing time can vary depending on the
 number of sessions and the size of the data. However, for the size of the MultiplEYE datasets, which include about 100 sessions,
 it can take a few hours.
+:::
+
+:::{dropdown} What happens when the stimulus folder is updated?
+:open:
+
+The pEYEpline remembers which stimulus files it copied last time.
+If the source folder has changed since then (for example, after a team uploads
+a corrected version), the pEYEpline notices the difference and copies the updated
+folder automatically. No manual action needed.
 :::
 
 (faq_equipment)=

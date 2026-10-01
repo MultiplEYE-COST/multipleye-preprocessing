@@ -4,7 +4,7 @@ import polars as pl
 import pytest
 
 from preprocessing.answers.collect import collect_session_answers
-from preprocessing.data_collection.stimulus import Stimulus, ComprehensionQuestion
+from preprocessing.data_collection.stimulus import ComprehensionQuestion, Stimulus
 
 
 @pytest.fixture

@@ -6,20 +6,76 @@ import re
 from pathlib import Path
 
 import polars as pl
-import yaml
-
 import pymovements as pm
+import yaml
+from pymovements import transforms
+from pymovements.events import Events
 
 from ..config import settings
 from ..data_collection.stimulus import LabConfig
 from ..models.sid import Sid
 
 
+def _blink_loss_table(
+    per_group_blink: pl.DataFrame,
+    per_group_sample_count: pl.DataFrame,
+    group_cols: list[str],
+    duration_col: str,
+    sr: float,
+) -> pl.DataFrame:
+    """Build a blink-loss table grouped by a given set of columns.
+
+    Joins summed blink durations per group with the sample count per group and
+    derives the blink-loss ratio and recording duration.
+
+    Parameters
+    ----------
+    per_group_blink : pl.DataFrame
+        Blink events grouped by ``group_cols`` with a ``blink_duration_ms`` column.
+    per_group_sample_count : pl.DataFrame
+        Sample counts grouped by ``group_cols`` with a ``sample_count`` column.
+    group_cols : list of str
+        Columns used for grouping (e.g. per-page or per-trial columns).
+    duration_col : str
+        Name of the output recording-duration column.
+    sr : float
+        Sampling rate in Hz.
+
+    Returns
+    -------
+    pl.DataFrame
+        A table with ``group_cols``, ``blink_loss_ratio``, ``blink_duration_ms`` and
+        ``duration_col`` columns.
+    """
+    return (
+        per_group_blink.join(
+            per_group_sample_count,
+            on=group_cols,
+            how="right",
+        )
+        .with_columns(
+            (
+                pl.col("blink_duration_ms").fill_null(0)
+                / (pl.col("sample_count") * 1000.0 / sr)
+            ).alias("blink_loss_ratio")
+        )
+        .with_columns((pl.col("sample_count") * 1000.0 / sr).alias(duration_col))
+        .select(
+            [
+                *group_cols,
+                "blink_loss_ratio",
+                "blink_duration_ms",
+                duration_col,
+            ]
+        )
+    )
+
+
 def load_gaze_data(
     asc_file: Path,
     lab_config: LabConfig,
     sid: Sid,
-    trial_cols: list[str] = None,
+    trial_cols: list[str] | None = None,
     messages: bool | list[str] = False,
 ) -> pm.Gaze:
     """Load sample gaze data from an ASC file.
@@ -75,6 +131,79 @@ def load_gaze_data(
         add_columns={"session": str(sid)},
         experiment=experiment,
         messages=messages,
+        events=True,
+    )
+
+    # Compute measure-based blink loss via measure_events_ratio.
+    # Session-level (duration-weighted), not per-trial mean.
+    # Parsed events (including blinks) are available here but must be cleared
+    # before returning -- they crash save_raw_data's unnest of the pixel column.
+    sr = gaze.experiment.sampling_rate or float(
+        gaze._metadata.get("sampling_rate", 1000.0),
+    )
+    trial_cols = gaze.trial_columns or ["trial", "stimulus", "page"]
+
+    if gaze.events is not None and not gaze.events.frame.is_empty():
+        # Use transforms.events2timeratio directly with trial_columns=None
+        # for session-level blink loss. gaze.measure_events_ratio() always
+        # passes self.trial_columns, which produces a per-row expression
+        # that crashes .item() on multi-sample DataFrames.
+        # TODO: switch back to gaze.measure_events_ratio(trial_columns=None)
+        # once https://github.com/pymovements/pymovements/issues/1673 ships.
+        blink_expr = transforms.events2timeratio(
+            events=gaze.events.frame,
+            samples=gaze.samples,
+            name="blink_eyelink",
+            time_column="time",
+            trial_columns=None,
+            sampling_rate=sr,
+        )
+        gaze._measure_blink_loss_ratio = gaze.samples.select(blink_expr).item()
+
+        blink_events = gaze.events.frame.filter(pl.col("name").str.contains("blink"))
+        if not blink_events.is_empty():
+            # Per-page blink loss: one row per page, time-weighted within the page.
+            per_page_blink = blink_events.group_by(trial_cols).agg(
+                pl.col("duration").sum().alias("blink_duration_ms")
+            )
+            per_page_sample_count = gaze.samples.group_by(trial_cols).agg(
+                pl.len().alias("sample_count")
+            )
+            gaze._per_page_blink_loss = _blink_loss_table(
+                per_page_blink,
+                per_page_sample_count,
+                group_cols=trial_cols,
+                duration_col="page_duration_ms",
+                sr=sr,
+            )
+
+            # Per-trial blink loss: one row per trial (time-weighted within the
+            # trial). Trials are not weighted by length against each other; the
+            # sanity report takes a plain, equal-weighted mean over trial rows.
+            per_trial_cols = ["trial", "stimulus"]
+            per_trial_blink = blink_events.group_by(per_trial_cols).agg(
+                pl.col("duration").sum().alias("blink_duration_ms")
+            )
+            per_trial_sample_count = gaze.samples.group_by(per_trial_cols).agg(
+                pl.len().alias("sample_count")
+            )
+            gaze._per_trial_blink_loss = _blink_loss_table(
+                per_trial_blink,
+                per_trial_sample_count,
+                group_cols=per_trial_cols,
+                duration_col="trial_duration_ms",
+                sr=sr,
+            )
+        else:
+            gaze._per_page_blink_loss = None
+            gaze._per_trial_blink_loss = None
+
+    # Clear parsed events to avoid save_raw_data crash.
+    gaze.events = Events(
+        data=pl.DataFrame(
+            schema={col: pl.Utf8 for col in trial_cols},
+        ),
+        trial_columns=trial_cols,
     )
 
     # Filter out data outside of trials
@@ -94,7 +223,7 @@ def load_trial_level_raw_data(
 ) -> pm.Gaze:
     """Load trial-level raw data from multiple CSV files and construct a gaze object.
 
-    This function aggregates raw data files containing gaze data for one or more trials.
+    This function aggregates raw data files containing gaze data with position and velocity information for one or more trials.
 
     Parameters
     ----------
@@ -130,6 +259,10 @@ def load_trial_level_raw_data(
                 "pupil": pl.Float64,
                 "pixel_x": pl.Float64,
                 "pixel_y": pl.Float64,
+                "position_x": pl.Float64,
+                "position_y": pl.Float64,
+                "velocity_x": pl.Float64,
+                "velocity_y": pl.Float64,
                 "page": pl.Utf8,
             },
         )
@@ -150,6 +283,8 @@ def load_trial_level_raw_data(
         initial_df,
         trial_columns=trial_columns,
         pixel_columns=["pixel_x", "pixel_y"],
+        position_columns=["position_x", "position_y"],
+        velocity_columns=["velocity_x", "velocity_y"],
     )
 
     if load_metadata:
@@ -176,6 +311,10 @@ def load_trial_level_raw_data(
         exp = pm.Experiment.from_dict(exp)
 
         gaze.experiment = exp
+
+        messages_path = metadata_path / "messages.csv"
+        if messages_path.exists():
+            gaze.messages = pl.read_csv(messages_path)
 
     return gaze
 
@@ -280,9 +419,80 @@ def load_trial_level_events_data(
     return gaze
 
 
+def load_scanpaths(
+    gaze: pm.Gaze,
+    sid: Sid,
+    file_pattern: str | None = None,
+) -> pm.Gaze:
+    """Load scanpaths for a session from CSV files and return a gaze object with expanded events frame.
+
+    The function reads CSV files within a specified folder,
+    applies a file pattern to match and extract relevant groups,
+    and integrates the data into the provided `gaze` object's events frame.
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        An object containing gaze data and associated event information.
+    sid : Sid
+        The session identifier.
+    file_pattern : str, optional
+        A pattern for matching CSV file names to extract relevant groups.
+        If None, defaults to settings.SCANPATH_FILENAME_REGEX.
+
+    Returns
+    -------
+    pm.Gaze
+        The updated gaze object with the loaded and integrated scanpaths.
+    """
+
+    if file_pattern is None:
+        file_pattern = settings.SCANPATH_FILENAME_REGEX
+
+    all_scanpaths = pl.DataFrame()
+    data_folder = sid.scanpaths_dir
+
+    for file in data_folder.glob(settings.SCANPATH_FILE_GLOB):
+        trial_df = pl.read_csv(file)
+
+        match = re.match(file_pattern, file.name)
+        # go over groups in the name regex and add them as columns
+        if match is None:
+            logging.info(f"Skipping file {file} for scanpath loading")
+            continue
+        else:
+            for group_name in match.groupdict():
+                if group_name not in trial_df.columns:
+                    trial_df = trial_df.with_columns(
+                        pl.lit(match.group(group_name)).alias(group_name)
+                    )
+
+        all_scanpaths = all_scanpaths.vstack(trial_df)
+
+    if len(all_scanpaths) == 0:
+        # return gaze untouched if no scanpaths files were found
+        return gaze
+
+    # join loaded scanpaths into existing events frame
+    key_cols = ["onset", "trial", "stimulus", "page", "name"]
+    imported_cols = [
+        col
+        for col in all_scanpaths.columns
+        if col not in gaze.events.frame.columns or col in key_cols
+    ]
+
+    matched_events = gaze.events.frame.join(
+        all_scanpaths.select(imported_cols), on=key_cols, how="left"
+    )
+
+    gaze.events.frame = matched_events
+
+    return gaze
+
+
 def load_reading_measures(
     sid: Sid,
-    file_pattern: str = r".+?(?P<trial>(?:PRACTICE_)?trial_\d+)_(?P<stimulus>.+)_reading_measures\.csv",
+    file_pattern: str | None = None,
 ) -> pl.DataFrame:
     """Load reading measures from CSV files.
 
@@ -292,6 +502,7 @@ def load_reading_measures(
         The session identifier.
     file_pattern : str, optional
         Regex pattern to extract trial and stimulus from filenames.
+        Defaults to ``settings.READING_MEASURES_FILENAME_REGEX``.
 
     Returns
     -------
@@ -299,23 +510,24 @@ def load_reading_measures(
         A DataFrame containing the concatenated reading measures data.
     """
     data_folder = sid.reading_measures_dir
-    # Use glob to find all csv files first, as Path.glob() does not support regex
-    files = [f for f in data_folder.glob("*.csv") if re.match(file_pattern, f.name)]
-
-    if len(files) == 0:
-        raise ValueError(f"No files found in {data_folder} with pattern {file_pattern}")
+    glob_pattern = settings.READING_MEASURES_GLOB
+    regex = file_pattern or settings.READING_MEASURES_FILENAME_REGEX
 
     all_trials = []
 
-    for file in files:
+    for file in data_folder.glob(glob_pattern):
+        match = re.match(regex, file.name)
+        if not match:
+            continue
+
         df = pl.read_csv(file)
-        # get trial and stimulus from file name
-        match = re.match(file_pattern, file.name)
         trial_df = df.with_columns(
             pl.lit(match.group("trial")).alias("trial"),
             pl.lit(match.group("stimulus")).alias("stimulus"),
         )
-
         all_trials.append(trial_df)
+
+    if not all_trials:
+        raise ValueError(f"No reading measures files found in {data_folder}")
 
     return pl.concat(all_trials)

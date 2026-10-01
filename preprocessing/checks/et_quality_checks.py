@@ -1,6 +1,6 @@
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TextIO
-from collections.abc import Callable
 
 import polars as pl
 
@@ -48,7 +48,9 @@ def report_to_file_metadata(
 
 
 def check_comprehension_question_answers(
-    logfile: pl.DataFrame, stimuli: Stimulus | list[Stimulus], report_file: Path = None
+    logfile: pl.DataFrame,
+    stimuli: Stimulus | list[Stimulus],
+    report_file: Path | None = None,
 ):
     """compute the number of correct answers for each participant
     params: logfile as polars
@@ -153,7 +155,7 @@ def check_validation_requirements(
                     report_file,
                 )
 
-            elif score < 0.305:
+            elif score < settings.SINGLE_VALIDATION_GOOD_MAX:
                 _report_to_file(
                     f"- ✅ Good validation at {m['time']} with score {m['accuracy_avg']}",
                     report_file,
@@ -162,7 +164,11 @@ def check_validation_requirements(
                 moderate_val = False
                 val_performed = True
                 good_vals += 1
-            elif 0.45 > score >= 0.305:
+            elif (
+                settings.SINGLE_VALIDATION_MODERATE_MAX
+                > score
+                >= settings.SINGLE_VALIDATION_GOOD_MAX
+            ):
                 mes["moderate_vals"].append(
                     f"⚠️ Moderate validation at {m['time']} with score {m['accuracy_avg']}"
                 )
@@ -170,7 +176,7 @@ def check_validation_requirements(
                 bad_val = False
                 moderate_vls += 1
                 mod_tstamp = int(m["time"])
-            elif score >= 0.45:
+            elif score >= settings.SINGLE_VALIDATION_MODERATE_MAX:
                 mes["bad_vals"].append(
                     f"❌ BAD Validation at {m['time']} with score {m['accuracy_avg']}"
                 )
@@ -293,6 +299,8 @@ def check_metadata(
     calibrations: pl.DataFrame,
     validations: pl.DataFrame,
     report: ReportFunction,
+    total_data_loss_ratio: float | None = None,
+    blink_loss_ratio: float | None = None,
 ) -> None:
     """
     Check the metadata of the gaze data and write a report to file.
@@ -315,9 +323,7 @@ def check_metadata(
     validation_scores_avg = validations["accuracy_avg"].cast(pl.Float32).to_list()
 
     num_validations = len(validations)
-    report(
-        "Number of validations", num_validations, settings.ACCEPTABLE_NUM_CALIBRATIONS
-    )
+    report("Number of validations", num_validations, settings.ACCEPTABLE_NUM_VALIDATION)
     report(
         "AVG validation scores",
         [round(score, 4) for score in validation_scores_avg],
@@ -344,20 +350,30 @@ def check_metadata(
         validation_eye,
         tracked_eye,
     )
-    data_loss_ratio = metadata["data_loss_ratio"]
-    report(
-        "Data loss ratio",
-        round(data_loss_ratio, 3),
-        settings.ACCEPTABLE_DATA_LOSS_RATIOS,
-        percentage=True,
+    data_loss = (
+        total_data_loss_ratio
+        if total_data_loss_ratio is not None
+        else metadata.get("data_loss_ratio")
     )
-    data_loss_ratio_blinks = metadata["data_loss_ratio_blinks"]
-    report(
-        "Data loss ratio due to blinks",
-        round(data_loss_ratio_blinks, 3),
-        settings.ACCEPTABLE_DATA_LOSS_RATIOS,
-        percentage=True,
+    if data_loss is not None:
+        report(
+            "Total data loss ratio",
+            round(data_loss, 3),
+            settings.ACCEPTABLE_DATA_LOSS_RATIOS,
+            percentage=True,
+        )
+    blink_loss = (
+        blink_loss_ratio
+        if blink_loss_ratio is not None
+        else metadata.get("data_loss_ratio_blinks")
     )
+    if blink_loss is not None:
+        report(
+            "Blink loss ratio",
+            round(blink_loss, 3),
+            settings.ACCEPTABLE_DATA_LOSS_RATIOS,
+            percentage=True,
+        )
     total_recording_duration = metadata["total_recording_duration_ms"] / 60000
     report(
         "Total recording duration",
