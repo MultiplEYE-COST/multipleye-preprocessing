@@ -13,9 +13,9 @@ from pathlib import Path
 
 import polars as pl
 
+from ..data_collection.session import Session
 from ..utils.data_path_utils import _ci_exists, _ci_glob, _ci_resolve
 from ..utils.logging import get_logger
-from ..data_collection.session import Session
 
 logger = get_logger()
 
@@ -76,7 +76,7 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
 
         if label == "EDF data file":
             for sid in warnings[label]:
-                lines.append(f'\n {label} not found in {sid}')
+                lines.append(f"\n {label} not found in {sid}")
 
     if "Psychometric tests" in warnings:
         for msg in warnings["Psychometric tests"]:

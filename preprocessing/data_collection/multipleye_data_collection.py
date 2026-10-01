@@ -1500,7 +1500,7 @@ class MultipleyeDataCollection:
 
     def _load_session_stimulus_order_no_asc(
         self, session_identifier, logfile_order_version: int
-        ) -> list[int]:
+    ) -> list[int]:
         # if the session crashed, only load the stimuli that were actually completed in that session
         p_id = Sid(session_identifier).pid
         incomplete_order = []
@@ -1526,17 +1526,16 @@ class MultipleyeDataCollection:
             ]
 
             if stim_order_version.empty:
-               raise ValueError(
-                   f"Stimulus order version {logfile_order_version} extracted from the logfile "
-                   f"cannot be found in the stimulus order versions CSV. "
-                   f"The team should upload the correct stimulus folder."
-               )
+                raise ValueError(
+                    f"Stimulus order version {logfile_order_version} extracted from the logfile "
+                    f"cannot be found in the stimulus order versions CSV. "
+                    f"The team should upload the correct stimulus folder."
+                )
 
             self.logger.warning(
                 "Using the stimulus order version from the logfile. "
                 "The team should still upload the correct stimulus folder!"
             )
-
 
         elif len(stim_order_version) == 1:
             version = stim_order_version["version_number"].values[0]
