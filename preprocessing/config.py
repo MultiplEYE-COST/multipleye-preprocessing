@@ -33,6 +33,7 @@ class Settings:
         self._is_template_loaded = False
         self._is_auto_filled = False
         self._config_found = False
+        self._config_source: Path | None = None
 
     @property
     def DATA_COLLECTION_NAME(self) -> str | None:
@@ -580,6 +581,35 @@ class Settings:
         #: Event name for saccades.
         self.SACCADE = "saccade"
 
+        # --- EVENT DETECTION ---
+
+        #: Fixation detection method passed to pymovements (e.g. "ivt", "idt").
+        self.FIXATION_METHOD = "ivt"
+
+        #: Minimum fixation duration in milliseconds.
+        self.FIXATION_MINIMUM_DURATION_MS = 100
+
+        #: Velocity threshold for IVT fixation detection in degrees/second.
+        self.FIXATION_VELOCITY_THRESHOLD = 20.0
+
+        #: Saccade detection method passed to pymovements (e.g. "microsaccades").
+        self.SACCADE_METHOD = "microsaccades"
+
+        #: Minimum saccade duration in samples.
+        self.SACCADE_MINIMUM_DURATION = 6
+
+        #: Noise-adaptive velocity threshold factor for saccade detection.
+        self.SACCADE_THRESHOLD_FACTOR = 6.0
+
+        #: Velocity estimation method (e.g. "savitzky_golay").
+        self.VELOCITY_ESTIMATION_METHOD = "savitzky_golay"
+
+        #: Length of the velocity smoothing/differentiation window in milliseconds.
+        self.VELOCITY_SMOOTHING_WINDOW_MS = 50
+
+        #: Polynomial degree used in the Savitzky-Golay velocity filter.
+        self.VELOCITY_POLYNOMIAL_DEGREE = 2
+
         # --- PSYCHOMETRIC TEST THRESHOLDS ---
 
         #: Minimum reaction time for WikiVocab in seconds.
@@ -900,6 +930,7 @@ class Settings:
         if user_configs:
             self.update(user_configs)
 
+        self._config_source = path
         self._validate()
         self._loaded = True
 
@@ -995,6 +1026,37 @@ class Settings:
         raise AttributeError(
             f"'{type(self).__name__}' object has no attribute '{name}'"
         )
+
+    def copy_config_to(self, output_dir: str | Path | None = None) -> Path | None:
+        """Copy the last-used config file into the output metadata folder.
+
+        The copy preserves the original filename and overwrites any existing file so
+        the output folder always reflects the most recent pipeline run.
+
+        Parameters
+        ----------
+        output_dir : str | Path | None, optional
+            Target output directory. Defaults to ``self.OUTPUT_DIR``.
+
+        Returns
+        -------
+        Path | None
+            The destination path of the copy, or ``None`` if no config source was recorded.
+        """
+        import shutil
+
+        if self._config_source is None:
+            logger.warning(
+                "No config source path recorded; skipping config copy to output folder."
+            )
+            return None
+
+        dest_dir = Path(output_dir or self.OUTPUT_DIR) / self.METADATA_FOLDER
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / self._config_source.name
+        shutil.copy2(str(self._config_source), str(dest))
+        logger.info(f"Config copy written to {dest}")
+        return dest
 
 
 settings = Settings()

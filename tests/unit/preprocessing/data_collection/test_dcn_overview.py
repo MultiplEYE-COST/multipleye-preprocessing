@@ -179,6 +179,19 @@ class TestAdministrative:
         assert a["number_of_pilots"] == 0
         assert "number_of_et_sessions_per_participant" in a
 
+    def test_session_completeness(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        sc = _admin(overview)["session_completeness"]
+
+        assert sc["expected_sessions_per_participant"] == 1
+        assert sc["total_participants"] == 3
+        assert sc["complete_participants"] == 3
+        assert "incomplete_participants" not in sc
+        assert "extra_sessions_participants" not in sc
+
 
 class TestProcessing:
     def test_processing_metadata(
@@ -241,7 +254,89 @@ class TestYAMLOutput:
         assert keys[3] == "psychometric_tests"
         assert keys[4] == "technical_setup"
         assert keys[5] == "processing"
-        assert keys[6] == "data_quality"
+        assert keys[6] == "processing_config"
+        assert keys[7] == "data_quality"
+
+
+class TestProcessingConfig:
+    def test_processing_config_reflects_settings(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        pc = overview["processing_config"]
+
+        assert pc["fixation_method"] == "ivt"
+        assert pc["fixation_minimum_duration_ms"] == 100
+        assert pc["fixation_velocity_threshold"] == 20.0
+        assert pc["saccade_method"] == "microsaccades"
+        assert pc["saccade_minimum_duration"] == 6
+        assert pc["saccade_threshold_factor"] == 6.0
+        assert pc["velocity_estimation_method"] == "savitzky_golay"
+        assert pc["velocity_smoothing_window_ms"] == 50
+        assert pc["velocity_polynomial_degree"] == 2
+
+    def test_processing_config_records_fixed_design_decisions(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        pc = overview["processing_config"]
+
+        assert pc["aoi_enlargement"] == "half_line_spacing"
+        assert pc["reading_measures_null_fill"] == 0
+        assert pc["scanpath_drop_unmapped"] is True
+        assert pc["data_loss_missingness_column"] == "pixel"
+        assert pc["per_trial_loss_weighting"] == "equal"
+
+    def test_processing_config_records_psychometric_thresholds(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        from preprocessing import settings
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        pc = overview["processing_config"]
+
+        assert pc["psym_wikivocab_min_rt"] == settings.PSYM_WIKIVOCAB_MIN_RT
+        assert pc["psym_wikivocab_max_rt"] == settings.PSYM_WIKIVOCAB_MAX_RT
+        assert pc["psym_stroop_min_rt"] == settings.PSYM_STROOP_MIN_RT
+        assert pc["psym_stroop_max_rt"] == settings.PSYM_STROOP_MAX_RT
+        assert pc["psym_flanker_min_rt"] == settings.PSYM_FLANKER_MIN_RT
+        assert pc["psym_flanker_max_rt"] == settings.PSYM_FLANKER_MAX_RT
+
+    def test_processing_config_records_eye_and_column_mappings(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        from preprocessing import settings
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        pc = overview["processing_config"]
+
+        assert pc["tracked_eye"] == settings.TRACKED_EYE
+        assert pc["trial_cols"] == settings.TRIAL_COLS
+        assert pc["trial_col"] == settings.TRIAL_COL
+        assert pc["page_col"] == settings.PAGE_COL
+        assert pc["stimulus_col"] == settings.STIMULUS_COL
+        assert pc["word_idx_col"] == settings.WORD_IDX_COL
+        assert pc["char_idx_col"] == settings.CHAR_IDX_COL
+
+    def test_processing_config_inf_round_trips_through_yaml(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        dc.create_dataset_overview(path=dummy_dcn_dir)
+        yaml_path = dummy_dcn_dir / "MultiplEYE_EN_UK_London_1_2025_overview.yaml"
+
+        with open(yaml_path) as f:
+            data = yaml.safe_load(f)
+
+        pc = data["processing_config"]
+        assert pc["psym_wikivocab_max_rt"] == float("inf")
+        assert pc["psym_stroop_max_rt"] == float("inf")
+        assert pc["psym_flanker_max_rt"] == float("inf")
+        assert pc["tracked_eye"] == ["L", "R", "RIGHT", "LEFT"]
 
 
 class TestDataAvailability:
@@ -271,10 +366,33 @@ class TestComputedAverages:
         assert q["mean_data_loss_ratio"] is None
         assert q["mean_blink_ratio"] is None
         assert q["mean_total_reading_time_ms"] is None
+        assert q["mean_rt_per_stim_ms"] is None
+        assert q["mean_total_question_time_ms"] is None
+        assert q["mean_total_rating_time_ms"] is None
         assert q["mean_comprehension_score"] is None
         assert q["mean_comprehension_score_local"] is None
         assert q["mean_comprehension_score_global"] is None
         assert q["mean_comprehension_score_bridging"] is None
+
+    def test_time_rating_averages(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        for session, question_ms, rating_ms in [
+            ("001_EN_UK_1_ET1", 1000.0, 3000.0),
+            ("002_EN_UK_1_ET1", 2000.0, 4000.0),
+            ("003_EN_UK_1_ET1", 3000.0, 5000.0),
+        ]:
+            s = dc.sessions[session]
+            _setup_session_with_data(s)
+            s.total_question_time_ms = question_ms
+            s.total_rating_time_ms = rating_ms
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        q = _qual(overview)
+
+        assert q["mean_total_question_time_ms"] == 2000.0
+        assert q["mean_total_rating_time_ms"] == 4000.0
 
     def test_comprehension_by_type_averages(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -336,6 +454,20 @@ class TestComputedAverages:
         assert q["mean_validation_error_dva"] == 0.4
         assert q["mean_data_loss_ratio"] == 0.02
         assert q["mean_blink_ratio"] == 0.02
+
+    def test_mean_rt_per_stim_averages(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        for s in dc.sessions.values():
+            _setup_session_with_data(s)
+            s.mean_rt_per_stim_ms = 3000.0
+        dc.sessions["003_EN_UK_1_ET1"].mean_rt_per_stim_ms = 5000.0
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        q = _qual(overview)
+
+        assert q["mean_rt_per_stim_ms"] == 3666.67
 
 
 class TestAttritionRate:

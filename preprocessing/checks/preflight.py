@@ -12,8 +12,9 @@ import sys
 from pathlib import Path
 
 import polars as pl
-
 from ..data_collection.session import Session
+from ..models.sid import Sid
+from ..models.sid import Sid
 from ..utils.data_path_utils import _ci_exists, _ci_glob, _ci_resolve
 from ..utils.logging import get_logger
 
@@ -53,6 +54,7 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
         f"  Preflight check \u2014 {n_total} warning(s)",
         f"{'=' * 56}",
     ]
+    print(warnings)
 
     shared_labels = [
         "Stimulus definition xlsx",
@@ -82,6 +84,14 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
         for msg in warnings["Psychometric tests"]:
             lines.append(f"\n  {msg}")
 
+    if "Session completeness" in warnings:
+        for msg in warnings["Session completeness"]:
+            lines.append(f"\n  {msg}")
+
+    if "Participant questionnaire" in warnings:
+        for msg in warnings["Participant questionnaire"]:
+            lines.append(f"\n  {msg}")
+
     lines.append(f"{'=' * 56}")
     print("\n".join(lines), file=sys.stderr)
 
@@ -106,8 +116,9 @@ def run_preflight_check(data_collection) -> None:
 
     _check_shared_files(data_collection, errors, warnings)
     _check_skipped_sessions(data_collection, warnings)
-    _check_sessions(data_collection, errors)
+    _check_sessions(data_collection, errors, warnings)
     _check_stimulus_order_coverage(data_collection, errors)
+    _check_session_completeness(data_collection, warnings)
 
     pt_warnings: list[str] = []
     _check_psychometric_tests(data_collection, pt_warnings)
@@ -288,8 +299,9 @@ def _check_skipped_sessions(data_collection, groups: dict[str, list[str]]) -> No
 
     print(groups)
 
-
-def _check_sessions(data_collection, errors: dict[str, list[str]]) -> None:
+def _check_sessions(
+    data_collection, errors: dict[str, list[str]], warnings: dict[str, list[str]]
+) -> None:
     """Run per-session input file checks."""
     for session in data_collection.sessions.values():
         sid = session.session_identifier
@@ -348,6 +360,14 @@ def _check_sessions(data_collection, errors: dict[str, list[str]]) -> None:
             sid,
             QUESTION_ORDER_COLS,
         )
+
+        # 8. participant questionnaire file
+        sid = Sid(sid)
+        path = session.session_folder_path / f"{sid.base_id}_pq_data.json"
+        if not _ci_exists(path):
+            warnings.setdefault("Participant questionnaire", []).append(
+                f"Participant questionnaire JSON missing for {sid!s}"
+            )
 
 
 def _check_parseable_csv(
@@ -443,6 +463,70 @@ def _check_stimulus_order_coverage(
         groups.setdefault("Stimulus order versions coverage", []).append(
             f"{entry} — duplicate entries in stimulus_order_versions CSV"
         )
+
+
+def _check_session_completeness(
+    data_collection,
+    warnings: dict[str, list[str]],
+) -> None:
+    """Warn when participants do not have the expected number of ET sessions.
+
+    Groups sessions by base_id (participant + language + country + lab). The
+    expected number of sessions per participant comes from the data collection's
+    ``num_sessions`` (1 for MultiplEYE, 2 for MeRID). Participants with fewer
+    sessions are reported as missing; participants with more sessions than
+    expected are also reported, since extra sessions per participant are not the
+    MeRID multi-session format.
+
+    Non-pilot sessions only; sessions with non-parseable SIDs are skipped.
+    """
+    from ..models.sid import Sid
+
+    expected_sessions = getattr(data_collection, "num_sessions", 1) or 1
+
+    base_sessions: dict[str, set[int]] = {}
+    for session in data_collection.sessions.values():
+        if getattr(session, "is_pilot", False):
+            continue
+        try:
+            sid = Sid(session.session_identifier)
+        except (ValueError, TypeError):
+            continue
+        base_sessions.setdefault(sid.base_id, set()).add(sid.session_id)
+
+    if not base_sessions:
+        return
+
+    max_observed = max(len(v) for v in base_sessions.values())
+    has_extra = max_observed > expected_sessions
+    if expected_sessions <= 1 and not has_extra:
+        return
+
+    total_participants = len(base_sessions)
+    complete = sum(1 for ids in base_sessions.values() if len(ids) == expected_sessions)
+    incomplete = [
+        f"{base_id} (has session(s): {sorted(session_ids)}, "
+        f"missing: ET{','.join(str(s) for s in sorted(set(range(1, expected_sessions + 1)) - session_ids))})"
+        for base_id, session_ids in sorted(base_sessions.items())
+        if len(session_ids) < expected_sessions
+    ]
+    extra = [
+        f"{base_id} (has session(s): {sorted(session_ids)}, "
+        f"expected: {expected_sessions}) — more sessions than expected; "
+        f"check the `experiment_type` config setting"
+        for base_id, session_ids in sorted(base_sessions.items())
+        if len(session_ids) > expected_sessions
+    ]
+
+    msg = (
+        f"Session completeness: {complete}/{total_participants} participants "
+        f"have all {expected_sessions} expected ET sessions."
+    )
+    warnings.setdefault("Session completeness", []).append(msg)
+    if incomplete:
+        warnings["Session completeness"].extend(incomplete)
+    if extra:
+        warnings["Session completeness"].extend(extra)
 
 
 def _format_message(groups: dict[str, list[str]]) -> str:

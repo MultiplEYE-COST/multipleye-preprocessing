@@ -60,6 +60,67 @@ def eyelink(method):
     return wrapper
 
 
+def _compute_session_completeness(data_collection) -> dict:
+    """Compute session completeness stats grouped by participant base ID.
+
+    The expected number of sessions per participant is taken from the data
+    collection's ``num_sessions`` (1 for MultiplEYE, 2 for MeRID). Participants
+    with fewer sessions are listed under ``incomplete_participants``; those with
+    more sessions than expected are listed under ``extra_sessions_participants``.
+
+    Returns a dict with keys ``expected_sessions_per_participant``,
+    ``total_participants`` and ``complete_participants`` (plus the two optional
+    lists above).
+
+    Non-pilot sessions only; sessions with non-parseable SIDs are skipped.
+    """
+    expected_sessions = getattr(data_collection, "num_sessions", 1) or 1
+
+    base_sessions: dict[str, set[int]] = {}
+    for session in data_collection.sessions.values():
+        if getattr(session, "is_pilot", False):
+            continue
+        try:
+            sid = Sid(session.session_identifier)
+        except (ValueError, TypeError):
+            continue
+        base_sessions.setdefault(sid.base_id, set()).add(sid.session_id)
+
+    if not base_sessions:
+        return {
+            "expected_sessions_per_participant": expected_sessions,
+            "total_participants": 0,
+            "complete_participants": 0,
+        }
+
+    total = len(base_sessions)
+    complete = sum(1 for ids in base_sessions.values() if len(ids) == expected_sessions)
+
+    result: dict = {
+        "expected_sessions_per_participant": expected_sessions,
+        "total_participants": total,
+        "complete_participants": complete,
+    }
+
+    incomplete = sorted(
+        base_id
+        for base_id, ids in base_sessions.items()
+        if len(ids) < expected_sessions
+    )
+    if incomplete:
+        result["incomplete_participants"] = incomplete
+
+    extra = sorted(
+        base_id
+        for base_id, ids in base_sessions.items()
+        if len(ids) > expected_sessions
+    )
+    if extra:
+        result["extra_sessions_participants"] = extra
+
+    return result
+
+
 class MultipleyeDataCollection:
     participant_data_path: Path | str | None
     crashed_session_ids: list[str] = []
@@ -760,6 +821,8 @@ class MultipleyeDataCollection:
             [session for session in self.sessions if self.sessions[session].is_pilot]
         )
 
+        session_completeness = _compute_session_completeness(self)
+
         metadata_form = self._load_metadata_form()
         metadata_form_exists = bool(metadata_form)
 
@@ -778,6 +841,7 @@ class MultipleyeDataCollection:
                 "number_of_sessions": num_sessions,
                 "number_of_pilots": num_pilots,
                 "number_of_et_sessions_per_participant": self.num_sessions,
+                "session_completeness": session_completeness,
                 "city": self.city,
                 "lab_number": self.lab_number,
                 "country": self.country,
@@ -844,6 +908,35 @@ class MultipleyeDataCollection:
                 "answer_option_shuffling_bug": metadata_form.get(
                     "Answer_option_shuffling_bug"
                 ),
+            },
+            "processing_config": {
+                "fixation_method": settings.FIXATION_METHOD,
+                "fixation_minimum_duration_ms": settings.FIXATION_MINIMUM_DURATION_MS,
+                "fixation_velocity_threshold": settings.FIXATION_VELOCITY_THRESHOLD,
+                "saccade_method": settings.SACCADE_METHOD,
+                "saccade_minimum_duration": settings.SACCADE_MINIMUM_DURATION,
+                "saccade_threshold_factor": settings.SACCADE_THRESHOLD_FACTOR,
+                "velocity_estimation_method": settings.VELOCITY_ESTIMATION_METHOD,
+                "velocity_smoothing_window_ms": settings.VELOCITY_SMOOTHING_WINDOW_MS,
+                "velocity_polynomial_degree": settings.VELOCITY_POLYNOMIAL_DEGREE,
+                "psym_wikivocab_min_rt": settings.PSYM_WIKIVOCAB_MIN_RT,
+                "psym_wikivocab_max_rt": settings.PSYM_WIKIVOCAB_MAX_RT,
+                "psym_stroop_min_rt": settings.PSYM_STROOP_MIN_RT,
+                "psym_stroop_max_rt": settings.PSYM_STROOP_MAX_RT,
+                "psym_flanker_min_rt": settings.PSYM_FLANKER_MIN_RT,
+                "psym_flanker_max_rt": settings.PSYM_FLANKER_MAX_RT,
+                "tracked_eye": settings.TRACKED_EYE,
+                "trial_cols": settings.TRIAL_COLS,
+                "trial_col": settings.TRIAL_COL,
+                "page_col": settings.PAGE_COL,
+                "stimulus_col": settings.STIMULUS_COL,
+                "word_idx_col": settings.WORD_IDX_COL,
+                "char_idx_col": settings.CHAR_IDX_COL,
+                "aoi_enlargement": "half_line_spacing",
+                "reading_measures_null_fill": 0,
+                "scanpath_drop_unmapped": True,
+                "data_loss_missingness_column": "pixel",
+                "per_trial_loss_weighting": "equal",
             },
             "data_quality": {
                 "attrition_rate": self._compute_attrition_rate(),
@@ -944,6 +1037,9 @@ class MultipleyeDataCollection:
                 "mean_blink_ratio": None,
                 "mean_total_reading_time_ms": None,
                 "mean_total_session_duration_s": None,
+                "mean_rt_per_stim_ms": None,
+                "mean_total_question_time_ms": None,
+                "mean_total_rating_time_ms": None,
                 "mean_wpm": None,
                 "mean_comprehension_score": None,
                 "mean_comprehension_score_local": None,
@@ -1012,6 +1108,9 @@ class MultipleyeDataCollection:
             "mean_validation_error_dva": (
                 round(sum(val_errors) / len(val_errors), 2) if val_errors else None
             ),
+            "mean_rt_per_stim_ms": _mean_of("mean_rt_per_stim_ms"),
+            "mean_total_question_time_ms": _mean_of("total_question_time_ms"),
+            "mean_total_rating_time_ms": _mean_of("total_rating_time_ms"),
             "mean_data_loss_ratio": (
                 round(sum(data_loss) / len(data_loss), 2) if data_loss else None
             ),
