@@ -1610,7 +1610,14 @@ class MultipleyeDataCollection:
         p_id = Sid(session_identifier).pid
         incomplete_order = []
         if p_id in self.crashed_session_ids:
-            incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
+            if session_identifier in self.sessions:
+                incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
+            elif session_identifier in self.skipped_sessions:
+                incomplete_order = self.skipped_sessions[session_identifier].completed_stimuli_ids
+            else:
+                raise KeyError(f"{session_identifier} not in sessions or skipped_sessions of {self.data_collection_name}.")
+
+
 
         # get the entry where the participant id matches
         stim_order_version = self.stim_order_versions[
