@@ -201,7 +201,7 @@ class MultipleyeDataCollection:
 
         self.add_recorded_sessions(self.data_root, self.session_folder_regex)
 
-        if len(self.sessions) == 0:
+        if len(self.sessions) == 0 and len(self.skipped_sessions) == 0:
             msg = f"No sessions found in {self.data_root}. "
             if self.included_sessions:
                 msg += (
