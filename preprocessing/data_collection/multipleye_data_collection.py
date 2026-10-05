@@ -1502,14 +1502,28 @@ class MultipleyeDataCollection:
 
         return completed_stimuli_ids, completed_stimulus_names, stimuli_trial_mapping
 
+
     def _load_session_stimulus_order(
         self, session_identifier, logfile_order_version: int
     ) -> list[int]:
-        # if the session crashed, only load the stimuli that were actually completed in that session
         p_id = Sid(session_identifier).pid
+
+        #Check whether an asc should be available for this session or not
+        if session_identifier in self.sessions:
+            asc_available = True
+        elif session_identifier in self.skipped_sessions:
+            asc_available = False
+        else:
+            raise KeyError(f"{session_identifier} not in sessions or skipped_sessions of {self.data_collection_name}.")
+
+        # if the session crashed, only load the stimuli that were actually completed in that session
         incomplete_order = []
         if p_id in self.crashed_session_ids:
-            incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
+            if asc_available:
+                incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
+            else:
+                incomplete_order = self.skipped_sessions[session_identifier].completed_stimuli_ids
+
 
         # get the entry where the participant id matches
         stim_order_version = self.stim_order_versions[
@@ -1517,127 +1531,38 @@ class MultipleyeDataCollection:
         ]
 
         if stim_order_version.empty:
+            #stimulus order couldn't be found from participant ID, use version number instead
             self.logger.warning(
                 f"Participant ID {p_id} not found in stimulus order versions. Please check the "
                 f"participant IDs in the stimulus order versions file. It is possible that the team did not "
-                f"upload the correct stimulus version from the experiment folder. Extracting version "
-                f"from asc file."
+                f"upload the correct stimulus version from the experiment folder. Extracting from asc or logfile."
             )
-            version = extract_stimulus_version_number_from_asc(
-                self.sessions[session_identifier].asc_path
-            )
-
-            version = int(version)
-
-            if version == logfile_order_version:
-                # Try to look up the stimulus order by version number instead
-                # of participant ID, since the PID wasn't found in the CSV.
-                stim_order_version = self.stim_order_versions[
-                    self.stim_order_versions["version_number"] == version
-                ]
-
-                if stim_order_version.empty:
+            if asc_available:
+                #If an ASC file is available, retrieve the stimulus order number from the asc file and compare to logfile
+                version = extract_stimulus_version_number_from_asc(
+                                self.sessions[session_identifier].asc_path
+                            )
+                version = int(version)
+                if version != logfile_order_version:
                     raise ValueError(
-                        f"Stimulus order version {version} extracted from the ASC file "
-                        f"cannot be found in the stimulus order versions CSV. "
-                        f"The team should upload the correct stimulus folder."
-                    )
-
-                self.logger.warning(
-                    "Using the stimulus order version from the ASC file. "
-                    "The team should still upload the correct stimulus folder!"
-                )
-
-            else:
-                self.logger.warning(
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
                     f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
                     f"Please check the files "
                     f"carefully."
-                )
-
-        if len(stim_order_version) == 1:
-            version = stim_order_version["version_number"].values[0]
-            if logfile_order_version != version:
-                self.logger.warning(
-                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                    f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the "
-                    f"version from the logfile."
-                )
-            stimulus_order = (
-                stim_order_version.drop(columns=["version_number", "participant_id"])
-                .values[0]
-                .tolist()
-            )
-
-            if incomplete_order:
-                stimulus_order_copy = stimulus_order.copy()
-                incom, comp = 0, 0
-                for _ in range(len(stimulus_order)):
-                    if len(incomplete_order) == incom:
-                        return incomplete_order
-
-                    if incomplete_order[incom] == stimulus_order_copy[comp]:
-                        incom += 1
-                        comp += 1
-                        continue
-
-                    if incomplete_order[incom] != stimulus_order_copy[comp]:
-                        stimulus_order_copy.pop(incom)
-
-                    if stimulus_order_copy == incomplete_order:
-                        return incomplete_order
-
-                    if len(stimulus_order_copy) < len(incomplete_order):
-                        raise ValueError(
-                            "Crashed session stimulus order is not a subset of the stimuli order which was "
-                            "supposed to be completed."
-                        )
-                return incomplete_order
-
-            return stimulus_order
-
-        else:
-            raise ValueError(
-                f"More than one or no entry found for participant ID {p_id} in stimulus order versions. "
-                f"Please add the used stimulus folder from the experiment. Or check the stimulus order versions file for missing IDs or duplicates."
-            )
-
-    def _load_session_stimulus_order_no_asc(
-        self, session_identifier, logfile_order_version: int
-    ) -> list[int]:
-        # if the session crashed, only load the stimuli that were actually completed in that session
-        p_id = Sid(session_identifier).pid
-        incomplete_order = []
-        if p_id in self.crashed_session_ids:
-            if session_identifier in self.sessions:
-                incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
-            elif session_identifier in self.skipped_sessions:
-                incomplete_order = self.skipped_sessions[session_identifier].completed_stimuli_ids
+                    )
             else:
-                raise KeyError(f"{session_identifier} not in sessions or skipped_sessions of {self.data_collection_name}.")
+                #For skipped sessions, no asc file is available so we depend on the version number from the logfile
+                version = logfile_order_version
 
-
-
-        # get the entry where the participant id matches
-        stim_order_version = self.stim_order_versions[
-            self.stim_order_versions["participant_id"] == int(p_id)
-        ]
-
-        if stim_order_version.empty:
-            self.logger.warning(
-                f"Participant ID {p_id} not found in stimulus order versions. Please check the "
-                f"participant IDs in the stimulus order versions file. It is possible that the team did not "
-                f"upload the correct stimulus version from the experiment folder."
-            )
 
             # Try to look up the stimulus order by version number instead
             # of participant ID, since the PID wasn't found in the CSV.
             stim_order_version = self.stim_order_versions[
-                self.stim_order_versions["version_number"] == logfile_order_version
+                self.stim_order_versions["version_number"] == version
             ]
 
             if stim_order_version.empty:
+                #Neither the pid nor the version number is available in the csv.
                 raise ValueError(
                     f"Stimulus order version {logfile_order_version} extracted from the logfile "
                     f"cannot be found in the stimulus order versions CSV. "
@@ -1645,17 +1570,18 @@ class MultipleyeDataCollection:
                 )
 
             self.logger.warning(
-                "Using the stimulus order version from the logfile. "
+                "Using the stimulus order version from the ASC or logfile. "
                 "The team should still upload the correct stimulus folder!"
             )
 
-        elif len(stim_order_version) == 1:
+        if len(stim_order_version) == 1:
+            #version number could be retrieved and is unique in csv. Retrieve completed stimuli
             version = stim_order_version["version_number"].values[0]
             if logfile_order_version != version:
+                #If pid found and unique in csv, but number doesn't match the logfile version number
                 self.logger.warning(
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                    f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the "
-                    f"version from the logfile."
+                    f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the number from the csv."
                 )
             stimulus_order = (
                 stim_order_version.drop(columns=["version_number", "participant_id"])
@@ -1664,6 +1590,7 @@ class MultipleyeDataCollection:
             )
 
             if incomplete_order:
+                #only collect completed stimuli for crashed sessions
                 stimulus_order_copy = stimulus_order.copy()
                 incom, comp = 0, 0
                 for _ in range(len(stimulus_order)):
