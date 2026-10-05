@@ -300,9 +300,14 @@ def _check_sessions(
         _check_single_session(session, skipped=True, errors=errors, warnings=warnings)
 
 
-def _check_single_session(session: Session, skipped: bool, errors: dict[str, list[str]], warnings: dict[str, list[str]]):
+def _check_single_session(
+    session: Session,
+    skipped: bool,
+    errors: dict[str, list[str]],
+    warnings: dict[str, list[str]],
+):
     sid = session.session_identifier
-    
+
     # 1. EDF data file
     if skipped:
         warnings.setdefault("EDF data file", []).append(sid)
@@ -367,7 +372,8 @@ def _check_single_session(session: Session, skipped: bool, errors: dict[str, lis
     if not _ci_exists(path):
         warnings.setdefault("Participant questionnaire", []).append(
             f"Participant questionnaire JSON missing for {sid!s}"
-            )
+        )
+
 
 def _check_parseable_csv(
     path: Path,
