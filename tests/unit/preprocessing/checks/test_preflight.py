@@ -34,6 +34,7 @@ class FakeDataCollection:
     city: str = "City"
     year: int = 2024
     sessions: dict[str, FakeSession] = field(default_factory=dict)
+    skipped_sessions: dict = field(default_factory=dict)
     num_sessions: int = 2
 
 
@@ -157,6 +158,7 @@ def preflight_env(tmp_path: Path):
         country="UK",
         lab_number=1,
         sessions={session_id: session},
+        skipped_sessions={},
     )
 
     return dc, session_id
@@ -522,6 +524,7 @@ def test_preflight_multiple_sessions(tmp_path: Path):
         city=city,
         year=year,
         sessions=sessions,
+        skipped_sessions={},
     )
 
     with pytest.raises(PreflightError) as exc_info:
@@ -612,6 +615,7 @@ def test_preflight_stimulus_dir_empty_with_archive(tmp_path: Path):
         country="UK",
         lab_number=1,
         sessions={sid: session},
+        skipped_sessions={},
     )
 
     with pytest.raises(PreflightError) as exc_info:
@@ -666,6 +670,7 @@ def _build_completeness_env(sids, num_sessions: int = 2):
         lab_number=1,
         sessions=sessions,
         num_sessions=num_sessions,
+        skipped_sessions={},
     )
 
 
@@ -828,6 +833,7 @@ def pt_env(tmp_path: Path, monkeypatch):
         country="UK",
         lab_number=1,
         sessions={},
+        skipped_sessions={},
     )
     return dc, pt_dir
 
@@ -953,6 +959,7 @@ def test_pt_check_no_folder(tmp_path: Path, monkeypatch):
         country="UK",
         lab_number=1,
         sessions={},
+        skipped_sessions={},
     )
     pt_warnings: list[str] = []
     _check_psychometric_tests(dc, pt_warnings)
@@ -997,6 +1004,7 @@ def test_pt_check_data_issues(
         country="UK",
         lab_number=1,
         sessions={},
+        skipped_sessions={},
     )
     pt_warnings: list[str] = []
     _check_psychometric_tests(dc, pt_warnings)
@@ -1108,6 +1116,7 @@ def test_pt_does_not_inflate_error_count(tmp_path: Path, monkeypatch):
         city=city,
         year=year,
         sessions={sid: session},
+        skipped_sessions={},
     )
 
     with pytest.raises(PreflightError) as exc_info:
