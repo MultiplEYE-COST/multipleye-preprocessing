@@ -54,7 +54,6 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
         f"  Preflight check \u2014 {n_total} warning(s)",
         f"{'=' * 56}",
     ]
-    print(warnings)
 
     shared_labels = [
         "Stimulus definition xlsx",
