@@ -223,7 +223,7 @@ class MultipleyeDataCollection:
             f"{self.language}_{self.country}_{self.lab_number}.csv"
         )
         stim_order_versions = pd.read_csv(stim_order_versions)
-        self.stim_order_versions = stim_order_versions]
+        self.stim_order_versions = stim_order_versions
 
         if self.stim_order_versions.empty:
             warnings.warn(
