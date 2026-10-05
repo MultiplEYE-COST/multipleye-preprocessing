@@ -124,7 +124,7 @@ def _compute_session_completeness(data_collection) -> dict:
 class MultipleyeDataCollection:
     participant_data_path: Path | str | None
     crashed_session_ids: list[str] = []
-    skipped_session_ids: list[str] = []
+    skipped_sessions: dict = {}
     num_sessions = 1
     overview = {}
 
@@ -158,7 +158,7 @@ class MultipleyeDataCollection:
         **kwargs,
     ):
         self.sessions: dict[str, Session] = {}
-        self.skipped_session_ids: list[str] = []
+        self.skipped_sessions: dict[str, Session] = {}
         # TODO: in theory this can be multiple languages for the stimuli..
         self.language = stimulus_language
         self.country = country
@@ -201,7 +201,7 @@ class MultipleyeDataCollection:
 
         self.add_recorded_sessions(self.data_root, self.session_folder_regex)
 
-        if len(self.sessions) == 0:
+        if len(self.sessions) == 0 and len(self.skipped_sessions) == 0:
             msg = f"No sessions found in {self.data_root}. "
             if self.included_sessions:
                 msg += (
@@ -223,9 +223,7 @@ class MultipleyeDataCollection:
             f"{self.language}_{self.country}_{self.lab_number}.csv"
         )
         stim_order_versions = pd.read_csv(stim_order_versions)
-        self.stim_order_versions = stim_order_versions[
-            stim_order_versions["participant_id"].notnull()
-        ]
+        self.stim_order_versions = stim_order_versions
 
         if self.stim_order_versions.empty:
             warnings.warn(
@@ -319,15 +317,23 @@ class MultipleyeDataCollection:
                             keep = item.name not in self.excluded_sessions
 
                         if keep:
+                            is_pilot = self.include_pilots and (item in pilots)
                             session_file = list(
                                 Path(item.path).glob("*" + session_file_suffix)
                             )
 
                             if len(session_file) == 0:
                                 self.logger.warning(
-                                    f"No EDF file found for {item.name}, skipping."
+                                    f"No EDF file found for {item.name}, only parsing comprehension answers."
                                 )
-                                self.skipped_session_ids.append(item.name)
+                                self.skipped_sessions[item.name] = Session(
+                                    participant_id=int(item.name.split("_")[0]),
+                                    session_identifier=item.name,
+                                    session_folder_path=Path(item.path),
+                                    session_file_path="unknown",
+                                    session_file_name="unknown",
+                                    is_pilot=is_pilot,
+                                )
                                 continue
 
                             elif len(session_file) > 1:
@@ -338,8 +344,6 @@ class MultipleyeDataCollection:
                                 )
                             else:
                                 session_file = session_file[0]
-
-                            is_pilot = self.include_pilots and (item in pilots)
 
                             # When a core and pilot session share the same identifier,
                             # keep the core one (added first) and skip the pilot duplicate.
@@ -427,6 +431,8 @@ class MultipleyeDataCollection:
                 "You can download the EyeLink Developers Kit from the SR Research support forum."
             )
 
+        # Create copy of sessions dict without unconvertable sessions
+        converted_sessions = {}
         for session_identifier, session in tqdm(
             self.sessions.items(), desc="Converting EDF to ASC"
         ):
@@ -442,6 +448,7 @@ class MultipleyeDataCollection:
                     f"ASC already exists in output folder for {session_identifier}. Skipping conversion."
                 )
                 session.asc_path = output_asc_path
+                converted_sessions[session_identifier] = session
                 continue
 
             # Run conversion if ASC doesn't exist in output folder or force is enabled
@@ -459,11 +466,14 @@ class MultipleyeDataCollection:
                 output_asc_folder.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(local_asc_path, output_asc_path)
                 session.asc_path = output_asc_path
+                converted_sessions[session_identifier] = session
             else:
                 self.logger.error(
-                    f"Failed to convert EDF to ASC for {session_identifier}"
+                    f"Failed to convert EDF to ASC for {session_identifier}. Only processing comprehension answers."
                 )
+                self.skipped_sessions[session_identifier] = session
 
+        self.sessions = converted_sessions
         self.logger.info("EDF to ASC conversion completed.")
 
     @staticmethod
@@ -1247,6 +1257,63 @@ class MultipleyeDataCollection:
                 session,
             )
 
+        for session in (
+            pbar := tqdm(self.skipped_sessions.keys(), total=len(self.skipped_sessions))
+        ):
+            pbar.set_description(f"Preparing session {session}")
+            try:
+                p_id = Sid(session).pid
+            except (ValueError, TypeError):
+                p_id = session.split("_")[0] if "_" in session else session
+
+            if "start_after_trial" in session and p_id not in self.crashed_session_ids:
+                self.crashed_session_ids.append(p_id)
+                self.logger.warning(
+                    f"Session {session} started after a trial. Only the completed stimuli will be considered."
+                )
+
+            (
+                self.skipped_sessions[session].completed_stimuli_ids,
+                self.skipped_sessions[session].completed_stimuli_names,
+                self.skipped_sessions[session].stimuli_trial_mapping,
+            ) = self._load_session_completed_stimuli(session)
+            self.skipped_sessions[session].logfile = self._load_session_logfile(session)
+            self.skipped_sessions[
+                session
+            ].randomization_version = self._load_stimulus_order_version_from_logfile(
+                session
+            )
+            self.skipped_sessions[
+                session
+            ].stimulus_order_ids = self._load_session_stimulus_order(
+                session, self.skipped_sessions[session].randomization_version
+            )
+
+            # TODO: lab config should be changeable for each session
+            self.skipped_sessions[session].lab_config = self.lab_configuration
+
+            if (
+                self.skipped_sessions[session].stimulus_order_ids
+                != self.skipped_sessions[session].completed_stimuli_ids
+            ) and p_id not in self.crashed_session_ids:
+                msg = (
+                    f"Stimulus order and completed stimuli do not match for "
+                    f"session {session}. Please check the files carefully."
+                )
+                self.logger.warning(msg)
+                if not hasattr(logging, "_captured_warnings"):
+                    logging._captured_warnings = []  # type: ignore
+                logging._captured_warnings.append(msg)  # type: ignore
+
+            self.skipped_sessions[session].stimuli = self._load_session_stimuli(
+                self.stimulus_dir,
+                self.language,
+                self.country,
+                self.lab_number,
+                self.skipped_sessions[session].randomization_version,
+                session,
+            )
+
     def _load_session_stimuli(
         self,
         stimulus_dir: Path,
@@ -1269,16 +1336,21 @@ class MultipleyeDataCollection:
         :param lab_num: The lab number.
 
         """
+        if session_identifier in self.sessions:
+            session = self.sessions[session_identifier]
+        else:
+            session = self.skipped_sessions[session_identifier]
+
         stimuli = []
         if stimulus_names is None:
             stimulus_names = [
                 name
                 for name, num in settings.STIMULUS_NAME_MAPPING.items()
-                if num in self.sessions[session_identifier].completed_stimuli_ids
+                if num in session.completed_stimuli_ids
             ]
 
         for stimulus_name in stimulus_names:
-            trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
+            trial_mapping = session.stimuli_trial_mapping
             # get the trial id from the mapping, keys are ids and values are strings
             trial_id = [
                 key for key, value in trial_mapping.items() if value == stimulus_name
@@ -1308,7 +1380,11 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier.
         :return: The question order version to correctly map participant, stimulus and question order versions.
         """
-        session_path = self.sessions[session_identifier].session_folder_path
+        if session_identifier in self.sessions:
+            session_path = self.sessions[session_identifier].session_folder_path
+        else:
+            session_path = self.skipped_sessions[session_identifier].session_folder_path
+
         logfile_path = Path(f"{session_path}/logfiles")
         general_logfile = logfile_path.glob("GENERAL_LOGFILE_*.txt")
         general_logfile = next(general_logfile)
@@ -1337,7 +1413,10 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier.
         """
 
-        session_path = self.sessions[session_identifier].session_folder_path
+        if session_identifier in self.sessions:
+            session_path = self.sessions[session_identifier].session_folder_path
+        else:
+            session_path = self.skipped_sessions[session_identifier].session_folder_path
         logfile_folder = Path(f"{session_path}/logfiles")
 
         assert logfile_folder.exists(), (
@@ -1365,7 +1444,11 @@ class MultipleyeDataCollection:
     def _load_session_completed_stimuli(
         self, session_identifier
     ) -> tuple[list, list, dict]:
-        session_path = self.sessions[session_identifier].session_folder_path
+        if session_identifier in self.sessions:
+            session_path = self.sessions[session_identifier].session_folder_path
+        else:
+            session_path = self.skipped_sessions[session_identifier].session_folder_path
+
         logfile_folder = Path(f"{session_path}/logfiles")
         completed_stim_path = logfile_folder / "completed_stimuli.csv"
 
@@ -1420,11 +1503,29 @@ class MultipleyeDataCollection:
     def _load_session_stimulus_order(
         self, session_identifier, logfile_order_version: int
     ) -> list[int]:
-        # if the session crashed, only load the stimuli that were actually completed in that session
         p_id = Sid(session_identifier).pid
+
+        # Check whether an asc should be available for this session or not
+        if session_identifier in self.sessions:
+            asc_available = True
+        elif session_identifier in self.skipped_sessions:
+            asc_available = False
+        else:
+            raise KeyError(
+                f"{session_identifier} not in sessions or skipped_sessions of {self.data_collection_name}."
+            )
+
+        # if the session crashed, only load the stimuli that were actually completed in that session
         incomplete_order = []
         if p_id in self.crashed_session_ids:
-            incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
+            if asc_available:
+                incomplete_order = self.sessions[
+                    session_identifier
+                ].completed_stimuli_ids
+            else:
+                incomplete_order = self.skipped_sessions[
+                    session_identifier
+                ].completed_stimuli_ids
 
         # get the entry where the participant id matches
         stim_order_version = self.stim_order_versions[
@@ -1432,52 +1533,56 @@ class MultipleyeDataCollection:
         ]
 
         if stim_order_version.empty:
+            # stimulus order couldn't be found from participant ID, use version number instead
             self.logger.warning(
                 f"Participant ID {p_id} not found in stimulus order versions. Please check the "
                 f"participant IDs in the stimulus order versions file. It is possible that the team did not "
-                f"upload the correct stimulus version from the experiment folder. Extracting version "
-                f"from asc file."
+                f"upload the correct stimulus version from the experiment folder. Extracting from asc or logfile."
             )
-            version = extract_stimulus_version_number_from_asc(
-                self.sessions[session_identifier].asc_path
-            )
-
-            version = int(version)
-
-            if version == logfile_order_version:
-                # Try to look up the stimulus order by version number instead
-                # of participant ID, since the PID wasn't found in the CSV.
-                stim_order_version = self.stim_order_versions[
-                    self.stim_order_versions["version_number"] == version
-                ]
-
-                if stim_order_version.empty:
+            if asc_available:
+                # If an ASC file is available, retrieve the stimulus order number from the asc file and compare to logfile
+                version = extract_stimulus_version_number_from_asc(
+                    self.sessions[session_identifier].asc_path
+                )
+                version = int(version)
+                if version != logfile_order_version:
                     raise ValueError(
-                        f"Stimulus order version {version} extracted from the ASC file "
-                        f"cannot be found in the stimulus order versions CSV. "
-                        f"The team should upload the correct stimulus folder."
+                        f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                        f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
+                        f"Please check the files "
+                        f"carefully."
                     )
-
-                self.logger.warning(
-                    "Using the stimulus order version from the ASC file. "
-                    "The team should still upload the correct stimulus folder!"
-                )
-
             else:
-                self.logger.warning(
-                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                    f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
-                    f"Please check the files "
-                    f"carefully."
+                # For skipped sessions, no asc file is available so we depend on the version number from the logfile
+                version = logfile_order_version
+
+            # Try to look up the stimulus order by version number instead
+            # of participant ID, since the PID wasn't found in the CSV.
+            stim_order_version = self.stim_order_versions[
+                self.stim_order_versions["version_number"] == version
+            ]
+
+            if stim_order_version.empty:
+                # Neither the pid nor the version number is available in the csv.
+                raise ValueError(
+                    f"Stimulus order version {logfile_order_version} extracted from the logfile "
+                    f"cannot be found in the stimulus order versions CSV. "
+                    f"The team should upload the correct stimulus folder."
                 )
+
+            self.logger.warning(
+                "Using the stimulus order version from the ASC or logfile. "
+                "The team should still upload the correct stimulus folder!"
+            )
 
         if len(stim_order_version) == 1:
+            # version number could be retrieved and is unique in csv. Retrieve completed stimuli
             version = stim_order_version["version_number"].values[0]
             if logfile_order_version != version:
+                # If pid found and unique in csv, but number doesn't match the logfile version number
                 self.logger.warning(
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                    f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the "
-                    f"version from the logfile."
+                    f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the number from the csv."
                 )
             stimulus_order = (
                 stim_order_version.drop(columns=["version_number", "participant_id"])
@@ -1486,6 +1591,7 @@ class MultipleyeDataCollection:
             )
 
             if incomplete_order:
+                # only collect completed stimuli for crashed sessions
                 stimulus_order_copy = stimulus_order.copy()
                 incom, comp = 0, 0
                 for _ in range(len(stimulus_order)):

@@ -13,6 +13,7 @@ from pathlib import Path
 
 import polars as pl
 
+from ..data_collection.session import Session
 from ..models.sid import Sid
 from ..utils.data_path_utils import _ci_exists, _ci_glob, _ci_resolve
 from ..utils.logging import get_logger
@@ -53,7 +54,6 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
         f"  Preflight check \u2014 {n_total} warning(s)",
         f"{'=' * 56}",
     ]
-    print(warnings)
 
     shared_labels = [
         "Stimulus definition xlsx",
@@ -73,7 +73,11 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
     for label in list(warnings.keys()):
         if label.startswith("Image folder:"):
             for path in warnings[label]:
-                lines.append(f"\n  {label} not found:\n      {os.path.relpath(path)}")
+                lines.append(f"  {label} not found:\n      {os.path.relpath(path)}")
+
+        if label == "EDF data file":
+            for sid in warnings[label]:
+                lines.append(f"\n {label} not found in {sid}")
 
     if "Psychometric tests" in warnings:
         for msg in warnings["Psychometric tests"]:
@@ -87,6 +91,7 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
         for msg in warnings["Participant questionnaire"]:
             lines.append(f"\n  {msg}")
 
+    lines.append(f"{'=' * 56}")
     print("\n".join(lines), file=sys.stderr)
 
 
@@ -109,7 +114,6 @@ def run_preflight_check(data_collection) -> None:
     warnings: dict[str, list[str]] = {}
 
     _check_shared_files(data_collection, errors, warnings)
-    _check_skipped_sessions(data_collection, errors)
     _check_sessions(data_collection, errors, warnings)
     _check_stimulus_order_coverage(data_collection, errors)
     _check_session_completeness(data_collection, warnings)
@@ -285,82 +289,90 @@ def _check_shared_files(
     )
 
 
-def _check_skipped_sessions(data_collection, groups: dict[str, list[str]]) -> None:
-    """Record sessions that were skipped during discovery (missing EDF)."""
-    skipped: list[str] = getattr(data_collection, "skipped_session_ids", [])
-    if skipped:
-        groups["EDF data file"] = sorted(skipped)
-
-
 def _check_sessions(
     data_collection, errors: dict[str, list[str]], warnings: dict[str, list[str]]
 ) -> None:
     """Run per-session input file checks."""
     for session in data_collection.sessions.values():
-        sid = session.session_identifier
+        _check_single_session(session, skipped=False, errors=errors, warnings=warnings)
 
-        # 1. EDF data file
+    for session in data_collection.skipped_sessions.values():
+        _check_single_session(session, skipped=True, errors=errors, warnings=warnings)
+
+
+def _check_single_session(
+    session: Session,
+    skipped: bool,
+    errors: dict[str, list[str]],
+    warnings: dict[str, list[str]],
+):
+    sid = session.session_identifier
+
+    # 1. EDF data file
+    if skipped:
+        warnings.setdefault("EDF data file", []).append(sid)
+    else:
         if not _ci_exists(session.session_file_path):
             errors.setdefault("EDF data file", []).append(sid)
 
-        # 2. Logfiles folder
-        logfiles: Path = session.session_folder_path / "logfiles"
-        if not _ci_exists(logfiles):
-            errors.setdefault("Logfiles folder", []).append(sid)
-            continue
+    # 2. Logfiles folder
+    logfiles: Path = session.session_folder_path / "logfiles"
+    if not _ci_exists(logfiles):
+        errors.setdefault("Logfiles folder", []).append(sid)
+        return
 
-        # 3. EXPERIMENT_*.txt
-        experiment_logs = _ci_glob(logfiles, "EXPERIMENT_*.txt")
-        if len(experiment_logs) == 0:
-            errors.setdefault("EXPERIMENT_*.txt", []).append(sid)
-        elif len(experiment_logs) > 1:
-            errors.setdefault("Multiple EXPERIMENT_*.txt logfiles", []).append(
-                f"{sid} ({len(experiment_logs)} files)"
-            )
-
-        # 4. DATA_LOGFILE_*.txt
-        data_logs = _ci_glob(logfiles, "DATA_LOGFILE_*.txt")
-        if len(data_logs) == 0:
-            errors.setdefault("DATA_LOGFILE_*.txt", []).append(sid)
-        elif len(data_logs) > 1:
-            errors.setdefault("Multiple DATA_LOGFILE_*.txt logfiles", []).append(
-                f"{sid} ({len(data_logs)} files)"
-            )
-
-        # 5. GENERAL_LOGFILE_*.txt
-        general_logs = _ci_glob(logfiles, "GENERAL_LOGFILE_*.txt")
-        if len(general_logs) == 0:
-            errors.setdefault("GENERAL_LOGFILE_*.txt", []).append(sid)
-        elif len(general_logs) > 1:
-            errors.setdefault("Multiple GENERAL_LOGFILE_*.txt logfiles", []).append(
-                f"{sid} ({len(general_logs)} files)"
-            )
-
-        # 6. completed_stimuli.csv
-        _check_parseable_csv(
-            logfiles / "completed_stimuli.csv",
-            "completed_stimuli.csv",
-            errors,
-            sid,
-            COMPLETED_STIMULI_COLS,
+    # 3. EXPERIMENT_*.txt
+    experiment_logs = _ci_glob(logfiles, "EXPERIMENT_*.txt")
+    if len(experiment_logs) == 0:
+        errors.setdefault("EXPERIMENT_*.txt", []).append(sid)
+    elif len(experiment_logs) > 1:
+        errors.setdefault("Multiple EXPERIMENT_*.txt logfiles", []).append(
+            f"{sid} ({len(experiment_logs)} files)"
         )
 
-        # 7. question_order_versions.csv
-        _check_parseable_csv(
-            logfiles / "question_order_versions.csv",
-            "question_order_versions.csv",
-            errors,
-            sid,
-            QUESTION_ORDER_COLS,
+    # 4. DATA_LOGFILE_*.txt
+    data_logs = _ci_glob(logfiles, "DATA_LOGFILE_*.txt")
+    if len(data_logs) == 0:
+        errors.setdefault("DATA_LOGFILE_*.txt", []).append(sid)
+    elif len(data_logs) > 1:
+        errors.setdefault("Multiple DATA_LOGFILE_*.txt logfiles", []).append(
+            f"{sid} ({len(data_logs)} files)"
         )
 
-        # 8. participant questionnaire file
-        sid = Sid(sid)
-        path = session.session_folder_path / f"{sid.base_id}_pq_data.json"
-        if not _ci_exists(path):
-            warnings.setdefault("Participant questionnaire", []).append(
-                f"Participant questionnaire JSON missing for {sid!s}"
-            )
+    # 5. GENERAL_LOGFILE_*.txt
+    general_logs = _ci_glob(logfiles, "GENERAL_LOGFILE_*.txt")
+    if len(general_logs) == 0:
+        errors.setdefault("GENERAL_LOGFILE_*.txt", []).append(sid)
+    elif len(general_logs) > 1:
+        errors.setdefault("Multiple GENERAL_LOGFILE_*.txt logfiles", []).append(
+            f"{sid} ({len(general_logs)} files)"
+        )
+
+    # 6. completed_stimuli.csv
+    _check_parseable_csv(
+        logfiles / "completed_stimuli.csv",
+        "completed_stimuli.csv",
+        errors,
+        sid,
+        COMPLETED_STIMULI_COLS,
+    )
+
+    # 7. question_order_versions.csv
+    _check_parseable_csv(
+        logfiles / "question_order_versions.csv",
+        "question_order_versions.csv",
+        errors,
+        sid,
+        QUESTION_ORDER_COLS,
+    )
+
+    # 8. participant questionnaire file
+    sid = Sid(sid)
+    path = session.session_folder_path / f"{sid.base_id}_pq_data.json"
+    if not _ci_exists(path):
+        warnings.setdefault("Participant questionnaire", []).append(
+            f"Participant questionnaire JSON missing for {sid!s}"
+        )
 
 
 def _check_parseable_csv(
