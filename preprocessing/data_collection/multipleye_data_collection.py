@@ -332,8 +332,8 @@ class MultipleyeDataCollection:
                                     participant_id=int(item.name.split("_")[0]),
                                     session_identifier=item.name,
                                     session_folder_path=Path(item.path),
-                                    session_file_path="unkown",
-                                    session_file_name="unkown",
+                                    session_file_path="unknown",
+                                    session_file_name="unknown",
                                     is_pilot=is_pilot,
                                 )
                                 continue
@@ -1260,7 +1260,7 @@ class MultipleyeDataCollection:
             )
 
         for session in (
-            pbar := tqdm(self.skipped_sessions.keys(), total=len(self.sessions))
+            pbar := tqdm(self.skipped_sessions.keys(), total=len(self.skipped_sessions))
         ):
             pbar.set_description(f"Preparing session {session}")
             try:
