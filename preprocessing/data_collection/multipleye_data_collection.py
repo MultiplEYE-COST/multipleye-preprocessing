@@ -1287,7 +1287,7 @@ class MultipleyeDataCollection:
             )
             self.skipped_sessions[
                 session
-            ].stimulus_order_ids = self._load_session_stimulus_order_no_asc(
+            ].stimulus_order_ids = self._load_session_stimulus_order(
                 session, self.skipped_sessions[session].randomization_version
             )
 
@@ -1502,28 +1502,32 @@ class MultipleyeDataCollection:
 
         return completed_stimuli_ids, completed_stimulus_names, stimuli_trial_mapping
 
-
     def _load_session_stimulus_order(
         self, session_identifier, logfile_order_version: int
     ) -> list[int]:
         p_id = Sid(session_identifier).pid
 
-        #Check whether an asc should be available for this session or not
+        # Check whether an asc should be available for this session or not
         if session_identifier in self.sessions:
             asc_available = True
         elif session_identifier in self.skipped_sessions:
             asc_available = False
         else:
-            raise KeyError(f"{session_identifier} not in sessions or skipped_sessions of {self.data_collection_name}.")
+            raise KeyError(
+                f"{session_identifier} not in sessions or skipped_sessions of {self.data_collection_name}."
+            )
 
         # if the session crashed, only load the stimuli that were actually completed in that session
         incomplete_order = []
         if p_id in self.crashed_session_ids:
             if asc_available:
-                incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
+                incomplete_order = self.sessions[
+                    session_identifier
+                ].completed_stimuli_ids
             else:
-                incomplete_order = self.skipped_sessions[session_identifier].completed_stimuli_ids
-
+                incomplete_order = self.skipped_sessions[
+                    session_identifier
+                ].completed_stimuli_ids
 
         # get the entry where the participant id matches
         stim_order_version = self.stim_order_versions[
@@ -1531,29 +1535,28 @@ class MultipleyeDataCollection:
         ]
 
         if stim_order_version.empty:
-            #stimulus order couldn't be found from participant ID, use version number instead
+            # stimulus order couldn't be found from participant ID, use version number instead
             self.logger.warning(
                 f"Participant ID {p_id} not found in stimulus order versions. Please check the "
                 f"participant IDs in the stimulus order versions file. It is possible that the team did not "
                 f"upload the correct stimulus version from the experiment folder. Extracting from asc or logfile."
             )
             if asc_available:
-                #If an ASC file is available, retrieve the stimulus order number from the asc file and compare to logfile
+                # If an ASC file is available, retrieve the stimulus order number from the asc file and compare to logfile
                 version = extract_stimulus_version_number_from_asc(
-                                self.sessions[session_identifier].asc_path
-                            )
+                    self.sessions[session_identifier].asc_path
+                )
                 version = int(version)
                 if version != logfile_order_version:
                     raise ValueError(
-                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                    f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
-                    f"Please check the files "
-                    f"carefully."
+                        f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                        f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
+                        f"Please check the files "
+                        f"carefully."
                     )
             else:
-                #For skipped sessions, no asc file is available so we depend on the version number from the logfile
+                # For skipped sessions, no asc file is available so we depend on the version number from the logfile
                 version = logfile_order_version
-
 
             # Try to look up the stimulus order by version number instead
             # of participant ID, since the PID wasn't found in the CSV.
@@ -1562,7 +1565,7 @@ class MultipleyeDataCollection:
             ]
 
             if stim_order_version.empty:
-                #Neither the pid nor the version number is available in the csv.
+                # Neither the pid nor the version number is available in the csv.
                 raise ValueError(
                     f"Stimulus order version {logfile_order_version} extracted from the logfile "
                     f"cannot be found in the stimulus order versions CSV. "
@@ -1575,10 +1578,10 @@ class MultipleyeDataCollection:
             )
 
         if len(stim_order_version) == 1:
-            #version number could be retrieved and is unique in csv. Retrieve completed stimuli
+            # version number could be retrieved and is unique in csv. Retrieve completed stimuli
             version = stim_order_version["version_number"].values[0]
             if logfile_order_version != version:
-                #If pid found and unique in csv, but number doesn't match the logfile version number
+                # If pid found and unique in csv, but number doesn't match the logfile version number
                 self.logger.warning(
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
                     f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the number from the csv."
@@ -1590,7 +1593,7 @@ class MultipleyeDataCollection:
             )
 
             if incomplete_order:
-                #only collect completed stimuli for crashed sessions
+                # only collect completed stimuli for crashed sessions
                 stimulus_order_copy = stimulus_order.copy()
                 incom, comp = 0, 0
                 for _ in range(len(stimulus_order)):
