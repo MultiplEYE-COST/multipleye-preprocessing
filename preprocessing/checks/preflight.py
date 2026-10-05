@@ -297,8 +297,6 @@ def _check_skipped_sessions(data_collection, groups: dict[str, list[str]]) -> No
     if skipped:
         groups["EDF data file"] = sorted(skipped)
 
-    print(groups)
-
 
 def _check_sessions(
     data_collection, errors: dict[str, list[str]], warnings: dict[str, list[str]]
