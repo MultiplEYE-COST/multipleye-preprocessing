@@ -128,7 +128,7 @@ def load_gaze_data(
         asc_file,
         patterns=settings.GAZE_PATTERNS,
         trial_columns=trial_cols,
-        add_columns={"session": str(sid)},
+        metadata={"session": str(sid)},
         experiment=experiment,
         messages=messages,
         events=True,
