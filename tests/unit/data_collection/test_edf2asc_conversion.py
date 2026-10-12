@@ -129,7 +129,7 @@ def test_convert_edf_to_asc_conversion_failure(data_collection, mock_session):
             data_collection.convert_edf_to_asc()
 
             data_collection.logger.error.assert_called_once_with(
-                "Failed to convert EDF to ASC for S001"
+                "Failed to convert EDF to ASC for S001. Only processing comprehension answers."
             )
             mock_copy.assert_not_called()
 

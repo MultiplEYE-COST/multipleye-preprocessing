@@ -94,7 +94,7 @@ with the maximum attainable score in the current version.
 - `LWMC_MU_score`: Memory Update task score
 - `LWMC_OS_score`: Operation Span task score
 - `LWMC_OS_processingTask_score`: Equation accuracy for Operation Span
-- `LWMC_SS_score`: Sentence Span task score
+- `LWMC_SentS_score`: Sentence Span task score
 - `LWMC_SentS_processingTask_score`: Sentence truth-value accuracy for Sentence Span
 - `LWMC_SSTM_score`: Spatial Short-Term Memory task score
 - `LWMC_Total_score_mean`: Average score across all four tasks
@@ -106,7 +106,7 @@ participant engagement.*
 
 - `LWMC_MU_time_sec`: Mean response time for Memory Update
 - `LWMC_OS_time_sec`: Mean response time for Operation Span
-- `LWMC_SS_time_sec`: Mean response time for Sentence Span
+- `LWMC_SentS_time_sec`: Mean response time for Sentence Span
 
 (rapid_automatized_naming_test)=
 
