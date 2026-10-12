@@ -14,7 +14,7 @@ dependencies = [
     "numpy>=1.26.4",
     "pandas>=2.2.2",
     "pillow==12.2.0",
-    "polars>=1.28.1",
+    "polars>=2.0.0",
     "pymovements>=0.28.0",
     "tqdm>=4.66.4",
     "openpyxl>=3.0.0",
