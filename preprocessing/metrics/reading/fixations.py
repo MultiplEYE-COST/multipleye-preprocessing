@@ -27,7 +27,7 @@ def annotate_fixations(
             (pl.col("name") == settings.FIXATION)
             & (pl.col(settings.WORD_IDX_COL).is_not_null())
         )
-        .with_row_count("fixation_id")
+        .with_row_index("fixation_id")
         .sort(group_columns + ["onset"])
     )
 
