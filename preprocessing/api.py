@@ -4,6 +4,7 @@ from .answers.collect import collect_session_answers
 from .answers.experiment_log_parser import parse_answers_from_logfile
 from .answers.msg_parser import parse_answers_from_messages
 from .checks.preflight import run_preflight_check
+from .events.correction import correct_fixations
 from .events.detect import detect_fixations, detect_saccades
 from .events.properties import compute_event_properties
 from .io.load import (
@@ -31,6 +32,7 @@ __all__ = [
     "calculate_reading_measures",
     "collect_session_answers",
     "compute_event_properties",  # needed in API? - not directly used in the preprocessing pipeline
+    "correct_fixations",
     "detect_fixations",
     "detect_saccades",
     "fix_psychometric_tests_structure",

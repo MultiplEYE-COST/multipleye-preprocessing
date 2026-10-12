@@ -89,6 +89,24 @@ values are used are recorded in the dataset overview `processing_config` section
 - `VELOCITY_SMOOTHING_WINDOW_MS`: velocity window length in milliseconds (default: `50`).
 - `VELOCITY_POLYNOMIAL_DEGREE`: Savitzky-Golay polynomial degree (default: `2`).
 
+### Fixation Correction Settings
+
+These control the vertical drift correction of fixation locations. The defaults match the
+published MultiplEYE pipeline; **only change them if you are a core developer**. Whatever
+values are used are recorded in the dataset overview `processing_config` section.
+
+- `RUN_FIXATION_CORRECTION`: whether to correct fixation locations for line drift
+  (default: `true`). When enabled, AOI enlargement is disabled and all downstream outputs
+  (scanpaths, reading measures, sanity plots) use the corrected fixations. A raw copy is
+  kept in the `fixations_uncorrected` output folder.
+- `FIXATION_CORRECTION_ALGORITHM`: drift correction algorithm passed to pymovements. Either
+  a single algorithm (`attach`, `chain`, `cluster`, `compare`, `merge`, `regress`, `segment`,
+  `slice`, `split`, `stretch`, `warp`) or `wisdom_of_the_crowd` (alias `woc`), the ensemble
+  default that combines all algorithms via majority voting.
+- `FIXATION_CORRECTION_KWARGS`: additional tuning parameters for the drift algorithms, e.g.
+  `{"x_thresh": 250.0}`. An entry is routed only to algorithms whose signature accepts it,
+  but it fans out to all of them, so use with care.
+
 ### Quality Check Thresholds
 
 These settings define the criteria for "GOOD" data quality. **Do not change these** unless you are a

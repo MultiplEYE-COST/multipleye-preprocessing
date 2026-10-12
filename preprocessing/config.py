@@ -483,6 +483,10 @@ class Settings:
         #: Subfolder name for fixation data.
         self.FIXATIONS_FOLDER = Path("fixations/")
 
+        #: Subfolder name for the uncorrected copy of fixation data (written when fixation
+        #: correction is active, so the raw detected fixations remain available).
+        self.FIXATIONS_UNCORRECTED_FOLDER = Path("fixations_uncorrected/")
+
         #: Subfolder name for saccade data.
         self.SACCADES_FOLDER = Path("saccades/")
 
@@ -541,6 +545,8 @@ class Settings:
         self.RUN_PREFLIGHT_CHECK = True
         #: Whether to perform fixation detection.
         self.RUN_FIXATION_DETECTION = True
+        #: Whether to correct fixation locations for line drift.
+        self.RUN_FIXATION_CORRECTION = True
         #: Whether to perform saccade detection.
         self.RUN_SACCADE_DETECTION = True
         #: Whether to perform reading measures calculation.
@@ -675,6 +681,20 @@ class Settings:
 
         #: Polynomial degree used in the Savitzky-Golay velocity filter.
         self.VELOCITY_POLYNOMIAL_DEGREE = 2
+
+        # --- FIXATION CORRECTION ---
+
+        #: Drift correction algorithm (or list of algorithms) passed to
+        #: ``pymovements.events.correction``. ``"wisdom_of_the_crowd"`` (alias ``"woc"``)
+        #: combines all algorithms via majority voting. Single algorithms are "attach",
+        #: "chain", "cluster", "compare", "merge", "regress", "segment", "slice", "split",
+        #: "stretch" and "warp".
+        self.FIXATION_CORRECTION_ALGORITHM = "wisdom_of_the_crowd"
+
+        #: Additional tuning parameters passed to the drift correction algorithms, e.g.
+        #: ``{"x_thresh": 250.0}``. In ensemble mode an entry is routed only to the candidate
+        #: algorithms whose signature accepts it, but it fans out to all of them.
+        self.FIXATION_CORRECTION_KWARGS = {}
 
         # --- PSYCHOMETRIC TEST THRESHOLDS ---
 

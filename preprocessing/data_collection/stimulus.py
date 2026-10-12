@@ -11,7 +11,7 @@ import pymovements as pm
 from pymovements.stimulus import TextStimulus
 
 from ..config import settings
-from ..mapping.aoi import enlarge_aois
+from ..mapping.aoi import enlarge_aois as _enlarge_aois
 from ..utils.data_path_utils import (
     _ci_resolve,
     find_metadata_form,
@@ -119,6 +119,7 @@ class Stimulus:
         stimulus_name: str,
         question_version: int,
         trial: str,
+        enlarge_aois: bool = True,
     ) -> "Stimulus":
         # assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
         stimulus_df_path = _ci_resolve(
@@ -177,7 +178,8 @@ class Stimulus:
         )
 
         aois_df = pl.read_csv(aoi_path)
-        aois_df = enlarge_aois(aois_df)
+        if enlarge_aois:
+            aois_df = _enlarge_aois(aois_df)
 
         text_stimulus = TextStimulus(
             aois_df,

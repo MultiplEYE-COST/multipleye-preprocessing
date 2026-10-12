@@ -587,6 +587,7 @@ class MultipleyeDataCollection:
         self.include_pilots = kwargs.get("include_pilots", False)
         self.output_dir = kwargs.get("output_dir", "")
         self.pilot_folder = kwargs.get("pilot_folder", "")
+        self.enlarge_aois = kwargs.get("enlarge_aois", True)
         self.reports_folder = "reports"
 
         canonical_eye_tracker = normalize_eye_tracker_name(eye_tracker)
@@ -1053,6 +1054,7 @@ class MultipleyeDataCollection:
         excluded_sessions: list[str] | None = None,
         included_sessions: list[str] | None = None,
         output_dir: Path | None = None,
+        enlarge_aois: bool = True,
     ) -> "MultipleyeDataCollection":
         """
         :param data_dir: str  path to the data folder
@@ -1063,6 +1065,10 @@ class MultipleyeDataCollection:
         :param include_pilots: If True, the pilot sessions are included in the data collection.
         :param excluded_sessions: If not None, the sessions excluded from the data collection.
         :param included_sessions: If not None, the sessions included in the data collection.
+        :param output_dir: The output directory for the preprocessed data.
+        :param enlarge_aois: If True, the character AOIs are vertically enlarged to half the
+        line spacing. Set to False when fixation correction is active, since corrected
+        fixations already land on the AOIs.
         :return:
         MultipleyeDataCollection object
         """
@@ -1175,6 +1181,7 @@ class MultipleyeDataCollection:
             excluded_sessions=excluded_sessions,
             output_dir=output_dir,
             pid_stimulus_dirs=pid_stimulus_dirs,
+            enlarge_aois=enlarge_aois,
         )
 
     @classmethod
@@ -1671,7 +1678,10 @@ class MultipleyeDataCollection:
                 "stimulus_col": settings.STIMULUS_COL,
                 "word_idx_col": settings.WORD_IDX_COL,
                 "char_idx_col": settings.CHAR_IDX_COL,
-                "aoi_enlargement": "half_line_spacing",
+                "fixation_correction": settings.RUN_FIXATION_CORRECTION,
+                "fixation_correction_algorithm": settings.FIXATION_CORRECTION_ALGORITHM,
+                "fixation_correction_kwargs": settings.FIXATION_CORRECTION_KWARGS,
+                "aoi_enlargement": "half_line_spacing" if self.enlarge_aois else "none",
                 "reading_measures_null_fill": 0,
                 "scanpath_drop_unmapped": True,
                 "data_loss_missingness_column": "pixel",
@@ -2399,6 +2409,7 @@ class MultipleyeDataCollection:
                 stimulus_name,
                 stimulus_order_version,
                 trial_id[0],
+                enlarge_aois=self.enlarge_aois,
             )
             stimuli.append(stimulus)
 
