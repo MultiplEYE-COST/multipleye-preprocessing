@@ -185,13 +185,15 @@ def test_event_without_samples_gets_null_properties():
     gaze.detect("ivt", minimum_duration=100, velocity_threshold=20.0)
     n_with_samples = gaze.events.frame.height
 
+    # Event times are integer milliseconds in polars 2.0.
+    threshold = 50_000_000
     extra_event = pl.DataFrame(
         {
             "trial": ["trial_00"],
             "name": ["fixation"],
-            "onset": [dt.timedelta(milliseconds=100_000_000)],
-            "offset": [dt.timedelta(milliseconds=100_000_200)],
-            "duration": [dt.timedelta(milliseconds=200)],
+            "onset": [100_000_000],
+            "offset": [100_000_200],
+            "duration": [200],
         },
         schema=gaze.events.frame.schema,
     )
@@ -202,17 +204,15 @@ def test_event_without_samples_gets_null_properties():
     events = gaze.events.frame
     assert events.height == n_with_samples + 1
 
-    sample_less = events.filter(pl.col("onset") > dt.timedelta(milliseconds=50_000_000))
+    sample_less = events.filter(pl.col("onset") > threshold)
     assert sample_less.height == 1
     assert sample_less["location"][0] is None
     assert sample_less["dispersion"][0] is None
 
     # Events that do have samples still match the reference.
-    with_samples = events.filter(
-        pl.col("onset") < dt.timedelta(milliseconds=50_000_000)
-    )
+    with_samples = events.filter(pl.col("onset") < threshold)
     reference = _reference_properties(gaze, "fixation", FIXATION_PROPERTIES).filter(
-        pl.col("onset") < dt.timedelta(milliseconds=50_000_000)
+        pl.col("onset") < threshold
     )
     columns = ["trial", "name", "onset", "offset", "location", "dispersion"]
     order = ["trial", "name", "onset", "offset"]
