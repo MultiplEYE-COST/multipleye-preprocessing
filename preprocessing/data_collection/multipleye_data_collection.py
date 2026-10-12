@@ -1456,28 +1456,6 @@ class MultipleyeDataCollection:
 
         p_id = Sid(session_identifier).pid
 
-        # load trial to stimulus mapping
-        trial_ids = completed_stimuli["trial_id"].to_list()
-        # sometimes there are None values in the trial ids if a session was interrupted. Those are excluded for this step
-        if None in trial_ids:
-            trial_ids.remove(None)
-
-        for trial in trial_ids:
-            if trial == "PRACTICE_1":
-                trial_ids[trial_ids.index(trial)] = "PRACTICE_trial_1"
-            elif trial == "PRACTICE_2":
-                trial_ids[trial_ids.index(trial)] = "PRACTICE_trial_2"
-            else:
-                try:
-                    trial_ids[trial_ids.index(trial)] = f"trial_{int(trial)}"
-                except TypeError:
-                    pass  # trial id already in the target format, leave as-is
-
-        stimulus_names = completed_stimuli["stimulus_name"].to_list()
-        stimuli_trial_mapping = {
-            str(trial): name for trial, name in zip(trial_ids, stimulus_names)
-        }
-
         if completed_stimuli["completed"].cast(pl.Utf8).str.contains("restart").any():
             if p_id not in self.crashed_session_ids:
                 self.crashed_session_ids.append(p_id)
@@ -1488,15 +1466,43 @@ class MultipleyeDataCollection:
             completed_stimuli = completed_stimuli[:-1]
 
         completed_stimuli = completed_stimuli.cast({"completed": pl.Int8})
-        completed_stimuli_ids = completed_stimuli.filter(
+        # Only completed stimuli are considered, so the trial->stimulus mapping and
+        # the completed stimulus ids always describe the same set of trials.
+        completed_stimuli = completed_stimuli.filter(
             completed_stimuli["completed"] == 1
-        )["stimulus_id"].to_list()
+        )
+
+        completed_stimuli_ids = completed_stimuli["stimulus_id"].to_list()
+        stimulus_names = completed_stimuli["stimulus_name"].to_list()
         # get completed stimuli completes names, i.e. name + id
-        completed_stimulus_names = completed_stimuli["stimulus_name"].to_list()
         completed_stimulus_names = [
             str(name) + "_" + str(stim_id)
-            for name, stim_id in zip(completed_stimulus_names, completed_stimuli_ids)
+            for name, stim_id in zip(stimulus_names, completed_stimuli_ids)
         ]
+
+        # load trial to stimulus mapping (completed stimuli only). Sometimes there
+        # are None values in the trial ids if a session was interrupted; those rows
+        # are excluded so the mapping stays aligned with the stimulus names.
+        stimulus_trial_pairs = [
+            (trial, name)
+            for trial, name in zip(
+                completed_stimuli["trial_id"].to_list(), stimulus_names
+            )
+            if trial is not None
+        ]
+
+        stimuli_trial_mapping = {}
+        for trial, name in stimulus_trial_pairs:
+            if trial == "PRACTICE_1":
+                trial = "PRACTICE_trial_1"
+            elif trial == "PRACTICE_2":
+                trial = "PRACTICE_trial_2"
+            else:
+                try:
+                    trial = f"trial_{int(trial)}"
+                except (TypeError, ValueError):
+                    pass  # trial id already in the target format, leave as-is
+            stimuli_trial_mapping[str(trial)] = name
 
         return completed_stimuli_ids, completed_stimulus_names, stimuli_trial_mapping
 
