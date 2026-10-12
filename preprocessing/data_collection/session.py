@@ -572,6 +572,11 @@ class Session:
                 question_time = round(sum(q_times), 3) if q_times else 0.0
 
             first = group.row(0, named=True)
+            if first["stimulus_id"] is None:
+                logger.warning(
+                    f"Skipping trial {trial_id} in overview: missing stimulus_id."
+                )
+                continue
             try:
                 trial_number = int(str(trial_id).rsplit("_", 1)[-1])
             except ValueError:
