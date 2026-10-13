@@ -39,7 +39,7 @@ from ..data_collection.session import Session
 from ..data_collection.stimulus import LabConfig, Stimulus
 from ..models.dcn import Dcn
 from ..models.sid import Sid
-from ..plotting.plot import plot_gaze, plot_main_sequence
+from ..plotting.plot import build_page_frames, plot_gaze, plot_main_sequence
 from ..utils.conversion import convert_to_time_str
 from ..utils.data_collection_utils import _report_to_file
 from ..utils.data_path_utils import _ci_resolve
@@ -2255,8 +2255,19 @@ class MultipleyeDataCollection:
 
         plot_main_sequence(gaze.events, plot_dir)
 
+        # Clone/unnest the gaze and index pages once, instead of per stimulus.
+        data, samples_by_key, events_by_key = build_page_frames(gaze)
+
         for stimulus in stimuli:
-            plot_gaze(gaze, stimulus, plot_dir, aoi_image=aoi)
+            plot_gaze(
+                gaze,
+                stimulus,
+                plot_dir,
+                aoi_image=aoi,
+                data=data,
+                samples_by_key=samples_by_key,
+                events_by_key=events_by_key,
+            )
 
     def parse_participant_data(self, path: Path | str) -> None:
         """
