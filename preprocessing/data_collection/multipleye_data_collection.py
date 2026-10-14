@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
@@ -470,20 +471,30 @@ class MultipleyeDataCollection:
                 output_asc_path,
             ) = item
             self.logger.debug(f"Converting EDF to ASC for {session_identifier}")
+            output_asc_folder.mkdir(parents=True, exist_ok=True)
             # edf2asc is single-threaded per file, so we run several processes.
-            subprocess.run(
-                ["edf2asc", "-y", edf_path],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
+            # -p writes the .asc directly into a staging directory instead of
+            # next to the .edf (which may be read-only). The staging directory
+            # is always removed, so a failed conversion leaves neither a partial
+            # .asc nor a stray temporary file behind.
+            staging_dir = Path(
+                tempfile.mkdtemp(prefix=".edf2asc-", dir=output_asc_folder)
             )
+            try:
+                subprocess.run(
+                    ["edf2asc", "-y", "-p", str(staging_dir), str(edf_path)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                )
 
-            local_asc_path = edf_path.with_suffix(".asc")
-            if local_asc_path.exists():
-                output_asc_folder.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(local_asc_path, output_asc_path)
-                return session_identifier, session, output_asc_path
-            return session_identifier, session, None
+                produced_asc = staging_dir / f"{edf_path.stem}.asc"
+                if produced_asc.exists():
+                    os.replace(produced_asc, output_asc_path)
+                    return session_identifier, session, output_asc_path
+                return session_identifier, session, None
+            finally:
+                shutil.rmtree(staging_dir, ignore_errors=True)
 
         if to_convert:
             workers = max(1, min(settings.EDF2ASC_WORKERS, len(to_convert)))
