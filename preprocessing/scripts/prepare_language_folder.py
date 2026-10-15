@@ -350,21 +350,44 @@ def _copy_stimulus_assets(
                 )
 
     # 6. Copy used Question Images
-    question_images_folder = f"question_images_{suffix}"
-    source_q_base = source_stimulus_dir / question_images_folder
-    dest_q_base = dest_stimulus_dir / question_images_folder
+    used_versions = _get_used_stimulus_versions(eye_tracking_sessions_dir)
+    logger.debug(f"Identified used stimulus versions: {used_versions}")
+    _copy_used_version_folders(
+        source_stimulus_dir / f"question_images_{suffix}",
+        dest_stimulus_dir / f"question_images_{suffix}",
+        used_versions,
+    )
 
-    if source_q_base.exists():
-        dest_q_base.mkdir(exist_ok=True)
-        used_versions = _get_used_stimulus_versions(eye_tracking_sessions_dir)
-        logger.debug(f"Identified used stimulus versions: {used_versions}")
-        for version in used_versions:
-            v_folder = f"question_images_version_{version}"
-            source_v = source_q_base / v_folder
-            dest_v = dest_q_base / v_folder
-            if source_v.exists() and not dest_v.exists():
-                logger.debug(f"Copying {v_folder}...")
-                _copytree(source_v, dest_v)
+    # 7. Copy used AOI Question Images (optional overlay)
+    if settings.COPY_AOI_IMAGES_OVERLAY:
+        _copy_used_version_folders(
+            source_stimulus_dir / f"aoi_question_images_{suffix}",
+            dest_stimulus_dir / f"aoi_question_images_{suffix}",
+            used_versions,
+        )
+
+
+def _copy_used_version_folders(
+    source_base: Path,
+    dest_base: Path,
+    used_versions: set[int],
+) -> None:
+    """Copy the ``question_images_version_<n>`` folders that are actually used.
+
+    The stimulus package ships version folders for all randomisation versions;
+    only the ones used by the sessions are copied to the output.
+    """
+    if not source_base.exists():
+        return
+
+    dest_base.mkdir(parents=True, exist_ok=True)
+    for version in sorted(used_versions):
+        version_folder = f"question_images_version_{version}"
+        source_version = source_base / version_folder
+        dest_version = dest_base / version_folder
+        if source_version.exists() and not dest_version.exists():
+            logger.info(f"Copying {version_folder}...")
+            _copytree(source_version, dest_version)
 
 
 def _get_used_stimulus_versions(eye_tracking_sessions_dir: Path) -> set[int]:
