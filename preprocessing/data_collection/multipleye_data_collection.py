@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1582,45 +1583,8 @@ class MultipleyeDataCollection:
 
         if stim_order_version.empty:
             # stimulus order couldn't be found from participant ID, use version number instead
-            self.logger.warning(
-                f"Participant ID {p_id} not found in stimulus order versions. Please check the "
-                f"participant IDs in the stimulus order versions file. It is possible that the team did not "
-                f"upload the correct stimulus version from the experiment folder. Extracting from asc or logfile."
-            )
-            if asc_available:
-                # If an ASC file is available, retrieve the stimulus order number from the asc file and compare to logfile
-                version = extract_stimulus_version_number_from_asc(
-                    self.sessions[session_identifier].asc_path
-                )
-                version = int(version)
-                if version != logfile_order_version:
-                    raise ValueError(
-                        f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                        f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
-                        f"Please check the files "
-                        f"carefully."
-                    )
-            else:
-                # For skipped sessions, no asc file is available so we depend on the version number from the logfile
-                version = logfile_order_version
-
-            # Try to look up the stimulus order by version number instead
-            # of participant ID, since the PID wasn't found in the CSV.
-            stim_order_version = self.stim_order_versions[
-                self.stim_order_versions["version_number"] == version
-            ]
-
-            if stim_order_version.empty:
-                # Neither the pid nor the version number is available in the csv.
-                raise ValueError(
-                    f"Stimulus order version {logfile_order_version} extracted from the logfile "
-                    f"cannot be found in the stimulus order versions CSV. "
-                    f"The team should upload the correct stimulus folder."
-                )
-
-            self.logger.warning(
-                "Using the stimulus order version from the ASC or logfile. "
-                "The team should still upload the correct stimulus folder!"
+            stim_order_version = self._resolve_stim_order_version(
+                session_identifier, p_id, logfile_order_version, asc_available
             )
 
         if len(stim_order_version) == 1:
@@ -1671,6 +1635,72 @@ class MultipleyeDataCollection:
                 f"More than one or no entry found for participant ID {p_id} in stimulus order versions. "
                 f"Please add the used stimulus folder from the experiment. Or check the stimulus order versions file for missing IDs or duplicates."
             )
+
+    def _warn_stim_order_missing(self, p_id: int) -> None:
+        """Loudly warn that the participant ID is missing from the stimulus order CSV."""
+        message = (
+            f"Participant ID {p_id} not found in stimulus order versions. Please check the "
+            f"participant IDs in the stimulus order versions file. It is possible that the team did not "
+            f"upload the correct stimulus version from the experiment folder. Extracting from asc or logfile. "
+            f"Gaze data may be mapped to the wrong stimuli/AOIs. Please verify that the stimulus folder "
+            f"contains the exact stimuli that were presented to this participant."
+        )
+        banner = "-" * (len(message) + len("WARNING: "))
+        print(f"\n{banner}\nWARNING: {message}\n{banner}", file=sys.stderr)
+        self.logger.warning(message)
+
+    def _resolve_stim_order_version(
+        self,
+        session_identifier,
+        p_id: int,
+        logfile_order_version: int,
+        asc_available: bool,
+    ) -> pd.DataFrame:
+        """Resolve the stimulus-order row when the participant ID is not in the CSV.
+
+        Falls back to the version embedded in the ASC file (or the logfile for sessions
+        without an ASC), then looks the version up by ``version_number``.
+
+        Raises
+        ------
+        ValueError
+            If the ASC version disagrees with the logfile version, or if the resolved
+            version cannot be found in the stimulus order versions CSV.
+        """
+        self._warn_stim_order_missing(p_id)
+
+        if asc_available:
+            version = int(
+                extract_stimulus_version_number_from_asc(
+                    self.sessions[session_identifier].asc_path
+                )
+            )
+            if version != logfile_order_version:
+                raise ValueError(
+                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                    f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
+                    f"Please check the files carefully."
+                )
+        else:
+            # For skipped sessions, no asc file is available so we depend on the version number from the logfile
+            version = logfile_order_version
+
+        stim_order_version = self.stim_order_versions[
+            self.stim_order_versions["version_number"] == version
+        ]
+
+        if stim_order_version.empty:
+            raise ValueError(
+                f"Stimulus order version {version} extracted from the ASC file or logfile "
+                f"cannot be found in the stimulus order versions CSV. "
+                f"The team should upload the correct stimulus folder."
+            )
+
+        self.logger.warning(
+            "Using the stimulus order version from the ASC or logfile. "
+            "The team should still upload the correct stimulus folder!"
+        )
+        return stim_order_version
 
     def _create_empty_rt_frame(self, session_identifier: str) -> pl.DataFrame:
         session = self.sessions[session_identifier]
