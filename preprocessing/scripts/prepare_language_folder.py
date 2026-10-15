@@ -385,12 +385,49 @@ def _get_used_stimulus_versions(eye_tracking_sessions_dir: Path) -> set[int]:
 
 
 def _extract_from_session(session_folder: Path, used_versions: set[int]) -> None:
-    # Try ASC files
+    # Prefer the session logfile: the stimulus order version is available there on
+    # the first run, whereas a raw ASC is only produced later (and with
+    # `edf2asc -p` it is never written next to the .edf at all).
+    version = _extract_version_from_logfile(session_folder)
+    if version is None:
+        version = _extract_version_from_asc(session_folder)
+    if version is None:
+        version = _extract_version_from_output_asc(session_folder)
+    if version is not None:
+        used_versions.add(version)
+
+
+def _extract_version_from_logfile(session_folder: Path) -> int | None:
+    from preprocessing import settings
+
+    for logfile in sorted((session_folder / "logfiles").glob("GENERAL_LOGFILE_*.txt")):
+        match = settings.LOGFILE_ORDER_VERSION_REGEX.search(
+            logfile.read_text(encoding="utf-8")
+        )
+        if match:
+            return int(match.group("order_version"))
+    return None
+
+
+def _extract_version_from_asc(session_folder: Path) -> int | None:
     for asc_file in session_folder.glob("[!.]*.asc"):
         version = extract_stimulus_version_number_from_asc(asc_file)
         if version != -1:
-            used_versions.add(version)
-            return  # Only need one per session
+            return version
+    return None
+
+
+def _extract_version_from_output_asc(session_folder: Path) -> int | None:
+    from preprocessing import settings
+
+    session_id = session_folder.name
+    output_asc = (
+        settings.OUTPUT_DIR / settings.ASC_FOLDER / session_id / f"{session_id}.asc"
+    )
+    if not output_asc.exists():
+        return None
+    version = extract_stimulus_version_number_from_asc(output_asc)
+    return version if version != -1 else None
 
 
 def extract_stimulus_version_number_from_asc(asc_file_path: Path) -> int:
