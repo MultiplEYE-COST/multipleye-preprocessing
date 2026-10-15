@@ -4,7 +4,6 @@ import os
 import shutil
 import polars as pl
 from contextlib import contextmanager
-import re
 
 def main():
     #Place for verbose path to the data collection folder that should be cleaned.
