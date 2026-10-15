@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 
 from ..models.dcn import Dcn
-from ..scripts.restructure_psycho_tests import fix_psycho_tests_structure
+from ..scripts.restructure_psychometric_tests import fix_psychometric_tests_structure
 from ..utils.data_path_utils import check_data_collection_exists
 from ..utils.file_utils import _copytree, _to_win_long_path
 from ..utils.fix_multipleye_aoi_files import (
@@ -158,7 +158,7 @@ def prepare_language_folder(data_collection_name: str | None = None):
             logger.info(
                 f"Preparing psychometric tests structure for {data_collection_name}..."
             )
-            fix_psycho_tests_structure(config_path, data_path)
+            fix_psychometric_tests_structure(config_path, data_path)
 
     # check if the participant folders are zipped and if yes, unzip them
     for participant_folder in eye_tracking_sessions_path.glob("*"):

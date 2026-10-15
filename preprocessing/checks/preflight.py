@@ -663,11 +663,11 @@ def _check_psychometric_tests(
                 f"Auto-restructuring to {pt_dir}..."
             )
             try:
-                from ..scripts.restructure_psycho_tests import (
-                    fix_psycho_tests_structure,
+                from ..scripts.restructure_psychometric_tests import (
+                    fix_psychometric_tests_structure,
                 )
 
-                fix_psycho_tests_structure(config_path, data_path)
+                fix_psychometric_tests_structure(config_path, data_path)
                 logger.info("Psychometric tests restructured to session-first format.")
             except Exception as e:
                 pt_warnings.append(
