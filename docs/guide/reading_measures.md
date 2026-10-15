@@ -3,15 +3,19 @@
 # Reading Measures
 
 **Reading measures are word-level eye-movement metrics calculated from AOI-mapped
-fixations.** The pEYEpline computes them per trial by first annotating fixations with run
+fixations.** The pEYEpline computes them per trial by annotating fixations with run
 and pass information, then deriving a set of standard measures for each word. The
-implementation lives in `metrics.reading.reading_measures`.
+calculation is delegated to the declarative engine in
+`pymovements.measure.reading.compute_reading_measures` (grouped by trial and page);
+`preprocessing.metrics.calculate` only wires up the stimuli AOIs and the pEYEpline
+column names.
 
 ## Fixation Annotation
 
 **Every fixation gets tagged with a run ID, first-pass status, regression flags, and
-neighbouring word indices.** This annotation is the foundation for all measures. The
-pEYEpline groups fixations by trial, stimulus, and page, then computes:
+neighbouring word indices.** This annotation is the foundation for all measures and is
+provided by the pymovements reading-measure engine. The pEYEpline groups fixations by
+trial and page; the engine computes:
 
 - `run_id` — contiguous fixations on the same word form a run. Each time the reader moves
   to a different word and comes back, a new run starts.
@@ -45,7 +49,7 @@ pEYEpline groups fixations by trial, stimulus, and page, then computes:
 
 | Abbreviation | Description |
 |---|---|
-| **LP** | Character index of the first fixation on the word (landing position) |
+| **LP** | Within-word character position of the first fixation on the word (1 = first character); 0 if the word was never fixated |
 | **RBRT** | Sum of fixation durations on the word until a word to its right is fixated (RPD_inc - RPD_exc) |
 | **RPD_exc** | Sum of regressive fixation durations after a first-pass regression until fixating a word to the right, excluding fixations on the word itself |
 | **RPD_inc** | Sum of all fixations from first first-pass fixation on the word until fixating a word to its right (includes regressive fixations); 0 if not fixated in first-pass |
