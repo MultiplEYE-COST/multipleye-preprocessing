@@ -77,7 +77,6 @@ def unzip_files(unzip_dic: dict[Path, Path]) -> None:
             continue
 
 
-
 def move_rename_files(move_dic: dict[Path, Path]) -> None:
     for old_path, new_path in move_dic.items():
         if old_path.exists():
@@ -85,7 +84,6 @@ def move_rename_files(move_dic: dict[Path, Path]) -> None:
         else:
             print(f"No file found at {old_path}. Skipping.")
             continue
-
 
 
 def del_files(del_list: list[Path]) -> None:
@@ -99,7 +97,6 @@ def del_files(del_list: list[Path]) -> None:
         else:
             print(f"No file found at {del_path}. Skipping.")
             continue
-
 
 
 def unnest(to_unnest: dict[Path, Path]) -> None:
@@ -117,7 +114,6 @@ def unnest(to_unnest: dict[Path, Path]) -> None:
                 f"No directory found at {unwanted_dir} or no directory found at {goal_dir}. Skipping."
             )
             continue
-
 
 
 def edit_order_csv(
