@@ -79,8 +79,13 @@ which is proprietary. The pEYEpline calls the `edf2asc` binary from the EyeLink 
 produce `.asc` files that contain both the gaze samples and the timestamped messages that
 encode trial structure.
 
-The method is `MultipleyeDataCollection.convert_edf_to_asc()`. It runs the binary with
-flags `-input -ftime -p <output_dir> -y` and copies the result to `asc/<sid>/<sid>.asc`.
+The method is `MultipleyeDataCollection.convert_edf_to_asc()`. It runs the `edf2asc`
+binary with flags `-y -p <staging_dir>`, so the binary writes the `.asc` directly into a
+fresh staging directory inside the session's output folder; the result is then moved to
+`asc/<sid>/<sid>.asc` (an atomic move on the same filesystem). Nothing is written next to
+the `.edf`, and the staging directory is always removed, so a failed conversion leaves no
+partial or leftover files. Conversions run in parallel, controlled by `EDF2ASC_WORKERS`
+(default `min(4, CPU count)`), since `edf2asc` itself is single-threaded per file.
 If the ASC already exists and `FORCE_RECONVERT_ASC` is off, it skips. The `edf2asc` binary
 cannot be distributed with the pEYEpline due to licensing.
 See the {ref}`installation instructions <eyelink_dev_kit>` for how to obtain it from SR Research.

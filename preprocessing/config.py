@@ -384,6 +384,11 @@ class Settings:
         #: Force recalculation of ASC files even if they already exist in the output folder.
         self.FORCE_RECONVERT_ASC: bool = False
 
+        #: Number of parallel edf2asc processes used to convert EDF to ASC.
+        #: edf2asc is single-threaded per file, so conversion is parallelised by
+        #: running several processes at once.
+        self.EDF2ASC_WORKERS: int = min(4, os.cpu_count() or 1)
+
         #: The expected sampling rate of the eye tracker in Hertz.
         self.EXPECTED_SAMPLING_RATE_HZ: int = 1000
 

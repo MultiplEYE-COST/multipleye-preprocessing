@@ -4,7 +4,9 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import warnings
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
@@ -433,9 +435,8 @@ class MultipleyeDataCollection:
 
         # Create copy of sessions dict without unconvertable sessions
         converted_sessions = {}
-        for session_identifier, session in tqdm(
-            self.sessions.items(), desc="Converting EDF to ASC"
-        ):
+        to_convert = []
+        for session_identifier, session in self.sessions.items():
             edf_path = Path(session.session_file_path)
 
             output_asc_folder = (
@@ -451,27 +452,68 @@ class MultipleyeDataCollection:
                 converted_sessions[session_identifier] = session
                 continue
 
-            # Run conversion if ASC doesn't exist in output folder or force is enabled
-            self.logger.debug(f"Converting EDF to ASC for {session_identifier}")
-            subprocess.run(
-                ["edf2asc", "-y", edf_path],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
+            to_convert.append(
+                (
+                    session_identifier,
+                    session,
+                    edf_path,
+                    output_asc_folder,
+                    output_asc_path,
+                )
             )
 
-            local_asc_path = edf_path.with_suffix(".asc")
-            if local_asc_path.exists():
-                self.logger.debug(f"Copying {local_asc_path} to {output_asc_path}")
-                output_asc_folder.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(local_asc_path, output_asc_path)
-                session.asc_path = output_asc_path
-                converted_sessions[session_identifier] = session
-            else:
-                self.logger.error(
-                    f"Failed to convert EDF to ASC for {session_identifier}. Only processing comprehension answers."
+        def _convert(item):
+            (
+                session_identifier,
+                session,
+                edf_path,
+                output_asc_folder,
+                output_asc_path,
+            ) = item
+            self.logger.debug(f"Converting EDF to ASC for {session_identifier}")
+            output_asc_folder.mkdir(parents=True, exist_ok=True)
+            # edf2asc is single-threaded per file, so we run several processes.
+            # -p writes the .asc directly into a staging directory instead of
+            # next to the .edf (which may be read-only). The staging directory
+            # is always removed, so a failed conversion leaves neither a partial
+            # .asc nor a stray temporary file behind.
+            staging_dir = Path(
+                tempfile.mkdtemp(prefix=".edf2asc-", dir=output_asc_folder)
+            )
+            try:
+                subprocess.run(
+                    ["edf2asc", "-y", "-p", str(staging_dir), str(edf_path)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
                 )
-                self.skipped_sessions[session_identifier] = session
+
+                produced_asc = staging_dir / f"{edf_path.stem}.asc"
+                if produced_asc.exists():
+                    os.replace(produced_asc, output_asc_path)
+                    return session_identifier, session, output_asc_path
+                return session_identifier, session, None
+            finally:
+                shutil.rmtree(staging_dir, ignore_errors=True)
+
+        if to_convert:
+            workers = max(1, min(settings.EDF2ASC_WORKERS, len(to_convert)))
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = [executor.submit(_convert, item) for item in to_convert]
+                for future in tqdm(
+                    as_completed(futures),
+                    total=len(futures),
+                    desc="Converting EDF to ASC",
+                ):
+                    session_identifier, session, converted_asc_path = future.result()
+                    if converted_asc_path is not None:
+                        session.asc_path = converted_asc_path
+                        converted_sessions[session_identifier] = session
+                    else:
+                        self.logger.error(
+                            f"Failed to convert EDF to ASC for {session_identifier}. Only processing comprehension answers."
+                        )
+                        self.skipped_sessions[session_identifier] = session
 
         self.sessions = converted_sessions
         self.logger.info("EDF to ASC conversion completed.")
