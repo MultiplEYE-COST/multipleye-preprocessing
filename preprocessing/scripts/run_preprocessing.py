@@ -9,6 +9,7 @@ from tqdm import tqdm
 import preprocessing
 from preprocessing import settings
 from preprocessing.checks.quality_thresholds import write_quality_thresholds
+from preprocessing.metrics.data_loss import compute_data_loss
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
 from ..utils.logging import get_logger
@@ -147,26 +148,26 @@ def run_preprocessing(config_path: str | None = None):
                 pl.col("stimulus").is_in(sess.completed_stimuli_names)
             )
 
-            # Compute total data loss via pymovements.measure.data_loss().
-            # Session-level (duration-weighted), not per-trial mean.
+            # Compute session-, page- and trial-level data loss via a single
+            # vectorized pass. This replaces three separate
+            # pymovements.measure.data_loss calls, each of which ran a Python
+            # map_elements over every sample.
+            # Workaround for pymovements: revert to pm.measure.data_loss once
+            # https://github.com/pymovements/pymovements/pull/1772 is released
+            # (see preprocessing/metrics/data_loss.py for details).
+            # Session-level is duration-weighted; the per-trial rows are not weighted against
+            # each other (the sanity report takes a plain equal-weighted mean).
             sr = gaze.experiment.sampling_rate or float(gaze._metadata["sampling_rate"])
-            gaze._measure_total_data_loss_ratio = gaze.samples.select(
-                pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio")
-            ).item()
-
-            # Per-page data loss: group by trial_columns (which include "page"),
-            # so each row is one page. The ratio is time-weighted *within* the page
-            # (lost samples / expected samples over the page's time span).
-            gaze._per_page_data_loss = gaze.samples.group_by(gaze.trial_columns).agg(
-                pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio")
+            (
+                gaze._measure_total_data_loss_ratio,
+                gaze._per_page_data_loss,
+                gaze._per_trial_data_loss,
+            ) = compute_data_loss(
+                gaze.samples,
+                sampling_rate=sr,
+                page_columns=list(gaze.trial_columns),
+                trial_columns=["trial", "stimulus"],
             )
-            # Per-trial data loss: group by trial only (not page). Each trial gets one
-            # independent ratio (time-weighted within the trial). Trials are NOT
-            # weighted by their length against each other -- that is handled by the
-            # plain, equal-weighted mean across trial rows in the sanity report.
-            gaze._per_trial_data_loss = gaze.samples.group_by(
-                ["trial", "stimulus"]
-            ).agg(pm.measure.data_loss("pixel", sampling_rate=sr, unit="ratio"))
 
             preprocessing.save_session_metadata(sess.sid, gaze)
 
