@@ -41,6 +41,11 @@ def main():
         # Path(r"tobedeleted"),  #CPMMENT FOR DOCUMENTATION
     ]
 
+    # Recursively delete hidden files/directories (names starting with "."),
+    # e.g. .DS_Store and .localized left behind by macOS/Windows. Runs inside
+    # the collection folder only. Set to False to keep them.
+    del_hidden = True
+
     # EXECUTION OF COMMON OPERATIONS AND SPACE FOR EXTRA FREE CODE
     with working_directory(collection_folder):
         # Here all code can be written to be executed directly in the target folder
@@ -53,6 +58,8 @@ def main():
         unnest(unnest_dic)
         edit_order_csv(stim_order_versions, order_version_dic)
         del_files(del_list)
+        if del_hidden:
+            del_hidden_files()
 
         # SPACE FOR FURTHER CODE TO BE EXECUTED IN THE FOLDER
 
@@ -97,6 +104,23 @@ def del_files(del_list: list[Path]) -> None:
             continue
 
 
+def del_hidden_files(root: Path = Path(".")) -> None:
+    """Recursively delete hidden files and directories (names starting with ".").
+
+    Intended to run inside the collection folder. Equivalent to
+    ``find . -name ".*" -delete``, deepest paths first.
+    """
+    hidden = list(root.rglob(".*"))
+    for path in sorted(hidden, key=lambda p: len(p.parts), reverse=True):
+        if not path.exists():
+            continue
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
+        print(f"Deleted hidden path: {path}")
+
+
 def unnest(to_unnest: dict[Path, Path]) -> None:
     for unwanted_dir, goal_dir in to_unnest.items():
         if unwanted_dir.exists() and goal_dir.exists():
@@ -134,6 +158,7 @@ def edit_order_csv(
                 .then(pid)
                 .alias("participant_id")
             )
+        df.write_csv(file_path)
 
     else:
         print(f"No file found at {file_path}. Not editing order file.")
