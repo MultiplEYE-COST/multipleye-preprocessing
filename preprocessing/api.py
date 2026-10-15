@@ -24,7 +24,7 @@ from .mapping.aoi import map_fixations_to_aois
 from .metrics.calculate import calculate_reading_measures
 from .psychometric_tests.preprocess_psychometric_tests import preprocess_all_sessions
 from .scripts.prepare_language_folder import prepare_language_folder
-from .scripts.restructure_psycho_tests import fix_psycho_tests_structure
+from .scripts.restructure_psychometric_tests import fix_psychometric_tests_structure
 from .signals.preprocess import preprocess_gaze
 
 __all__ = [
@@ -33,7 +33,7 @@ __all__ = [
     "compute_event_properties",  # needed in API? - not directly used in the preprocessing pipeline
     "detect_fixations",
     "detect_saccades",
-    "fix_psycho_tests_structure",
+    "fix_psychometric_tests_structure",
     "load_gaze_data",
     "load_reading_measures",
     "load_scanpaths",
