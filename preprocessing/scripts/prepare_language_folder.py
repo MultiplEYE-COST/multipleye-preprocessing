@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import tarfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pandas as pd
@@ -47,6 +48,67 @@ def _get_version_folder_suffixes() -> list[str | None]:
         if version not in suffixes:
             suffixes.append(version)
     return suffixes
+
+
+def _session_is_selected(session_name: str) -> bool:
+    """Return whether a session passes the configured include/exclude filters."""
+    from preprocessing import settings
+
+    include = settings.INCLUDE_SESSIONS or []
+    exclude = settings.EXCLUDE_SESSIONS or []
+    if include and session_name not in include:
+        return False
+    return session_name not in exclude
+
+
+def _iter_selected_session_folders(
+    eye_tracking_sessions_dir: Path,
+) -> Iterator[Path]:
+    """Yield session folders that pass the configured session filters.
+
+    Respects ``INCLUDE_SESSIONS``, ``EXCLUDE_SESSIONS``,
+    ``IGNORED_SESSION_FOLDERS`` and ``INCLUDE_PILOTS`` so that excluded sessions
+    do not influence which stimulus versions are copied.
+    """
+    from preprocessing import settings
+
+    ignored = set(settings.IGNORED_SESSION_FOLDERS or [])
+    for session_folder in eye_tracking_sessions_dir.glob("*"):
+        if not session_folder.is_dir():
+            continue
+        if session_folder.name in ignored:
+            continue
+        if _session_is_selected(session_folder.name):
+            yield session_folder
+
+    pilot_dir = eye_tracking_sessions_dir / "pilot_sessions"
+    if settings.INCLUDE_PILOTS and pilot_dir.exists():
+        for session_folder in pilot_dir.glob("*"):
+            if session_folder.is_dir() and _session_is_selected(session_folder.name):
+                yield session_folder
+
+
+def _get_used_version_folder_suffixes(
+    eye_tracking_sessions_dir: Path,
+) -> list[str | None]:
+    """Return the stimulus content version suffixes used by selected sessions.
+
+    The default folder (``STIMULUS_VERSIONS_DEFAULT_VERSION``, ``None`` for the
+    suffix-less folder) is always included because it holds the shared lab
+    configuration. Versioned folders are only included when at least one selected
+    session is mapped to them, so unused stimulus folders are not copied.
+    """
+    from preprocessing import settings
+
+    default_suffix = settings.STIMULUS_VERSIONS_DEFAULT_VERSION
+    pid_version = settings.STIMULUS_PID_VERSION_MAP
+
+    used: set[str | None] = {default_suffix}
+    for session_folder in _iter_selected_session_folders(eye_tracking_sessions_dir):
+        pid = session_folder.name.split("_")[0]
+        used.add(pid_version.get(pid, default_suffix))
+
+    return [suffix for suffix in _get_version_folder_suffixes() if suffix in used]
 
 
 def prepare_language_folder(data_collection_name: str | None = None):
@@ -211,7 +273,7 @@ def prepare_language_folder(data_collection_name: str | None = None):
                     f"into '{pilot_folder}'"
                 )
 
-    for version_suffix in _get_version_folder_suffixes():
+    for version_suffix in _get_used_version_folder_suffixes(eye_tracking_sessions_path):
         if version_suffix is None:
             folder_name = f"stimuli_{data_collection_name}"
         else:
@@ -430,18 +492,15 @@ def _copy_used_version_folders(
 
 
 def _get_used_stimulus_versions(eye_tracking_sessions_dir: Path) -> set[int]:
-    used_versions = set()
-    # Check regular sessions
-    for session_folder in eye_tracking_sessions_dir.glob("*"):
-        if session_folder.is_dir() and session_folder.name != "pilot_sessions":
-            _extract_from_session(session_folder, used_versions)
+    """Return the stimulus order versions used by the selected sessions.
 
-    # Check pilot sessions
-    pilot_dir = eye_tracking_sessions_dir / "pilot_sessions"
-    if pilot_dir.exists():
-        for session_folder in pilot_dir.glob("*"):
-            if session_folder.is_dir():
-                _extract_from_session(session_folder, used_versions)
+    Only sessions that pass the configured include/exclude/pilot filters are
+    considered, so excluded sessions do not cause extra question images to be
+    copied.
+    """
+    used_versions: set[int] = set()
+    for session_folder in _iter_selected_session_folders(eye_tracking_sessions_dir):
+        _extract_from_session(session_folder, used_versions)
 
     return used_versions
 

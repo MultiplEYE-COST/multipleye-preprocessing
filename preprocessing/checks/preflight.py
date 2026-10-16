@@ -566,8 +566,25 @@ def _check_stimulus_versions(
     order_csv_name = f"stimulus_order_versions_{lang}_{country}_{labnum}.csv"
 
     pid_version = settings.STIMULUS_PID_VERSION_MAP
+
+    # Only versions that a session is actually mapped to need to be present.
+    # Unused configured versions are not prepared (see prepare_language_folder),
+    # so requiring their folder here would be a false error.
+    needed_versions: set[str] = set()
+    session_ids = list(data_collection.sessions.keys()) + list(
+        getattr(data_collection, "skipped_sessions", {}).keys()
+    )
+    for session_id in session_ids:
+        try:
+            pid = Sid(session_id).pid
+        except (ValueError, TypeError):
+            continue
+        version = pid_version.get(pid)
+        if version is not None:
+            needed_versions.add(version)
+
     version_dirs: dict[str, Path] = {}
-    for version in pid_map:
+    for version in sorted(needed_versions):
         version_dir = Path(f"{source_stim_dir}_{version}")
         version_dirs[version] = version_dir
         if not _ci_exists(version_dir):

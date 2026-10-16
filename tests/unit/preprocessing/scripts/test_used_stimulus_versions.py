@@ -15,6 +15,9 @@ LOGFILE_VERSION_TEXT = "4678.7\t*** STIMULUS_ORDER_VERSION_7\n"
 def _settings(tmp_path, monkeypatch):
     monkeypatch.setitem(settings.__dict__, "OUTPUT_DIR", tmp_path / "out")
     monkeypatch.setattr(settings, "ASC_FOLDER", Path("asc/"))
+    monkeypatch.setattr(settings, "INCLUDE_SESSIONS", [])
+    monkeypatch.setattr(settings, "EXCLUDE_SESSIONS", [])
+    monkeypatch.setattr(settings, "INCLUDE_PILOTS", False)
 
 
 def _session(sessions_dir, sid, *, logfile=None, asc=None, output_asc=None):
@@ -61,7 +64,8 @@ def test_no_version_source_is_empty(tmp_path):
     assert _get_used_stimulus_versions(sessions) == set()
 
 
-def test_union_including_pilot_sessions(tmp_path):
+def test_union_including_pilot_sessions(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "INCLUDE_PILOTS", True)
     sessions = tmp_path / "sessions"
     _session(sessions, "001_X", logfile=LOGFILE_VERSION_TEXT)
     _session(
@@ -70,3 +74,22 @@ def test_union_including_pilot_sessions(tmp_path):
         logfile="x\t*** STIMULUS_ORDER_VERSION_9\n",
     )
     assert _get_used_stimulus_versions(sessions) == {7, 9}
+
+
+def test_pilots_excluded_when_not_included(tmp_path):
+    sessions = tmp_path / "sessions"
+    _session(sessions, "001_X", logfile=LOGFILE_VERSION_TEXT)
+    _session(
+        sessions / "pilot_sessions",
+        "002_X",
+        logfile="x\t*** STIMULUS_ORDER_VERSION_9\n",
+    )
+    assert _get_used_stimulus_versions(sessions) == {7}
+
+
+def test_excluded_session_is_skipped(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "EXCLUDE_SESSIONS", ["002_X"])
+    sessions = tmp_path / "sessions"
+    _session(sessions, "001_X", logfile=LOGFILE_VERSION_TEXT)
+    _session(sessions, "002_X", logfile="x\t*** STIMULUS_ORDER_VERSION_9\n")
+    assert _get_used_stimulus_versions(sessions) == {7}

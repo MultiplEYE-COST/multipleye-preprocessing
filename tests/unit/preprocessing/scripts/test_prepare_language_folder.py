@@ -460,6 +460,16 @@ def test_prepare_language_folder_multiple_versions(
     monkeypatch.setattr(settings, "STIMULUS_VERSIONS_DEFAULT_VERSION", None)
     monkeypatch.setattr(settings, "STIMULUS_VERSIONS_PID_MAP", {"v2": ["008"]})
 
+    # A session mapped to v2 makes the v2 folder used, so it gets prepared.
+    v2_session_dir = (
+        tmp_path
+        / "data"
+        / data_collection_name
+        / "eye-tracking-sessions"
+        / f"008_{dcn.lang}_{dcn.country}_{dcn.lab}_ET1"
+    )
+    v2_session_dir.mkdir(exist_ok=True)
+
     # Run preparation
     prepare_language_folder(data_collection_name)
 
@@ -477,3 +487,33 @@ def test_prepare_language_folder_multiple_versions(
         assert preprocessed_aoi_dir.exists()
         assert len(list(preprocessed_aoi_dir.glob("*.csv"))) == 24
         assert (preprocessed_aoi_dir / ".fixed").exists()
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_prepare_language_folder_skips_unused_versions(
+    mock_data_collection_factory, data_collection_name, monkeypatch
+):
+    """A configured version with no selected session is not prepared."""
+    tmp_path, data_collection_name, aoi_dir = mock_data_collection_factory(
+        data_collection_name
+    )
+    setup_stimulus_assets(tmp_path, data_collection_name, aoi_dir)
+
+    # Create a versioned stimulus folder, but no session is mapped to it.
+    stimuli_dir = aoi_dir.parent
+    v2_stimuli_dir = stimuli_dir.parent / f"stimuli_{data_collection_name}_v2"
+    v2_stimuli_dir.mkdir(exist_ok=True)
+    (v2_stimuli_dir / "config").mkdir(exist_ok=True)
+
+    monkeypatch.setattr(settings, "STIMULUS_VERSIONS_DEFAULT_VERSION", None)
+    monkeypatch.setattr(settings, "STIMULUS_VERSIONS_PID_MAP", {"v2": ["008"]})
+
+    prepare_language_folder(data_collection_name)
+
+    preprocessed_v2 = (
+        tmp_path
+        / "preprocessed_data"
+        / data_collection_name
+        / f"stimuli_{data_collection_name}_v2"
+    )
+    assert not preprocessed_v2.exists()
