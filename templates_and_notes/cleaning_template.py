@@ -109,8 +109,13 @@ def del_hidden_files(root: Path = Path(".")) -> None:
 
     Intended to run inside the collection folder. Equivalent to
     ``find . -name ".*" -delete``, deepest paths first.
+
+    Prints a single summary count instead of one line per path. Some archives
+    ship a hidden file next to every real file (for example macOS ``._*``
+    AppleDouble files), so listing each path would flood the log.
     """
     hidden = list(root.rglob(".*"))
+    deleted = 0
     for path in sorted(hidden, key=lambda p: len(p.parts), reverse=True):
         if not path.exists():
             continue
@@ -118,7 +123,8 @@ def del_hidden_files(root: Path = Path(".")) -> None:
             shutil.rmtree(path)
         else:
             os.remove(path)
-        print(f"Deleted hidden path: {path}")
+        deleted += 1
+    print(f"Deleted {deleted} hidden files/directories.")
 
 
 def unnest(to_unnest: dict[Path, Path]) -> None:

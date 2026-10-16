@@ -14,8 +14,7 @@ from ..scripts.restructure_psychometric_tests import fix_psychometric_tests_stru
 from ..utils.data_path_utils import check_data_collection_exists
 from ..utils.file_utils import _copytree, _to_win_long_path
 from ..utils.fix_multipleye_aoi_files import (
-    remap_space_to_following_word,
-    repair_word_labels,
+    fix_aoi_file,
 )
 from ..utils.logging import get_logger
 
@@ -379,8 +378,7 @@ def prepare_language_folder(data_collection_name: str | None = None):
         if len(aoi_files) == 24:
             logger.info("Applying AOI fixes (remapping space and repairing labels)...")
             for aoi_file in aoi_files:
-                remap_space_to_following_word(aoi_file)
-                repair_word_labels(aoi_file)
+                fix_aoi_file(aoi_file)
 
             # Create a marker file to indicate that these files have been fixed
             (destination_aoi_path / ".fixed").touch()
