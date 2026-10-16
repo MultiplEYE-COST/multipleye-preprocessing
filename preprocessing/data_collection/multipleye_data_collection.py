@@ -1631,7 +1631,8 @@ class MultipleyeDataCollection:
         Returns
         -------
         pd.DataFrame
-            The stimulus order versions with non-null participant IDs.
+            The stimulus order versions as read from the CSV (including rows
+            without a participant ID).
         """
         stimulus_dir = self._resolve_stimulus_dir(session_identifier)
         path = _ci_resolve(
@@ -1640,7 +1641,11 @@ class MultipleyeDataCollection:
             / f"stimulus_order_versions_{self.language}_{self.country}_{self.lab_number}.csv"
         )
         df = pd.read_csv(path)
-        return df[df["participant_id"].notnull()]
+        # Do not drop rows with a null participant_id: the version-number
+        # fallback in _resolve_stim_order_version needs them (the PID match
+        # ignores nulls on its own). Filtering here made versions that are not
+        # yet assigned to a participant, for example a pilot, unresolvable.
+        return df
 
     def _load_session_stimulus_order(
         self, session_identifier, logfile_order_version: int
