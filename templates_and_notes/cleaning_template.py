@@ -69,38 +69,51 @@ def main():
 
 
 def unzip_files(unzip_dic: dict[Path, Path]) -> None:
+    if not unzip_dic:
+        return
+    print(f"Unzipping {len(unzip_dic)} archive(s)...")
     for zip_path, goal_dir in unzip_dic.items():
         if zip_path.exists() and goal_dir.exists():
+            print(f"  Unzipping {zip_path} -> {goal_dir}")
             with zipfile.ZipFile(zip_path, "r") as zip_arch:
                 zip_arch.extractall(goal_dir)
 
             os.remove(zip_path)
+            print(f"  Extracted and removed {zip_path.name}")
         else:
             print(
-                f"No file found at {zip_path} or no directory found at {goal_dir}. Skipping."
+                f"  No file found at {zip_path} or no directory found at {goal_dir}. Skipping."
             )
             continue
 
 
 def move_rename_files(move_dic: dict[Path, Path]) -> None:
+    if not move_dic:
+        return
+    print(f"Renaming {len(move_dic)} path(s)...")
     for old_path, new_path in move_dic.items():
         if old_path.exists():
+            print(f"  Renaming {old_path} -> {new_path}")
             os.rename(old_path, new_path)
         else:
-            print(f"No file found at {old_path}. Skipping.")
+            print(f"  No file found at {old_path}. Skipping.")
             continue
 
 
 def del_files(del_list: list[Path]) -> None:
     """Deletes files and folders as well as their contents"""
+    if not del_list:
+        return
+    print(f"Deleting {len(del_list)} path(s)...")
     for del_path in del_list:
         if del_path.exists():
+            print(f"  Deleting {del_path}")
             if del_path.is_dir():
                 shutil.rmtree(del_path)
             else:
                 os.remove(del_path)
         else:
-            print(f"No file found at {del_path}. Skipping.")
+            print(f"  No file found at {del_path}. Skipping.")
             continue
 
 
@@ -124,12 +137,17 @@ def del_hidden_files(root: Path = Path(".")) -> None:
         else:
             os.remove(path)
         deleted += 1
-    print(f"Deleted {deleted} hidden files/directories.")
+    if deleted:
+        print(f"Deleted {deleted} hidden files/directories.")
 
 
 def unnest(to_unnest: dict[Path, Path]) -> None:
+    if not to_unnest:
+        return
+    print(f"Unnesting {len(to_unnest)} directory(ies)...")
     for unwanted_dir, goal_dir in to_unnest.items():
         if unwanted_dir.exists() and goal_dir.exists():
+            print(f"  Unnesting {unwanted_dir} into {goal_dir}")
             for thing in os.listdir(unwanted_dir):
                 old_path = unwanted_dir.joinpath(thing)
                 new_path = goal_dir.joinpath(thing)
@@ -139,7 +157,7 @@ def unnest(to_unnest: dict[Path, Path]) -> None:
 
         else:
             print(
-                f"No directory found at {unwanted_dir} or no directory found at {goal_dir}. Skipping."
+                f"  No directory found at {unwanted_dir} or no directory found at {goal_dir}. Skipping."
             )
             continue
 
@@ -152,13 +170,17 @@ def edit_order_csv(
         return
 
     if file_path.exists():
+        print(
+            f"Editing order version CSV {file_path} ({len(order_dict)} version(s))..."
+        )
         df = pl.read_csv(file_path)
         for order_version, pid in order_dict.items():
             if order_version not in df["version_number"]:
                 print(
-                    f"Version {order_version} does not exist in order version csv. Skipping."
+                    f"  Version {order_version} does not exist in order version csv. Skipping."
                 )
                 continue
+            print(f"  Version {order_version} -> participant_id {pid}")
             df = df.with_columns(
                 pl.when(pl.col("version_number") == order_version)
                 .then(pid)
