@@ -1,6 +1,5 @@
 import os
 import shutil
-import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -18,6 +17,8 @@ def main():
 
     # CONTAINERS FOR ALL ITEMS MENT FOR COMMON OPERATIONS
     # Dictionary for unzipping. Keys: Zip-files, Values: Directories to unzip to.
+    # Session archives must be unpacked here: the pipeline expects unzipped
+    # session folders and no longer extracts archives itself.
     unzip_dic = {
         # Path("relative_zip_path"):Path("relative_goal_directory"),  #COMMENT FOR DOCUMENTATION
     }
@@ -73,18 +74,16 @@ def main():
 def unzip_files(unzip_dic: dict[Path, Path]) -> None:
     if not unzip_dic:
         return
-    print(f"Unzipping {len(unzip_dic)} archive(s)...")
-    for zip_path, goal_dir in unzip_dic.items():
-        if zip_path.exists() and goal_dir.exists():
-            print(f"  Unzipping {zip_path} -> {goal_dir}")
-            with zipfile.ZipFile(zip_path, "r") as zip_arch:
-                zip_arch.extractall(goal_dir)
-
-            os.remove(zip_path)
-            print(f"  Extracted and removed {zip_path.name}")
+    print(f"Unpacking {len(unzip_dic)} archive(s)...")
+    for archive_path, goal_dir in unzip_dic.items():
+        if archive_path.exists() and goal_dir.exists():
+            print(f"  Unpacking {archive_path} -> {goal_dir}")
+            shutil.unpack_archive(str(archive_path), extract_dir=str(goal_dir))
+            os.remove(archive_path)
+            print(f"  Extracted and removed {archive_path.name}")
         else:
             print(
-                f"  No file found at {zip_path} or no directory found at {goal_dir}. Skipping."
+                f"  No file found at {archive_path} or no directory found at {goal_dir}. Skipping."
             )
             continue
 

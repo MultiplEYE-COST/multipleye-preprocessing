@@ -9,6 +9,7 @@ from preprocessing.models.dcn import Dcn
 from preprocessing.scripts import prepare_language_folder as plf_module
 from preprocessing.scripts.prepare_language_folder import (
     _compute_stimulus_checksum,
+    _find_named_archives,
     prepare_language_folder,
 )
 from preprocessing.utils.stimulus_versions import configured_version_suffixes
@@ -548,3 +549,37 @@ def test_used_question_images_backfilled_when_checksum_unchanged(
     prepare_language_folder(data_collection_name)
 
     assert (question_dir / "question_images_version_2").exists()
+
+
+def test_find_named_archives(tmp_path):
+    (tmp_path / "eye-tracking-sessions.tar").touch()
+    (tmp_path / "eye-tracking-sessions.zip").touch()
+    (tmp_path / "other.tar").touch()
+    (tmp_path / "eye-tracking-sessions").mkdir()
+
+    found = _find_named_archives(tmp_path, "eye-tracking-sessions")
+
+    assert [p.name for p in found] == [
+        "eye-tracking-sessions.tar",
+        "eye-tracking-sessions.zip",
+    ]
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_prepare_missing_sessions_mentions_archive(
+    mock_data_collection_factory, data_collection_name
+):
+    """A missing sessions folder errors and names a matching archive."""
+    import shutil
+
+    tmp_path, data_collection_name, aoi_dir = mock_data_collection_factory(
+        data_collection_name
+    )
+    setup_stimulus_assets(tmp_path, data_collection_name, aoi_dir)
+
+    collection_dir = tmp_path / "data" / data_collection_name
+    shutil.rmtree(collection_dir / "eye-tracking-sessions")
+    (collection_dir / "eye-tracking-sessions.tar").touch()
+
+    with pytest.raises(FileNotFoundError, match="eye-tracking-sessions.tar"):
+        prepare_language_folder(data_collection_name)
