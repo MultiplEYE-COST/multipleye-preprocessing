@@ -45,11 +45,11 @@ Stage 13 is independent and runs once at the end, after all sessions are done.
 
 ## Stage 0: Data Preparation
 
-**Prepare the raw folder: extract archives, copy stimulus files, fix AOIs, and get
-psychometric test data into shape.** This runs once before anything else. It handles the
-messy reality of real data collections: tar archives that need unpacking, zip files per
-participant, AOI CSV files that need splitting into text and question variants, and
+**Prepare the raw folder: copy stimulus files, fix AOIs, and get psychometric test data
+into shape.** This runs once before anything else. It handles the messy reality of real
+data collections: AOI CSV files that need splitting into text and question variants, and
 old-format psychometric test data that needs restructuring from task-first to session-first.
+Session archives must be unpacked in the cleaning step beforehand.
 
 The function is `prepare_language_folder()` in `scripts.prepare_language_folder`. It also
 copies stimulus images, question images, and configuration files into the output folder so

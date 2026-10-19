@@ -222,28 +222,19 @@ def prepare_language_folder(data_collection_name: str | None = None):
             )
             fix_psychometric_tests_structure(config_path, data_path)
 
-    # check if the participant folders are zipped and if yes, unzip them
-    for participant_folder in eye_tracking_sessions_path.glob("*"):
-        if participant_folder.suffix == ".zip":
-            shutil.unpack_archive(
-                participant_folder, extract_dir=eye_tracking_sessions_path
-            )
-            logger.info(
-                f"Extracted participant data from '{participant_folder}' "
-                f"into '{eye_tracking_sessions_path}'"
-            )
-
+    # Session archives are unpacked in the cleaning step (see the cleaning
+    # template), not here. Warn if they are still present so the missing
+    # sessions do not fail silently.
     pilot_folder = eye_tracking_sessions_path / "pilot_sessions"
+    leftover_archives = list(eye_tracking_sessions_path.glob("*.zip"))
     if pilot_folder.exists():
-        for pilot_participant_folder in pilot_folder.glob("*"):
-            if pilot_participant_folder.suffix == ".zip":
-                shutil.unpack_archive(
-                    pilot_participant_folder, extract_dir=pilot_folder
-                )
-                logger.info(
-                    f"Extracted pilot participant data from '{pilot_participant_folder}' "
-                    f"into '{pilot_folder}'"
-                )
+        leftover_archives += list(pilot_folder.glob("*.zip"))
+    if leftover_archives:
+        logger.warning(
+            "Found unzipped session archives in 'eye-tracking-sessions': "
+            + ", ".join(sorted(p.name for p in leftover_archives))
+            + ". Unpack them in the cleaning step before running the pipeline."
+        )
 
     for version_suffix in _get_used_version_folder_suffixes(eye_tracking_sessions_path):
         folder_name = stimulus_folder_name(data_collection_name, version_suffix)

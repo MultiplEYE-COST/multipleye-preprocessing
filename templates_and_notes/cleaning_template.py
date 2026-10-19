@@ -18,6 +18,8 @@ def main():
 
     # CONTAINERS FOR ALL ITEMS MENT FOR COMMON OPERATIONS
     # Dictionary for unzipping. Keys: Zip-files, Values: Directories to unzip to.
+    # Session archives must be unpacked here: the pipeline expects unzipped
+    # session folders and no longer extracts archives itself.
     unzip_dic = {
         # Path("relative_zip_path"):Path("relative_goal_directory"),  #COMMENT FOR DOCUMENTATION
     }
