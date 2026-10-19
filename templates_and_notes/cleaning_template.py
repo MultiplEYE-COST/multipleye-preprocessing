@@ -121,13 +121,14 @@ def del_hidden_files(root: Path = Path(".")) -> None:
     """Recursively delete hidden files and directories (names starting with ".").
 
     Intended to run inside the collection folder. Equivalent to
-    ``find . -name ".*" -delete``, deepest paths first.
+    ``find . -name ".*" -delete`` plus removal of macOS ``__MACOSX``
+    directories, deepest paths first.
 
     Prints a single summary count instead of one line per path. Some archives
     ship a hidden file next to every real file (for example macOS ``._*``
     AppleDouble files), so listing each path would flood the log.
     """
-    hidden = list(root.rglob(".*"))
+    hidden = list(root.rglob(".*")) + list(root.rglob("__MACOSX"))
     deleted = 0
     for path in sorted(hidden, key=lambda p: len(p.parts), reverse=True):
         if not path.exists():
