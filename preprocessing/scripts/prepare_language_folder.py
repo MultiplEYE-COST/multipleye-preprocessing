@@ -17,36 +17,14 @@ from ..utils.fix_multipleye_aoi_files import (
     fix_aoi_file,
 )
 from ..utils.logging import get_logger
+from ..utils.stimulus_versions import (
+    configured_version_suffixes,
+    default_version_suffix,
+    stimulus_folder_name,
+    version_suffix_for_pid,
+)
 
 logger = get_logger()
-
-
-def _get_version_folder_suffixes() -> list[str | None]:
-    """Return the stimulus version folder suffixes to process.
-
-    Returns which stimulus folders should be prepared, based on the configured
-    stimulus versions. ``None`` denotes the suffix-less folder
-    (``stimuli_<dcn>``), which is processed when no other default is set.
-
-    Returns
-    -------
-    list[str | None]
-        Version suffixes to process, e.g. ``[None]`` for single-folder mode,
-        ``["v1", "v2"]`` for multiple versions.
-    """
-    from preprocessing import settings
-
-    pid_map = settings.STIMULUS_VERSIONS_PID_MAP or {}
-    default_version = settings.STIMULUS_VERSIONS_DEFAULT_VERSION
-
-    if not pid_map and not default_version:
-        return [None]
-
-    suffixes: list[str | None] = [default_version] if default_version else [None]
-    for version in pid_map:
-        if version not in suffixes:
-            suffixes.append(version)
-    return suffixes
 
 
 def _session_is_selected(session_name: str) -> bool:
@@ -97,17 +75,12 @@ def _get_used_version_folder_suffixes(
     configuration. Versioned folders are only included when at least one selected
     session is mapped to them, so unused stimulus folders are not copied.
     """
-    from preprocessing import settings
-
-    default_suffix = settings.STIMULUS_VERSIONS_DEFAULT_VERSION
-    pid_version = settings.STIMULUS_PID_VERSION_MAP
-
-    used: set[str | None] = {default_suffix}
+    used: set[str | None] = {default_version_suffix()}
     for session_folder in _iter_selected_session_folders(eye_tracking_sessions_dir):
         pid = session_folder.name.split("_")[0]
-        used.add(pid_version.get(pid, default_suffix))
+        used.add(version_suffix_for_pid(pid))
 
-    return [suffix for suffix in _get_version_folder_suffixes() if suffix in used]
+    return [suffix for suffix in configured_version_suffixes() if suffix in used]
 
 
 def prepare_language_folder(data_collection_name: str | None = None):
@@ -273,10 +246,7 @@ def prepare_language_folder(data_collection_name: str | None = None):
                 )
 
     for version_suffix in _get_used_version_folder_suffixes(eye_tracking_sessions_path):
-        if version_suffix is None:
-            folder_name = f"stimuli_{data_collection_name}"
-        else:
-            folder_name = f"stimuli_{data_collection_name}_{version_suffix}"
+        folder_name = stimulus_folder_name(data_collection_name, version_suffix)
 
         stimulus_folder_path = data_folder_path / folder_name
 

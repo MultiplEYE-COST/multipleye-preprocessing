@@ -8,9 +8,9 @@ from preprocessing.data_collection.multipleye_data_collection import (
 from preprocessing.models.dcn import Dcn
 from preprocessing.scripts.prepare_language_folder import (
     _compute_stimulus_checksum,
-    _get_version_folder_suffixes,
     prepare_language_folder,
 )
+from preprocessing.utils.stimulus_versions import configured_version_suffixes
 
 
 @pytest.fixture
@@ -409,11 +409,11 @@ def test_stimulus_change_triggers_recopy(first_run, data_collection_name):
         ("v2", {}, ["v2"]),
     ],
 )
-def test_get_version_folder_suffixes(monkeypatch, default_version, pid_map, expected):
+def test_configured_version_suffixes(monkeypatch, default_version, pid_map, expected):
     """Version suffixes follow from the config: default plus mapped versions."""
     monkeypatch.setattr(settings, "STIMULUS_VERSIONS_DEFAULT_VERSION", default_version)
     monkeypatch.setattr(settings, "STIMULUS_VERSIONS_PID_MAP", pid_map)
-    assert _get_version_folder_suffixes() == expected
+    assert configured_version_suffixes() == expected
 
 
 @pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])

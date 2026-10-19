@@ -48,6 +48,7 @@ from ..utils.data_collection_utils import _report_to_file
 from ..utils.data_path_utils import _ci_resolve
 from ..utils.fix_questionnaire_data import remap_wrong_pq_values
 from ..utils.logging import get_logger, get_pipeline_info
+from ..utils.stimulus_versions import stimulus_folder_name
 
 
 def eyelink(method):
@@ -709,13 +710,10 @@ class MultipleyeDataCollection:
             return None
 
         # Look for versioned stimulus folders next to the default one.
-        base = data_folder_path
-        default_name = default_stimulus_dir.name
-
         result: dict[str, Path] = {}
         for version, pids in pid_map.items():
-            folder_name = f"{default_name}_{version}"
-            version_dir = base / folder_name
+            folder_name = stimulus_folder_name(data_folder_path.name, version)
+            version_dir = data_folder_path / folder_name
             if not version_dir.exists():
                 version_dir = default_stimulus_dir.parent / folder_name
             for pid in pids:

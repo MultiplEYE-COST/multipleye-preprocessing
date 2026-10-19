@@ -12,6 +12,7 @@ from preprocessing.checks.preflight import (
     PreflightError,
     _check_psychometric_tests,
     _check_session_completeness,
+    _check_stimulus_order_coverage,
     _check_stimulus_versions,
     run_preflight_check,
 )
@@ -1280,3 +1281,29 @@ def test_preflight_includes_version_errors(version_env):
         run_preflight_check(dc)
     assert exc_info.value.num_errors >= 1
     assert "Stimulus versions" in exc_info.value.groups
+
+
+def test_stimulus_order_coverage_uses_version_csv(version_env):
+    """A versioned session is checked against its version CSV, not the default one."""
+    dc, _default_dir, _version_dirs = version_env
+    groups: dict[str, list[str]] = {}
+
+    _check_stimulus_order_coverage(dc, groups)
+
+    assert "Stimulus order versions coverage" not in groups
+
+
+def test_stimulus_order_coverage_reports_missing_in_version_csv(version_env):
+    """A versioned session missing from its version CSV is reported."""
+    dc, _default_dir, version_dirs = version_env
+    (version_dirs["v2"] / "config" / "stimulus_order_versions_EN_UK_1.csv").write_text(
+        "participant_id,version_number\n", encoding="utf-8"
+    )
+    groups: dict[str, list[str]] = {}
+
+    _check_stimulus_order_coverage(dc, groups)
+
+    assert any(
+        "not found in stimulus_order_versions" in message
+        for message in groups["Stimulus order versions coverage"]
+    )

@@ -405,70 +405,74 @@ def _check_stimulus_order_coverage(
     data_collection,
     groups: dict[str, list[str]],
 ) -> None:
-    """Check that every session's participant ID is present in the stimulus order versions CSV.
+    """Check that every session's participant ID is present in its stimulus order versions CSV.
 
-    Detects missing and duplicate participant IDs, which would cause
+    The CSV is resolved per session content version, so participants assigned to
+    a versioned stimulus folder are checked against that folder's CSV. Detects
+    missing and duplicate participant IDs, which would cause
     ``_load_session_stimulus_order`` to fail mid-pipeline.
     """
     from ..config import settings
     from ..models.sid import Sid
+    from ..utils.stimulus_versions import (
+        stimulus_folder_name,
+        version_dir,
+        version_suffix_for_pid,
+    )
 
-    # Resolve the *source* stimulus dir (same logic as _check_shared_files)
+    # Resolve the *source* stimulus dir (same logic as _check_shared_files).
     # Preflight always validates the input data/ folder, never the
-    # preprocessed_data/ output copy.  Fall back to stimulus_dir only for
+    # preprocessed_data/ output copy. Fall back to stimulus_dir only for
     # test/demo contexts that lack a real data_collection_name.
     dcn_name = getattr(data_collection, "data_collection_name", None)
     if dcn_name:
-        source_stim_dir = settings.DATASET_DIR / f"stimuli_{dcn_name}"
+        base_stim_dir = settings.DATASET_DIR / stimulus_folder_name(dcn_name, None)
     else:
-        source_stim_dir = data_collection.stimulus_dir.resolve()
+        base_stim_dir = data_collection.stimulus_dir.resolve()
 
-    csv_path = (
-        source_stim_dir
-        / "config"
-        / f"stimulus_order_versions_{data_collection.language}_{data_collection.country}_{data_collection.lab_number}.csv"
+    order_csv_name = (
+        f"stimulus_order_versions_{data_collection.language}_"
+        f"{data_collection.country}_{data_collection.lab_number}.csv"
     )
-    if not _ci_exists(csv_path):
-        return  # already reported by _check_shared_files
 
-    try:
-        df = pl.read_csv(_ci_resolve(csv_path), infer_schema_length=0)
-    except Exception:
-        return  # already reported by _check_shared_files
-
-    if "participant_id" not in df.columns:
-        return  # already reported by _check_shared_files
-
-    # Read non-null participant IDs from the CSV
-    csv_pids_raw = df.filter(pl.col("participant_id").is_not_null())[
-        "participant_id"
-    ].to_list()
-
-    # Check each session's PID
-    missing_pids: list[str] = []
-    duplicate_pids: list[str] = []
+    # Group sessions by their resolved version dir so each CSV is read once.
+    sessions_by_dir: dict[Path, list[tuple[str, str]]] = {}
     for session in data_collection.sessions.values():
         try:
             pid = Sid(session.session_identifier).pid
         except (ValueError, TypeError):
             continue
+        vdir = version_dir(base_stim_dir, version_suffix_for_pid(pid))
+        sessions_by_dir.setdefault(vdir, []).append((session.session_identifier, pid))
 
-        count = sum(1 for p in csv_pids_raw if str(int(float(p))).zfill(3) == pid)
-        if count == 0:
-            missing_pids.append(f"{session.session_identifier} (PID {pid})")
-        elif count > 1:
-            duplicate_pids.append(
-                f"{session.session_identifier} (PID {pid}, {count} entries)"
-            )
+    for vdir, entries in sessions_by_dir.items():
+        csv_path = vdir / "config" / order_csv_name
+        if not _ci_exists(csv_path):
+            continue  # already reported by _check_shared_files / _check_stimulus_versions
+        try:
+            df = pl.read_csv(_ci_resolve(csv_path), infer_schema_length=0)
+        except Exception:
+            continue  # already reported elsewhere
+        if "participant_id" not in df.columns:
+            continue
 
-    for entry in missing_pids:
-        groups.setdefault("Stimulus order versions coverage", []).append(
-            f"{entry} — not found in stimulus_order_versions CSV"
-        )
-    for entry in duplicate_pids:
-        groups.setdefault("Stimulus order versions coverage", []).append(
-            f"{entry} — duplicate entries in stimulus_order_versions CSV"
-        )
+        csv_pids_raw = df.filter(pl.col("participant_id").is_not_null())[
+            "participant_id"
+        ].to_list()
+        normalized = [str(int(float(p))).zfill(3) for p in csv_pids_raw]
+
+        for session_identifier, pid in entries:
+            count = normalized.count(pid)
+            if count == 0:
+                groups.setdefault("Stimulus order versions coverage", []).append(
+                    f"{session_identifier} (PID {pid}) — not found in "
+                    "stimulus_order_versions CSV"
+                )
+            elif count > 1:
+                groups.setdefault("Stimulus order versions coverage", []).append(
+                    f"{session_identifier} (PID {pid}, {count} entries) — duplicate "
+                    "entries in stimulus_order_versions CSV"
+                )
 
 
 def _check_session_completeness(
@@ -548,6 +552,7 @@ def _check_stimulus_versions(
     """
     from ..config import settings
     from ..models.sid import Sid
+    from ..utils.stimulus_versions import version_dir, version_suffix_for_pid
 
     pid_map = settings.STIMULUS_VERSIONS_PID_MAP or {}
     if not pid_map:
@@ -565,8 +570,6 @@ def _check_stimulus_versions(
     labnum = data_collection.lab_number
     order_csv_name = f"stimulus_order_versions_{lang}_{country}_{labnum}.csv"
 
-    pid_version = settings.STIMULUS_PID_VERSION_MAP
-
     # Only versions that a session is actually mapped to need to be present.
     # Unused configured versions are not prepared (see prepare_language_folder),
     # so requiring their folder here would be a false error.
@@ -579,21 +582,21 @@ def _check_stimulus_versions(
             pid = Sid(session_id).pid
         except (ValueError, TypeError):
             continue
-        version = pid_version.get(pid)
-        if version is not None:
-            needed_versions.add(version)
+        suffix = version_suffix_for_pid(pid)
+        if suffix is not None:
+            needed_versions.add(suffix)
 
     version_dirs: dict[str, Path] = {}
     for version in sorted(needed_versions):
-        version_dir = Path(f"{source_stim_dir}_{version}")
-        version_dirs[version] = version_dir
-        if not _ci_exists(version_dir):
+        vdir = version_dir(source_stim_dir, version)
+        version_dirs[version] = vdir
+        if not _ci_exists(vdir):
             groups.setdefault("Stimulus versions", []).append(
-                f"Stimulus folder for version '{version}' does not exist: {version_dir}"
+                f"Stimulus folder for version '{version}' does not exist: {vdir}"
             )
             continue
         _require_file(
-            version_dir / "config" / order_csv_name,
+            vdir / "config" / order_csv_name,
             "Stimulus versions",
             groups,
         )
@@ -604,11 +607,11 @@ def _check_stimulus_versions(
             pid = Sid(session.session_identifier).pid
         except (ValueError, TypeError):
             continue
-        version = pid_version.get(pid)
+        version = version_suffix_for_pid(pid)
         if version is None:
             continue
-        version_dir = version_dirs.get(version)
-        csv_path = version_dir / "config" / order_csv_name
+        vdir = version_dirs.get(version)
+        csv_path = vdir / "config" / order_csv_name
         if not _ci_exists(csv_path):
             continue  # already reported above
         try:
