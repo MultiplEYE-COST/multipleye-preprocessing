@@ -293,10 +293,19 @@ def prepare_language_folder(data_collection_name: str | None = None):
             _copy_stimulus_assets(
                 stimulus_folder_path,
                 preprocessed_stimulus_path,
-                eye_tracking_sessions_path,
                 dcn,
             )
             checksum_path.write_text(source_checksum)
+
+        # Always ensure the question-image versions used by the selected sessions
+        # are present, even when the bulk copy was skipped by the checksum. The
+        # set of used versions can change with the session selection.
+        _copy_used_question_images(
+            stimulus_folder_path,
+            preprocessed_stimulus_path,
+            eye_tracking_sessions_path,
+            dcn,
+        )
 
         if (  # check if it already contains 24 files and the fixed marker
             destination_aoi_path.exists()
@@ -364,7 +373,6 @@ def prepare_language_folder(data_collection_name: str | None = None):
 def _copy_stimulus_assets(
     source_stimulus_dir: Path,
     dest_stimulus_dir: Path,
-    eye_tracking_sessions_dir: Path,
     dcn: Dcn,
 ) -> None:
     from preprocessing import settings
@@ -418,16 +426,33 @@ def _copy_stimulus_assets(
                     _to_win_long_path(dest_file) if os.name == "nt" else dest_file,
                 )
 
-    # 6. Copy used Question Images
+
+def _copy_used_question_images(
+    source_stimulus_dir: Path,
+    dest_stimulus_dir: Path,
+    eye_tracking_sessions_dir: Path,
+    dcn: Dcn,
+) -> None:
+    """Copy the question-image versions used by the selected sessions.
+
+    Runs on every preparation, independent of the source ``.copy_checksum``,
+    because the set of used order versions can change with the session selection
+    (``include_sessions`` / ``exclude_sessions`` / ``include_pilots``) even when
+    the source stimuli are unchanged. Existing version folders are skipped.
+    """
+    from preprocessing import settings
+
+    suffix = f"{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
     used_versions = _get_used_stimulus_versions(eye_tracking_sessions_dir)
     logger.debug(f"Identified used stimulus versions: {used_versions}")
+
+    dest_stimulus_dir.mkdir(parents=True, exist_ok=True)
     _copy_used_version_folders(
         source_stimulus_dir / f"question_images_{suffix}",
         dest_stimulus_dir / f"question_images_{suffix}",
         used_versions,
     )
 
-    # 7. Copy used AOI Question Images (optional overlay)
     if settings.COPY_AOI_IMAGES_OVERLAY:
         _copy_used_version_folders(
             source_stimulus_dir / f"aoi_question_images_{suffix}",

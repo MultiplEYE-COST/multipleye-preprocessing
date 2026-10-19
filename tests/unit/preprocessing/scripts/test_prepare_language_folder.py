@@ -6,6 +6,7 @@ from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
 )
 from preprocessing.models.dcn import Dcn
+from preprocessing.scripts import prepare_language_folder as plf_module
 from preprocessing.scripts.prepare_language_folder import (
     _compute_stimulus_checksum,
     prepare_language_folder,
@@ -517,3 +518,33 @@ def test_prepare_language_folder_skips_unused_versions(
         / f"stimuli_{data_collection_name}_v2"
     )
     assert not preprocessed_v2.exists()
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_used_question_images_backfilled_when_checksum_unchanged(
+    mock_data_collection_factory, data_collection_name, monkeypatch
+):
+    """A newly used order version is copied even when the source checksum matches."""
+    tmp_path, data_collection_name, aoi_dir = mock_data_collection_factory(
+        data_collection_name
+    )
+    suffix, _lang = setup_stimulus_assets(tmp_path, data_collection_name, aoi_dir)
+
+    question_dir = (
+        tmp_path
+        / "preprocessed_data"
+        / data_collection_name
+        / f"stimuli_{data_collection_name}"
+        / f"question_images_{suffix}"
+    )
+
+    monkeypatch.setattr(plf_module, "_get_used_stimulus_versions", lambda _: {1})
+    prepare_language_folder(data_collection_name)
+    assert (question_dir / "question_images_version_1").exists()
+    assert not (question_dir / "question_images_version_2").exists()
+
+    # Same source stimuli (checksum unchanged), but the used versions grew.
+    monkeypatch.setattr(plf_module, "_get_used_stimulus_versions", lambda _: {1, 2})
+    prepare_language_folder(data_collection_name)
+
+    assert (question_dir / "question_images_version_2").exists()

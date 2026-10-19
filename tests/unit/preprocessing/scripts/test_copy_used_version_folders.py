@@ -52,7 +52,7 @@ def test_aoi_question_images_copied_when_enabled(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "_loaded", True)
     monkeypatch.setitem(settings.__dict__, "COPY_AOI_IMAGES_OVERLAY", True)
 
-    plf._copy_stimulus_assets(
+    plf._copy_used_question_images(
         source, dest, tmp_path / "sessions", Dcn("MultiplEYE_EN_UK_London_1_2025")
     )
 
@@ -70,7 +70,7 @@ def test_aoi_question_images_not_copied_when_disabled(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "_loaded", True)
     monkeypatch.setitem(settings.__dict__, "COPY_AOI_IMAGES_OVERLAY", False)
 
-    plf._copy_stimulus_assets(
+    plf._copy_used_question_images(
         source, dest, tmp_path / "sessions", Dcn("MultiplEYE_EN_UK_London_1_2025")
     )
 
