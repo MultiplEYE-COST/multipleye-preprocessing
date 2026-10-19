@@ -10,7 +10,9 @@ import polars as pl
 def main():
     # Place for verbose path to the data collection folder that should be cleaned.
     # Use only relative paths to everything else based on this folder.
-    collection_folder = Path(r"PATH_TO_YOUR_COLLECTION")
+    collection_folder = Path(
+        r"/data/multipleye-preprocessing/data/PATH_TO_YOUR_COLLECTION"
+    )
 
     # Please comment for everything you do here, why you do it, and where you got the information (e.g. session documentation sheet)
 
@@ -121,13 +123,14 @@ def del_hidden_files(root: Path = Path(".")) -> None:
     """Recursively delete hidden files and directories (names starting with ".").
 
     Intended to run inside the collection folder. Equivalent to
-    ``find . -name ".*" -delete``, deepest paths first.
+    ``find . -name ".*" -delete`` plus removal of macOS ``__MACOSX``
+    directories, deepest paths first.
 
     Prints a single summary count instead of one line per path. Some archives
     ship a hidden file next to every real file (for example macOS ``._*``
     AppleDouble files), so listing each path would flood the log.
     """
-    hidden = list(root.rglob(".*"))
+    hidden = list(root.rglob(".*")) + list(root.rglob("__MACOSX"))
     deleted = 0
     for path in sorted(hidden, key=lambda p: len(p.parts), reverse=True):
         if not path.exists():

@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import tarfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pandas as pd
@@ -16,8 +17,70 @@ from ..utils.fix_multipleye_aoi_files import (
     fix_aoi_file,
 )
 from ..utils.logging import get_logger
+from ..utils.stimulus_versions import (
+    configured_version_suffixes,
+    default_version_suffix,
+    stimulus_folder_name,
+    version_suffix_for_pid,
+)
 
 logger = get_logger()
+
+
+def _session_is_selected(session_name: str) -> bool:
+    """Return whether a session passes the configured include/exclude filters."""
+    from preprocessing import settings
+
+    include = settings.INCLUDE_SESSIONS or []
+    exclude = settings.EXCLUDE_SESSIONS or []
+    if include and session_name not in include:
+        return False
+    return session_name not in exclude
+
+
+def _iter_selected_session_folders(
+    eye_tracking_sessions_dir: Path,
+) -> Iterator[Path]:
+    """Yield session folders that pass the configured session filters.
+
+    Respects ``INCLUDE_SESSIONS``, ``EXCLUDE_SESSIONS``,
+    ``IGNORED_SESSION_FOLDERS`` and ``INCLUDE_PILOTS`` so that excluded sessions
+    do not influence which stimulus versions are copied.
+    """
+    from preprocessing import settings
+
+    ignored = set(settings.IGNORED_SESSION_FOLDERS or [])
+    for session_folder in eye_tracking_sessions_dir.glob("*"):
+        if not session_folder.is_dir():
+            continue
+        if session_folder.name in ignored:
+            continue
+        if _session_is_selected(session_folder.name):
+            yield session_folder
+
+    pilot_dir = eye_tracking_sessions_dir / "pilot_sessions"
+    if settings.INCLUDE_PILOTS and pilot_dir.exists():
+        for session_folder in pilot_dir.glob("*"):
+            if session_folder.is_dir() and _session_is_selected(session_folder.name):
+                yield session_folder
+
+
+def _get_used_version_folder_suffixes(
+    eye_tracking_sessions_dir: Path,
+) -> list[str | None]:
+    """Return the stimulus content version suffixes used by selected sessions.
+
+    The default folder (``STIMULUS_VERSIONS_DEFAULT_VERSION``, ``None`` for the
+    suffix-less folder) is always included because it holds the shared lab
+    configuration. Versioned folders are only included when at least one selected
+    session is mapped to them, so unused stimulus folders are not copied.
+    """
+    used: set[str | None] = {default_version_suffix()}
+    for session_folder in _iter_selected_session_folders(eye_tracking_sessions_dir):
+        pid = session_folder.name.split("_")[0]
+        used.add(version_suffix_for_pid(pid))
+
+    return [suffix for suffix in configured_version_suffixes() if suffix in used]
 
 
 def prepare_language_folder(data_collection_name: str | None = None):
@@ -182,97 +245,114 @@ def prepare_language_folder(data_collection_name: str | None = None):
                     f"into '{pilot_folder}'"
                 )
 
-    stimulus_folder_path = data_folder_path / f"stimuli_{data_collection_name}"
+    for version_suffix in _get_used_version_folder_suffixes(eye_tracking_sessions_path):
+        folder_name = stimulus_folder_name(data_collection_name, version_suffix)
 
-    preprocessed_stimulus_path = settings.OUTPUT_DIR / f"stimuli_{data_collection_name}"
+        stimulus_folder_path = data_folder_path / folder_name
 
-    if not stimulus_folder_path.exists():
-        logger.warning(
-            f"The stimulus folder stimuli_{data_collection_name} does not exist. Check and if necessary, ask team to upload."
-        )
-    else:
-        config_path = stimulus_folder_path / "config"
-        if not config_path.exists():
-            raise FileNotFoundError(
-                f"The stimulus config folder not found in '{stimulus_folder_path}'. "
-                "Please check and restructure or possibly unzip the stimulus folder."
-            )
+        preprocessed_stimulus_path = settings.OUTPUT_DIR / folder_name
 
-    # if aoi files are not yet split into questions and texts, do it here:
-    source_aoi_path = (
-        stimulus_folder_path
-        / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
-    )
-
-    destination_aoi_path = (
-        preprocessed_stimulus_path
-        / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
-    )
-
-    # Check if stimulus assets have changed since last copy
-    checksum_path = preprocessed_stimulus_path / ".copy_checksum"
-    source_checksum = _compute_stimulus_checksum(stimulus_folder_path)
-    stored = checksum_path.read_text().strip() if checksum_path.exists() else None
-
-    if source_checksum == stored:
-        logger.info("Stimulus assets unchanged. Skipping copy.")
-    else:
-        if stored is not None:
+        if not stimulus_folder_path.exists():
             logger.warning(
-                "Stimulus assets have changed and are being recopied. Note that some outputs may be based on a previous stimuli version. "
-                "To recalculate everything based on the new stimuli version please activate the 'Recalculate' flag in the settings."
+                f"The stimulus folder {folder_name} does not exist. Check and if necessary, ask team to upload."
             )
-            shutil.rmtree(str(preprocessed_stimulus_path))
-        _copy_stimulus_assets(
+            continue
+        else:
+            config_path = stimulus_folder_path / "config"
+            if not config_path.exists():
+                raise FileNotFoundError(
+                    f"The stimulus config folder not found in '{stimulus_folder_path}'. "
+                    "Please check and restructure or possibly unzip the stimulus folder."
+                )
+
+        # if aoi files are not yet split into questions and texts, do it here:
+        source_aoi_path = (
+            stimulus_folder_path
+            / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
+        )
+
+        destination_aoi_path = (
+            preprocessed_stimulus_path
+            / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
+        )
+
+        # Check if stimulus assets have changed since last copy
+        checksum_path = preprocessed_stimulus_path / ".copy_checksum"
+        source_checksum = _compute_stimulus_checksum(stimulus_folder_path)
+        stored = checksum_path.read_text().strip() if checksum_path.exists() else None
+
+        if source_checksum == stored:
+            logger.info(f"Stimulus assets for {folder_name} unchanged. Skipping copy.")
+        else:
+            if stored is not None:
+                logger.warning(
+                    "Stimulus assets have changed and are being recopied. Note that some outputs may be based on a previous stimuli version. "
+                    "To recalculate everything based on the new stimuli version please activate the 'Recalculate' flag in the settings."
+                )
+                shutil.rmtree(str(preprocessed_stimulus_path))
+            _copy_stimulus_assets(
+                stimulus_folder_path,
+                preprocessed_stimulus_path,
+                dcn,
+            )
+            checksum_path.write_text(source_checksum)
+
+        # Always ensure the question-image versions used by the selected sessions
+        # are present, even when the bulk copy was skipped by the checksum. The
+        # set of used versions can change with the session selection.
+        _copy_used_question_images(
             stimulus_folder_path,
             preprocessed_stimulus_path,
             eye_tracking_sessions_path,
             dcn,
         )
-        checksum_path.write_text(source_checksum)
 
-    if (  # check if it already contains 24 files and the fixed marker
-        destination_aoi_path.exists()
-        and len(list(destination_aoi_path.glob("[!.]*.csv"))) == 24
-        and (destination_aoi_path / ".fixed").exists()
-    ):
-        logger.debug(
-            f"AOI files already exist, are split and fixed in {destination_aoi_path}. Skipping."
-        )
-        return
-
-    if not destination_aoi_path.exists():
-        if source_aoi_path.exists():
-            logger.debug(f"Copying AOI files to {destination_aoi_path}...")
-            _copytree(source_aoi_path, destination_aoi_path)
-        else:
-            logger.warning(f"Source AOI path {source_aoi_path} does not exist.")
-            return
-
-    # get all aoi files in the preprocessed folder
-    aoi_files = list(destination_aoi_path.glob("[!.]*.csv"))
-    if len(aoi_files) == 12:
-        logger.info("Splitting AOI files into text and question AOIs...")
-        for aoi_file in aoi_files:
-            aoi_df = pd.read_csv(aoi_file)
-            # split the aoi_df into two parts, one for the stimulus and one for the questions
-            aoi_df_texts = aoi_df[~aoi_df["page"].str.contains("question", na=False)]
-            aoi_df_texts.drop(
-                columns=["question_image_version"], inplace=True, errors="ignore"
+        if (  # check if it already contains 24 files and the fixed marker
+            destination_aoi_path.exists()
+            and len(list(destination_aoi_path.glob("[!.]*.csv"))) == 24
+            and (destination_aoi_path / ".fixed").exists()
+        ):
+            logger.debug(
+                f"AOI files already exist, are split and fixed in {destination_aoi_path}. Skipping."
             )
-            aoi_df_questions = aoi_df[aoi_df["page"].str.contains("question", na=False)]
+            continue
 
-            aoi_df_texts.to_csv(aoi_file, sep=",", index=False, encoding="UTF-8")
+        if not destination_aoi_path.exists():
+            if source_aoi_path.exists():
+                logger.debug(f"Copying AOI files to {destination_aoi_path}...")
+                _copytree(source_aoi_path, destination_aoi_path)
+            else:
+                logger.warning(f"Source AOI path {source_aoi_path} does not exist.")
+                continue
 
-            question_path = destination_aoi_path / (
-                aoi_file.stem + "_questions" + aoi_file.suffix
-            )
-            aoi_df_questions.to_csv(
-                question_path, sep=",", index=False, encoding="UTF-8"
-            )
+        # get all aoi files in the preprocessed folder
+        aoi_files = list(destination_aoi_path.glob("[!.]*.csv"))
+        if len(aoi_files) == 12:
+            logger.info("Splitting AOI files into text and question AOIs...")
+            for aoi_file in aoi_files:
+                aoi_df = pd.read_csv(aoi_file)
+                # split the aoi_df into two parts, one for the stimulus and one for the questions
+                aoi_df_texts = aoi_df[
+                    ~aoi_df["page"].str.contains("question", na=False)
+                ]
+                aoi_df_texts.drop(
+                    columns=["question_image_version"], inplace=True, errors="ignore"
+                )
+                aoi_df_questions = aoi_df[
+                    aoi_df["page"].str.contains("question", na=False)
+                ]
 
-        # Re-get files to include the new _questions files
-        aoi_files = list(destination_aoi_path.glob("*.csv"))
+                aoi_df_texts.to_csv(aoi_file, sep=",", index=False, encoding="UTF-8")
+
+                question_path = destination_aoi_path / (
+                    aoi_file.stem + "_questions" + aoi_file.suffix
+                )
+                aoi_df_questions.to_csv(
+                    question_path, sep=",", index=False, encoding="UTF-8"
+                )
+
+            # Re-get files to include the new _questions files
+            aoi_files = list(destination_aoi_path.glob("*.csv"))
 
     if len(aoi_files) == 24:
         logger.info("Applying AOI fixes (remapping space and repairing labels)...")
@@ -281,7 +361,6 @@ def prepare_language_folder(data_collection_name: str | None = None):
 
         # Create a marker file to indicate that these files have been fixed
         (destination_aoi_path / ".fixed").touch()
-
     elif len(aoi_files) == 0:
         logger.warning(f"No AOI files found in '{destination_aoi_path}'.")
     else:
@@ -294,7 +373,6 @@ def prepare_language_folder(data_collection_name: str | None = None):
 def _copy_stimulus_assets(
     source_stimulus_dir: Path,
     dest_stimulus_dir: Path,
-    eye_tracking_sessions_dir: Path,
     dcn: Dcn,
 ) -> None:
     from preprocessing import settings
@@ -348,16 +426,33 @@ def _copy_stimulus_assets(
                     _to_win_long_path(dest_file) if os.name == "nt" else dest_file,
                 )
 
-    # 6. Copy used Question Images
+
+def _copy_used_question_images(
+    source_stimulus_dir: Path,
+    dest_stimulus_dir: Path,
+    eye_tracking_sessions_dir: Path,
+    dcn: Dcn,
+) -> None:
+    """Copy the question-image versions used by the selected sessions.
+
+    Runs on every preparation, independent of the source ``.copy_checksum``,
+    because the set of used order versions can change with the session selection
+    (``include_sessions`` / ``exclude_sessions`` / ``include_pilots``) even when
+    the source stimuli are unchanged. Existing version folders are skipped.
+    """
+    from preprocessing import settings
+
+    suffix = f"{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
     used_versions = _get_used_stimulus_versions(eye_tracking_sessions_dir)
     logger.debug(f"Identified used stimulus versions: {used_versions}")
+
+    dest_stimulus_dir.mkdir(parents=True, exist_ok=True)
     _copy_used_version_folders(
         source_stimulus_dir / f"question_images_{suffix}",
         dest_stimulus_dir / f"question_images_{suffix}",
         used_versions,
     )
 
-    # 7. Copy used AOI Question Images (optional overlay)
     if settings.COPY_AOI_IMAGES_OVERLAY:
         _copy_used_version_folders(
             source_stimulus_dir / f"aoi_question_images_{suffix}",
@@ -390,18 +485,15 @@ def _copy_used_version_folders(
 
 
 def _get_used_stimulus_versions(eye_tracking_sessions_dir: Path) -> set[int]:
-    used_versions = set()
-    # Check regular sessions
-    for session_folder in eye_tracking_sessions_dir.glob("*"):
-        if session_folder.is_dir() and session_folder.name != "pilot_sessions":
-            _extract_from_session(session_folder, used_versions)
+    """Return the stimulus order versions used by the selected sessions.
 
-    # Check pilot sessions
-    pilot_dir = eye_tracking_sessions_dir / "pilot_sessions"
-    if pilot_dir.exists():
-        for session_folder in pilot_dir.glob("*"):
-            if session_folder.is_dir():
-                _extract_from_session(session_folder, used_versions)
+    Only sessions that pass the configured include/exclude/pilot filters are
+    considered, so excluded sessions do not cause extra question images to be
+    copied.
+    """
+    used_versions: set[int] = set()
+    for session_folder in _iter_selected_session_folders(eye_tracking_sessions_dir):
+        _extract_from_session(session_folder, used_versions)
 
     return used_versions
 
