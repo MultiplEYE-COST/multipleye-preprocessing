@@ -49,7 +49,8 @@ Stage 13 is independent and runs once at the end, after all sessions are done.
 into shape.** This runs once before anything else. It handles the messy reality of real
 data collections: AOI CSV files that need splitting into text and question variants, and
 old-format psychometric test data that needs restructuring from task-first to session-first.
-Session archives must be unpacked in the cleaning step beforehand.
+Session archives and nested core-session folders must be unpacked and flattened in the
+cleaning step beforehand.
 
 The function is `prepare_language_folder()` in `scripts.prepare_language_folder`. It also
 copies stimulus images, question images, and configuration files into the output folder so

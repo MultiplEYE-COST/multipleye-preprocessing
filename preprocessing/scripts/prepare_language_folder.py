@@ -3,7 +3,6 @@ import hashlib
 import os
 import re
 import shutil
-import tarfile
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -25,6 +24,21 @@ from ..utils.stimulus_versions import (
 )
 
 logger = get_logger()
+
+_ARCHIVE_SUFFIXES = (".zip", ".tar", ".tar.gz", ".tgz", ".7z", ".rar")
+
+
+def _find_named_archives(directory: Path, name: str) -> list[Path]:
+    """Return archives in ``directory`` whose name starts with ``name``."""
+    if not directory.exists():
+        return []
+    return sorted(
+        path
+        for path in directory.iterdir()
+        if path.is_file()
+        and path.name.startswith(name)
+        and path.name.endswith(_ARCHIVE_SUFFIXES)
+    )
 
 
 def _session_is_selected(session_name: str) -> bool:
@@ -104,107 +118,60 @@ def prepare_language_folder(data_collection_name: str | None = None):
         data_collection_name, settings.THIS_REPO / "data"
     )
 
-    # check if there exists an eye-tracking-sessions folder
+    # The 'eye-tracking-sessions' folder must be unpacked in the cleaning step.
     eye_tracking_sessions_path = data_folder_path / "eye-tracking-sessions"
     if not eye_tracking_sessions_path.exists():
-        # check if it is still in a tar
-        zipped_path = data_folder_path / "eye-tracking-sessions.tar"
-        if zipped_path.exists():
-            # unzip
-
-            with tarfile.open(zipped_path, "r") as tar:
-                tar.extractall(path=data_folder_path)
-            logger.info(f"Extracted 'eye-tracking-sessions' from '{zipped_path}'")
-        else:
-            raise FileNotFoundError(
-                f"The 'eye-tracking-sessions' folder does not exist in '{data_folder_path}'. "
-                "Please ensure the data collection is correctly structured."
+        msg = (
+            f"The 'eye-tracking-sessions' folder does not exist in '{data_folder_path}'. "
+            "Please ensure the data collection is correctly structured and unpack any "
+            "archives in the cleaning step."
+        )
+        archives = _find_named_archives(data_folder_path, "eye-tracking-sessions")
+        if archives:
+            msg += (
+                " Found archive(s) with the same name: "
+                + ", ".join(a.name for a in archives)
+                + ". Unpack them in the cleaning step."
             )
+        raise FileNotFoundError(msg)
 
-    # check if there is a core_sessions folder and if yes, check if there are any folder inside and then move them up and delete the core_sessions folder
-    core_session_paths = [
-        eye_tracking_sessions_path / "core_sessions",
-        eye_tracking_sessions_path / "core_dataset",
-    ]
-    for core_session_path in core_session_paths:
-        if core_session_path.exists():
-            core_folders = list(core_session_path.glob("*"))
-            if len(core_folders) > 0:
-                logger.info(
-                    "Starting to move folders from 'core_sessions' to 'eye-tracking-sessions' "
-                    "and removed 'core_sessions' folder."
-                )
-                for folder in core_folders:
-                    dest = eye_tracking_sessions_path / folder.name
-                    if dest.exists():
-                        src_names = {p.name for p in folder.rglob("*") if p.is_file()}
-                        dst_names = {p.name for p in dest.rglob("*") if p.is_file()}
-                        only_in_src = src_names - dst_names
-                        only_in_dst = dst_names - src_names
-                        if only_in_src or only_in_dst:
-                            msg_parts = [
-                                (
-                                    f"Folder '{folder.name}' exists in both "
-                                    f"'core_sessions' and 'eye-tracking-sessions' "
-                                    f"with different contents."
-                                )
-                            ]
-                            if only_in_src:
-                                msg_parts.append(
-                                    f"  Only in core_sessions ({len(only_in_src)} files): "
-                                    + ", ".join(sorted(only_in_src)[:10])
-                                )
-                            if only_in_dst:
-                                msg_parts.append(
-                                    f"  Only in eye-tracking-sessions ({len(only_in_dst)} files): "
-                                    + ", ".join(sorted(only_in_dst)[:10])
-                                )
-                            msg_parts.append(
-                                "  Resolve manually by inspecting both folders, "
-                                "then remove the one from 'core_sessions'."
-                            )
-                            logger.warning("\n".join(msg_parts))
-                        else:
-                            logger.debug(
-                                f"Folder '{folder.name}' already exists in "
-                                f"eye-tracking-sessions with identical files — "
-                                f"removing core_sessions copy."
-                            )
-                            shutil.rmtree(str(folder))
-                    else:
-                        shutil.move(str(folder), str(eye_tracking_sessions_path))
-                shutil.rmtree(core_session_path)
-                logger.info(
-                    "Moved folders from 'core_sessions' to 'eye-tracking-sessions' "
-                    "and removed 'core_sessions' folder."
-                )
+    # Nested core session folders must be flattened in the cleaning step; the
+    # pipeline expects session folders directly under 'eye-tracking-sessions'.
+    for nested_name in ("core_sessions", "core_dataset"):
+        if (eye_tracking_sessions_path / nested_name).exists():
+            logger.warning(
+                f"Found nested folder '{nested_name}' in 'eye-tracking-sessions'. "
+                "Move its session folders up into 'eye-tracking-sessions' in the "
+                "cleaning step before running the pipeline."
+            )
 
     psychometric_tests_path = data_folder_path / "psychometric-tests-sessions"
     if not psychometric_tests_path.exists():
-        # if there is no psychometric-tests folder, check if it is still in a tar
-        tar_path = data_folder_path / "psychometric-tests.tar"
-        if tar_path.exists():
-            with tarfile.open(tar_path, "r") as tar:
-                tar.extractall(path=data_folder_path)
-            logger.info(f"Extracted 'psychometric-tests' from '{tar_path}'")
-        else:
-            logger.warning(
-                f"The 'psychometric-tests-sessions' folder does not exist in '{data_folder_path}'. "
-                "If this data collection includes psychometric tests, please create the folder "
-                f"'{psychometric_tests_path}' and unzip the psychometric test data there.\n"
-                "Expected structure after unzipping (task-first):\n"
-                f"  psychometric-tests-sessions/\n"
-                f"    psychometric_test_{dcn.lang}_{dcn.country}_{dcn.lab}/\n"
-                "      PLAB/{sid}/...\n"
-                "      RAN/{sid}/...\n"
-                "      Stroop_Flanker/{sid}/...\n"
-                "      WMC/{sid}/...\n"
-                "      WikiVocab/{sid}/...\n"
-                f"    participant_configs_{dcn.lang}_{dcn.country}_{dcn.lab}/\n"
-                "      {sid}.yaml\n"
-                "Skipping psychometric tests preparation."
+        msg = (
+            f"The 'psychometric-tests-sessions' folder does not exist in '{data_folder_path}'. "
+            "If this data collection includes psychometric tests, create the folder and unpack "
+            "the data in the cleaning step.\n"
+            "Expected structure after unpacking (task-first):\n"
+            f"  psychometric-tests-sessions/\n"
+            f"    psychometric_test_{dcn.lang}_{dcn.country}_{dcn.lab}/\n"
+            "      PLAB/{sid}/...\n"
+            "      RAN/{sid}/...\n"
+            "      Stroop_Flanker/{sid}/...\n"
+            "      WMC/{sid}/...\n"
+            "      WikiVocab/{sid}/...\n"
+            f"    participant_configs_{dcn.lang}_{dcn.country}_{dcn.lab}/\n"
+            "      {sid}.yaml\n"
+            "Skipping psychometric tests preparation."
+        )
+        archives = _find_named_archives(data_folder_path, "psychometric-tests")
+        if archives:
+            msg += (
+                "\nFound archive(s) with the same name: "
+                + ", ".join(a.name for a in archives)
+                + ". Unpack them in the cleaning step."
             )
-            psychometric_tests_path = None
+        logger.warning(msg)
+        psychometric_tests_path = None
 
     # check if ps tests need to be prepared because they use the old structure
     if psychometric_tests_path is not None:
