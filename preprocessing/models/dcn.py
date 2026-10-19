@@ -71,7 +71,7 @@ class Dcn:
             raise ValueError(
                 f"Invalid country code: '{self.country}'. Must be 2 uppercase letters."
             )
-        if not re.match(r"^[A-Za-z0-9]+$", self.city):
+        if not re.match(r"^[A-Za-z0-9 ]+$", self.city):
             raise ValueError(f"Invalid city: '{self.city}'. Must be alphanumeric.")
         if not re.match(r"^[A-Za-z0-9]+$", self.lab):
             raise ValueError(f"Invalid lab: '{self.lab}'. Must be alphanumeric.")

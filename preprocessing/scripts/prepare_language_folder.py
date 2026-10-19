@@ -281,6 +281,15 @@ def prepare_language_folder(data_collection_name: str | None = None):
 
         # Create a marker file to indicate that these files have been fixed
         (destination_aoi_path / ".fixed").touch()
+
+    elif len(aoi_files) == 24:
+        logger.info("Applying AOI fixes (remapping space and repairing labels)...")
+        for aoi_file in aoi_files:
+            fix_aoi_file(aoi_file)
+
+        # Create a marker file to indicate that these files have been fixed
+        (destination_aoi_path / ".fixed").touch()
+
     elif len(aoi_files) == 0:
         logger.warning(f"No AOI files found in '{destination_aoi_path}'.")
     else:
