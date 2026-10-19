@@ -128,3 +128,32 @@ def test_load_stim_order_versions_from_versioned_dir(
     # PID 001 is not mapped; it reads the default folder CSV
     df_default = dc._load_stim_order_versions("001_EN_UK_1_ET1")
     assert int(df_default.iloc[0]["participant_id"]) == 1
+
+
+def test_build_pid_stimulus_dirs_prefers_output_copy(tmp_path, monkeypatch_settings):
+    """Versioned PIDs resolve to the prepared output copy, not the raw data folder."""
+    dcn = "MultiplEYE_EN_UK_London_1_2025"
+    data_dir = tmp_path / dcn
+    (data_dir / f"stimuli_{dcn}_v2").mkdir(parents=True)
+
+    output_default = tmp_path / "preprocessed_data" / dcn / f"stimuli_{dcn}"
+    output_default.mkdir(parents=True)
+    (output_default.parent / f"stimuli_{dcn}_v2").mkdir()
+
+    result = MultipleyeDataCollection._build_pid_stimulus_dirs(data_dir, output_default)
+
+    assert result["003"] == output_default.parent / f"stimuli_{dcn}_v2"
+
+
+def test_build_pid_stimulus_dirs_falls_back_to_data(tmp_path, monkeypatch_settings):
+    """Without a prepared output copy, the raw data folder is used."""
+    dcn = "MultiplEYE_EN_UK_London_1_2025"
+    data_dir = tmp_path / dcn
+    (data_dir / f"stimuli_{dcn}_v2").mkdir(parents=True)
+
+    output_default = tmp_path / "preprocessed_data" / dcn / f"stimuli_{dcn}"
+    output_default.mkdir(parents=True)
+
+    result = MultipleyeDataCollection._build_pid_stimulus_dirs(data_dir, output_default)
+
+    assert result["003"] == data_dir / f"stimuli_{dcn}_v2"

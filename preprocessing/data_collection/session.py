@@ -58,6 +58,7 @@ class Session:
         default="unknown", init=False
     )
     stimuli_trial_mapping: dict[str, str] | str = field(default="unknown", init=False)
+    stimulus_content_version: str | None = field(default="unknown", init=False)
     stimulus_start_end_ts: list[dict[str, str | float]] | str = field(
         default="unknown", init=False
     )
@@ -178,6 +179,7 @@ class Session:
             },
             "experiment_procedure": {
                 "question_order": self.question_order,
+                "stimulus_content_version": self.stimulus_content_version,
                 "stimulus_order_ids": self.stimulus_order_ids,
                 "stimulus_order_ids_with_names": self.stimulus_order_ids_with_names,
                 "num_completed_trials": len(self.stimulus_order_ids)

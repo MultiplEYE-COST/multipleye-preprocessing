@@ -92,6 +92,23 @@ def test_create_overview_includes_new_fields() -> None:
     assert dq["session_blink_loss_ratio"] is None
 
 
+def test_create_overview_includes_stimulus_content_version() -> None:
+    sess = _make_session()
+    sess.stimulus_content_version = "v1"
+
+    overview = sess.create_overview()
+
+    assert overview["experiment_procedure"]["stimulus_content_version"] == "v1"
+
+
+def test_create_overview_stimulus_content_version_defaults_to_unknown() -> None:
+    sess = _make_session()
+
+    overview = sess.create_overview()
+
+    assert overview["experiment_procedure"]["stimulus_content_version"] == "unknown"
+
+
 def test_create_overview_includes_measure_based_data_loss() -> None:
     sess = _sess_with_validation_data()
     sess._measure_total_data_loss_ratio = 0.015

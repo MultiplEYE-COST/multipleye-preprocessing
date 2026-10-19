@@ -48,7 +48,7 @@ from ..utils.data_collection_utils import _report_to_file
 from ..utils.data_path_utils import _ci_resolve
 from ..utils.fix_questionnaire_data import remap_wrong_pq_values
 from ..utils.logging import get_logger, get_pipeline_info
-from ..utils.stimulus_versions import stimulus_folder_name
+from ..utils.stimulus_versions import stimulus_folder_name, version_suffix_for_pid
 
 
 def eyelink(method):
@@ -709,13 +709,15 @@ class MultipleyeDataCollection:
         if not pid_map:
             return None
 
-        # Look for versioned stimulus folders next to the default one.
+        # Prefer the prepared copy next to the default stimulus dir (the output
+        # folder the pipeline uses, where AOIs are split/fixed); fall back to the
+        # raw data folder.
         result: dict[str, Path] = {}
         for version, pids in pid_map.items():
             folder_name = stimulus_folder_name(data_folder_path.name, version)
-            version_dir = data_folder_path / folder_name
+            version_dir = default_stimulus_dir.parent / folder_name
             if not version_dir.exists():
-                version_dir = default_stimulus_dir.parent / folder_name
+                version_dir = data_folder_path / folder_name
             for pid in pids:
                 result[str(pid)] = version_dir
         return result
@@ -1324,6 +1326,10 @@ class MultipleyeDataCollection:
                     f"Session {session} started after a trial. Only the completed stimuli will be considered."
                 )
 
+            self.sessions[session].stimulus_content_version = version_suffix_for_pid(
+                p_id
+            )
+
             (
                 self.sessions[session].completed_stimuli_ids,
                 self.sessions[session].completed_stimuli_names,
@@ -1381,6 +1387,10 @@ class MultipleyeDataCollection:
                     f"Session {session} started after a trial. Only the completed stimuli will be considered."
                 )
 
+            self.skipped_sessions[
+                session
+            ].stimulus_content_version = version_suffix_for_pid(p_id)
+
             (
                 self.skipped_sessions[session].completed_stimuli_ids,
                 self.skipped_sessions[session].completed_stimuli_names,
@@ -1415,7 +1425,7 @@ class MultipleyeDataCollection:
                 logging._captured_warnings.append(msg)  # type: ignore
 
             self.skipped_sessions[session].stimuli = self._load_session_stimuli(
-                self.stimulus_dir,
+                self._resolve_stimulus_dir(session),
                 self.language,
                 self.country,
                 self.lab_number,
