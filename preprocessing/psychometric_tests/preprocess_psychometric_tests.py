@@ -755,9 +755,9 @@ def preprocess_lwmc(lwmc_dir: Path) -> dict:
         "os_key_resp_recall.corr",
         "os_key_resp_recall.rt",  # OS columns
         "os_key_resp_equation.corr",  # OS processing task
-        "sents_key_resp_recall.corr",
-        "sents_key_resp_recall.rt",  # SentS columns
-        "sents_key_resp_sentence.corr",  # SentS processing task
+        "ss_key_resp_recall.corr",
+        "ss_key_resp_recall.rt",  # SentS columns
+        "ss_key_resp_sentence.corr",  # SentS processing task
     ]
     try:
         df = _find_one_filetype_with_columns(lwmc_dir, required_cols, allow_nan=True)
@@ -795,6 +795,15 @@ def preprocess_lwmc(lwmc_dir: Path) -> dict:
     # Create a trial identifier using the inter-trial text onset markers
     # Each non-NaN in base_text_intertrial.started indicates a new trial boundary.
     df["trial_id"] = df["base_text_intertrial.started"].notna().cumsum()
+
+    # Rename "ss" to "sents"
+    df = df.rename(
+        columns={
+            "ss_key_resp_recall.corr": "sents_key_resp_recall.corr",
+            "ss_key_resp_recall.rt": "sents_key_resp_recall.rt",
+            "ss_key_resp_sentence.corr": "sents_key_resp_sentence.corr",
+        }
+    )
 
     mask = df["is_practice"].fillna(False)
     if mask.dtype != bool:

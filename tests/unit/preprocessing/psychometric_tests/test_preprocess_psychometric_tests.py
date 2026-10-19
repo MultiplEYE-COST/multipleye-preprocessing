@@ -764,8 +764,8 @@ def _make_wmc_csv(folder: Path, make_text_file):
         "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
         "os_key_resp_recall.corr,os_key_resp_recall.rt,"
         "os_key_resp_equation.corr,"
-        "sents_key_resp_recall.corr,sents_key_resp_recall.rt,"
-        "sents_key_resp_sentence.corr\n"
+        "ss_key_resp_recall.corr,ss_key_resp_recall.rt,"
+        "ss_key_resp_sentence.corr\n"
     )
     body = "False,1,1,100,1,10,1,0,5,1\nFalse,,0,200,,,1,1,15,0\nFalse,2,1,300,0,30,0,1,25,1\nFalse,,1,400,,,1,0,35,0\n"
     make_text_file(folder / "wmc.csv", header=header, body=body)
@@ -811,8 +811,8 @@ def test_preprocess_lwmc_basic(tmp_path: Path, make_text_file):
                     "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
                     "os_key_resp_recall.corr,os_key_resp_recall.rt,"
                     "os_key_resp_equation.corr,"
-                    "sents_key_resp_recall.corr,sents_key_resp_recall.rt,"
-                    "sents_key_resp_sentence.corr\n"
+                    "ss_key_resp_recall.corr,ss_key_resp_recall.rt,"
+                    "ss_key_resp_sentence.corr\n"
                 ),
                 body="""True,1,1,100,1,10,1,1,5,1\nTrue,,1,100,1,10,1,1,5,1\n""",
             ),
@@ -856,8 +856,8 @@ def test_preprocess_lwmc_basic(tmp_path: Path, make_text_file):
                     "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
                     "os_key_resp_recall.corr,os_key_resp_recall.rt,"
                     "os_key_resp_equation.corr,"
-                    "sents_key_resp_recall.corr,sents_key_resp_recall.rt,"
-                    "sents_key_resp_sentence.corr\n"
+                    "ss_key_resp_recall.corr,ss_key_resp_recall.rt,"
+                    "ss_key_resp_sentence.corr\n"
                 ),
                 body=("False,1,,100,1,10,1,1,5,1\nFalse,,,200,,,1,1,15,1\n"),
             ),
