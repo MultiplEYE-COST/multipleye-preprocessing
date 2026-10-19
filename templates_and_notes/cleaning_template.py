@@ -10,7 +10,9 @@ import polars as pl
 def main():
     # Place for verbose path to the data collection folder that should be cleaned.
     # Use only relative paths to everything else based on this folder.
-    collection_folder = Path(r"PATH_TO_YOUR_COLLECTION")
+    collection_folder = Path(
+        r"/data/multipleye-preprocessing/data/PATH_TO_YOUR_COLLECTION"
+    )
 
     # Please comment for everything you do here, why you do it, and where you got the information (e.g. session documentation sheet)
 
