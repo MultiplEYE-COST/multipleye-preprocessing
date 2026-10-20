@@ -125,6 +125,51 @@ def _compute_session_completeness(data_collection) -> dict:
     return result
 
 
+def _reading_span_ms(start: object, stop: object) -> tuple[int, bool]:
+    """Return the duration for a start/stop timestamp pair.
+
+    Reversed or out-of-order timestamps yield ``(0, True)`` so reading times
+    never become negative.
+
+    Parameters
+    ----------
+    start, stop : object
+        Timestamps convertible to float (for example millisecond strings).
+
+    Returns
+    -------
+    tuple[int, bool]
+        The non-negative duration in milliseconds and whether it was clamped.
+    """
+    span_ms = int(float(stop)) - int(float(start))
+    if span_ms < 0:
+        return 0, True
+    return span_ms, False
+
+
+def _summarize_reading_times(df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate per-page reading-time rows per (stimulus, trial, type).
+
+    Timestamps are cast to numeric before aggregation so ``min``/``max`` are
+    numeric. Comparing them as strings gives a wrong range when the timestamp
+    string length changes (for example ``"999999"`` vs ``"1000000"``), which can
+    make ``stop_ts`` smaller than ``start_ts``.
+    """
+    sum_df = df[
+        ["stimulus", "trial", "type", "duration_ms", "start_ts", "stop_ts"]
+    ].dropna()
+    sum_df = sum_df.assign(
+        duration_ms=sum_df["duration_ms"].astype(float),
+        start_ts=sum_df["start_ts"].astype(float),
+        stop_ts=sum_df["stop_ts"].astype(float),
+    )
+    return (
+        sum_df.groupby(by=["stimulus", "trial", "type"])
+        .agg({"duration_ms": "sum", "start_ts": "min", "stop_ts": "max"})
+        .reset_index()
+    )
+
+
 def _build_stimulus_start_end_ts(sum_df: pd.DataFrame) -> list[dict]:
     """Build the per-stimulus reading-time records stored on the session.
 
@@ -1159,7 +1204,7 @@ class MultipleyeDataCollection:
                 "mean_validation_error_dva": None,
                 "mean_data_loss_ratio": None,
                 "mean_blink_ratio": None,
-                "mean_total_reading_time_ms": None,
+                "mean_total_reading_time_s": None,
                 "mean_total_session_duration_s": None,
                 "mean_rt_per_stim_ms": None,
                 "mean_total_question_time_ms": None,
@@ -1190,7 +1235,7 @@ class MultipleyeDataCollection:
             getattr(s, "_measure_blink_loss_ratio", None) for s in non_pilot_sessions
         ]
         blink_loss = [v for v in blink_loss if isinstance(v, (int, float))]
-        reading_times = [
+        reading_times_s = [
             s.total_reading_time
             for s in non_pilot_sessions
             if isinstance(s.total_reading_time, (int, float))
@@ -1218,8 +1263,8 @@ class MultipleyeDataCollection:
         # WPM: total words / total_minutes
         # Word count computed from stimulus page texts
         mean_wpm = None
-        if reading_times:
-            total_reading_s = sum(reading_times) / 1000  # ms to seconds
+        if reading_times_s:
+            total_reading_s = sum(reading_times_s)
             if total_reading_s > 0:
                 mean_wpm = self._compute_dcn_wpm(non_pilot_sessions, total_reading_s)
 
@@ -1241,9 +1286,9 @@ class MultipleyeDataCollection:
             "mean_blink_ratio": (
                 round(sum(blink_loss) / len(blink_loss), 2) if blink_loss else None
             ),
-            "mean_total_reading_time_ms": (
-                round(sum(reading_times) / len(reading_times), 2)
-                if reading_times
+            "mean_total_reading_time_s": (
+                round(sum(reading_times_s) / len(reading_times_s), 2)
+                if reading_times_s
                 else None
             ),
             "mean_total_session_duration_s": (
@@ -2100,12 +2145,14 @@ class MultipleyeDataCollection:
             reading_times = reading_times_dict
 
         total_reading_duration_ms = 0
+        negative_spans: list[str] = []
 
         for start, stop in zip(reading_times["start_ts"], reading_times["stop_ts"]):
-            time_ms = int(float(stop)) - int(float(start))
-            time_str = convert_to_time_str(time_ms)
+            time_ms, was_negative = _reading_span_ms(start, stop)
+            if was_negative:
+                negative_spans.append(f"{start}->{stop}")
             reading_times["duration_ms"].append(time_ms)
-            reading_times["duration_str"].append(time_str)
+            reading_times["duration_str"].append(convert_to_time_str(time_ms))
             total_reading_duration_ms += time_ms
 
         # calculate duration between pages
@@ -2120,10 +2167,11 @@ class MultipleyeDataCollection:
             reading_times["pages"],
             reading_times["trials"],
         ):
-            time_ms = int(float(start)) - int(float(stop))
-            time_str = convert_to_time_str(time_ms)
+            time_ms, was_negative = _reading_span_ms(stop, start)
+            if was_negative:
+                negative_spans.append(f"{stop}->{start}")
             reading_times["duration_ms"].append(time_ms)
-            reading_times["duration_str"].append(time_str)
+            reading_times["duration_str"].append(convert_to_time_str(time_ms))
             reading_times["start_msg"].append("time inbetween")
             reading_times["stop_msg"].append("time inbetween")
             reading_times["start_ts"].append(stop)
@@ -2165,15 +2213,15 @@ class MultipleyeDataCollection:
             sep="\t",
             index=False,
         )
-        sum_df = df[
-            ["stimulus", "trial", "type", "duration_ms", "start_ts", "stop_ts"]
-        ].dropna()
-        sum_df["duration_ms"] = sum_df["duration_ms"].astype(float)
-        sum_df = (
-            sum_df.groupby(by=["stimulus", "trial", "type"])
-            .agg({"duration_ms": "sum", "start_ts": "min", "stop_ts": "max"})
-            .reset_index()
-        )
+        if negative_spans:
+            self.logger.warning(
+                "Clamped %d negative reading-time span(s) to 0 for %s "
+                "(for example %s). Check the order of the ASC start/stop messages.",
+                len(negative_spans),
+                session_identifier,
+                ", ".join(negative_spans[:3]),
+            )
+        sum_df = _summarize_reading_times(df)
         duration = sum_df["duration_ms"].apply(lambda x: convert_to_time_str(x))
         sum_df["duration-hh:mm:ss"] = duration
 

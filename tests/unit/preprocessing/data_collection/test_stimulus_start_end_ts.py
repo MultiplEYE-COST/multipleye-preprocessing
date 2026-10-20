@@ -6,6 +6,8 @@ import pandas as pd
 
 from preprocessing.data_collection.multipleye_data_collection import (
     _build_stimulus_start_end_ts,
+    _reading_span_ms,
+    _summarize_reading_times,
 )
 from preprocessing.data_collection.session import Session
 
@@ -57,3 +59,29 @@ def test_build_stimulus_start_end_ts_feeds_rt_per_stim():
     # stimulus a -> 3000, stimulus b -> 1000+1000 = 2000
     assert mean_rt == 2500.0
     assert sd_rt == 707.11
+
+
+def test_reading_span_clamps_negative_to_zero():
+    assert _reading_span_ms(1000, 4000) == (3000, False)
+    assert _reading_span_ms(4000, 1000) == (0, True)
+    assert _reading_span_ms("1000", "4000") == (3000, False)
+
+
+def test_summarize_reading_times_uses_numeric_timestamps():
+    df = pd.DataFrame(
+        {
+            "stimulus": ["a", "a"],
+            "trial": ["trial_1", "trial_1"],
+            "type": ["reading time", "reading time"],
+            "duration_ms": [1000.0, 1000.0],
+            # Lexicographic min would pick "1000000" as the smallest start.
+            "start_ts": ["999999", "1000000"],
+            "stop_ts": ["1004999", "1005000"],
+        }
+    )
+
+    row = _summarize_reading_times(df).iloc[0]
+
+    assert row["start_ts"] == 999999.0
+    assert row["stop_ts"] == 1005000.0
+    assert row["duration_ms"] == 2000.0
