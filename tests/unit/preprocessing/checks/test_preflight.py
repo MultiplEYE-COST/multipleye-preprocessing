@@ -11,6 +11,9 @@ import yaml
 from preprocessing.checks.preflight import (
     PreflightError,
     _check_psychometric_tests,
+    _check_session_completeness,
+    _check_stimulus_order_coverage,
+    _check_stimulus_versions,
     run_preflight_check,
 )
 from preprocessing.config import settings
@@ -21,6 +24,7 @@ class FakeSession:
     session_identifier: str
     session_file_path: Path
     session_folder_path: Path
+    is_pilot: bool = False
 
 
 @dataclass
@@ -32,6 +36,8 @@ class FakeDataCollection:
     city: str = "City"
     year: int = 2024
     sessions: dict[str, FakeSession] = field(default_factory=dict)
+    skipped_sessions: dict = field(default_factory=dict)
+    num_sessions: int = 2
 
 
 def _write_csv(path: Path, columns: list[str], rows: list[list[str]]) -> None:
@@ -154,6 +160,7 @@ def preflight_env(tmp_path: Path):
         country="UK",
         lab_number=1,
         sessions={session_id: session},
+        skipped_sessions={},
     )
 
     return dc, session_id
@@ -519,6 +526,7 @@ def test_preflight_multiple_sessions(tmp_path: Path):
         city=city,
         year=year,
         sessions=sessions,
+        skipped_sessions={},
     )
 
     with pytest.raises(PreflightError) as exc_info:
@@ -609,6 +617,7 @@ def test_preflight_stimulus_dir_empty_with_archive(tmp_path: Path):
         country="UK",
         lab_number=1,
         sessions={sid: session},
+        skipped_sessions={},
     )
 
     with pytest.raises(PreflightError) as exc_info:
@@ -638,6 +647,142 @@ def test_preflight_warnings_only(preflight_env):
     shutil.rmtree(dc.stimulus_dir / "aoi_question_images_en_uk_1", ignore_errors=True)
 
     run_preflight_check(dc)  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# Session completeness check
+# ---------------------------------------------------------------------------
+
+
+def _build_completeness_env(sids, num_sessions: int = 2):
+    """Build a FakeDataCollection from a list of (sid, is_pilot) tuples."""
+    sessions: dict[str, FakeSession] = {}
+    for entry in sids:
+        sid, is_pilot = entry if isinstance(entry, tuple) else (entry, False)
+        sessions[sid] = FakeSession(
+            session_identifier=sid,
+            session_file_path=Path("/fake") / sid / "data.edf",
+            session_folder_path=Path("/fake") / sid,
+            is_pilot=is_pilot,
+        )
+    return FakeDataCollection(
+        stimulus_dir=Path("/fake"),
+        language="EN",
+        country="UK",
+        lab_number=1,
+        sessions=sessions,
+        num_sessions=num_sessions,
+        skipped_sessions={},
+    )
+
+
+@pytest.mark.parametrize(
+    "sids, expected_summary, expected_missing",
+    [
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("002_EN_UK_1_ET1", False),
+                ("002_EN_UK_1_ET2", False),
+            ],
+            "2/2 participants have all 2 expected ET sessions",
+            [],
+        ),
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("002_EN_UK_1_ET1", False),
+            ],
+            "1/2 participants have all 2 expected ET sessions",
+            ["002_EN_UK_1", "missing: ET2"],
+        ),
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("002_EN_UK_1_ET2", False),
+            ],
+            "1/2 participants have all 2 expected ET sessions",
+            ["002_EN_UK_1", "missing: ET1"],
+        ),
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("001_EN_UK_1_ET3", False),
+                ("002_EN_UK_1_ET1", False),
+                ("002_EN_UK_1_ET2", False),
+            ],
+            "1/2 participants have all 2 expected ET sessions",
+            ["001_EN_UK_1", "more sessions than expected"],
+        ),
+        (
+            [
+                ("001_EN_UK_1_ET1", False),
+                ("001_EN_UK_1_ET2", False),
+                ("002_EN_UK_1_ET1", True),
+            ],
+            "1/1 participants have all 2 expected ET sessions",
+            [],
+        ),
+    ],
+    ids=[
+        "all_present",
+        "missing_et2",
+        "missing_et1",
+        "extra_sessions",
+        "pilots_excluded",
+    ],
+)
+def test_session_completeness_warnings(sids, expected_summary, expected_missing):
+    dc = _build_completeness_env(sids)
+    warnings: dict[str, list[str]] = {}
+    _check_session_completeness(dc, warnings)
+    assert "Session completeness" in warnings
+    msgs = warnings["Session completeness"]
+    assert expected_summary in msgs[0]
+    for substr in expected_missing:
+        assert any(substr in m for m in msgs), (
+            f"Expected '{substr}' in messages: {msgs}"
+        )
+
+
+@pytest.mark.parametrize(
+    "sids",
+    [
+        [],
+        ["000_EN_UK_1_ET1", "001_EN_UK_1_ET1", "002_EN_UK_1_ET1"],
+    ],
+    ids=["empty", "single_session"],
+)
+def test_session_completeness_no_warning(sids):
+    dc = _build_completeness_env(sids, num_sessions=1)
+    warnings: dict[str, list[str]] = {}
+    _check_session_completeness(dc, warnings)
+    assert "Session completeness" not in warnings
+
+
+def test_session_completeness_extra_sessions_multipleye_hint():
+    """Expected 1 session (MultiplEYE) but a participant has 2: warn + config hint."""
+    dc = _build_completeness_env(
+        [
+            ("001_EN_UK_1_ET1", False),
+            ("001_EN_UK_1_ET2", False),
+            ("002_EN_UK_1_ET1", False),
+        ],
+        num_sessions=1,
+    )
+    warnings: dict[str, list[str]] = {}
+    _check_session_completeness(dc, warnings)
+
+    assert "Session completeness" in warnings
+    joined = "\n".join(warnings["Session completeness"])
+    assert "1/2 participants have all 1 expected ET sessions" in joined
+    assert "001_EN_UK_1" in joined
+    assert "more sessions than expected" in joined
+    assert "experiment_type" in joined
 
 
 # ---------------------------------------------------------------------------
@@ -690,6 +835,7 @@ def pt_env(tmp_path: Path, monkeypatch):
         country="UK",
         lab_number=1,
         sessions={},
+        skipped_sessions={},
     )
     return dc, pt_dir
 
@@ -815,6 +961,7 @@ def test_pt_check_no_folder(tmp_path: Path, monkeypatch):
         country="UK",
         lab_number=1,
         sessions={},
+        skipped_sessions={},
     )
     pt_warnings: list[str] = []
     _check_psychometric_tests(dc, pt_warnings)
@@ -859,6 +1006,7 @@ def test_pt_check_data_issues(
         country="UK",
         lab_number=1,
         sessions={},
+        skipped_sessions={},
     )
     pt_warnings: list[str] = []
     _check_psychometric_tests(dc, pt_warnings)
@@ -970,8 +1118,192 @@ def test_pt_does_not_inflate_error_count(tmp_path: Path, monkeypatch):
         city=city,
         year=year,
         sessions={sid: session},
+        skipped_sessions={},
     )
 
     with pytest.raises(PreflightError) as exc_info:
         run_preflight_check(dc)
     assert exc_info.value.num_errors == 1
+
+
+# ---------------------------------------------------------------------------
+# Stimulus versions preflight check
+# ---------------------------------------------------------------------------
+
+
+def _make_version_stim_dir(
+    tmp_path: Path, default_dir: Path, version: str | None
+) -> Path:
+    """Create a stimulus subfolder (suffix-less or versioned) as a sibling."""
+    folder = default_dir.name + (f"_{version}" if version else "")
+    d = tmp_path / folder
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "config").mkdir()
+    return d
+
+
+def _make_version_env(tmp_path, monkeypatch, version_pids: dict[str, list[str]]):
+    """Build a fake dc with a default dir plus one sibling folder per version.
+
+    Each version folder gets an order CSV containing its own PIDs.
+    """
+    default_dir = tmp_path / "stimuli_MultiplEYE_EN_UK_London_1_2025"
+    default_dir.mkdir()
+    (default_dir / "config").mkdir()
+
+    version_dirs: dict[str, Path] = {}
+    all_sessions: dict[str, FakeSession] = {}
+    for version, pids in version_pids.items():
+        d = _make_version_stim_dir(tmp_path, default_dir, version)
+        version_dirs[version] = d
+        (d / "config" / "stimulus_order_versions_EN_UK_1.csv").write_text(
+            "participant_id,version_number\n" + "".join(f"{p},{p}\n" for p in pids),
+            encoding="utf-8",
+        )
+        for pid in pids:
+            all_sessions[f"{pid}_EN_UK_1_ET1"] = FakeSession(
+                f"{pid}_EN_UK_1_ET1", Path("/edf"), Path("/sess")
+            )
+
+    (default_dir / "config" / "stimulus_order_versions_EN_UK_1.csv").write_text(
+        "participant_id,version_number\n001,1\n", encoding="utf-8"
+    )
+
+    dc = FakeDataCollection(
+        stimulus_dir=default_dir,
+        language="EN",
+        country="UK",
+        lab_number=1,
+        sessions=all_sessions,
+    )
+
+    monkeypatch.setattr(settings, "STIMULUS_VERSIONS_DEFAULT_VERSION", None)
+    monkeypatch.setattr(settings, "STIMULUS_VERSIONS_PID_MAP", version_pids)
+    return dc, default_dir, version_dirs
+
+
+@pytest.fixture
+def version_env(tmp_path, monkeypatch):
+    """A fake dc with a default dir and a single v2 folder."""
+    return _make_version_env(tmp_path, monkeypatch, {"v2": ["003"]})
+
+
+# A config with seven versioned stimulus folders.
+_MULTI = {
+    "v2": ["003"],
+    "v3": ["004"],
+    "v4": ["005"],
+    "v5": ["006"],
+    "v6": ["007"],
+    "v7": ["008"],
+    "v8": ["009"],
+}
+
+
+def _uncovered_pid(env):
+    """Add a session PID mapped to v2 whose CSV lacks it."""
+    dc = env[0]
+    dc.sessions["005_EN_UK_1_ET1"] = FakeSession(
+        "005_EN_UK_1_ET1", Path("/edf"), Path("/sess")
+    )
+    settings.STIMULUS_VERSIONS_PID_MAP = {"v2": ["003", "005"]}
+
+
+def _remove_folder(version: str):
+    return lambda env: _rmtree(env[2][version])
+
+
+def _remove_order_csv(version: str):
+    return lambda env: (
+        env[2][version] / "config" / "stimulus_order_versions_EN_UK_1.csv"
+    ).unlink()
+
+
+@pytest.mark.parametrize(
+    "version_pids, mutate, expect_substr",
+    [
+        ({"v2": ["003"]}, None, None),
+        (_MULTI, None, None),
+        (
+            {"v2": ["003"]},
+            _remove_folder("v2"),
+            "Stimulus folder for version 'v2' does not exist",
+        ),
+        (
+            _MULTI,
+            _remove_folder("v5"),
+            "Stimulus folder for version 'v5' does not exist",
+        ),
+        ({"v2": ["003"]}, _remove_order_csv("v2"), "stimulus_order_versions"),
+        (_MULTI, _remove_order_csv("v3"), "stimulus_order_versions"),
+        ({"v2": ["003"]}, _uncovered_pid, "not found in stimulus_order_versions"),
+        ({}, None, None),
+    ],
+    ids=[
+        "single_version_pass",
+        "seven_versions_pass",
+        "single_missing_folder",
+        "seven_missing_one_folder",
+        "single_missing_order_csv",
+        "seven_missing_one_order_csv",
+        "session_pid_not_covered_in_version_csv",
+        "no_versions_skipped",
+    ],
+)
+def test_check_stimulus_versions(
+    tmp_path, monkeypatch, version_pids, mutate, expect_substr
+):
+    """Verify _check_stimulus_versions reports broken/missing version configs."""
+    env = _make_version_env(tmp_path, monkeypatch, version_pids)
+    dc, _default_dir, _version_dirs = env
+
+    if mutate:
+        mutate(env)
+
+    groups: dict[str, list[str]] = {}
+    _check_stimulus_versions(dc, groups)
+
+    if expect_substr is None:
+        assert "Stimulus versions" not in groups
+    else:
+        messages = groups["Stimulus versions"]
+        assert any(expect_substr in m for m in messages)
+
+
+def test_preflight_includes_version_errors(version_env):
+    """run_preflight_check raises PreflightError when a version folder is broken."""
+    from preprocessing.checks.preflight import run_preflight_check
+
+    dc, _default_dir, version_dirs = version_env
+    (version_dirs["v2"] / "config" / "stimulus_order_versions_EN_UK_1.csv").unlink()
+
+    with pytest.raises(PreflightError) as exc_info:
+        run_preflight_check(dc)
+    assert exc_info.value.num_errors >= 1
+    assert "Stimulus versions" in exc_info.value.groups
+
+
+def test_stimulus_order_coverage_uses_version_csv(version_env):
+    """A versioned session is checked against its version CSV, not the default one."""
+    dc, _default_dir, _version_dirs = version_env
+    groups: dict[str, list[str]] = {}
+
+    _check_stimulus_order_coverage(dc, groups)
+
+    assert "Stimulus order versions coverage" not in groups
+
+
+def test_stimulus_order_coverage_reports_missing_in_version_csv(version_env):
+    """A versioned session missing from its version CSV is reported."""
+    dc, _default_dir, version_dirs = version_env
+    (version_dirs["v2"] / "config" / "stimulus_order_versions_EN_UK_1.csv").write_text(
+        "participant_id,version_number\n", encoding="utf-8"
+    )
+    groups: dict[str, list[str]] = {}
+
+    _check_stimulus_order_coverage(dc, groups)
+
+    assert any(
+        "not found in stimulus_order_versions" in message
+        for message in groups["Stimulus order versions coverage"]
+    )

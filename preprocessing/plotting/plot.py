@@ -1,6 +1,13 @@
 import math
 from pathlib import Path
 
+import matplotlib
+
+# Batch pipeline: always render with the non-interactive Agg backend. The
+# GUI backend (e.g. macosx) adds significant overhead and can interfere with
+# headless/server runs.
+matplotlib.use("Agg", force=True)
+
 import matplotlib.pyplot as plt
 import PIL
 import polars as pl
@@ -10,6 +17,61 @@ from matplotlib.patches import Circle
 from ..config import settings
 from ..data_collection.stimulus import Stimulus
 
+_SAMPLE_COLUMNS = ["pixel_x", "pixel_y"]
+_EVENT_COLUMNS = ["duration", "location_x", "location_y"]
+
+
+def build_page_frames(gaze: pm.Gaze):
+    """Clone/unnest the gaze once and index samples and fixations by page.
+
+    Returns the prepared gaze clone plus two dicts mapping
+    ``(stimulus_name, page_name)`` to the samples/fixations of that page. This
+    lets the per-page plotting look frames up instead of scanning the full
+    session once per page and per stimulus.
+    """
+    data = gaze.clone()
+    data.unnest(["pixel", "position", "velocity"])
+
+    samples = data.samples.select(
+        [settings.STIMULUS_COL, settings.PAGE_COL, *_SAMPLE_COLUMNS]
+    )
+    events = data.events.frame.filter(pl.col("name") == settings.FIXATION).select(
+        [settings.STIMULUS_COL, settings.PAGE_COL, *_EVENT_COLUMNS]
+    )
+
+    samples_by_key = {
+        key: frame
+        for key, frame in samples.partition_by(
+            [settings.STIMULUS_COL, settings.PAGE_COL],
+            as_dict=True,
+            include_key=False,
+        ).items()
+    }
+    events_by_key = {
+        key: frame
+        for key, frame in events.partition_by(
+            [settings.STIMULUS_COL, settings.PAGE_COL],
+            as_dict=True,
+            include_key=False,
+        ).items()
+    }
+    return data, samples_by_key, events_by_key
+
+
+def _lookup(key_frames, frame, key, columns, name=None):
+    """Return the rows for ``key`` from a pre-indexed dict or by filtering."""
+    if key_frames is not None:
+        result = key_frames.get(key)
+        if result is None:
+            return pl.DataFrame({column: [] for column in columns})
+        return result
+    selection = (pl.col(settings.STIMULUS_COL) == key[0]) & (
+        pl.col(settings.PAGE_COL) == key[1]
+    )
+    if name is not None:
+        selection = selection & (pl.col("name") == name)
+    return frame.filter(selection).select(columns)
+
 
 def plot_gaze(
     gaze: pm.Gaze,
@@ -17,27 +79,29 @@ def plot_gaze(
     plots_dir: Path,
     duration_ms_in_cm: float = 0.03,
     aoi_image: bool = False,
+    data: pm.Gaze | None = None,
+    samples_by_key: dict | None = None,
+    events_by_key: dict | None = None,
 ) -> None:
-    data = gaze.clone()
-    data.unnest(["pixel", "position", "velocity"])
+    if data is None:
+        data = gaze.clone()
+        data.unnest(["pixel", "position", "velocity"])
 
     # pixels per centimeter on this screen
     px_per_cm = data.experiment.screen.width_px / data.experiment.screen.width_cm
 
     for page in stimulus.pages:
-        page_samples = data.samples.filter(
-            (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
-            & (pl.col(settings.PAGE_COL) == f"{settings.PAGE_PREFIX}{page.number}")
-        ).select(pl.col("pixel_x"), pl.col("pixel_y"))
-
-        page_events = data.events.frame.filter(
-            (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
-            & (pl.col(settings.PAGE_COL) == f"{settings.PAGE_PREFIX}{page.number}")
-            & (pl.col("name") == settings.FIXATION)
-        ).select(
-            pl.col("duration"),
-            pl.col("location_x"),
-            pl.col("location_y"),
+        key = (
+            f"{stimulus.name}_{stimulus.id}",
+            f"{settings.PAGE_PREFIX}{page.number}",
+        )
+        page_samples = _lookup(samples_by_key, data.samples, key, _SAMPLE_COLUMNS)
+        page_events = _lookup(
+            events_by_key,
+            data.events.frame,
+            key,
+            _EVENT_COLUMNS,
+            name=settings.FIXATION,
         )
 
         fig, ax = plt.subplots()
@@ -88,21 +152,14 @@ def plot_gaze(
 
     for question in stimulus.questions:
         screen_name = f"{settings.QUESTION_PREFIX}{int(question.id)}"  # Screen names don't have leading zeros
-        page_samples = data.samples.filter(
-            (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
-            & (pl.col(settings.PAGE_COL) == screen_name)
-        ).select(
-            pl.col("pixel_x"),
-            pl.col("pixel_y"),
-        )
-        page_events = data.events.frame.filter(
-            (pl.col(settings.STIMULUS_COL) == f"{stimulus.name}_{stimulus.id}")
-            & (pl.col(settings.PAGE_COL) == screen_name)
-            & (pl.col("name") == settings.FIXATION)
-        ).select(
-            pl.col("duration"),
-            pl.col("location_x"),
-            pl.col("location_y"),
+        key = (f"{stimulus.name}_{stimulus.id}", screen_name)
+        page_samples = _lookup(samples_by_key, data.samples, key, _SAMPLE_COLUMNS)
+        page_events = _lookup(
+            events_by_key,
+            data.events.frame,
+            key,
+            _EVENT_COLUMNS,
+            name=settings.FIXATION,
         )
 
         fig, ax = plt.subplots()

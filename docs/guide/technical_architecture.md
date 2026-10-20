@@ -96,7 +96,9 @@ makes it easy to see what's been processed.
 preprocessed_data/{dcn}/
 ├── asc/                    # converted ASC files
 ├── raw_data/               # per-trial gaze samples
-├── metadata/               # session metadata, calibrations, validations
+├── metadata/               # session metadata, calibrations, validations;
+│                           # also keeps a copy of the preprocessing config used in the
+│                           # most recent run (original filename), overwritten on re-run
 ├── fixations/              # detected fixations
 ├── saccades/               # detected saccades
 ├── scanpaths/              # AOI-mapped fixations
@@ -114,3 +116,16 @@ preprocessed_data/{dcn}/
 `psychometric_results_{dcn}.csv` (one row per session with all test metrics) and
 `psychometric_results_{dcn}_merged.csv` (sessions merged per participant when tests are
 disjoint). The merged table combines PT1 and PT2 data for the same subject.
+
+**The dataset overview records how the data was processed.** `{dcn}_overview.yaml` contains a
+`processing_config` section with the algorithm settings used for the run: event-detection
+parameters (`fixation_method`, `fixation_minimum_duration_ms`, `fixation_velocity_threshold`,
+`saccade_method`, `saccade_minimum_duration`, `saccade_threshold_factor`), velocity-estimation
+parameters (`velocity_estimation_method`, `velocity_smoothing_window_ms`,
+`velocity_polynomial_degree`), psychometric scoring thresholds (`psym_wikivocab_{min,max}_rt`,
+`psym_stroop_{min,max}_rt`, `psym_flanker_{min,max}_rt`), eye and column mappings
+(`tracked_eye`, `trial_cols`, `trial_col`, `page_col`, `stimulus_col`, `word_idx_col`,
+`char_idx_col`) and fixed design decisions that are not configurable (`aoi_enlargement`,
+`reading_measures_null_fill`, `scanpath_drop_unmapped`, `data_loss_missingness_column`,
+`per_trial_loss_weighting`). These values are read from the resolved configuration, so the
+overview always reflects what was actually applied.

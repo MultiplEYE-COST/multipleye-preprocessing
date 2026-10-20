@@ -23,7 +23,7 @@ def test_ordered_psychometric_columns():
         "notes",
         "WikiVocab_accuracy",
         "PLAB_accuracy",
-        "LWMC_SS_score",
+        "LWMC_SentS_score",
         "Stroop_accuracy",
         "session_id",
         "RAN_experimental_rt_sec",
@@ -44,7 +44,7 @@ def test_ordered_psychometric_columns():
         "session_id",
         "notes",
         "PLAB_Done",
-        "LWMC_SS_score",
+        "LWMC_SentS_score",
         "RAN_experimental_rt_sec",
         "Stroop_accuracy",
         "Flanker_num_items",
@@ -231,7 +231,7 @@ def test_consolidated_output_partial_lwmc(tmp_path, monkeypatch, caplog):
     assert row["LWMC_Done"] == 1
     assert row["LWMC_MU_Done"] == 0
     assert row["LWMC_OS_Done"] == 1
-    assert row["LWMC_SS_Done"] == 1
+    assert row["LWMC_SentS_Done"] == 1
     assert row["LWMC_SSTM_Done"] == 1
     assert pd.isna(row["LWMC_MU_score"])
     assert pd.isna(row["LWMC_Total_score_mean"])

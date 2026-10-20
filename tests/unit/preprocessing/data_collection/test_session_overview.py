@@ -92,6 +92,23 @@ def test_create_overview_includes_new_fields() -> None:
     assert dq["session_blink_loss_ratio"] is None
 
 
+def test_create_overview_includes_stimulus_content_version() -> None:
+    sess = _make_session()
+    sess.stimulus_content_version = "v1"
+
+    overview = sess.create_overview()
+
+    assert overview["experiment_procedure"]["stimulus_content_version"] == "v1"
+
+
+def test_create_overview_stimulus_content_version_defaults_to_unknown() -> None:
+    sess = _make_session()
+
+    overview = sess.create_overview()
+
+    assert overview["experiment_procedure"]["stimulus_content_version"] == "unknown"
+
+
 def test_create_overview_includes_measure_based_data_loss() -> None:
     sess = _sess_with_validation_data()
     sess._measure_total_data_loss_ratio = 0.015
@@ -232,6 +249,193 @@ def test_reading_time_from_stimulus_start_end_ts() -> None:
     proc = overview["experiment_procedure"]
 
     assert proc["total_reading_time_s"] == 5.0
+
+
+def test_stimulus_order_ids_with_names() -> None:
+    from types import SimpleNamespace
+
+    sess = _sess_with_validation_data()
+    sess.stimuli = [
+        SimpleNamespace(id=1, name="Lit_MagicMountain", trial_id="trial_1"),
+        SimpleNamespace(id=2, name="Lit_Alchemist", trial_id="trial_2"),
+        SimpleNamespace(id=3, name="Enc_WikiMoon", trial_id="trial_3"),
+    ]
+    sess.stimulus_order_ids = [3, 1, 2]
+
+    overview = sess.create_overview()
+    proc = overview["experiment_procedure"]
+
+    assert proc["stimulus_order_ids_with_names"] == [
+        {"stimulus_id": 3, "stimulus_name": "Enc_WikiMoon", "trial": "trial_3"},
+        {"stimulus_id": 1, "stimulus_name": "Lit_MagicMountain", "trial": "trial_1"},
+        {"stimulus_id": 2, "stimulus_name": "Lit_Alchemist", "trial": "trial_2"},
+    ]
+
+
+def test_stimulus_order_ids_with_names_unknown_without_stimuli() -> None:
+    sess = _sess_with_validation_data()
+    sess.stimulus_order_ids = [1, 2, 3]
+
+    overview = sess.create_overview()
+    proc = overview["experiment_procedure"]
+
+    assert proc["stimulus_order_ids_with_names"] == "unknown"
+
+
+def test_mean_rt_per_stim_from_stimulus_start_end_ts() -> None:
+    sess = _sess_with_validation_data()
+    sess.stimulus_start_end_ts = [
+        {
+            "stimulus": "a",
+            "trial": "trial_1",
+            "type": "reading time",
+            "duration_ms": 3000.0,
+        },
+        {
+            "stimulus": "a",
+            "trial": "trial_1",
+            "type": "reading time",
+            "duration_ms": 1000.0,
+        },
+        {
+            "stimulus": "b",
+            "trial": "trial_2",
+            "type": "reading time",
+            "duration_ms": 2000.0,
+        },
+        {
+            "stimulus": "a",
+            "trial": "trial_1",
+            "type": "time before pages and breaks",
+            "duration_ms": 500.0,
+        },
+    ]
+
+    overview = sess.create_overview()
+    proc = overview["experiment_procedure"]
+
+    assert proc["mean_rt_per_stim_ms"] == 3000.0
+    assert proc["sd_rt_per_stim_ms"] == 1414.21
+
+
+def test_mean_rt_per_stim_unknown_without_reading_time() -> None:
+    sess = _sess_with_validation_data()
+    sess.stimulus_start_end_ts = [
+        {
+            "stimulus": "a",
+            "trial": "trial_1",
+            "type": "time before pages and breaks",
+            "duration_ms": 500.0,
+        },
+    ]
+
+    overview = sess.create_overview()
+    proc = overview["experiment_procedure"]
+
+    assert proc["mean_rt_per_stim_ms"] == "unknown"
+    assert proc["sd_rt_per_stim_ms"] == "unknown"
+
+
+def test_compute_total_question_time_excludes_practice() -> None:
+    from preprocessing.data_collection.trial import Trial
+
+    sess = _make_session()
+    sess.trials = [
+        Trial(
+            trial_number=1,
+            stimulus_id=1,
+            stimulus_name="a",
+            is_practice=False,
+            num_questions=2,
+            comprehension_score=0.5,
+            comprehension_question_time_ms=1200.0,
+            reading_time_ms=1000.0,
+        ),
+        Trial(
+            trial_number=0,
+            stimulus_id=0,
+            stimulus_name="p",
+            is_practice=True,
+            num_questions=1,
+            comprehension_score=0.0,
+            comprehension_question_time_ms=500.0,
+            reading_time_ms=100.0,
+        ),
+        Trial(
+            trial_number=2,
+            stimulus_id=2,
+            stimulus_name="b",
+            is_practice=False,
+            num_questions=2,
+            comprehension_score=1.0,
+            comprehension_question_time_ms=800.0,
+            reading_time_ms=1000.0,
+        ),
+    ]
+
+    assert sess._compute_total_question_time() == 2000.0
+
+
+def test_compute_total_question_time_unknown_without_trials() -> None:
+    sess = _make_session()
+    assert sess._compute_total_question_time() == "unknown"
+
+
+def test_rating_stats_from_logfile() -> None:
+    sess = _sess_with_validation_data()
+    sess.logfile = pl.DataFrame(
+        {
+            "page_number": [
+                "familiarity_rating_screen_1",
+                "familiarity_rating_screen_2",
+                "subject_difficulty_screen",
+                "familiarity_rating_screen_1",
+            ],
+            "key_pressed": ["option_2", "option_4", "option_3", "option_5"],
+            "screen_onset_timestamp": ["1000.0", "2000.0", "3000.0", "5000.0"],
+            "timestamp": [2500.0, 2250.0, 3800.0, 6000.0],
+        }
+    )
+
+    proc = sess.create_overview()["experiment_procedure"]
+
+    assert proc["familiarity_1"] == 3.5
+    assert proc["familiarity_2"] == 4.0
+    assert proc["subjective_difficulty"] == 3.0
+    assert proc["total_rating_time_ms"] == 3550.0
+
+
+def test_rating_stats_unknown_without_logfile() -> None:
+    sess = _sess_with_validation_data()
+    proc = sess.create_overview()["experiment_procedure"]
+
+    assert proc["familiarity_1"] == "unknown"
+    assert proc["familiarity_2"] == "unknown"
+    assert proc["subjective_difficulty"] == "unknown"
+    assert proc["total_rating_time_ms"] == "unknown"
+
+
+def test_restarted_session_name() -> None:
+    sess = _make_session(
+        overrides={"session_identifier": "041_KL_DK_1_ET1_start_after_trial_1"}
+    )
+    _seed_metadata(sess)
+
+    overview = sess.create_overview()
+    proc = overview["experiment_procedure"]
+
+    assert proc["was_session_interrupted"] is True
+    assert proc["restarted_session_name"] == "041_KL_DK_1_ET1"
+
+
+def test_restarted_session_name_absent_for_normal_session() -> None:
+    sess = _sess_with_validation_data()
+
+    overview = sess.create_overview()
+    proc = overview["experiment_procedure"]
+
+    assert proc["was_session_interrupted"] is False
+    assert proc["restarted_session_name"] == "unknown"
 
 
 def test_data_formats_section() -> None:
@@ -747,3 +951,36 @@ def test_trials_unknown_without_usable_answers(
         trials = sess.create_overview()["trials"]
 
     assert trials == "unknown"
+
+
+def test_trials_skip_group_with_missing_stimulus_id(tmp_path: Path) -> None:
+    """A trial whose representative row has no stimulus_id is skipped, not crashed."""
+    answers_dir = _write_answers(
+        tmp_path,
+        [
+            {
+                "trial": "trial_1",
+                "stimulus": "Lit_MagicMountain",
+                "stimulus_id": 3,
+                "is_correct": True,
+            },
+            {
+                "trial": "trial_2",
+                "stimulus": "Unknown_Stim_2",
+                "stimulus_id": None,
+                "is_correct": True,
+            },
+        ],
+    )
+    sess = _trial_sess(answers_dir)
+
+    with patch.object(
+        Session,
+        "sid",
+        property(lambda self: _FakeSid(answers_dir)),
+    ):
+        trials = sess.create_overview()["trials"]
+
+    assert isinstance(trials, list)
+    assert [t["trial_number"] for t in trials] == [1]
+    assert trials[0]["stimulus_id"] == 3

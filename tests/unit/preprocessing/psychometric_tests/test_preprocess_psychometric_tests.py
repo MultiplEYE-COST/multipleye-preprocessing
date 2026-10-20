@@ -869,8 +869,8 @@ def test_preprocess_lwmc_basic(tmp_path: Path, make_text_file):
     assert out["LWMC_OS_score"] == pytest.approx(0.5)
     assert out["LWMC_OS_time_sec"] == pytest.approx(20.0)
     assert out["LWMC_OS_processingTask_score"] == pytest.approx(0.75)
-    assert out["LWMC_SS_score"] == pytest.approx(0.5)
-    assert out["LWMC_SS_time_sec"] == pytest.approx(20.0)
+    assert out["LWMC_SentS_score"] == pytest.approx(0.5)
+    assert out["LWMC_SentS_time_sec"] == pytest.approx(20.0)
     assert out["LWMC_SentS_processingTask_score"] == pytest.approx(0.5)
     assert out["LWMC_SSTM_score"] == pytest.approx(0.5)
     assert out["LWMC_Total_score_mean"] == pytest.approx((0.75 + 0.5 + 0.5 + 0.5) / 4)
@@ -912,8 +912,8 @@ def test_preprocess_lwmc_partial_missing_mu(tmp_path: Path, make_text_file):
     assert out["LWMC_OS_score"] == pytest.approx(0.5)
     assert out["LWMC_OS_Done"] == 1
     assert out["LWMC_OS_processingTask_score"] == pytest.approx(1.0)
-    assert out["LWMC_SS_score"] == pytest.approx(0.5)
-    assert out["LWMC_SS_Done"] == 1
+    assert out["LWMC_SentS_score"] == pytest.approx(0.5)
+    assert out["LWMC_SentS_Done"] == 1
     assert out["LWMC_SSTM_score"] == pytest.approx(0.5)
     assert out["LWMC_SSTM_Done"] == 1
     # Total only computed when all four subtasks are present.
@@ -938,7 +938,7 @@ def test_preprocess_lwmc_partial_missing_sstm_dat(tmp_path: Path, make_text_file
     assert out["LWMC_MU_score"] == pytest.approx(0.75)
     assert out["LWMC_MU_Done"] == 1
     assert out["LWMC_OS_score"] == pytest.approx(0.5)
-    assert out["LWMC_SS_score"] == pytest.approx(0.5)
+    assert out["LWMC_SentS_score"] == pytest.approx(0.5)
     assert math.isnan(out["LWMC_SSTM_score"])
     assert out["LWMC_SSTM_Done"] == 0
     assert math.isnan(out["LWMC_Total_score_mean"])
@@ -1003,7 +1003,7 @@ def test_preprocess_lwmc_multiple_csvs_picks_most_recent(
     assert out["LWMC_MU_Done"] == 0
     assert out["LWMC_OS_score"] == pytest.approx(0.5)
     assert out["LWMC_OS_processingTask_score"] == pytest.approx(1.0)
-    assert out["LWMC_SS_score"] == pytest.approx(0.5)
+    assert out["LWMC_SentS_score"] == pytest.approx(0.5)
     assert out["LWMC_SentS_processingTask_score"] == pytest.approx(1.0)
     assert out["LWMC_SSTM_score"] == pytest.approx(0.5)
     assert math.isnan(out["LWMC_Total_score_mean"])

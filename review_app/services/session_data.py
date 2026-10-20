@@ -140,6 +140,26 @@ CHECK_REGISTRY: list[dict] = [
         "category": "Recording",
     },
     {
+        "field": "mean_rt_per_stim_ms",
+        "label": "Mean reading time per stimulus (ms)",
+        "category": "Recording",
+    },
+    {
+        "field": "sd_rt_per_stim_ms",
+        "label": "SD reading time per stimulus (ms)",
+        "category": "Recording",
+    },
+    {
+        "field": "total_question_time_ms",
+        "label": "Total comprehension question time (ms)",
+        "category": "Recording",
+    },
+    {
+        "field": "total_rating_time_ms",
+        "label": "Total rating screen time (ms)",
+        "category": "Recording",
+    },
+    {
         "field": "obligatory_break_made",
         "label": "Obligatory break taken",
         "category": "Recording",
@@ -169,6 +189,27 @@ CHECK_REGISTRY: list[dict] = [
         "field": "was_session_interrupted",
         "label": "Session interrupted",
         "category": "Experiment",
+    },
+    {
+        "field": "restarted_session_name",
+        "label": "Restarted session name",
+        "category": "Experiment",
+    },
+    # Ratings
+    {
+        "field": "familiarity_1",
+        "label": "Familiarity rating 1",
+        "category": "Ratings",
+    },
+    {
+        "field": "familiarity_2",
+        "label": "Familiarity rating 2",
+        "category": "Ratings",
+    },
+    {
+        "field": "subjective_difficulty",
+        "label": "Subjective difficulty",
+        "category": "Ratings",
     },
     # Comprehension
     {

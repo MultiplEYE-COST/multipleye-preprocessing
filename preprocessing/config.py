@@ -33,6 +33,7 @@ class Settings:
         self._is_template_loaded = False
         self._is_auto_filled = False
         self._config_found = False
+        self._config_source: Path | None = None
 
     @property
     def DATA_COLLECTION_NAME(self) -> str | None:
@@ -74,6 +75,15 @@ class Settings:
         if name and Dcn.is_valid(name):
             return Dcn(name)
         return None
+
+    @property
+    def STIMULUS_PID_VERSION_MAP(self) -> dict[str, str]:
+        """Derived: participant ID -> version suffix (e.g. 'v2') for lookup."""
+        result: dict[str, str] = {}
+        for version, pids in self.STIMULUS_VERSIONS_PID_MAP.items():
+            for pid in pids:
+                result[str(pid)] = version
+        return result
 
     @property
     def LANGUAGE(self) -> str:
@@ -353,6 +363,14 @@ class Settings:
         #: List of session identifiers to explicitly include. If not empty, only these are processed.
         self.INCLUDE_SESSIONS: list[str] = []
 
+        #: Folder suffix of the default stimulus version (e.g. "v2"). None means
+        #: the suffix-less folder (``stimuli_<dcn>``) is the default.
+        self.STIMULUS_VERSIONS_DEFAULT_VERSION: str | None = None
+
+        #: Mapping from stimulus version suffix (e.g. "v2") to the list of
+        #: participant IDs that used that version.
+        self.STIMULUS_VERSIONS_PID_MAP: dict[str, list[str]] = {}
+
         #: Default log level for the package/Python.
         self.LOG_LEVEL: str = "INFO"
 
@@ -382,6 +400,11 @@ class Settings:
 
         #: Force recalculation of ASC files even if they already exist in the output folder.
         self.FORCE_RECONVERT_ASC: bool = False
+
+        #: Number of parallel edf2asc processes used to convert EDF to ASC.
+        #: edf2asc is single-threaded per file, so conversion is parallelised by
+        #: running several processes at once.
+        self.EDF2ASC_WORKERS: int = min(4, os.cpu_count() or 1)
 
         #: The expected sampling rate of the eye tracker in Hertz.
         self.EXPECTED_SAMPLING_RATE_HZ: int = 1000
@@ -580,6 +603,35 @@ class Settings:
         #: Event name for saccades.
         self.SACCADE = "saccade"
 
+        # --- EVENT DETECTION ---
+
+        #: Fixation detection method passed to pymovements (e.g. "ivt", "idt").
+        self.FIXATION_METHOD = "ivt"
+
+        #: Minimum fixation duration in milliseconds.
+        self.FIXATION_MINIMUM_DURATION_MS = 100
+
+        #: Velocity threshold for IVT fixation detection in degrees/second.
+        self.FIXATION_VELOCITY_THRESHOLD = 20.0
+
+        #: Saccade detection method passed to pymovements (e.g. "microsaccades").
+        self.SACCADE_METHOD = "microsaccades"
+
+        #: Minimum saccade duration in samples.
+        self.SACCADE_MINIMUM_DURATION = 6
+
+        #: Noise-adaptive velocity threshold factor for saccade detection.
+        self.SACCADE_THRESHOLD_FACTOR = 6.0
+
+        #: Velocity estimation method (e.g. "savitzky_golay").
+        self.VELOCITY_ESTIMATION_METHOD = "savitzky_golay"
+
+        #: Length of the velocity smoothing/differentiation window in milliseconds.
+        self.VELOCITY_SMOOTHING_WINDOW_MS = 50
+
+        #: Polynomial degree used in the Savitzky-Golay velocity filter.
+        self.VELOCITY_POLYNOMIAL_DEGREE = 2
+
         # --- PSYCHOMETRIC TEST THRESHOLDS ---
 
         #: Minimum reaction time for WikiVocab in seconds.
@@ -672,11 +724,13 @@ class Settings:
         self.EYETRACKER_NAMES = {
             "eyelink": [  # TODO: Update list to mapping between same eyetrackers - use dict
                 "EyeLink 1000 Plus",
+                "Eyelink 1000 Plus",
                 "EyeLink 1000+",
                 "EyeLink 1000-Plus",
                 "EyeLink II",
                 "EyeLink 1000",
                 "EyeLink Portable Duo",
+                "Eyelink Portable Duo",
                 "EyeLink Portable Duo 2000Hz Remote",
                 "Eyelink Duo",
                 "EyeLink Duo",
@@ -900,13 +954,22 @@ class Settings:
         if user_configs:
             self.update(user_configs)
 
+        self._config_source = path
         self._validate()
+        self.validate_stimulus_versions()
         self._loaded = True
 
     def update(self, config_dict: dict[str, Any]) -> None:
         """Update settings from a dictionary."""
         for key, value in config_dict.items():
             upper_key = key.upper()
+
+            # Unpack the nested stimulus_versions block into its flat settings.
+            if upper_key == "STIMULUS_VERSIONS" and isinstance(value, dict):
+                self.STIMULUS_VERSIONS_DEFAULT_VERSION = value.get("default_version")
+                self.STIMULUS_VERSIONS_PID_MAP = value.get("versions", {}) or {}
+                continue
+
             if upper_key in self.__dict__:
                 setattr(self, upper_key, value)
             else:
@@ -923,6 +986,27 @@ class Settings:
         if not val:
             # We don't raise here if we are just loading, as we might be loading the template
             return
+
+    def validate_stimulus_versions(self) -> None:
+        """Validate the stimulus version configuration.
+
+        Raises
+        ------
+        ValueError
+            If a participant ID appears in more than one version bucket.
+        """
+        pid_map = self.STIMULUS_VERSIONS_PID_MAP or {}
+        seen: dict[str, str] = {}
+        for version, pids in pid_map.items():
+            for pid in pids:
+                pid = str(pid)
+                if pid in seen:
+                    raise ValueError(
+                        f"Participant ID '{pid}' is mapped to multiple stimulus "
+                        f"versions: '{seen[pid]}' and '{version}'. A participant "
+                        "cannot have sessions in different stimulus versions."
+                    )
+                seen[pid] = version
 
     def setup_logging(self, log_file: str | Path | None = None) -> None:
         """Configure logging with separate levels for console and file.
@@ -995,6 +1079,37 @@ class Settings:
         raise AttributeError(
             f"'{type(self).__name__}' object has no attribute '{name}'"
         )
+
+    def copy_config_to(self, output_dir: str | Path | None = None) -> Path | None:
+        """Copy the last-used config file into the output metadata folder.
+
+        The copy preserves the original filename and overwrites any existing file so
+        the output folder always reflects the most recent pipeline run.
+
+        Parameters
+        ----------
+        output_dir : str | Path | None, optional
+            Target output directory. Defaults to ``self.OUTPUT_DIR``.
+
+        Returns
+        -------
+        Path | None
+            The destination path of the copy, or ``None`` if no config source was recorded.
+        """
+        import shutil
+
+        if self._config_source is None:
+            logger.warning(
+                "No config source path recorded; skipping config copy to output folder."
+            )
+            return None
+
+        dest_dir = Path(output_dir or self.OUTPUT_DIR) / self.METADATA_FOLDER
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / self._config_source.name
+        shutil.copy2(str(self._config_source), str(dest))
+        logger.info(f"Config copy written to {dest}")
+        return dest
 
 
 settings = Settings()

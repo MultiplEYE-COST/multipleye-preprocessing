@@ -82,6 +82,11 @@ def test_check_registry_covers_expected_fields() -> None:
     assert "avg_comprehension_score" in fields
     assert "total_session_duration_s" in fields
     assert "num_completed_trials" in fields
+    assert "total_question_time_ms" in fields
+    assert "total_rating_time_ms" in fields
+    assert "familiarity_1" in fields
+    assert "familiarity_2" in fields
+    assert "subjective_difficulty" in fields
 
 
 def test_compute_checks_num_completed_trials_pass() -> None:
