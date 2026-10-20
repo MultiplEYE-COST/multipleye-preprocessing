@@ -89,7 +89,7 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
 
     if "Doc sheet evaluation" in warnings:
         for msg in warnings["Doc sheet evaluation"]:
-            lines.append(f"\n {msg}")
+            lines.append(f"\n  {msg}")
 
     if "Participant questionnaire" in warnings:
         for msg in warnings["Participant questionnaire"]:
@@ -554,32 +554,34 @@ def _check_doc_sheet_pids(
     warnings: dict[str, list[str]],
 ) -> None:
 
+    experimenter_doc = data_collection.experimenter_doc
+    if experimenter_doc is None or experimenter_doc.et_frame is None:
+        return
+
     session_ids = [
         session.participant_id for session in data_collection.sessions.values()
     ]
 
-    invalid_ids, int_ids = data_collection.experimenter_doc.get_pids(sheet="et")
+    valid_ids, invalid_ids = experimenter_doc.get_pids(sheet="et")
+    missing_ids = [pid for pid in valid_ids if pid not in session_ids]
 
-    missing_ids = []
-    for id in int_ids:
-        if id not in session_ids:
-            missing_ids.append(id)
+    if not (invalid_ids or missing_ids):
+        return
 
-    msg = (
-        f"Experimenter doc sheet eval of et participant IDs:"
-        f"\n {len(invalid_ids)} Participant IDs in the ET experimenter sheet could not be converted to integers"
-        f"\n {len(missing_ids)} Participant IDS in the ET experimenter sheet do not have corresponding ET sessions."
+    warnings.setdefault("Doc sheet evaluation", []).append(
+        "Experimenter doc sheet eval of ET participant IDs: "
+        f"{len(invalid_ids)} could not be converted to integers, "
+        f"{len(missing_ids)} have no corresponding ET session."
     )
-    warnings.setdefault("Doc sheet evaluation", []).append(msg)
 
-    for id in missing_ids:
+    for pid in missing_ids:
         warnings["Doc sheet evaluation"].append(
-            f"Participant {id:03} in documentation sheet not in session data. Please check!"
+            f"Participant {pid:03} in documentation sheet not in session data. Please check!"
         )
 
-    for id in invalid_ids:
+    for invalid_id in invalid_ids:
         warnings["Doc sheet evaluation"].append(
-            f"Participant ID {id} in the Experimenter documentation sheet could not be converted to an integer. Impossible to verify whether session data exists."
+            f"Participant ID {invalid_id} in the Experimenter documentation sheet could not be converted to an integer. Impossible to verify whether session data exists."
         )
 
 

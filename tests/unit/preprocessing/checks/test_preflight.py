@@ -11,6 +11,7 @@ import yaml
 
 from preprocessing.checks.preflight import (
     PreflightError,
+    _check_doc_sheet_pids,
     _check_psychometric_tests,
     _check_session_completeness,
     _check_stimulus_order_coverage,
@@ -36,7 +37,7 @@ class FakeDataCollection:
     language: str
     country: str
     lab_number: int
-    experimenter_doc: None
+    experimenter_doc: ExperimenterDoc | None
     city: str = "City"
     year: int = 2024
     sessions: dict[str, FakeSession] = field(default_factory=dict)
@@ -672,6 +673,81 @@ def test_preflight_warnings_only(preflight_env):
     shutil.rmtree(dc.stimulus_dir / "aoi_question_images_en_uk_1", ignore_errors=True)
 
     run_preflight_check(dc)  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# Doc sheet PID evaluation
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def doc_sheet():
+    def _make(participant_ids: list[object], with_et: bool = True) -> ExperimenterDoc:
+        et_frame = (
+            pl.DataFrame({"participant_id": participant_ids}) if with_et else None
+        )
+        return ExperimenterDoc(et_frame, None, None, None)
+
+    return _make
+
+
+@pytest.fixture
+def dc_with_pids():
+    def _make(pids: list[int], doc: ExperimenterDoc) -> FakeDataCollection:
+        sessions = {
+            f"{pid:03}_EN_UK_1_ET1": FakeSession(
+                session_identifier=f"{pid:03}_EN_UK_1_ET1",
+                session_file_path=Path("/fake") / f"{pid:03}" / "data.edf",
+                session_folder_path=Path("/fake") / f"{pid:03}",
+                participant_id=pid,
+            )
+            for pid in pids
+        }
+        return FakeDataCollection(
+            stimulus_dir=Path("/fake"),
+            language="EN",
+            country="UK",
+            lab_number=1,
+            sessions=sessions,
+            experimenter_doc=doc,
+        )
+
+    return _make
+
+
+@pytest.mark.parametrize(
+    ("sheet_pids", "session_pids", "with_et", "expected"),
+    [
+        (["001", "002"], [1, 2], True, None),
+        (
+            ["001", "003", "abc"],
+            [1],
+            True,
+            [
+                "Participant 003",
+                "Participant ID abc",
+                "1 could not be converted",
+                "1 have no corresponding",
+            ],
+        ),
+        ([], [1], False, None),
+    ],
+)
+def test_doc_sheet_pids(
+    dc_with_pids, doc_sheet, sheet_pids, session_pids, with_et, expected
+):
+    dc = dc_with_pids(session_pids, doc_sheet(sheet_pids, with_et))
+    warnings: dict[str, list[str]] = {}
+
+    _check_doc_sheet_pids(dc, warnings)
+
+    if expected is None:
+        assert "Doc sheet evaluation" not in warnings
+        return
+
+    text = "\n".join(warnings["Doc sheet evaluation"])
+    for substring in expected:
+        assert substring in text
 
 
 # ---------------------------------------------------------------------------

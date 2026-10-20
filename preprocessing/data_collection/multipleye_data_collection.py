@@ -38,9 +38,6 @@ from ..checks.formal_experiment_checks import (
     sanity_check_gaze_frame,
 )
 from ..config import settings
-from ..data_collection.experimenter_doc import ExperimenterDoc
-from ..data_collection.session import Session
-from ..data_collection.stimulus import LabConfig, Stimulus
 from ..models.dcn import Dcn
 from ..models.sid import Sid
 from ..plotting.plot import build_page_frames, plot_gaze, plot_main_sequence
@@ -50,6 +47,9 @@ from ..utils.data_path_utils import _ci_resolve
 from ..utils.fix_questionnaire_data import remap_wrong_pq_values
 from ..utils.logging import get_logger, get_pipeline_info
 from ..utils.stimulus_versions import stimulus_folder_name, version_suffix_for_pid
+from .experimenter_doc import ExperimenterDoc
+from .session import Session
+from .stimulus import LabConfig, Stimulus
 
 
 def eyelink(method):
@@ -172,7 +172,7 @@ class MultipleyeDataCollection:
         data_root: Path,
         lab_configuration: LabConfig,
         session_folder_regex: str,
-        experimenter_doc: ExperimenterDoc | None,
+        experimenter_doc: ExperimenterDoc | None = None,
         included_sessions: list[str] | None = None,
         excluded_sessions: list[str] | None = None,
         # stimuli: list[Stimulus],
