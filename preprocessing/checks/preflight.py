@@ -87,6 +87,10 @@ def _print_warnings(warnings: dict[str, list[str]]) -> None:
         for msg in warnings["Session completeness"]:
             lines.append(f"\n  {msg}")
 
+    if "Doc sheet evaluation" in warnings:
+        for msg in warnings["Doc sheet evaluation"]:
+            lines.append(f"\n  {msg}")
+
     if "Participant questionnaire" in warnings:
         for msg in warnings["Participant questionnaire"]:
             lines.append(f"\n  {msg}")
@@ -118,6 +122,12 @@ def run_preflight_check(data_collection) -> None:
     _check_stimulus_order_coverage(data_collection, errors)
     _check_session_completeness(data_collection, warnings)
     _check_stimulus_versions(data_collection, errors)
+    if data_collection.experimenter_doc:
+        _check_doc_sheet_pids(data_collection, warnings)
+    else:
+        warnings.setdefault("Doc sheet evaluation", []).append(
+            "No experimenter documentation sheet found. If this is a full data collection, please reach out to the lab!"
+        )
 
     pt_warnings: list[str] = []
     _check_psychometric_tests(data_collection, pt_warnings)
@@ -537,6 +547,42 @@ def _check_session_completeness(
         warnings["Session completeness"].extend(incomplete)
     if extra:
         warnings["Session completeness"].extend(extra)
+
+
+def _check_doc_sheet_pids(
+    data_collection,
+    warnings: dict[str, list[str]],
+) -> None:
+
+    experimenter_doc = data_collection.experimenter_doc
+    if experimenter_doc is None or experimenter_doc.et_frame is None:
+        return
+
+    session_ids = [
+        session.participant_id for session in data_collection.sessions.values()
+    ]
+
+    valid_ids, invalid_ids = experimenter_doc.get_pids(sheet="et")
+    missing_ids = [pid for pid in valid_ids if pid not in session_ids]
+
+    if not (invalid_ids or missing_ids):
+        return
+
+    warnings.setdefault("Doc sheet evaluation", []).append(
+        "Experimenter doc sheet eval of ET participant IDs: "
+        f"{len(invalid_ids)} could not be converted to integers, "
+        f"{len(missing_ids)} have no corresponding ET session."
+    )
+
+    for pid in missing_ids:
+        warnings["Doc sheet evaluation"].append(
+            f"Participant {pid:03} in documentation sheet not in session data. Please check!"
+        )
+
+    for invalid_id in invalid_ids:
+        warnings["Doc sheet evaluation"].append(
+            f"Participant ID {invalid_id} in the Experimenter documentation sheet could not be converted to an integer. Impossible to verify whether session data exists."
+        )
 
 
 def _check_stimulus_versions(
