@@ -92,6 +92,23 @@ def test_create_overview_includes_new_fields() -> None:
     assert dq["session_blink_loss_ratio"] is None
 
 
+def test_create_overview_includes_stimulus_content_version() -> None:
+    sess = _make_session()
+    sess.stimulus_content_version = "v1"
+
+    overview = sess.create_overview()
+
+    assert overview["experiment_procedure"]["stimulus_content_version"] == "v1"
+
+
+def test_create_overview_stimulus_content_version_defaults_to_unknown() -> None:
+    sess = _make_session()
+
+    overview = sess.create_overview()
+
+    assert overview["experiment_procedure"]["stimulus_content_version"] == "unknown"
+
+
 def test_create_overview_includes_measure_based_data_loss() -> None:
     sess = _sess_with_validation_data()
     sess._measure_total_data_loss_ratio = 0.015
@@ -934,3 +951,36 @@ def test_trials_unknown_without_usable_answers(
         trials = sess.create_overview()["trials"]
 
     assert trials == "unknown"
+
+
+def test_trials_skip_group_with_missing_stimulus_id(tmp_path: Path) -> None:
+    """A trial whose representative row has no stimulus_id is skipped, not crashed."""
+    answers_dir = _write_answers(
+        tmp_path,
+        [
+            {
+                "trial": "trial_1",
+                "stimulus": "Lit_MagicMountain",
+                "stimulus_id": 3,
+                "is_correct": True,
+            },
+            {
+                "trial": "trial_2",
+                "stimulus": "Unknown_Stim_2",
+                "stimulus_id": None,
+                "is_correct": True,
+            },
+        ],
+    )
+    sess = _trial_sess(answers_dir)
+
+    with patch.object(
+        Session,
+        "sid",
+        property(lambda self: _FakeSid(answers_dir)),
+    ):
+        trials = sess.create_overview()["trials"]
+
+    assert isinstance(trials, list)
+    assert [t["trial_number"] for t in trials] == [1]
+    assert trials[0]["stimulus_id"] == 3

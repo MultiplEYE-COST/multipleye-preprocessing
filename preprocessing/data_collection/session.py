@@ -58,6 +58,7 @@ class Session:
         default="unknown", init=False
     )
     stimuli_trial_mapping: dict[str, str] | str = field(default="unknown", init=False)
+    stimulus_content_version: str | None = field(default="unknown", init=False)
     stimulus_start_end_ts: list[dict[str, str | float]] | str = field(
         default="unknown", init=False
     )
@@ -178,6 +179,7 @@ class Session:
             },
             "experiment_procedure": {
                 "question_order": self.question_order,
+                "stimulus_content_version": self.stimulus_content_version,
                 "stimulus_order_ids": self.stimulus_order_ids,
                 "stimulus_order_ids_with_names": self.stimulus_order_ids_with_names,
                 "num_completed_trials": len(self.stimulus_order_ids)
@@ -572,6 +574,11 @@ class Session:
                 question_time = round(sum(q_times), 3) if q_times else 0.0
 
             first = group.row(0, named=True)
+            if first["stimulus_id"] is None:
+                logger.warning(
+                    f"Skipping trial {trial_id} in overview: missing stimulus_id."
+                )
+                continue
             try:
                 trial_number = int(str(trial_id).rsplit("_", 1)[-1])
             except ValueError:
