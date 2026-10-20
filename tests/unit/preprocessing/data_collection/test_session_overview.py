@@ -773,6 +773,29 @@ def test_reading_time_non_positive_total() -> None:
     assert proc["total_reading_time_s"] == "unknown"
 
 
+def test_reading_time_clamps_negative_spans() -> None:
+    sess = _sess_with_validation_data()
+    sess.stimulus_start_end_ts = [
+        {"stimulus": "a", "trial": "trial_1", "start_ts": 1000.0, "stop_ts": 4000.0},
+        {"stimulus": "b", "trial": "trial_2", "start_ts": 9000.0, "stop_ts": 5000.0},
+    ]
+
+    overview = sess.create_overview()
+    proc = overview["experiment_procedure"]
+
+    assert proc["total_reading_time_s"] == 3.0
+
+
+def test_reading_time_by_trial_clamps_negative_spans() -> None:
+    sess = _sess_with_validation_data()
+    sess.stimulus_start_end_ts = [
+        {"stimulus": "a", "trial": "trial_1", "start_ts": 1000.0, "stop_ts": 4000.0},
+        {"stimulus": "b", "trial": "trial_1", "start_ts": 9000.0, "stop_ts": 5000.0},
+    ]
+
+    assert sess._reading_time_by_trial() == {"trial_1": 3000.0}
+
+
 def test_reading_time_already_set() -> None:
     sess = _sess_with_validation_data()
     sess.total_reading_time = 42.0

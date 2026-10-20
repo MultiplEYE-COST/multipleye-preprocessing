@@ -427,7 +427,7 @@ class Session:
                 stop = float(entry["stop_ts"])
             except (KeyError, TypeError, ValueError):
                 continue
-            total_ms += stop - start
+            total_ms += max(0.0, stop - start)
         if total_ms <= 0:
             return None
         return round(total_ms / 1000, 3)
@@ -484,7 +484,7 @@ class Session:
             if entry.get("type") != "reading time":
                 continue
             try:
-                dur = float(entry["duration_ms"])
+                dur = max(0.0, float(entry["duration_ms"]))
                 stim = str(entry.get("stimulus", "unknown"))
             except (KeyError, TypeError, ValueError):
                 continue
@@ -530,7 +530,7 @@ class Session:
                 trial = str(entry["trial"])
             except (KeyError, TypeError, ValueError):
                 continue
-            by_trial[trial] = by_trial.get(trial, 0.0) + (stop - start)
+            by_trial[trial] = by_trial.get(trial, 0.0) + max(0.0, stop - start)
         return by_trial
 
     def _compute_trials(self) -> list[Trial] | str:
