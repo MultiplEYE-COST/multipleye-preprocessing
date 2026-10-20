@@ -186,6 +186,7 @@ def edit_order_csv(
             df = df.with_columns(
                 pl.when(pl.col("version_number") == order_version)
                 .then(pid)
+                .otherwise(pl.col("participant_id"))
                 .alias("participant_id")
             )
         df.write_csv(file_path)
