@@ -145,6 +145,11 @@ def collect_session_answers(
 
     long_df = pl.concat(per_slot_frames)
 
+    # question_order_versions.csv lists all randomised trials, but aborted or
+    # restarted sessions only completed a prefix. Drop order rows without a
+    # matching completed trial so no "None"/"Unknown_Stim_*" rows are emitted.
+    long_df = long_df.filter(pl.col("trial").is_in(list(trial_mapping)))
+
     # Build identifier columns
     def _stim_for_trial(order_trial_idx: int) -> str:
         actual_key = trial_mapping.get(order_trial_idx)

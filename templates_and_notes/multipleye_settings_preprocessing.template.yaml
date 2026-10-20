@@ -44,6 +44,27 @@ plot_aoi_overlay: true
 # Whether to copy AOI images overlay to the output directory.
 copy_aoi_images_overlay: false
 
+# ----------------------- Stimulus Content Versions -----------------------
+# Only needed if your lab used MULTIPLE stimulus folders, e.g. after
+# correcting spelling/grammar errors in the stimuli mid-collection.
+# The pipeline then uses a per-version stimulus folder instead of a single
+# suffix-less folder (``stimuli_<dcn>/``).
+#
+# The block is active by default (inert with an empty ``versions`` list).
+# Only configure the ``versions`` map below when required.
+stimulus_versions:
+  # Folder suffix of the default version. null = suffix-less folder
+  # ``stimuli_<dcn>/`` (or an explicit string like "v2").
+  default_version: null
+
+  # Version suffix -> list of participant IDs that used that version.
+  # Only list participants who used a NON-default version.
+  # IMPORTANT: A participant must NOT appear in more than one version bucket.
+  versions:
+    # v2:  # folder ``stimuli_<dcn>_v2/``
+    #   - "008"
+    #   - "010"
+
 # ----------------------- Internal Usage -----------------------
 
 # --- LOGGING ---
@@ -138,6 +159,11 @@ RUN_PSYCHOMETRIC_TESTS: true
 # --- INTERNAL (do not change) ---
 # Whether to force reconversion of EDF files to ASC even if output exists.
 force_reconvert_asc: false
+# Number of parallel edf2asc processes used to convert EDF to ASC.
+# edf2asc is single-threaded per file, so conversion is parallelised by running
+# several processes at once. Raise/lower this for your machine (the code default
+# when unset is min(4, CPU count)).
+edf2asc_workers: 4
 raw_data_folder: "raw_data/"
 fixations_folder: "fixations/"
 saccades_folder: "saccades/"

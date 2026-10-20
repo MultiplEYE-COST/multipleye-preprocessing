@@ -94,7 +94,7 @@ with the maximum attainable score in the current version.
 - `LWMC_MU_score`: Memory Update task score
 - `LWMC_OS_score`: Operation Span task score
 - `LWMC_OS_processingTask_score`: Equation accuracy for Operation Span
-- `LWMC_SS_score`: Sentence Span task score
+- `LWMC_SentS_score`: Sentence Span task score
 - `LWMC_SentS_processingTask_score`: Sentence truth-value accuracy for Sentence Span
 - `LWMC_SSTM_score`: Spatial Short-Term Memory task score
 - `LWMC_Total_score_mean`: Average score across all four tasks
@@ -106,7 +106,7 @@ participant engagement.*
 
 - `LWMC_MU_time_sec`: Mean response time for Memory Update
 - `LWMC_OS_time_sec`: Mean response time for Operation Span
-- `LWMC_SS_time_sec`: Mean response time for Sentence Span
+- `LWMC_SentS_time_sec`: Mean response time for Sentence Span
 
 (rapid_automatized_naming_test)=
 
@@ -355,14 +355,14 @@ data/MultiplEYE_SQ_CH_Zurich_1_2025/psychometric-tests-sessions/
 
 If it happens that the data is structured first by the test folder and then by session folder,
 `prepare_language_folder` and the preflight check will detect this and restructure the data
-automatically. The `restructure_psycho_tests` CLI tool can still be used as a fallback. This can be
+automatically. The `restructure_psychometric_tests` CLI tool can still be used as a fallback. This can be
 invoked like this:
 
 ```bash
-restructure_psycho_tests
+restructure_psychometric_tests
 ```
 
-In short, if your data structure looks like below, `restructure_psycho_tests` can format it into the
+In short, if your data structure looks like below, `restructure_psychometric_tests` can format it into the
 desired structure as shown above.
 
 ```text
@@ -395,7 +395,7 @@ data/MultiplEYE_SQ_CH_Zurich_1_2025/psychometric-tests-sessions/core_data/
 
 Usually, the command needs no arguments, if the {ref}`configuration_guide` was correctly set up.
 Otherwise, you can find out how to overwrite the global settings by invoking
-`restructure_psycho_tests --help`. If one session did not finish all tests, this is no problem. For
+`restructure_psychometric_tests --help`. If one session did not finish all tests, this is no problem. For
 the sessions where this is the case, the tests that do not have data will be logged to the console.
 The following calculation has been constructed to handle this case, only calculating the results of
 tests with existing data.

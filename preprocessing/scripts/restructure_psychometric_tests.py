@@ -13,7 +13,7 @@ from preprocessing.utils.file_utils import _copytree
 logger = get_logger()
 
 
-def fix_psycho_tests_structure(
+def fix_psychometric_tests_structure(
     config_folder: Path | None = None,
     data_folder: Path | None = None,
     out_folder: Path | None = None,
@@ -223,4 +223,4 @@ def main():
         f"to out_folder: {out_p}\nwith config_folder: {config_p}"
     )
 
-    fix_psycho_tests_structure(config_p, data_p, out_p)
+    fix_psychometric_tests_structure(config_p, data_p, out_p)
