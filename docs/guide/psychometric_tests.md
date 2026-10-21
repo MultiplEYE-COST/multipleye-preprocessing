@@ -398,17 +398,35 @@ Both process each test separately and combine the results into a single consolid
 #### Output Structure
 
 All psychometric test results are written to
-`preprocessed_data/{data_collection_id}/psychometric_tests/`. The pipeline generates a single
-consolidated results table containing all summary and detailed metrics for every test:
+`preprocessed_data/{data_collection_id}/psychometric_tests/`.
 
-- **Results table** (`psychometric_results_{data_collection_id}.csv`): One row per session with all
-  available metrics (per-condition RT/accuracy/item counts, LWMC scores and timings, WikiVocab item
-  breakdowns, PLAB set splits, and the per-test `_Done` flags). Tests a session did not complete are
-  left empty for that session's row.
-- **Merged results table** (`psychometric_results_{data_collection_id}_merged.csv`): One row per
-  participant, merging disjoint PT sessions (e.g. PT1 with PT2) when their tests do not overlap.
+- **Results table** (`psychometric_results_{data_collection_id}.csv`): one row per PT session,
+  with the identifier columns `session_id`, `participant_id`, `session`, `postfix` and `notes`,
+  the per-test `_Done` flags, and all available metrics for every test. Tests a session did not
+  complete leave their metric cells empty; their `_Done` flag is `0`.
+- **Merged results table** (`psychometric_results_{data_collection_id}_merged.csv`): one row per
+  participant, merging disjoint PT sessions (for example PT1 and PT2) when their tests do not
+  overlap. An `original_sessions` column lists the merged session identifiers. If a test appears
+  in more than one session, the rows are not merged and a warning is issued.
 
-The per-test field lists above describe which columns each test contributes to these tables.
+Identifier and flag columns:
+
+- `session_id`, `participant_id`, `session`, `postfix`, `notes`
+- `LWMC_Done`, `LWMC_MU_Done`, `LWMC_OS_Done`, `LWMC_SentS_Done`, `LWMC_SSTM_Done`
+- `RAN_Done`, `Stroop_Done`, `Flanker_Done`, `WikiVocab_Done`, `PLAB_Done`
+
+The remaining columns are the per-test metrics described in the sections above. The `_Done` flags
+are `1` when the test was preprocessed and `0` otherwise.
+
+Working memory can be partial. Each LWMC subtask (MU, OS, SentS, SSTM) is scored independently and
+carries its own `LWMC_<task>_Done` flag. `LWMC_Total_score_mean` is only computed when all four
+subtasks are available; otherwise it is `NaN` and the partial run is logged as
+`LWMC partially preprocessed for ...: missing ...`. The test only fails when no usable subtask
+data is available.
+
+These tables are the source for the PT status in `participants.csv` (see the participant
+overview). Join them on `participant_id` and `session_id`; `participants.csv` records the
+`pt_session_ids` and `pt_tests_status` needed to find the right rows.
 
 #### Command Line Usage
 
