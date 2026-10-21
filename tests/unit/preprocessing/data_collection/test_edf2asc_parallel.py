@@ -39,7 +39,7 @@ def _staging_leftovers() -> list[Path]:
 
 
 def _write_asc_for(cmd, content: str = "asc") -> None:
-    """Emulate `edf2asc -y -p <dir> <edf>` by writing into the -p directory."""
+    """Emulate `edf2asc -y -c -p <dir> <edf>` by writing into the -p directory."""
     staging_dir = Path(cmd[cmd.index("-p") + 1])
     edf = Path(cmd[-1])
     (staging_dir / f"{edf.stem}.asc").write_text(content)
@@ -65,6 +65,7 @@ def test_converts_sessions_in_parallel(tmp_path, monkeypatch):
     calls = []
 
     def fake_run(cmd, **kwargs):
+        assert "-c" in cmd
         assert "-p" in cmd
         calls.append(cmd)
         with lock:
