@@ -570,7 +570,7 @@ class MultipleyeDataCollection:
             )
             try:
                 subprocess.run(
-                    ["edf2asc", "-y", "-p", str(staging_dir), str(edf_path)],
+                    ["edf2asc", "-y", "-c", "-p", str(staging_dir), str(edf_path)],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     check=False,

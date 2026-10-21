@@ -12,7 +12,7 @@ from preprocessing.data_collection.session import Session
 
 
 def _edf2asc_writes_produced(cmd, **kwargs):
-    """Emulate `edf2asc -y -p <dir> <edf>` by writing into the -p directory."""
+    """Emulate `edf2asc -y -c -p <dir> <edf>` by writing into the -p directory."""
     staging_dir = Path(cmd[cmd.index("-p") + 1])
     edf = Path(cmd[-1])
     (staging_dir / f"{edf.stem}.asc").write_text("asc")
@@ -118,6 +118,7 @@ def test_convert_edf_to_asc_conversion_logic(
         mock_run.assert_called()
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "edf2asc"
+        assert "-c" in cmd
         assert "-p" in cmd
     else:
         mock_run.assert_not_called()
