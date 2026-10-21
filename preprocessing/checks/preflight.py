@@ -13,10 +13,12 @@ from pathlib import Path
 
 import polars as pl
 
+from ..config import settings
 from ..data_collection.session import Session
 from ..models.sid import Sid
 from ..utils.data_path_utils import _ci_exists, _ci_glob, _ci_resolve
 from ..utils.logging import get_logger
+from ..utils.pq_normalisation import find_questionnaire_files
 
 logger = get_logger()
 
@@ -118,6 +120,7 @@ def run_preflight_check(data_collection) -> None:
     warnings: dict[str, list[str]] = {}
 
     _check_shared_files(data_collection, errors, warnings)
+    _check_pq_assets(data_collection, errors, warnings)
     _check_sessions(data_collection, errors, warnings)
     _check_stimulus_order_coverage(data_collection, errors)
     _check_session_completeness(data_collection, warnings)
@@ -547,6 +550,48 @@ def _check_session_completeness(
         warnings["Session completeness"].extend(incomplete)
     if extra:
         warnings["Session completeness"].extend(extra)
+
+
+def _check_pq_assets(
+    data_collection,
+    errors: dict[str, list[str]],
+    warnings: dict[str, list[str]],
+) -> None:
+    """Check the participant questionnaire workbooks are available.
+
+    Only applies to real MultiplEYE data collections. MeRID and test fixtures do
+    not use the participant questionnaire.
+    """
+    if getattr(settings, "EXPERIMENT_TYPE", "") == "MeRID":
+        return
+    if not getattr(data_collection, "data_collection_name", None):
+        return
+
+    dataset_dir = Path(settings.DATASET_DIR)
+    language = getattr(data_collection, "language", None)
+    if not language:
+        return
+
+    question_path, language_path = find_questionnaire_files(dataset_dir, language)
+    allow_fallback = bool(getattr(settings, "ALLOW_PQ_FALLBACK", False))
+    target = warnings if allow_fallback else errors
+    group = "Participant questionnaire"
+    lang = str(language).lower()
+
+    if question_path is None:
+        target.setdefault(group, []).append(
+            "Questionnaire workbook not found. Place "
+            f"multipleye_questionnaire_questions_{lang}.xlsx in the data "
+            f"collection folder (for example "
+            f"{dataset_dir}/participant_questionnaire_{lang}_*/) or in "
+            f"{dataset_dir}/documentation/questionnaire/."
+        )
+    if language_path is None:
+        target.setdefault(group, []).append(
+            "Language-code workbook not found. Place "
+            f"language_iso639_1_{lang}.xlsx next to the questionnaire "
+            "workbook."
+        )
 
 
 def _check_doc_sheet_pids(
