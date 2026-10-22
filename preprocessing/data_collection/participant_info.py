@@ -10,7 +10,7 @@ import polars as pl
 from polars.exceptions import ComputeError
 
 SESSION_DATE_PREFIX = "*** DATE:"
-_PQ_NULL_VALUES = {"", "nan", "none", "null", "unknown", "na", "n/a"}
+_PQ_NULL_VALUES = {"", "nan", "none", "null", "unknown", "na", "n/a", "<na>", "nat"}
 
 #: Curated psychometric score columns surfaced in the session overview participant section.
 #: The full results table has ~70 columns; the participant table keeps only status.

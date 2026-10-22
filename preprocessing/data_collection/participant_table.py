@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+import pandas as pd
 import polars as pl
 
 from ..config import settings
@@ -108,7 +109,49 @@ def _get(value: object, *keys: str, default: object = None) -> object:
 
 
 def _join(values: list[object], separator: str = "; ") -> str:
-    return separator.join(str(v) for v in values if v not in (None, "", "unknown"))
+    return separator.join(
+        str(v) for v in values if not _is_missing(v) and v != "unknown"
+    )
+
+
+def _is_missing(value: object) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str) and not value.strip():
+        return True
+    try:
+        return bool(pd.isna(value))
+    except (TypeError, ValueError):
+        return False
+
+
+def _first_value(*values: object) -> object:
+    for value in values:
+        if not _is_missing(value):
+            return value
+    return None
+
+
+def _number(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _sum_numbers(overviews: list[dict], *keys: str) -> float:
+    total = 0.0
+    for overview in overviews:
+        value = _number(_get(overview, *keys))
+        if value is not None:
+            total += value
+    return round(total, 3)
 
 
 def _et_sessions(data_collection) -> dict[str, str]:
@@ -375,18 +418,18 @@ def _pq_values(
 
 def _pq_columns(pq: dict) -> dict:
     result = {
-        field: pq.get(field) or pq.get(field.removeprefix("pq_"))
+        field: _first_value(pq.get(field), pq.get(field.removeprefix("pq_")))
         for field in PQ_BASE_FIELDS
     }
     result["pq_bi_monolingualism"] = _bi_monolingualism_from_pq(pq)
     for slot in LANGUAGE_SLOTS:
-        result[f"pq_{slot}"] = pq.get(slot) or pq.get(f"pq_raw_{slot}")
+        result[f"pq_{slot}"] = _first_value(pq.get(slot), pq.get(f"pq_raw_{slot}"))
     reading_times = {}
     for slot in LANGUAGE_SLOTS:
         values = {}
         for question in READING_QUESTIONS:
             value = pq.get(f"pq_{slot}_{question}_reading_time")
-            if value is not None:
+            if not _is_missing(value):
                 values[question] = value
         if values:
             reading_times[slot] = values
@@ -400,16 +443,14 @@ def _weighted_ratio(overviews: list[dict], key: str) -> float | None:
     weighted = 0.0
     total_duration = 0.0
     for overview in overviews:
-        value = _get(overview, "data_quality", key)
-        duration = _get(overview, "experiment_procedure", "total_session_duration_s")
-        if not isinstance(value, (int, float)) or not isinstance(
-            duration, (int, float)
-        ):
+        value = _number(_get(overview, "data_quality", key))
+        duration = _number(
+            _get(overview, "experiment_procedure", "total_session_duration_s")
+        )
+        if value is None or duration is None or duration <= 0:
             continue
-        if duration <= 0:
-            continue
-        weighted += float(value) * float(duration)
-        total_duration += float(duration)
+        weighted += value * duration
+        total_duration += duration
     if total_duration <= 0:
         return None
     return round(weighted / total_duration, 6)
@@ -444,10 +485,10 @@ def _et_columns(
             {
                 "session_id": session_id,
                 "status": "conducted",
-                "trials_completed": _get(
-                    overview, "experiment_procedure", "num_completed_trials"
+                "trials_completed": len(experiment_trials),
+                "trials_total": max(
+                    settings.NUM_TRIALS - settings.NUM_PRACTICE_TRIALS, 0
                 ),
-                "trials_total": len(experiment_trials),
                 "trials_practice": len(practice_trials),
                 "reading_time_s": _get(
                     overview, "experiment_procedure", "total_reading_time_s"
@@ -468,12 +509,9 @@ def _et_columns(
         )
 
     def _sum(key: str) -> float:
-        values = [
-            _get(stat, key)
-            for stat in stats
-            if isinstance(_get(stat, key), (int, float))
-        ]
-        return round(sum(float(v) for v in values), 3) if values else 0.0
+        values = [_number(_get(stat, key)) for stat in stats]
+        values = [value for value in values if value is not None]
+        return round(sum(values), 3) if values else 0.0
 
     stimuli = []
     for overview in overviews:
@@ -485,12 +523,18 @@ def _et_columns(
                 stimuli.append(trial["stimulus_name"])
 
     validation_errors = [
-        _get(overview, "calibration_validation", "avg_validation_error_dva")
+        value
         for overview in overviews
-        if isinstance(
-            _get(overview, "calibration_validation", "avg_validation_error_dva"),
-            (int, float),
+        if (
+            value := _number(
+                _get(
+                    overview,
+                    "calibration_validation",
+                    "avg_validation_error_dva",
+                )
+            )
         )
+        is not None
     ]
 
     columns = {
@@ -502,26 +546,14 @@ def _et_columns(
         "et_stimuli_presented": "; ".join(sorted(set(stimuli))),
         "et_total_reading_time_s": _sum("reading_time_s"),
         "et_total_session_duration_s": _sum("session_duration_s"),
-        "et_total_question_time_ms": round(
-            sum(
-                float(_get(o, "experiment_procedure", "total_question_time_ms") or 0)
-                for o in overviews
-            ),
-            3,
+        "et_total_question_time_ms": _sum_numbers(
+            overviews, "experiment_procedure", "total_question_time_ms"
         ),
-        "et_total_rating_time_ms": round(
-            sum(
-                float(_get(o, "experiment_procedure", "total_rating_time_ms") or 0)
-                for o in overviews
-            ),
-            3,
+        "et_total_rating_time_ms": _sum_numbers(
+            overviews, "experiment_procedure", "total_rating_time_ms"
         ),
-        "et_total_break_time_s": round(
-            sum(
-                float(_get(o, "experiment_procedure", "total_break_time_s") or 0)
-                for o in overviews
-            ),
-            3,
+        "et_total_break_time_s": _sum_numbers(
+            overviews, "experiment_procedure", "total_break_time_s"
         ),
         "et_blink_loss_ratio": _weighted_ratio(overviews, "session_blink_loss_ratio"),
         "et_data_loss_ratio": _weighted_ratio(
@@ -532,22 +564,14 @@ def _et_columns(
             if validation_errors
             else None
         ),
-        "et_num_calibrations": round(
-            sum(
-                float(_get(o, "calibration_validation", "num_calibrations") or 0)
-                for o in overviews
-            ),
-            3,
+        "et_num_calibrations": _sum_numbers(
+            overviews, "calibration_validation", "num_calibrations"
         ),
-        "et_num_validations": round(
-            sum(
-                float(_get(o, "calibration_validation", "num_validations") or 0)
-                for o in overviews
-            ),
-            3,
+        "et_num_validations": _sum_numbers(
+            overviews, "calibration_validation", "num_validations"
         ),
         "et_was_interrupted": any(
-            bool(_get(o, "experiment_procedure", "was_session_interrupted"))
+            _get(o, "experiment_procedure", "was_session_interrupted") is True
             for o in overviews
         ),
         "et_restarted_session_names": _join(

@@ -270,3 +270,56 @@ def test_preflight_cross_source_warning(tmp_path: Path, monkeypatch):
     messages = "\n".join(warnings["Cross-source completeness"])
     assert "002" in messages
     assert "missing sources: ET" in messages
+
+
+def test_cross_source_status_matches_short_session_number():
+    status = cross_source_status(
+        _group("007", {"007"}),
+        {"007_EN_UK_1_ET1": "007"},
+        [_pt_row("007", PLAB_Done=1)],
+        {"007"},
+        [
+            SimpleNamespace(
+                pid="007",
+                session_type="ET",
+                session_id="1",
+                aborted=False,
+                tests=set(),
+            ),
+            SimpleNamespace(
+                pid="007",
+                session_type="PT",
+                session_id="1",
+                aborted=False,
+                tests={"PLAB"},
+            ),
+        ],
+        {},
+        {"007": {"PLAB"}},
+        num_sessions=1,
+    )
+
+    assert status["missing_session_ids"] == ""
+
+
+def test_cross_source_status_reports_missing_short_session_number():
+    status = cross_source_status(
+        _group("008", {"008"}),
+        {"008_EN_UK_1_ET1": "008"},
+        [],
+        {"008"},
+        [
+            SimpleNamespace(
+                pid="008",
+                session_type="ET",
+                session_id="2",
+                aborted=False,
+                tests=set(),
+            )
+        ],
+        {},
+        {},
+        num_sessions=1,
+    )
+
+    assert status["missing_session_ids"] == "2"

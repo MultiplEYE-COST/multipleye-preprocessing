@@ -5,11 +5,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pandas as pd
 import polars as pl
 
 from preprocessing import settings
 from preprocessing.data_collection.experimenter_doc import ExperimenterDoc
-from preprocessing.data_collection.participant_table import build_participant_table
+from preprocessing.data_collection.participant_table import (
+    _pq_columns,
+    build_participant_table,
+)
 
 
 class FakeSession:
@@ -43,7 +47,7 @@ def _overview(session_id: str, pid: int) -> dict:
             "total_session_duration_s": 1800.0,
             "total_question_time_ms": 1000.0,
             "total_rating_time_ms": 500.0,
-            "total_break_time_s": 300.0,
+            "total_break_time_s": "unknown",
             "was_session_interrupted": False,
             "restarted_session_name": "unknown",
         },
@@ -169,8 +173,10 @@ def test_participant_table_union_grouping_docs_and_unassigned(
     assert merged["pids"] == "001; 002"
     assert merged["et_session_ids"] == "001_EN_UK_1_ET1"
     assert merged["pt_session_ids"] == "001_EN_UK_1_PT1; 002_EN_UK_1_PT1"
-    assert merged["et_trials_total"] == 2
+    assert merged["et_trials_completed"] == 2
+    assert merged["et_trials_total"] == 10
     assert merged["et_trials_practice"] == 1
+    assert merged["et_total_break_time_s"] == 0.0
     assert merged["et_stimuli_presented"] == "text_1; text_2"
     assert merged["et_blink_loss_ratio"] == 0.01
     assert merged["pt_tests_status"] == (
@@ -193,3 +199,10 @@ def test_participant_table_union_grouping_docs_and_unassigned(
     unassigned = rows["6->7"]
     assert unassigned["manual_comments"].startswith("doc sheet PID not parseable")
     assert unassigned["doc_comments"] == "please check"
+
+
+def test_pq_columns_handle_missing_values():
+    result = _pq_columns({"gender": pd.NA, "native_language_1": pd.NA})
+
+    assert result["pq_gender"] is None
+    assert result["pq_native_language_1"] is None
