@@ -16,6 +16,12 @@ from ..utils.pq_normalisation import (
     find_questionnaire_files,
     normalise_pq,
 )
+from .completeness import (
+    actual_tests_from_pt_rows,
+    cross_source_status,
+    expected_tests_from_configs,
+    read_sheet_expectations,
+)
 from .experimenter_doc import ExperimenterDoc
 from .participant_info import _bi_monolingualism_from_pq
 
@@ -195,7 +201,9 @@ def _pt_rows_from_folders() -> list[dict]:
     return rows
 
 
-def _pt_rows() -> list[dict]:
+def _pt_rows(prefer_table: bool = True) -> list[dict]:
+    if not prefer_table:
+        return _pt_rows_from_folders()
     table = _load_pt_table()
     if table is None:
         return _pt_rows_from_folders()
@@ -301,6 +309,26 @@ def _build_groups(
         )
 
     return groups
+
+
+def collect_participant_sources(
+    data_collection, prefer_table: bool = True
+) -> tuple[dict[str, str], list[dict], set[str]]:
+    """Collect ET sessions, PT rows and PQ PIDs for the participant table."""
+    et_sessions = _filter_sessions(_et_sessions(data_collection))
+    pt_rows = [
+        row
+        for row in _pt_rows(prefer_table)
+        if _session_id_allowed(_pt_session_id(row))
+    ]
+    return et_sessions, pt_rows, _pq_pids()
+
+
+def build_participant_groups(
+    et_sessions: dict[str, str], pt_rows: list[dict], pq_pids: set[str]
+) -> list[ParticipantGroup]:
+    """Build participant groups from the collected sources."""
+    return _build_groups(et_sessions, pt_rows, pq_pids)
 
 
 def _pq_values(
@@ -646,9 +674,15 @@ def _unassigned_rows(
 
 def build_participant_table(data_collection) -> pl.DataFrame:
     """Build one row per participant (ET, PT and questionnaire union)."""
-    et_sessions = _filter_sessions(_et_sessions(data_collection))
-    pt_rows = [row for row in _pt_rows() if _session_id_allowed(_pt_session_id(row))]
-    groups = _build_groups(et_sessions, pt_rows, _pq_pids())
+    et_sessions, pt_rows, pq_pids = collect_participant_sources(data_collection)
+    groups = build_participant_groups(et_sessions, pt_rows, pq_pids)
+
+    experimenter_doc = getattr(data_collection, "experimenter_doc", None)
+    expectations = read_sheet_expectations(experimenter_doc)
+    config_expected = expected_tests_from_configs()
+    actual_tests = actual_tests_from_pt_rows(pt_rows)
+    num_sessions = getattr(data_collection, "num_sessions", 1) or 1
+    check_sheet = experimenter_doc is not None
 
     question_path, language_path = find_questionnaire_files(
         settings.DATASET_DIR, getattr(data_collection, "language", "")
@@ -666,14 +700,23 @@ def build_participant_table(data_collection) -> pl.DataFrame:
         pq_columns = _pq_columns(pq) if pq else {}
         et_columns, _et_meta, _stats = _et_columns(group, data_collection)
         group_pt_rows = [row for row in pt_rows if row["participant_id"] in group.pids]
-        doc_columns, matched = _doc_values(
-            getattr(data_collection, "experimenter_doc", None), group.pids
-        )
+        doc_columns, matched = _doc_values(experimenter_doc, group.pids)
         assigned_pids |= matched
         session_ids = (
             [sid for sid, pid in et_sessions.items() if pid in group.pids]
             if group.sessions is None
             else [sid for sid in group.sessions if sid in et_sessions]
+        )
+        completeness = cross_source_status(
+            group,
+            et_sessions,
+            pt_rows,
+            pq_pids,
+            expectations,
+            config_expected,
+            actual_tests,
+            num_sessions,
+            check_sheet=check_sheet,
         )
         row = {
             "participant_id": group.label,
@@ -683,6 +726,7 @@ def build_participant_table(data_collection) -> pl.DataFrame:
                 sorted({_pt_session_id(row) for row in group_pt_rows})
             ),
             "pt_tests_status": _pt_status(group_pt_rows),
+            **completeness,
             **pq_columns,
             **doc_columns,
             **_preflight_values(group.label, session_ids, data_collection),
@@ -690,12 +734,8 @@ def build_participant_table(data_collection) -> pl.DataFrame:
         }
         rows.append(row)
 
-    assigned_pids |= {int(pid) for pid in _pq_pids()}
-    rows.extend(
-        _unassigned_rows(
-            getattr(data_collection, "experimenter_doc", None), assigned_pids
-        )
-    )
+    assigned_pids |= {int(pid) for pid in pq_pids}
+    rows.extend(_unassigned_rows(experimenter_doc, assigned_pids))
 
     if not rows:
         return pl.DataFrame()

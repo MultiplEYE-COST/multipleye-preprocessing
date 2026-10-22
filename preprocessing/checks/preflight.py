@@ -14,6 +14,16 @@ from pathlib import Path
 import polars as pl
 
 from ..config import settings
+from ..data_collection.completeness import (
+    actual_tests_from_pt_rows,
+    cross_source_status,
+    expected_tests_from_configs,
+    read_sheet_expectations,
+)
+from ..data_collection.participant_table import (
+    build_participant_groups,
+    collect_participant_sources,
+)
 from ..data_collection.session import Session
 from ..models.sid import Sid
 from ..utils.data_path_utils import _ci_exists, _ci_glob, _ci_resolve
@@ -124,6 +134,7 @@ def run_preflight_check(data_collection) -> None:
     _check_sessions(data_collection, errors, warnings)
     _check_stimulus_order_coverage(data_collection, errors)
     _check_session_completeness(data_collection, warnings)
+    _check_cross_source_completeness(data_collection, warnings)
     _check_stimulus_versions(data_collection, errors)
     if data_collection.experimenter_doc:
         _check_doc_sheet_pids(data_collection, warnings)
@@ -596,6 +607,49 @@ def _check_pq_assets(
             f"language_iso639_1_{lang}.xlsx next to the questionnaire "
             "workbook."
         )
+
+
+def _check_cross_source_completeness(
+    data_collection,
+    warnings: dict[str, list[str]],
+) -> None:
+    """Warn about missing data sources and experimenter-sheet mismatches."""
+    et_sessions, pt_rows, pq_pids = collect_participant_sources(
+        data_collection, prefer_table=False
+    )
+    groups = build_participant_groups(et_sessions, pt_rows, pq_pids)
+    experimenter_doc = getattr(data_collection, "experimenter_doc", None)
+    expectations = read_sheet_expectations(experimenter_doc)
+    config_expected = expected_tests_from_configs()
+    actual_tests = actual_tests_from_pt_rows(pt_rows)
+    num_sessions = getattr(data_collection, "num_sessions", 1) or 1
+    check_sheet = experimenter_doc is not None
+
+    for group in groups:
+        status = cross_source_status(
+            group,
+            et_sessions,
+            pt_rows,
+            pq_pids,
+            expectations,
+            config_expected,
+            actual_tests,
+            num_sessions,
+            check_sheet=check_sheet,
+        )
+        parts = []
+        if status["missing_sources"]:
+            parts.append(f"missing sources: {status['missing_sources']}")
+        if status["missing_session_ids"]:
+            parts.append(f"missing sessions: {status['missing_session_ids']}")
+        if status["missing_sheet"]:
+            parts.append(f"missing sheet rows: {status['missing_sheet']}")
+        if status["pt_tests_missing"]:
+            parts.append(f"missing tests: {status['pt_tests_missing']}")
+        if parts:
+            warnings.setdefault("Cross-source completeness", []).append(
+                f"{group.label}: " + "; ".join(parts)
+            )
 
 
 def _check_doc_sheet_pids(
