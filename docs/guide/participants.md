@@ -1,6 +1,6 @@
 (participants_table)=
 
-# Participant Overview (`participants.csv`)
+# Participant Overview
 
 `participants.csv` contains one row per participant. It is the unified view of eye-tracking
 sessions, psychometric tests and the participant questionnaire, and is intended for publishing,
@@ -106,9 +106,26 @@ Only rows that can be matched to a participant are used. Rows with a non-numeric
 example `6->7`) or a PID that does not occur in the data are appended as separate rows with the
 reason in `manual_comments`.
 
+## Completeness and source-of-truth columns
+
+- `expected_session_ids`: ET/PT session IDs from the experimenter sheet, or `ET` / `PT` when the
+  sheet has no session ID.
+- `missing_session_ids`: expected sessions with no matching data.
+- `missing_sources`: `ET`, `PT` or `PQ` when an expected source has no data.
+- `missing_sheet`: source types with data but no matching experimenter-sheet row.
+- `pt_tests_expected`: expected tests from the participant configs and the sheet test list.
+- `pt_tests_missing`: expected tests not found across the participant's PT sessions.
+
+The checks run in both directions: sheet rows without data are reported in
+`missing_session_ids` and `missing_sources`, and data without a sheet row is reported in
+`missing_sheet`. Rows marked as aborted/cancelled in the sheet are excluded from the missing-data
+checks, but any data that exists is still processed. `num_sessions` is used as a secondary check
+when the sheet has no ET row.
+
 ## Preflight and comments
 
 - `preflight_status`: `ok`, `warnings`, `errors` or `unknown`.
-- `preflight_failed`: failed check names, separated by `; `.
+- `preflight_failed`: failed check names, separated by `; `. The `Cross-source completeness`
+  group reports the missing sources, sessions and tests described above.
 - `manual_comments`: free-text column for labs. For unassigned experimenter-sheet rows it contains
   the reason.
