@@ -298,3 +298,21 @@ def test_find_pq_data_in_questionnaire_dir_short_pid(tmp_path: Path) -> None:
 def test_find_pq_data_returns_none(tmp_path: Path) -> None:
     assert find_pq_data(1, [tmp_path], [tmp_path]) is None
     assert find_pq_data("6->7", [tmp_path], [tmp_path]) is None
+
+
+def test_find_questionnaire_files_uses_referenced_language_file(tmp_path: Path) -> None:
+    folder = tmp_path / "participant_questionnaire_FR_FR_1"
+    folder.mkdir()
+    questionnaire = folder / "multipleye_questionnaire_questions_FR.xlsx"
+    _write_questionnaire(
+        questionnaire,
+        {"native_language_1": ("dropdown_file", ["language_iso639_1_en.xlsx"])},
+    )
+    language = folder / "language_iso639_1_en.xlsx"
+    _write_language_file(language)
+    (folder / "language_iso639_1_de.xlsx").write_text("x", encoding="utf-8")
+
+    found_question, found_language = find_questionnaire_files(tmp_path, "fr")
+
+    assert found_question == questionnaire
+    assert found_language == language

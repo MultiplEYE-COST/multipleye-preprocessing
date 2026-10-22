@@ -93,13 +93,26 @@ def _find_glob(directory: Path, pattern: str) -> Path | None:
     return None
 
 
+def _referenced_language_file(questionnaire_path: Path) -> str | None:
+    """Return the language workbook referenced by a ``dropdown_file`` question."""
+    for row in _read_questionnaire(questionnaire_path).values():
+        if row["answer_type"] != "dropdown_file":
+            continue
+        for option in row["options"]:
+            if "language_iso639_1_" in option:
+                return option
+    return None
+
+
 def find_questionnaire_files(
     dataset_dir: Path | str, language: str
 ) -> tuple[Path | None, Path | None]:
     """Locate the questionnaire questions and language-code workbook.
 
     Searches the dataset root, ``participant_questionnaire_*`` folders and
-    ``documentation/`` (including subfolders), case-insensitively.
+    ``documentation/`` (including subfolders), case-insensitively. For the
+    language workbook, the exact ``language_iso639_1_<lang>.xlsx`` is preferred,
+    then the file referenced by the questionnaire, then any language workbook.
     """
     dataset_dir = Path(dataset_dir)
     lang = str(language).lower()
@@ -123,6 +136,14 @@ def find_questionnaire_files(
             question_path = _find_case_insensitive(root, question_name)
         if language_path is None:
             language_path = _find_case_insensitive(root, language_name)
+
+    if language_path is None and question_path is not None:
+        referenced = _referenced_language_file(question_path)
+        if referenced:
+            for root in roots:
+                language_path = _find_case_insensitive(root, referenced)
+                if language_path is not None:
+                    break
 
     if language_path is None:
         for root in roots:
