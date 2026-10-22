@@ -8,7 +8,7 @@ import sys
 import tempfile
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from functools import partial
 from pathlib import Path
 
@@ -46,8 +46,21 @@ from ..utils.data_collection_utils import _report_to_file
 from ..utils.data_path_utils import _ci_resolve
 from ..utils.fix_questionnaire_data import remap_wrong_pq_values
 from ..utils.logging import get_logger, get_pipeline_info
+from ..utils.pq_normalisation import (
+    build_mapping,
+    find_pq_data,
+    find_questionnaire_files,
+    normalise_pq,
+)
 from ..utils.stimulus_versions import stimulus_folder_name, version_suffix_for_pid
 from .experimenter_doc import ExperimenterDoc
+from .participant_info import (
+    PSYCHOMETRIC_KEY_SCORES,
+    _bi_monolingualism_from_pq,
+    _psychometric_dates,
+    _psychometric_tests_in_folder,
+    _session_date_from_logfile,
+)
 from .session import Session
 from .stimulus import LabConfig, Stimulus
 
@@ -1509,6 +1522,189 @@ class MultipleyeDataCollection:
                 self.skipped_sessions[session].randomization_version,
                 session,
             )
+
+        self._assign_participant_info()
+
+    def _assign_participant_info(self) -> None:
+        """Attach the per-session ``participant`` section.
+
+        Combines participant-questionnaire (PQ) data with psychometric-test session
+        metadata: available tests, tests conducted in this vs a separate session,
+        same-day indicator and day gaps to other sessions/tests, plus a curated set
+        of psychometric scores for the participant.
+
+        All lookups are best-effort: missing data yields ``"unknown"`` (or ``None``
+        for the same-day flag) rather than raising.
+        """
+        participants: dict[str, list[str]] = {}
+        for sid_str in self.sessions:
+            try:
+                sid = Sid(sid_str)
+            except (ValueError, TypeError):
+                continue
+            participants.setdefault(sid.base_id.upper(), []).append(sid_str)
+
+        pt_folders = self._index_psychometric_sessions()
+        results = self._load_psychometric_results()
+        pq_mapping = self._pq_mapping()
+
+        for base_id, sid_strs in participants.items():
+            ordered = sorted(sid_strs, key=lambda s: Sid(s).session_id)
+            pid = Sid(ordered[0]).pid if ordered else None
+            pq = self._participant_pq_data(sid_strs, pid)
+            pq_values = (
+                normalise_pq(pq, pq_mapping)["values"]
+                if pq_mapping is not None and pq
+                else {}
+            )
+            session_dates = {
+                s: _session_date_from_logfile(self.sessions[s].logfile) for s in ordered
+            }
+            pt_by_session = pt_folders.get(base_id, {})
+
+            all_pt_dates: set[date] = set()
+            all_pt_tests: set[str] = set()
+            for folder in pt_by_session.values():
+                all_pt_dates |= _psychometric_dates(folder)
+                all_pt_tests |= set(_psychometric_tests_in_folder(folder))
+
+            scores = self._psychometric_scores_for_participant(results, pid)
+
+            for position, sid_str in enumerate(ordered):
+                session_id = Sid(sid_str).session_id
+                matched = pt_by_session.get(session_id)
+                if matched is not None:
+                    self.sessions[sid_str].psychometric_tests_session = matched.name
+
+                this_tests = set(_psychometric_tests_in_folder(matched))
+                et_date = session_dates.get(sid_str)
+                matched_dates = _psychometric_dates(matched)
+
+                gap_to_tests: int | str = "unknown"
+                if et_date is not None and all_pt_dates:
+                    gap_to_tests = min(abs((et_date - d).days) for d in all_pt_dates)
+
+                gap_prev: int | str = "unknown"
+                if et_date is not None and position > 0:
+                    prev_date = session_dates.get(ordered[position - 1])
+                    if prev_date is not None:
+                        gap_prev = (et_date - prev_date).days
+
+                gap_next: int | str = "unknown"
+                if et_date is not None and position < len(ordered) - 1:
+                    next_date = session_dates.get(ordered[position + 1])
+                    if next_date is not None:
+                        gap_next = (next_date - et_date).days
+
+                self.sessions[sid_str].participant_info = {
+                    "gender": pq_values.get(
+                        "pq_gender", (pq or {}).get("gender", "unknown")
+                    ),
+                    "bi_monolingualism": _bi_monolingualism_from_pq(pq_values or pq),
+                    "psychometric_tests": sorted(all_pt_tests),
+                    "tests_conducted_this_session": sorted(this_tests),
+                    "tests_conducted_separate_session": sorted(
+                        all_pt_tests - this_tests
+                    ),
+                    "has_pt_data_same_day_as_session": (
+                        bool(et_date in matched_dates) if et_date is not None else None
+                    ),
+                    "gap_to_previous_session_days": gap_prev,
+                    "gap_to_next_session_days": gap_next,
+                    "gap_to_psychometric_tests_days": gap_to_tests,
+                    "psychometric_test_scores": scores,
+                }
+
+    def _index_psychometric_sessions(self) -> dict[str, dict[int, Path]]:
+        """Index psychometric-test session folders by participant and session number."""
+        index: dict[str, dict[int, Path]] = {}
+        pt_dir = settings.PSYCHOMETRIC_TESTS_DIR
+        if not Path(pt_dir).exists():
+            return index
+        for folder in Path(pt_dir).iterdir():
+            if not folder.is_dir():
+                continue
+            try:
+                sid = Sid(folder.name)
+            except (ValueError, TypeError):
+                continue
+            index.setdefault(sid.base_id.upper(), {})[sid.session_id] = folder
+        return index
+
+    def _pq_mapping(self) -> dict | None:
+        """Build the PQ label mapping from the data collection's workbooks."""
+        language = getattr(self, "language", None)
+        if not language:
+            return None
+        question_path, language_path = find_questionnaire_files(
+            settings.DATASET_DIR, language
+        )
+        if question_path is None:
+            return None
+        return build_mapping(question_path, language_path)
+
+    def _participant_pq_data(self, sid_strs: list[str], pid: str | None = None) -> dict:
+        """Return the participant's raw PQ data, if present.
+
+        Searches the ET session folders and ``participant_questionnaire_*``
+        (covering participants whose PQ file is not stored with an ET session).
+        """
+        session_dirs = [
+            Path(self.sessions[sid].session_folder_path) for sid in sid_strs
+        ]
+        questionnaire_dirs = list(
+            Path(settings.DATASET_DIR).glob("participant_questionnaire*")
+        )
+        questionnaire_dirs.append(Path(settings.DATASET_DIR) / "documentation")
+
+        pq_file = None
+        if pid is not None:
+            pq_file = find_pq_data(pid, session_dirs, questionnaire_dirs)
+        if pq_file is None:
+            for folder in session_dirs:
+                files = sorted(folder.glob("*_pq_data.json"))
+                if files:
+                    pq_file = files[0]
+                    break
+        if pq_file is None:
+            return {}
+        try:
+            data = json.loads(pq_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _load_psychometric_results(self):
+        """Load the psychometric results table for this data collection, if present."""
+        out = Path(settings.OUTPUT_DIR) / settings.PSYCHOMETRIC_TESTS_FOLDER
+        for name in (
+            f"psychometric_results_{self.data_collection_name}_merged.csv",
+            f"psychometric_results_{self.data_collection_name}.csv",
+        ):
+            path = out / name
+            if path.exists():
+                try:
+                    return pl.read_csv(path)
+                except (ComputeError, OSError):
+                    continue
+        return None
+
+    @staticmethod
+    def _psychometric_scores_for_participant(results, pid: str | None) -> dict | str:
+        """Return the curated psychometric scores for a participant, else ``"unknown"``."""
+        if results is None or pid is None or "participant_id" not in results.columns:
+            return "unknown"
+        try:
+            wanted = int(str(pid))
+        except (ValueError, TypeError):
+            return "unknown"
+        rows = results.filter(
+            pl.col("participant_id").cast(pl.Int64, strict=False) == wanted
+        )
+        if rows.is_empty():
+            return "unknown"
+        row = rows.row(0, named=True)
+        return {key: row.get(key) for key in PSYCHOMETRIC_KEY_SCORES if key in row}
 
     def _load_session_stimuli(
         self,
