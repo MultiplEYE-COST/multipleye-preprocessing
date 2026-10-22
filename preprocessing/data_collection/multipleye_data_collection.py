@@ -46,8 +46,21 @@ from ..utils.data_collection_utils import _report_to_file
 from ..utils.data_path_utils import _ci_resolve
 from ..utils.fix_questionnaire_data import remap_wrong_pq_values
 from ..utils.logging import get_logger, get_pipeline_info
+from ..utils.pq_normalisation import (
+    build_mapping,
+    find_pq_data,
+    find_questionnaire_files,
+    normalise_pq,
+)
 from ..utils.stimulus_versions import stimulus_folder_name, version_suffix_for_pid
 from .experimenter_doc import ExperimenterDoc
+from .participant_info import (
+    PSYCHOMETRIC_KEY_SCORES,
+    _bi_monolingualism_from_pq,
+    _psychometric_dates,
+    _psychometric_tests_in_folder,
+    _session_date_from_logfile,
+)
 from .session import Session
 from .stimulus import LabConfig, Stimulus
 
@@ -124,102 +137,6 @@ def _compute_session_completeness(data_collection) -> dict:
         result["extra_sessions_participants"] = extra
 
     return result
-
-
-SESSION_DATE_PREFIX = "*** DATE:"
-
-_PQ_NULL_VALUES = {"", "nan", "none", "null", "unknown", "na", "n/a"}
-
-#: Curated psychometric score columns surfaced in the session overview participant section.
-#: The full results table has ~70 columns; see the PR description for alternatives.
-PSYCHOMETRIC_KEY_SCORES = [
-    "LWMC_Done",
-    "LWMC_Total_score_mean",
-    "RAN_Done",
-    "RAN_experimental_rt_sec",
-    "Stroop_Done",
-    "StroopRTEffect_sec",
-    "Flanker_Done",
-    "FlankerRTEffect_sec",
-    "WikiVocab_Done",
-    "WikiVocab_accuracy",
-    "PLAB_Done",
-    "PLAB_accuracy",
-]
-
-
-def _parse_iso_date(value: object) -> date | None:
-    """Parse a leading ISO date (``YYYY-MM-DD``) from a value, else ``None``."""
-    try:
-        return date.fromisoformat(str(value)[:10])
-    except (ValueError, TypeError):
-        return None
-
-
-def _session_date_from_logfile(logfile: object) -> date | None:
-    """Return the session date from the ``*** DATE:`` logfile header, if present."""
-    if not isinstance(logfile, pl.DataFrame) or "message" not in logfile.columns:
-        return None
-    try:
-        messages = logfile.filter(
-            pl.col("message").cast(pl.Utf8).str.starts_with(SESSION_DATE_PREFIX)
-        ).get_column("message")
-    except (ComputeError, pl.exceptions.InvalidOperationError, TypeError):
-        return None
-    if messages.len() == 0:
-        return None
-    return _parse_iso_date(str(messages[0]).split(SESSION_DATE_PREFIX, 1)[-1].strip())
-
-
-def _psychometric_dates(pt_dir: Path | None) -> set[date]:
-    """Return the set of test dates found in a psychometric-test session folder."""
-    dates: set[date] = set()
-    if pt_dir is None or not pt_dir.exists():
-        return dates
-    for path in pt_dir.glob("*/*"):
-        match = re.search(r"(\d{4}-\d{2}-\d{2})_\d{2}-\d{2}-\d{2}", path.name)
-        if match and (parsed := _parse_iso_date(match.group(1))) is not None:
-            dates.add(parsed)
-    return dates
-
-
-def _psychometric_tests_in_folder(pt_dir: Path | None) -> list[str]:
-    """Return the test folder names present in a psychometric-test session folder."""
-    if pt_dir is None or not pt_dir.exists():
-        return []
-    return sorted(
-        p.name for p in pt_dir.iterdir() if p.is_dir() and not p.name.startswith(".")
-    )
-
-
-def _bi_monolingualism_from_pq(pq: dict) -> str:
-    """Classify language background from the participant questionnaire.
-
-    Counts the distinct non-null ``native_language_1..3`` values: one language ->
-    ``monolingual``, two -> ``bilingual``, three or more -> ``multilingual``.
-    Returns ``"unknown"`` when no native language is recorded.
-
-    NOTE: this is one of several possible definitions; see the PR description for
-    alternatives (e.g. using ``childhood_languages`` or ``additional_read_language_*``).
-    """
-    if not isinstance(pq, dict):
-        return "unknown"
-    languages: set[str] = set()
-    for key in ("native_language_1", "native_language_2", "native_language_3"):
-        value = pq.get(key)
-        if value is None:
-            continue
-        text = str(value).strip()
-        if text.lower() in _PQ_NULL_VALUES:
-            continue
-        languages.add(text.lower())
-    if not languages:
-        return "unknown"
-    if len(languages) == 1:
-        return "monolingual"
-    if len(languages) == 2:
-        return "bilingual"
-    return "multilingual"
 
 
 def _reading_span_ms(start: object, stop: object) -> tuple[int, bool]:
@@ -1629,10 +1546,17 @@ class MultipleyeDataCollection:
 
         pt_folders = self._index_psychometric_sessions()
         results = self._load_psychometric_results()
+        pq_mapping = self._pq_mapping()
 
         for base_id, sid_strs in participants.items():
-            pq = self._participant_pq_data(sid_strs)
             ordered = sorted(sid_strs, key=lambda s: Sid(s).session_id)
+            pid = Sid(ordered[0]).pid if ordered else None
+            pq = self._participant_pq_data(sid_strs, pid)
+            pq_values = (
+                normalise_pq(pq, pq_mapping)["values"]
+                if pq_mapping is not None and pq
+                else {}
+            )
             session_dates = {
                 s: _session_date_from_logfile(self.sessions[s].logfile) for s in ordered
             }
@@ -1644,7 +1568,6 @@ class MultipleyeDataCollection:
                 all_pt_dates |= _psychometric_dates(folder)
                 all_pt_tests |= set(_psychometric_tests_in_folder(folder))
 
-            pid = Sid(ordered[0]).pid if ordered else None
             scores = self._psychometric_scores_for_participant(results, pid)
 
             for position, sid_str in enumerate(ordered):
@@ -1674,8 +1597,10 @@ class MultipleyeDataCollection:
                         gap_next = (next_date - et_date).days
 
                 self.sessions[sid_str].participant_info = {
-                    "gender": (pq or {}).get("gender", "unknown"),
-                    "bi_monolingualism": _bi_monolingualism_from_pq(pq),
+                    "gender": pq_values.get(
+                        "pq_gender", (pq or {}).get("gender", "unknown")
+                    ),
+                    "bi_monolingualism": _bi_monolingualism_from_pq(pq_values or pq),
                     "psychometric_tests": sorted(all_pt_tests),
                     "tests_conducted_this_session": sorted(this_tests),
                     "tests_conducted_separate_session": sorted(
@@ -1706,19 +1631,48 @@ class MultipleyeDataCollection:
             index.setdefault(sid.base_id.upper(), {})[sid.session_id] = folder
         return index
 
-    def _participant_pq_data(self, sid_strs: list[str]) -> dict:
-        """Return the participant's PQ data (the file that contains ``gender``)."""
-        for sid_str in sid_strs:
-            folder = Path(self.sessions[sid_str].session_folder_path)
-            for pq_file in sorted(folder.glob("*_pq_data.json")):
-                try:
-                    with open(pq_file, encoding="utf-8") as f:
-                        data = json.load(f)
-                except (OSError, json.JSONDecodeError):
-                    continue
-                if isinstance(data, dict) and "gender" in data:
-                    return data
-        return {}
+    def _pq_mapping(self) -> dict | None:
+        """Build the PQ label mapping from the data collection's workbooks."""
+        language = getattr(self, "language", None)
+        if not language:
+            return None
+        question_path, language_path = find_questionnaire_files(
+            settings.DATASET_DIR, language
+        )
+        if question_path is None:
+            return None
+        return build_mapping(question_path, language_path)
+
+    def _participant_pq_data(self, sid_strs: list[str], pid: str | None = None) -> dict:
+        """Return the participant's raw PQ data, if present.
+
+        Searches the ET session folders and ``participant_questionnaire_*``
+        (covering participants whose PQ file is not stored with an ET session).
+        """
+        session_dirs = [
+            Path(self.sessions[sid].session_folder_path) for sid in sid_strs
+        ]
+        questionnaire_dirs = list(
+            Path(settings.DATASET_DIR).glob("participant_questionnaire*")
+        )
+        questionnaire_dirs.append(Path(settings.DATASET_DIR) / "documentation")
+
+        pq_file = None
+        if pid is not None:
+            pq_file = find_pq_data(pid, session_dirs, questionnaire_dirs)
+        if pq_file is None:
+            for folder in session_dirs:
+                files = sorted(folder.glob("*_pq_data.json"))
+                if files:
+                    pq_file = files[0]
+                    break
+        if pq_file is None:
+            return {}
+        try:
+            data = json.loads(pq_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return data if isinstance(data, dict) else {}
 
     def _load_psychometric_results(self):
         """Load the psychometric results table for this data collection, if present."""

@@ -8,6 +8,8 @@ import pytest
 from preprocessing import settings
 from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
+)
+from preprocessing.data_collection.participant_info import (
     _bi_monolingualism_from_pq,
     _parse_iso_date,
     _psychometric_dates,
@@ -36,6 +38,8 @@ from preprocessing.data_collection.session import Session
             {"native_language_1": "Chinese", "native_language_2": "Chinese"},
             "monolingual",
         ),
+        ({"pq_native_language_1": "zh", "pq_native_language_2": "de"}, "bilingual"),
+        ({"pq_native_language_1": "zh"}, "monolingual"),
     ],
 )
 def test_bi_monolingualism_from_pq(pq, expected):

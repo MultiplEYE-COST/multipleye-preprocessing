@@ -134,3 +134,10 @@ overview always reflects what was actually applied.
 dataset overview averages it as `mean_total_reading_time_s`, and `mean_wpm` is computed as
 `total_words / (total_reading_s / 60)`. Negative spans caused by out-of-order ASC start/stop
 messages are clamped to 0 and logged as a warning, so reading times are never negative.
+
+**The session overview records participant context.** The `participant` section combines the
+normalised participant questionnaire with the psychometric-test sessions: `gender` and
+`bi_monolingualism`, the available `psychometric_tests`, `tests_conducted_this_session` and
+`tests_conducted_separate_session`, `has_pt_data_same_day_as_session`,
+`gap_to_previous_session_days`, `gap_to_next_session_days`,
+`gap_to_psychometric_tests_days`, and a curated `psychometric_test_scores` subset.
