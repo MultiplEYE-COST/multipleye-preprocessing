@@ -371,6 +371,11 @@ class Settings:
         #: participant IDs that used that version.
         self.STIMULUS_VERSIONS_PID_MAP: dict[str, list[str]] = {}
 
+        #: Whether to continue without the participant questionnaire normalisation
+        #: files. False (default): a missing questionnaire or language-code file is
+        #: a preflight error. True: it becomes a warning and raw values are kept.
+        self.ALLOW_PQ_FALLBACK: bool = False
+
         #: Default log level for the package/Python.
         self.LOG_LEVEL: str = "INFO"
 

@@ -13,6 +13,7 @@ from preprocessing.metrics.data_loss import compute_data_loss
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
 from ..utils.logging import get_logger
+from ..utils.pq_normalisation import write_pq_assets
 
 
 def run_preprocessing(config_path: str | None = None):
@@ -36,6 +37,12 @@ def run_preprocessing(config_path: str | None = None):
     )
 
     prepare_language_folder(data_collection_name)
+    write_pq_assets(
+        dataset_dir=settings.DATASET_DIR,
+        output_dir=settings.OUTPUT_DIR,
+        language=settings.LANGUAGE,
+        allow_fallback=settings.ALLOW_PQ_FALLBACK,
+    )
 
     data_folder_path = settings.DATASET_DIR
 
