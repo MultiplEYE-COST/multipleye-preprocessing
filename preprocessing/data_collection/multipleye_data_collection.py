@@ -239,6 +239,8 @@ class MultipleyeDataCollection:
         self.sessions: dict[str, Session] = {}
         self.skipped_sessions: dict[str, Session] = {}
         self.experimenter_doc = experimenter_doc
+        self.preflight_errors: dict[str, list[str]] = {}
+        self.preflight_warnings: dict[str, list[str]] = {}
         # TODO: in theory this can be multiple languages for the stimuli..
         self.language = stimulus_language
         self.country = country

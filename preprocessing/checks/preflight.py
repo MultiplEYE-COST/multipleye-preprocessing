@@ -136,10 +136,14 @@ def run_preflight_check(data_collection) -> None:
     _check_psychometric_tests(data_collection, pt_warnings)
 
     if errors:
+        data_collection.preflight_errors = errors
+        data_collection.preflight_warnings = warnings
         raise PreflightError(errors)
 
     if pt_warnings:
         warnings["Psychometric tests"] = pt_warnings
+    data_collection.preflight_errors = errors
+    data_collection.preflight_warnings = warnings
     if warnings:
         _print_warnings(warnings)
         return

@@ -538,3 +538,41 @@ def test_stimulus_versions_duplicate_pid_raises(settings_obj):
     }
     with pytest.raises(ValueError, match="008"):
         settings_obj.validate_stimulus_versions()
+
+
+def test_validate_participant_groups_accepts_valid(settings_obj):
+    settings_obj.PARTICIPANT_GROUPS = [
+        {"label": "006", "pids": ["006", "007"]},
+        {"label": "010", "pids": ["010"], "sessions": ["010_EN_UK_1_ET1"]},
+    ]
+
+    settings_obj.validate_participant_groups()
+
+
+@pytest.mark.parametrize(
+    ("groups", "match"),
+    [
+        ([{"label": "6", "pids": ["006"]}], "3-digit"),
+        ([{"label": "006", "pids": []}], "no PIDs"),
+        (
+            [
+                {"label": "006", "pids": ["006"]},
+                {"label": "007", "pids": ["006"]},
+            ],
+            "in both participant groups",
+        ),
+        (
+            [{"label": "006", "pids": ["007"], "sessions": ["008_EN_UK_1_ET1"]}],
+            "not in the group's pids",
+        ),
+        (
+            [{"label": "006", "pids": ["006"], "sessions": ["invalid"]}],
+            "Invalid session",
+        ),
+    ],
+)
+def test_validate_participant_groups_rejects_invalid(settings_obj, groups, match):
+    settings_obj.PARTICIPANT_GROUPS = groups
+
+    with pytest.raises(ValueError, match=match):
+        settings_obj.validate_participant_groups()

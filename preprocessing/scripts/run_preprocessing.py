@@ -12,6 +12,7 @@ from preprocessing.checks.quality_thresholds import write_quality_thresholds
 from preprocessing.metrics.data_loss import compute_data_loss
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
+from ..data_collection.participant_table import write_participants_table
 from ..utils.logging import get_logger
 from ..utils.pq_normalisation import write_pq_assets
 
@@ -534,7 +535,7 @@ def run_preprocessing(config_path: str | None = None):
             sess.answers = True
 
     data_collection.create_dataset_overview(path=settings.OUTPUT_DIR)
-    data_collection.parse_participant_data(settings.OUTPUT_DIR / "participant_data.csv")
+    write_participants_table(data_collection, settings.OUTPUT_DIR / "participants.csv")
 
 
 def main():

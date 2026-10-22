@@ -65,6 +65,20 @@ stimulus_versions:
     #   - "008"
     #   - "010"
 
+# ----------------------- Participant Groups -----------------------
+# Optional. By default one row per PID is written to participants.csv.
+# Use groups when one participant used more than one PID, or when a PID must be
+# split across sessions. A group includes exactly what it lists:
+# - pids only: all sessions of those PIDs.
+# - pids + sessions: only the listed session IDs.
+# Labels must be unique 3-digit IDs and a PID may appear in only one group.
+# participant_groups:
+#   - label: "006"
+#     pids: ["006", "007"]
+#   - label: "010"
+#     pids: ["010"]
+#     sessions: ["010_EN_UK_1_ET1"]
+
 # ----------------------- Participant Questionnaire -----------------------
 # The questionnaire question workbook and the language-code workbook are expected
 # in the data collection folder, for example
