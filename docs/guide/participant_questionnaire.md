@@ -97,6 +97,10 @@ languages:
 issues: []
 ```
 
+For English, `pq_mapping_en.yaml` mirrors the codebook's English labels. It is still written so
+every data collection has the same output files; the labels are mapped to the canonical codes
+(for example `0 hours` -> `0_hours`).
+
 ## Normalised columns
 
 Normalised values use `pq_*`; every raw key is kept as `pq_raw_*` during the transition.
@@ -115,6 +119,8 @@ Normalised values use `pq_*`; every raw key is kept as `pq_raw_*` during the tra
 Interval fields are stored as numbers: `pq_age` and `pq_years_education` are integers. The
 open-ended `>20` option sets `pq_years_education_open_ended` instead of a numeric value.
 Reading-time bins use self-descriptive codes; their bounds are documented in `pq_codebook.yaml`.
+`pq_raw_*` is kept even when it equals the normalised value (common for English) so the original
+labels remain available during the transition.
 
 ## Language fields
 
@@ -125,8 +131,8 @@ Language values are mapped to ISO 639-1 through the language list. The lookup or
    `language_iso639_1_en.xlsx`).
 3. Any `language_iso639_1_*.xlsx` found next to the questionnaire.
 
-If no language list is available and fallback is enabled, the localised name is kept (for
-example `Deutsch`) instead of an ISO code.
+If no language list is available and fallback is enabled, the localised name is kept in the
+language of the processed data collection instead of an ISO code.
 
 ## Missing files and fallback
 
