@@ -182,6 +182,30 @@ def actual_tests_from_pt_rows(pt_rows: list[dict]) -> dict[str, set[str]]:
     return actual
 
 
+def _matches_session(
+    expected: str | None, actual_ids: set[str], session_type: str
+) -> bool:
+    if not expected:
+        return bool(actual_ids)
+    if expected in actual_ids:
+        return True
+    if expected.isdigit():
+        number = int(expected)
+        for sid in actual_ids:
+            try:
+                parsed = Sid(sid)
+            except (ValueError, TypeError):
+                continue
+            if parsed.session_id == number and parsed.session.startswith(session_type):
+                return True
+        return False
+    try:
+        Sid(expected)
+    except (ValueError, TypeError):
+        return bool(actual_ids)
+    return False
+
+
 def cross_source_status(
     group: Any,
     et_sessions: dict[str, str],
@@ -215,14 +239,14 @@ def cross_source_status(
     for entry in et_ex:
         expected_sessions.append(entry.session_id or "ET")
         if entry.session_id:
-            if entry.session_id not in et_ids:
+            if not _matches_session(entry.session_id, et_ids, "ET"):
                 missing_sessions.append(entry.session_id)
         elif not has_et:
             missing_sessions.append("ET")
     for entry in pt_ex:
         expected_sessions.append(entry.session_id or "PT")
         if entry.session_id:
-            if entry.session_id not in pt_ids:
+            if not _matches_session(entry.session_id, pt_ids, "PT"):
                 missing_sessions.append(entry.session_id)
         elif not has_pt:
             missing_sessions.append("PT")
