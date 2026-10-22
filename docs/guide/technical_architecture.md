@@ -106,7 +106,7 @@ preprocessed_data/{dcn}/
 ├── comp_answers/           # comprehension question answers
 ├── sanity_checks/          # quality reports and plots
 ├── psychometric_tests/     # PT results table (+ merged per-participant table)
-├── participant_data.csv
+├── participants.csv
 ├── {dcn}_overview.yaml
 └── stimuli_{dcn}/          # copy of stimulus assets used
 ```
@@ -142,4 +142,4 @@ distinct native languages), the available `psychometric_tests`, `tests_conducted
 `tests_conducted_separate_session`, `has_pt_data_same_day_as_session`,
 `gap_to_previous_session_days`, `gap_to_next_session_days`,
 `gap_to_psychometric_tests_days`, and a curated `psychometric_test_scores` subset. The full
-participant-level data is centralised in `participants.csv` (follow-up PR).
+participant-level data is centralised in `participants.csv`.

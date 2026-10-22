@@ -371,6 +371,12 @@ class Settings:
         #: participant IDs that used that version.
         self.STIMULUS_VERSIONS_PID_MAP: dict[str, list[str]] = {}
 
+        #: Optional participant groups. Each entry has a 3-digit ``label``,
+        #: a list of ``pids`` and optionally explicit ``sessions``. Used when
+        #: one participant used more than one PID, or when a PID is split
+        #: across sessions.
+        self.PARTICIPANT_GROUPS: list[dict] = []
+
         #: Whether to continue without the participant questionnaire normalisation
         #: files. False (default): a missing questionnaire or language-code file is
         #: a preflight error. True: it becomes a warning and raw values are kept.
@@ -962,6 +968,7 @@ class Settings:
         self._config_source = path
         self._validate()
         self.validate_stimulus_versions()
+        self.validate_participant_groups()
         self._loaded = True
 
     def update(self, config_dict: dict[str, Any]) -> None:
@@ -1012,6 +1019,65 @@ class Settings:
                         "cannot have sessions in different stimulus versions."
                     )
                 seen[pid] = version
+
+    def validate_participant_groups(self) -> None:
+        """Validate ``participant_groups``.
+
+        Raises
+        ------
+        ValueError
+            If a group is malformed, a label is not a unique 3-digit ID, a PID
+            appears in more than one group, or an explicit session is invalid or
+            does not belong to the group's PIDs.
+        """
+        from .models.sid import Sid
+
+        groups = self.PARTICIPANT_GROUPS or []
+        labels: set[str] = set()
+        seen_pids: dict[str, str] = {}
+
+        for group in groups:
+            if not isinstance(group, dict):
+                raise TypeError("Each participant group must be a mapping.")
+            label = str(group.get("label", "")).strip()
+            if not re.fullmatch(r"\d{3}", label):
+                raise ValueError(
+                    f"Participant group label '{label}' must be a 3-digit ID."
+                )
+            if label in labels:
+                raise ValueError(f"Duplicate participant group label '{label}'.")
+            labels.add(label)
+
+            pids = [str(pid) for pid in (group.get("pids") or [])]
+            if not pids:
+                raise ValueError(f"Participant group '{label}' has no PIDs.")
+            normalized_pids: set[str] = set()
+            for pid in pids:
+                if not re.fullmatch(r"\d{1,3}", pid):
+                    raise ValueError(
+                        f"Invalid PID '{pid}' in participant group '{label}'."
+                    )
+                normalized = pid.zfill(3)
+                normalized_pids.add(normalized)
+                if normalized in seen_pids:
+                    raise ValueError(
+                        f"PID '{normalized}' is in both participant groups "
+                        f"'{seen_pids[normalized]}' and '{label}'."
+                    )
+                seen_pids[normalized] = label
+
+            for sid in group.get("sessions") or []:
+                try:
+                    parsed = Sid(str(sid))
+                except (ValueError, TypeError) as exc:
+                    raise ValueError(
+                        f"Invalid session '{sid}' in participant group '{label}': {exc}"
+                    ) from exc
+                if parsed.pid not in normalized_pids:
+                    raise ValueError(
+                        f"Session '{sid}' in participant group '{label}' has PID "
+                        f"'{parsed.pid}', which is not in the group's pids."
+                    )
 
     def setup_logging(self, log_file: str | Path | None = None) -> None:
         """Configure logging with separate levels for console and file.

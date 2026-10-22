@@ -64,6 +64,9 @@ Settings are divided into user-configurable parameters and internal constants.
   `[OUTPUT_DIR]/documentation/questionnaire/` together with the generated
   `pq_codebook.yaml` and `pq_mapping_<lang>.yaml`. With fallback enabled, language fields stay
   in the data collection language instead of being mapped to ISO 639-1.
+- `PARTICIPANT_GROUPS` (`participant_groups`): optional groups for merging different PIDs into
+  one participant row or restricting a group to specific session IDs. Labels must be unique
+  3-digit IDs. See {ref}`participants_table`.
 
 A copy of the config file used for a run is saved to
 `[OUTPUT_DIR]/metadata/[config_filename]` and overwritten on every re-run, so the
