@@ -365,7 +365,7 @@ class TestComputedAverages:
         assert q["mean_validation_error_dva"] is None
         assert q["mean_data_loss_ratio"] is None
         assert q["mean_blink_ratio"] is None
-        assert q["mean_total_reading_time_ms"] is None
+        assert q["mean_total_reading_time_s"] is None
         assert q["mean_rt_per_stim_ms"] is None
         assert q["mean_total_question_time_ms"] is None
         assert q["mean_total_rating_time_ms"] is None
@@ -551,13 +551,13 @@ class TestWPM:
     ) -> None:
         dc = _create_dc(dummy_dcn_dir)
         s1 = dc.sessions["001_EN_UK_1_ET1"]
-        _setup_session_with_data(s1, total_reading_time=30000.0)
+        _setup_session_with_data(s1, total_reading_time=30.0)
         s1.stimuli = "unknown"
 
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         q = _qual(overview)
 
-        assert q["mean_total_reading_time_ms"] == 30000.0
+        assert q["mean_total_reading_time_s"] == 30.0
         assert q["mean_wpm"] is None
 
     def test_wpm_computed_from_page_texts(
@@ -570,12 +570,14 @@ class TestWPM:
 
         dc = _create_dc(dummy_dcn_dir)
         s1 = dc.sessions["001_EN_UK_1_ET1"]
-        _setup_session_with_data(s1, total_reading_time=60000.0)
+        _setup_session_with_data(s1, total_reading_time=60.0)
         s1.stimuli = [stim]
 
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        q = _qual(overview)
 
-        assert _qual(overview)["mean_wpm"] == pytest.approx(18.0, abs=0.5)
+        assert q["mean_total_reading_time_s"] == 60.0
+        assert q["mean_wpm"] == pytest.approx(18.0, abs=0.5)
 
 
 class TestLabConfigAttributeSafety:

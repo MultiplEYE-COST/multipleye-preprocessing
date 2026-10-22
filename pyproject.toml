@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "MultiplEYE-preprocessing"
-version = "2026.09.15"
+version = "2026.10.22"
 description = "Pipeline for Multipleye data preprocessing"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -14,7 +14,7 @@ dependencies = [
     "numpy>=1.26.4",
     "pandas>=2.2.2",
     "pillow==12.2.0",
-    "polars>=1.28.1",
+    "polars>=2.0.0",
     "pymovements>=0.28.0",
     "tqdm>=4.66.4",
     "openpyxl>=3.0.0",
@@ -76,7 +76,7 @@ docs = [
 ]
 
 [project.scripts]
-restructure_psychometric_tests = "preprocessing.scripts.restructure_psycho_tests:main"
+restructure_psychometric_tests = "preprocessing.scripts.restructure_psychometric_tests:main"
 prepare_language_folder = "preprocessing.scripts.prepare_language_folder:main"
 preprocess_psychometric_tests = "preprocessing.scripts.psychometric_tests:process_all_psychometric_test_sessions"
 # Pipelines

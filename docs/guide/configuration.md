@@ -56,6 +56,14 @@ Settings are divided into user-configurable parameters and internal constants.
   `data/[DATA_COLLECTION_NAME]`.
 - `OUTPUT_DIR`: The path where preprocessed data will be saved. By default, this is
   `preprocessed_data/[DATA_COLLECTION_NAME]`.
+- `ALLOW_PQ_FALLBACK` (`allow_pq_fallback`): `false` (default) requires the participant
+  questionnaire workbooks. If they are missing, the preflight check fails. Set to `true` to
+  continue with raw questionnaire values and a warning. The workbooks are expected in
+  `data/[DATA_COLLECTION_NAME]/participant_questionnaire_*/` or under
+  `documentation/questionnaire/` and are copied to
+  `[OUTPUT_DIR]/documentation/questionnaire/` together with the generated
+  `pq_codebook.yaml` and `pq_mapping_<lang>.yaml`. With fallback enabled, language fields stay
+  in the data collection language instead of being mapped to ISO 639-1.
 
 A copy of the config file used for a run is saved to
 `[OUTPUT_DIR]/metadata/[config_filename]` and overwritten on every re-run, so the
