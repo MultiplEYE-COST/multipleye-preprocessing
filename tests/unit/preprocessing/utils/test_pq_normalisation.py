@@ -14,6 +14,7 @@ from preprocessing.checks.preflight import _check_pq_assets
 from preprocessing.config import settings
 from preprocessing.utils.pq_normalisation import (
     build_mapping,
+    find_pq_data,
     find_questionnaire_files,
     normalise_pq,
     write_pq_assets,
@@ -268,3 +269,32 @@ def test_normalise_pq_handles_missing_values(mapping_de: dict) -> None:
     assert values["pq_raw_gender"] is pd.NA
     assert "pq_gender" not in values
     assert "pq_native_language_1_fiction_reading_time" not in values
+
+
+def test_find_pq_data_prefers_session_dir(tmp_path: Path) -> None:
+    session_dir = tmp_path / "sessions" / "068_RO_RO_1_ET1"
+    session_dir.mkdir(parents=True)
+    session_file = session_dir / "068_RO_RO_1_pq_data.json"
+    session_file.write_text("{}", encoding="utf-8")
+    questionnaire_dir = tmp_path / "participant_questionnaire_RO_RO_1"
+    questionnaire_dir.mkdir()
+    (questionnaire_dir / "068_RO_RO_1_pq_data.json").write_text("{}", encoding="utf-8")
+
+    found = find_pq_data(68, [session_dir], [questionnaire_dir])
+
+    assert found == session_file
+
+
+def test_find_pq_data_in_questionnaire_dir_short_pid(tmp_path: Path) -> None:
+    questionnaire_dir = tmp_path / "participant_questionnaire_KL_DK_1"
+    questionnaire_dir.mkdir()
+    expected = questionnaire_dir / "6_KL_DK_1_pq_data.json"
+    expected.write_text("{}", encoding="utf-8")
+
+    assert find_pq_data("006", [], [questionnaire_dir]) == expected
+    assert find_pq_data("6", [], [questionnaire_dir]) == expected
+
+
+def test_find_pq_data_returns_none(tmp_path: Path) -> None:
+    assert find_pq_data(1, [tmp_path], [tmp_path]) is None
+    assert find_pq_data("6->7", [tmp_path], [tmp_path]) is None
