@@ -44,7 +44,6 @@ from ..plotting.plot import build_page_frames, plot_gaze, plot_main_sequence
 from ..utils.conversion import convert_to_time_str
 from ..utils.data_collection_utils import _report_to_file
 from ..utils.data_path_utils import _ci_resolve
-from ..utils.fix_questionnaire_data import remap_wrong_pq_values
 from ..utils.logging import get_logger, get_pipeline_info
 from ..utils.pq_normalisation import (
     build_mapping,
@@ -200,7 +199,6 @@ def _build_stimulus_start_end_ts(sum_df: pd.DataFrame) -> list[dict]:
 
 
 class MultipleyeDataCollection:
-    participant_data_path: Path | str | None
     crashed_session_ids: list[str] = []
     skipped_sessions: dict = {}
     num_sessions = 1
@@ -2737,70 +2735,6 @@ class MultipleyeDataCollection:
                 samples_by_key=samples_by_key,
                 events_by_key=events_by_key,
             )
-
-    def parse_participant_data(self, path: Path | str) -> None:
-        """
-        Load the participant data for all participants.
-        """
-
-        participant_data = pd.DataFrame()
-
-        for idx, session in (
-            pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))
-        ):
-            pbar.set_description(f"Parsing participant data {session}")
-
-            try:
-                sid = Sid(session)
-                participant_id = sid.pid
-                session_id = sid.session
-                notes = sid.notes
-            except (ValueError, TypeError):
-                logging.warning(
-                    f"Session {session} does not match the expected format."
-                )
-                continue
-
-            folder = Path(self.sessions[session].session_folder_path)
-
-            pq_file = folder / f"{sid.base_id}_pq_data.json"
-            if pq_file.exists():
-                with open(pq_file, encoding="utf-8") as f:
-                    data = json.load(f)
-
-                # due to a bug in an earlier version of the experiment, some of the participant data has been lost,
-                # and we need to correct it
-                if "native_language_1_academic_reading_time" not in data:
-                    data = remap_wrong_pq_values(data)
-
-                data["participant_id"] = participant_id
-                data["notes"] = notes
-                data["session"] = session_id
-
-                participant_data = pd.concat(
-                    [participant_data, pd.DataFrame(data, index=[idx])],
-                    ignore_index=True,
-                )
-
-            else:
-                logging.warning(
-                    f"No participant data found for session {session}. Skipping."
-                )
-
-        # reorder columns such that participant_id is the first column
-        if not participant_data.empty:
-            cols = participant_data.columns.tolist()
-            cols = ["participant_id"] + [col for col in cols if col != "participant_id"]
-            participant_data = participant_data[cols]
-
-            if not path:
-                self.participant_data_path = (
-                    self.data_root.parent / "participant_data.csv"
-                )
-            else:
-                self.participant_data_path = path
-
-            participant_data.to_csv(self.participant_data_path, index=False)
 
 
 if __name__ == "__main__":
