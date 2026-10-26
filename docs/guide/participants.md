@@ -14,10 +14,19 @@ Participants are the union of:
 
 - processed eye-tracking (ET) sessions,
 - psychometric-test (PT) sessions or the PT results table,
-- questionnaire files in `participant_questionnaire_*` or `documentation/`.
+- questionnaire files in ET session folders, `participant_questionnaire_*`, or `documentation/`.
 
 A participant with only questionnaire or psychometric data still gets a row; the ET columns stay
-empty. Excluded sessions never appear.
+empty.
+
+The session filters apply differently to ET and PT sources:
+
+| Setting | ET sessions | PT rows |
+| --- | --- | --- |
+| `include_sessions` | Only listed sessions are included | Not applied; PT rows remain |
+| `exclude_sessions` | Listed sessions are removed | Listed sessions are removed |
+
+In particular, `include_sessions` does not remove PT rows that are not listed.
 
 ## Grouping
 
@@ -51,7 +60,12 @@ group label, the pipeline raises an error asking for an explicit group with a un
 ## Questionnaire columns
 
 The questionnaire is normalised with the data collection's questionnaire workbook (see
-{ref}`participant_questionnaire`). Base fields use the canonical codes:
+{ref}`participant_questionnaire`). The lookup checks ET session folders first, then
+`participant_questionnaire_*` folders, then `documentation/`. A `*_pq_data.json` file inside an ET
+session folder therefore counts as PQ present. Filenames may use short (`6_...`) or padded
+(`006_...`) PIDs.
+
+Base fields use the canonical codes:
 
 - `pq_gender`, `pq_age`, `pq_years_education`, `pq_years_education_open_ended`,
   `pq_level_education`, `pq_socio_economic_status`, `pq_childhood_languages`, `pq_tiredness`,
@@ -101,6 +115,13 @@ The test results themselves stay in `psychometric_results_<dcn>.csv` and
 - `doc_setup_deviation`, `doc_technical_issues`, `doc_interruptions`, `doc_irritations`,
   `doc_abortion`, `doc_file_issues`, `doc_comments`
 - `doc_extras`: JSON with lab-specific columns such as `Stimulus Version` or `Room used`.
+
+The workbook is looked up in `documentation/` as
+`multipleye_experimenter_session_documentation_<language>_<country>_<city>_<lab>.xlsx` or without
+the lab number as
+`multipleye_experimenter_session_documentation_<language>_<country>_<city>.xlsx`. Matching is
+case-insensitive. If neither exact name matches and exactly one workbook with the expected prefix
+exists, that workbook is used.
 
 Only rows that can be matched to a participant are used. Rows with a non-numeric PID (for
 example `6->7`) or a PID that does not occur in the data are appended as separate rows with the
