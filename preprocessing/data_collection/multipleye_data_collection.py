@@ -198,6 +198,41 @@ def _build_stimulus_start_end_ts(sum_df: pd.DataFrame) -> list[dict]:
     return records.to_dict(orient="records")
 
 
+def _find_experimenter_doc(
+    dataset_dir: Path,
+    base_name: str,
+    language: str,
+    country: str,
+    city: str,
+) -> Path | None:
+    """Find the experimenter documentation workbook in ``documentation/``.
+
+    Accepts filenames with and without the lab number, case-insensitively.
+    """
+    documentation = dataset_dir / "documentation"
+    if not documentation.is_dir():
+        return None
+    prefix = "multipleye_experimenter_session_documentation_"
+    candidates = [
+        path
+        for path in documentation.iterdir()
+        if path.is_file()
+        and path.suffix.lower() == ".xlsx"
+        and path.name.lower().startswith(prefix)
+    ]
+    wanted = [
+        f"{prefix}{base_name}.xlsx".lower(),
+        f"{prefix}{language}_{country}_{city}.xlsx".lower(),
+    ]
+    for target in wanted:
+        for path in candidates:
+            if path.name.lower() == target:
+                return path
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
 class MultipleyeDataCollection:
     crashed_session_ids: list[str] = []
     skipped_sessions: dict = {}
@@ -734,13 +769,14 @@ class MultipleyeDataCollection:
 
         # import raw data from experimenter doc file
         base_name = f"{stimulus_language}_{country}_{city}_{lab_number}"
-        doc_sheet_path = (
-            settings.DATASET_DIR
-            / "documentation"
-            / f"MultiplEYE_Experimenter_Session_Documentation_{base_name}.xlsx"
+        doc_sheet_path = _find_experimenter_doc(
+            Path(settings.DATASET_DIR),
+            base_name,
+            stimulus_language,
+            country,
+            city,
         )
-        doc_sheet_path = _ci_resolve(doc_sheet_path)
-        if doc_sheet_path.exists():
+        if doc_sheet_path is not None:
             doc_sheet = ExperimenterDoc.create_from_excel(doc_sheet_path)
         else:
             doc_sheet = None

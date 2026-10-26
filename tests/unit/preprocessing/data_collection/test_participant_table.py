@@ -200,6 +200,14 @@ def test_participant_table_union_grouping_docs_and_unassigned(
     assert unassigned["manual_comments"].startswith("doc sheet PID not parseable")
     assert unassigned["doc_comments"] == "please check"
 
+    # include_sessions filters ET sessions only; PT rows for the grouped PIDs stay.
+    monkeypatch.setitem(settings.__dict__, "INCLUDE_SESSIONS", ["001_EN_UK_1_ET1"])
+    filtered = {
+        row["participant_id"]: row
+        for row in build_participant_table(collection).iter_rows(named=True)
+    }
+    assert "002_EN_UK_1_PT1" in filtered["020"]["pt_session_ids"]
+
 
 def test_pq_columns_handle_missing_values():
     result = _pq_columns({"gender": pd.NA, "native_language_1": pd.NA})
