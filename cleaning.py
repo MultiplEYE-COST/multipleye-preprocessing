@@ -80,6 +80,10 @@ def main():
 
         fix_psychometric_tests_structure(config_folder, data_folder, output_folder)
 
+        old_session_id = "099_ZH_CN_1_PT1"
+        old_pid = 99
+        new_pid = 999
+
 
 
         print("=" * 60)
@@ -211,6 +215,21 @@ def edit_order_csv(
         print(f"No file found at {file_path}. Not editing order file.")
 
     return
+
+def _change_pid_in_csv(file: Path, new_pid:int):
+    df = pl.read_csv(file)
+    if "participant_id" in df:
+        df = df.with_columns(pl.lit(new_pid).alias("participant_id"))
+    elif "Participant_id" in df:
+        df = df.with_columns(pl.lit(new_pid).alias("Participant_id"))
+    else:
+        print(f"Column [pP]articipant_id not found in {file}. Please check.")
+
+    df.write_csv(file)
+
+    return
+
+
 
 
 @contextmanager
