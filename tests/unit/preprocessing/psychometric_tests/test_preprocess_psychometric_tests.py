@@ -876,6 +876,33 @@ def test_preprocess_lwmc_basic(tmp_path: Path, make_text_file):
     assert out["LWMC_Total_score_mean"] == pytest.approx((0.75 + 0.5 + 0.5 + 0.5) / 4)
 
 
+def test_preprocess_lwmc_tolerates_text_in_rt_column(tmp_path: Path, make_text_file):
+    participant = tmp_path / "001_AB"
+    lwmc_dir = participant / "WMC"
+    lwmc_dir.mkdir(parents=True)
+    header = (
+        "is_practice,base_text_intertrial.started,"
+        "mu_key_resp_recall.is_correct,mu_key_resp_recall.rt,"
+        "os_key_resp_recall.corr,os_key_resp_recall.rt,"
+        "os_key_resp_equation.corr,"
+        "ss_key_resp_recall.corr,ss_key_resp_recall.rt,"
+        "ss_key_resp_sentence.corr\n"
+    )
+    body = (
+        "False,1,1,100,1,10,1,0,5,1\n"
+        "False,,0,200,1,sstm_text_next,1,1,15,0\n"
+        "False,2,1,300,0,30,0,1,25,1\n"
+        "False,,1,400,,,1,0,35,0\n"
+    )
+    make_text_file(lwmc_dir / "wmc.csv", header=header, body=body)
+    _make_sstm_file(lwmc_dir, make_text_file, pid="1", token="120")
+
+    out = preprocess_lwmc(lwmc_dir)
+
+    assert out["LWMC_OS_score"] == pytest.approx(0.5)
+    assert out["LWMC_OS_time_sec"] == pytest.approx(20.0)
+
+
 def test_preprocess_lwmc_partial_missing_mu(tmp_path: Path, make_text_file):
     # A run that aborted before the MU task: the CSV has no mu_* columns at all,
     # but OS, SS and SSTM are complete (mirrors the real SLSI specimen).

@@ -1017,8 +1017,10 @@ def preprocess_lwmc(lwmc_dir: Path) -> dict:
             return nan, nan, False
         # Use the in-frame 'trial_id' column to avoid index alignment issues
         sub = df.loc[mask_vals, [correctness_col, time_col, "trial_id"]].copy()
-        # Ensure correctness is numeric (0/1 or NaN)
+        # Ensure correctness and timing are numeric; some exports store text
+        # markers in the RT column.
         sub[correctness_col] = pd.to_numeric(sub[correctness_col], errors="coerce")
+        sub[time_col] = pd.to_numeric(sub[time_col], errors="coerce")
         # Compute mean correctness per trial_id, then mean of these per-trial means
         corr_per_trial = sub.groupby("trial_id", dropna=True)[correctness_col].mean()
         time_per_trial = sub.groupby("trial_id", dropna=True)[time_col].mean()
@@ -1041,7 +1043,7 @@ def preprocess_lwmc(lwmc_dir: Path) -> dict:
     def _compute_processing_score(col: str) -> float:
         if col not in df.columns:
             return nan
-        return float(df[col].mean())
+        return float(pd.to_numeric(df[col], errors="coerce").mean())
 
     os_proc_score = _compute_processing_score("os_key_resp_equation.corr")
     sents_proc_score = _compute_processing_score("sents_key_resp_sentence.corr")
@@ -1679,6 +1681,16 @@ def __validate_rt_acc_inputs(
         raise ValueError("Correctness column contains non-boolean values")
 
 
+def _read_csv_compat(path, **kwargs):
+    """Read a CSV as UTF-8, falling back to Latin-1 for legacy exports."""
+    for encoding in ("utf-8", "latin-1"):
+        try:
+            return read_csv(path, encoding=encoding, **kwargs)
+        except UnicodeDecodeError:
+            continue
+    raise ValueError(f"Could not decode CSV file: {path}")
+
+
 def _find_one_filetype_with_columns(
     folder: Path,
     columns: list[str],
@@ -1756,7 +1768,7 @@ def _find_one_filetype_with_columns(
     for csv in csvs:
         # Only read the header to check columns
         try:
-            cols_found = read_csv(csv, nrows=0).columns
+            cols_found = _read_csv_compat(csv, nrows=0).columns
         except Exception:
             continue
         present = [col for col in columns if col in cols_found]
@@ -1792,7 +1804,7 @@ def _find_one_filetype_with_columns(
             key=lambda c: (c.name, match_count.get(c.name, 0)),
         )
         selected_cols = [
-            col for col in columns if col in read_csv(chosen, nrows=0).columns
+            col for col in columns if col in _read_csv_compat(chosen, nrows=0).columns
         ]
 
     if len(valid_csvs) > 1:
@@ -1807,7 +1819,7 @@ def _find_one_filetype_with_columns(
             chosen.name,
         )
 
-    df = read_csv(chosen, usecols=selected_cols)
+    df = _read_csv_compat(chosen, usecols=selected_cols)
     if df.empty:
         raise ValueError(
             f"The data file '{chosen.name}' was found but contains no data rows."
