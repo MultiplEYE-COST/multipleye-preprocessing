@@ -18,6 +18,11 @@ def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
         The session identifier.
     data : pm.Gaze
         The gaze data as a pymovements Gaze object.
+
+    Notes
+    -----
+    Samples are expected to be nested (pixel, position and velocity list columns), as produced by
+    the preprocessing pipeline. If they are already unnested, pymovements emits a warning.
     """
     directory = sid.raw_data_dir
     directory.mkdir(parents=True, exist_ok=True)
