@@ -45,11 +45,12 @@ Stage 13 is independent and runs once at the end, after all sessions are done.
 
 ## Stage 0: Data Preparation
 
-**Prepare the raw folder: extract archives, copy stimulus files, fix AOIs, and get
-psychometric test data into shape.** This runs once before anything else. It handles the
-messy reality of real data collections: tar archives that need unpacking, zip files per
-participant, AOI CSV files that need splitting into text and question variants, and
+**Prepare the raw folder: copy stimulus files, fix AOIs, and get psychometric test data
+into shape.** This runs once before anything else. It handles the messy reality of real
+data collections: AOI CSV files that need splitting into text and question variants, and
 old-format psychometric test data that needs restructuring from task-first to session-first.
+Session archives and nested core-session folders must be unpacked and flattened in the
+cleaning step beforehand.
 
 The function is `prepare_language_folder()` in `scripts.prepare_language_folder`. It also
 copies stimulus images, question images, and configuration files into the output folder so
@@ -79,8 +80,13 @@ which is proprietary. The pEYEpline calls the `edf2asc` binary from the EyeLink 
 produce `.asc` files that contain both the gaze samples and the timestamped messages that
 encode trial structure.
 
-The method is `MultipleyeDataCollection.convert_edf_to_asc()`. It runs the binary with
-flags `-input -ftime -p <output_dir> -y` and copies the result to `asc/<sid>/<sid>.asc`.
+The method is `MultipleyeDataCollection.convert_edf_to_asc()`. It runs the `edf2asc`
+binary with flags `-y -p <staging_dir>`, so the binary writes the `.asc` directly into a
+fresh staging directory inside the session's output folder; the result is then moved to
+`asc/<sid>/<sid>.asc` (an atomic move on the same filesystem). Nothing is written next to
+the `.edf`, and the staging directory is always removed, so a failed conversion leaves no
+partial or leftover files. Conversions run in parallel, controlled by `EDF2ASC_WORKERS`
+(default `min(4, CPU count)`), since `edf2asc` itself is single-threaded per file.
 If the ASC already exists and `FORCE_RECONVERT_ASC` is off, it skips. The `edf2asc` binary
 cannot be distributed with the pEYEpline due to licensing.
 See the {ref}`installation instructions <eyelink_dev_kit>` for how to obtain it from SR Research.
@@ -220,9 +226,10 @@ See {ref}`sanity_check_report` for a complete description of every field in the 
 
 ## Stage 12: Participant Data
 
-**Aggregate questionnaire data into a single CSV.** Participant questionnaires are stored
-as individual JSON files. This step reads them all, fixes a known key-naming bug from
-earlier experiment versions, and writes a tidy `participant_data.csv`.
+**Build the participant-level overview.** This step combines ET sessions, psychometric results
+and participant questionnaires into `participants.csv`, with one row per participant. It applies
+`participant_groups`, keeps the language fields raw, and adds the matched experimenter-sheet
+excerpt, the preflight status and a free comment column. See {ref}`participants_table`.
 
 (preprocessing_step_13)=
 

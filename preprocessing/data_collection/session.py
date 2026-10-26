@@ -58,6 +58,7 @@ class Session:
         default="unknown", init=False
     )
     stimuli_trial_mapping: dict[str, str] | str = field(default="unknown", init=False)
+    stimulus_content_version: str | None = field(default="unknown", init=False)
     stimulus_start_end_ts: list[dict[str, str | float]] | str = field(
         default="unknown", init=False
     )
@@ -113,6 +114,9 @@ class Session:
     # psychometric tests
     psychometric_tests_session: str = field(default="unknown", init=False)
 
+    # participant info (from the participant questionnaire + psychometric sessions)
+    participant_info: dict | str = field(default="unknown", init=False)
+
     # data formats
     # True by default: our pipeline produces all formats. Other pipelines may
     # set these to False when a format is not generated.
@@ -150,6 +154,7 @@ class Session:
                 "year_of_data_collection": self._get_metadata("year", "unknown"),
                 "month_of_data_collection": self._get_metadata("month", "unknown"),
             },
+            "participant": self.participant_info,
             "technical_setup": self._technical_setup(),
             "tracking": {
                 "tracked_eye": self.tracked_eye,
@@ -178,6 +183,7 @@ class Session:
             },
             "experiment_procedure": {
                 "question_order": self.question_order,
+                "stimulus_content_version": self.stimulus_content_version,
                 "stimulus_order_ids": self.stimulus_order_ids,
                 "stimulus_order_ids_with_names": self.stimulus_order_ids_with_names,
                 "num_completed_trials": len(self.stimulus_order_ids)
@@ -425,7 +431,7 @@ class Session:
                 stop = float(entry["stop_ts"])
             except (KeyError, TypeError, ValueError):
                 continue
-            total_ms += stop - start
+            total_ms += max(0.0, stop - start)
         if total_ms <= 0:
             return None
         return round(total_ms / 1000, 3)
@@ -482,7 +488,7 @@ class Session:
             if entry.get("type") != "reading time":
                 continue
             try:
-                dur = float(entry["duration_ms"])
+                dur = max(0.0, float(entry["duration_ms"]))
                 stim = str(entry.get("stimulus", "unknown"))
             except (KeyError, TypeError, ValueError):
                 continue
@@ -528,7 +534,7 @@ class Session:
                 trial = str(entry["trial"])
             except (KeyError, TypeError, ValueError):
                 continue
-            by_trial[trial] = by_trial.get(trial, 0.0) + (stop - start)
+            by_trial[trial] = by_trial.get(trial, 0.0) + max(0.0, stop - start)
         return by_trial
 
     def _compute_trials(self) -> list[Trial] | str:
@@ -572,6 +578,11 @@ class Session:
                 question_time = round(sum(q_times), 3) if q_times else 0.0
 
             first = group.row(0, named=True)
+            if first["stimulus_id"] is None:
+                logger.warning(
+                    f"Skipping trial {trial_id} in overview: missing stimulus_id."
+                )
+                continue
             try:
                 trial_number = int(str(trial_id).rsplit("_", 1)[-1])
             except ValueError:

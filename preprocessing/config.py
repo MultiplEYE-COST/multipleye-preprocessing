@@ -77,6 +77,15 @@ class Settings:
         return None
 
     @property
+    def STIMULUS_PID_VERSION_MAP(self) -> dict[str, str]:
+        """Derived: participant ID -> version suffix (e.g. 'v2') for lookup."""
+        result: dict[str, str] = {}
+        for version, pids in self.STIMULUS_VERSIONS_PID_MAP.items():
+            for pid in pids:
+                result[str(pid)] = version
+        return result
+
+    @property
     def LANGUAGE(self) -> str:
         """The language code from the data collection name."""
         if "LANGUAGE" in self.__dict__:
@@ -354,6 +363,25 @@ class Settings:
         #: List of session identifiers to explicitly include. If not empty, only these are processed.
         self.INCLUDE_SESSIONS: list[str] = []
 
+        #: Folder suffix of the default stimulus version (e.g. "v2"). None means
+        #: the suffix-less folder (``stimuli_<dcn>``) is the default.
+        self.STIMULUS_VERSIONS_DEFAULT_VERSION: str | None = None
+
+        #: Mapping from stimulus version suffix (e.g. "v2") to the list of
+        #: participant IDs that used that version.
+        self.STIMULUS_VERSIONS_PID_MAP: dict[str, list[str]] = {}
+
+        #: Optional participant groups. Each entry has a 3-digit ``label``,
+        #: a list of ``pids`` and optionally explicit ``sessions``. Used when
+        #: one participant used more than one PID, or when a PID is split
+        #: across sessions.
+        self.PARTICIPANT_GROUPS: list[dict] = []
+
+        #: Whether to continue without the participant questionnaire normalisation
+        #: files. False (default): a missing questionnaire or language-code file is
+        #: a preflight error. True: it becomes a warning and raw values are kept.
+        self.ALLOW_PQ_FALLBACK: bool = False
+
         #: Default log level for the package/Python.
         self.LOG_LEVEL: str = "INFO"
 
@@ -383,6 +411,11 @@ class Settings:
 
         #: Force recalculation of ASC files even if they already exist in the output folder.
         self.FORCE_RECONVERT_ASC: bool = False
+
+        #: Number of parallel edf2asc processes used to convert EDF to ASC.
+        #: edf2asc is single-threaded per file, so conversion is parallelised by
+        #: running several processes at once.
+        self.EDF2ASC_WORKERS: int = min(4, os.cpu_count() or 1)
 
         #: The expected sampling rate of the eye tracker in Hertz.
         self.EXPECTED_SAMPLING_RATE_HZ: int = 1000
@@ -702,11 +735,13 @@ class Settings:
         self.EYETRACKER_NAMES = {
             "eyelink": [  # TODO: Update list to mapping between same eyetrackers - use dict
                 "EyeLink 1000 Plus",
+                "Eyelink 1000 Plus",
                 "EyeLink 1000+",
                 "EyeLink 1000-Plus",
                 "EyeLink II",
                 "EyeLink 1000",
                 "EyeLink Portable Duo",
+                "Eyelink Portable Duo",
                 "EyeLink Portable Duo 2000Hz Remote",
                 "Eyelink Duo",
                 "EyeLink Duo",
@@ -932,12 +967,21 @@ class Settings:
 
         self._config_source = path
         self._validate()
+        self.validate_stimulus_versions()
+        self.validate_participant_groups()
         self._loaded = True
 
     def update(self, config_dict: dict[str, Any]) -> None:
         """Update settings from a dictionary."""
         for key, value in config_dict.items():
             upper_key = key.upper()
+
+            # Unpack the nested stimulus_versions block into its flat settings.
+            if upper_key == "STIMULUS_VERSIONS" and isinstance(value, dict):
+                self.STIMULUS_VERSIONS_DEFAULT_VERSION = value.get("default_version")
+                self.STIMULUS_VERSIONS_PID_MAP = value.get("versions", {}) or {}
+                continue
+
             if upper_key in self.__dict__:
                 setattr(self, upper_key, value)
             else:
@@ -954,6 +998,86 @@ class Settings:
         if not val:
             # We don't raise here if we are just loading, as we might be loading the template
             return
+
+    def validate_stimulus_versions(self) -> None:
+        """Validate the stimulus version configuration.
+
+        Raises
+        ------
+        ValueError
+            If a participant ID appears in more than one version bucket.
+        """
+        pid_map = self.STIMULUS_VERSIONS_PID_MAP or {}
+        seen: dict[str, str] = {}
+        for version, pids in pid_map.items():
+            for pid in pids:
+                pid = str(pid)
+                if pid in seen:
+                    raise ValueError(
+                        f"Participant ID '{pid}' is mapped to multiple stimulus "
+                        f"versions: '{seen[pid]}' and '{version}'. A participant "
+                        "cannot have sessions in different stimulus versions."
+                    )
+                seen[pid] = version
+
+    def validate_participant_groups(self) -> None:
+        """Validate ``participant_groups``.
+
+        Raises
+        ------
+        ValueError
+            If a group is malformed, a label is not a unique 3-digit ID, a PID
+            appears in more than one group, or an explicit session is invalid or
+            does not belong to the group's PIDs.
+        """
+        from .models.sid import Sid
+
+        groups = self.PARTICIPANT_GROUPS or []
+        labels: set[str] = set()
+        seen_pids: dict[str, str] = {}
+
+        for group in groups:
+            if not isinstance(group, dict):
+                raise TypeError("Each participant group must be a mapping.")
+            label = str(group.get("label", "")).strip()
+            if not re.fullmatch(r"\d{3}", label):
+                raise ValueError(
+                    f"Participant group label '{label}' must be a 3-digit ID."
+                )
+            if label in labels:
+                raise ValueError(f"Duplicate participant group label '{label}'.")
+            labels.add(label)
+
+            pids = [str(pid) for pid in (group.get("pids") or [])]
+            if not pids:
+                raise ValueError(f"Participant group '{label}' has no PIDs.")
+            normalized_pids: set[str] = set()
+            for pid in pids:
+                if not re.fullmatch(r"\d{1,3}", pid):
+                    raise ValueError(
+                        f"Invalid PID '{pid}' in participant group '{label}'."
+                    )
+                normalized = pid.zfill(3)
+                normalized_pids.add(normalized)
+                if normalized in seen_pids:
+                    raise ValueError(
+                        f"PID '{normalized}' is in both participant groups "
+                        f"'{seen_pids[normalized]}' and '{label}'."
+                    )
+                seen_pids[normalized] = label
+
+            for sid in group.get("sessions") or []:
+                try:
+                    parsed = Sid(str(sid))
+                except (ValueError, TypeError) as exc:
+                    raise ValueError(
+                        f"Invalid session '{sid}' in participant group '{label}': {exc}"
+                    ) from exc
+                if parsed.pid not in normalized_pids:
+                    raise ValueError(
+                        f"Session '{sid}' in participant group '{label}' has PID "
+                        f"'{parsed.pid}', which is not in the group's pids."
+                    )
 
     def setup_logging(self, log_file: str | Path | None = None) -> None:
         """Configure logging with separate levels for console and file.

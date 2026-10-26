@@ -5,6 +5,10 @@
 This guide will walk you through the details of how to use the pEYEpline.
 First, the {ref}`configuration_guide` section will explain the settings that need to be
 configured before running the pEYEpline.
+The {ref}`participant_questionnaire` section explains how participant questionnaire answers are
+normalised.
+The {ref}`participants_table` section describes the participant-level overview.
+The {ref}`metadata_yaml` section documents the metadata YAML files.
 The {ref}`preprocessing_guide` section includes the most central and computationally expensive steps
 of the pEYEpline.
 Here, the eye-tracking data will be processed.
@@ -17,6 +21,9 @@ the psychometric tests. This step is rather fast.
 :maxdepth: 2
 
 configuration
+participant_questionnaire
+participants
+metadata
 preprocessing
 technical_architecture
 pipeline_stages

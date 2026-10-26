@@ -105,17 +105,17 @@ preprocessed_data/{dcn}/
 ├── reading_measures/       # word-level reading measures
 ├── comp_answers/           # comprehension question answers
 ├── sanity_checks/          # quality reports and plots
-├── psychometric_tests/     # PT overview + per-session details
-├── participant_data.csv
+├── psychometric_tests/     # PT results table (+ merged per-participant table)
+├── participants.csv
 ├── {dcn}_overview.yaml
 └── stimuli_{dcn}/          # copy of stimulus assets used
 ```
 
 **Filenames follow a consistent pattern.** Per-trial files are named
 `{sid}_{trial}_{stimulus}_{stage}.csv`. Psychometric test outputs use
-`psychometric_overview_{dcn}.csv` (one row per session) and
-`psychometric_overview_{dcn}_merged.csv` (sessions merged per participant when tests are
-disjoint). The merged overview combines PT1 and PT2 data for the same subject.
+`psychometric_results_{dcn}.csv` (one row per session with all test metrics) and
+`psychometric_results_{dcn}_merged.csv` (sessions merged per participant when tests are
+disjoint). The merged table combines PT1 and PT2 data for the same subject.
 
 **The dataset overview records how the data was processed.** `{dcn}_overview.yaml` contains a
 `processing_config` section with the algorithm settings used for the run: event-detection
@@ -129,3 +129,17 @@ parameters (`velocity_estimation_method`, `velocity_smoothing_window_ms`,
 `reading_measures_null_fill`, `scanpath_drop_unmapped`, `data_loss_missingness_column`,
 `per_trial_loss_weighting`). These values are read from the resolved configuration, so the
 overview always reflects what was actually applied.
+
+**Reading times are recorded in seconds.** The session overview stores `total_reading_time_s`, the
+dataset overview averages it as `mean_total_reading_time_s`, and `mean_wpm` is computed as
+`total_words / (total_reading_s / 60)`. Negative spans caused by out-of-order ASC start/stop
+messages are clamped to 0 and logged as a warning, so reading times are never negative.
+
+**The session overview records participant context.** The `participant` section is a convenience
+subset for quick access in the session metadata. It combines the normalised participant
+questionnaire with the psychometric-test sessions: `gender`, `bi_monolingualism` (derived from the
+distinct native languages), the available `psychometric_tests`, `tests_conducted_this_session` and
+`tests_conducted_separate_session`, `has_pt_data_same_day_as_session`,
+`gap_to_previous_session_days`, `gap_to_next_session_days`,
+`gap_to_psychometric_tests_days`, and a curated `psychometric_test_scores` subset. The full
+participant-level data is centralised in `participants.csv`.

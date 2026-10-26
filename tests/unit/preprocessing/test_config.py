@@ -475,3 +475,104 @@ def test_copy_config_to_no_source_logs_warning(tmp_path, caplog):
 
     assert dest is None
     assert "No config source path recorded" in caplog.text
+
+
+def test_stimulus_versions_defaults(settings_obj):
+    """Stimulus version settings default to single-folder mode."""
+    assert settings_obj.STIMULUS_VERSIONS_DEFAULT_VERSION is None
+    assert settings_obj.STIMULUS_VERSIONS_PID_MAP == {}
+    assert settings_obj.STIMULUS_PID_VERSION_MAP == {}
+
+
+def test_stimulus_versions_load_from_yaml(settings_obj, tmp_path):
+    """Test loading stimulus versions config from YAML."""
+    config_file = tmp_path / "test_config.yaml"
+    config_data = {
+        "data_collection_name": "ME_EN_UK_LON_LAB1_2025",
+        "stimulus_versions": {
+            "default_version": "v2",
+            "versions": {
+                "v2": ["008", "010"],
+                "v3": ["011", "012", "013"],
+            },
+        },
+    }
+    with open(config_file, "w") as f:
+        yaml.dump(config_data, f)
+
+    settings_obj.load(path=config_file)
+    assert settings_obj.STIMULUS_VERSIONS_DEFAULT_VERSION == "v2"
+    assert settings_obj.STIMULUS_VERSIONS_PID_MAP == {
+        "v2": ["008", "010"],
+        "v3": ["011", "012", "013"],
+    }
+
+
+def test_stimulus_pid_version_map_derived(settings_obj):
+    """STIMULUS_PID_VERSION_MAP flattens version->pids into pid->version."""
+    settings_obj._loaded = True
+    settings_obj.STIMULUS_VERSIONS_PID_MAP = {
+        "v2": ["008", "010"],
+        "v3": ["011"],
+    }
+    assert settings_obj.STIMULUS_PID_VERSION_MAP == {
+        "008": "v2",
+        "010": "v2",
+        "011": "v3",
+    }
+
+
+def test_stimulus_pid_version_map_empty(settings_obj):
+    """Empty version config yields an empty pid map."""
+    settings_obj._loaded = True
+    settings_obj.STIMULUS_VERSIONS_PID_MAP = {}
+    assert settings_obj.STIMULUS_PID_VERSION_MAP == {}
+
+
+def test_stimulus_versions_duplicate_pid_raises(settings_obj):
+    """A PID in multiple version buckets must raise during validation."""
+    settings_obj._loaded = True
+    settings_obj.STIMULUS_VERSIONS_PID_MAP = {
+        "v2": ["008", "010"],
+        "v3": ["008"],  # duplicate PID
+    }
+    with pytest.raises(ValueError, match="008"):
+        settings_obj.validate_stimulus_versions()
+
+
+def test_validate_participant_groups_accepts_valid(settings_obj):
+    settings_obj.PARTICIPANT_GROUPS = [
+        {"label": "006", "pids": ["006", "007"]},
+        {"label": "010", "pids": ["010"], "sessions": ["010_EN_UK_1_ET1"]},
+    ]
+
+    settings_obj.validate_participant_groups()
+
+
+@pytest.mark.parametrize(
+    ("groups", "match"),
+    [
+        ([{"label": "6", "pids": ["006"]}], "3-digit"),
+        ([{"label": "006", "pids": []}], "no PIDs"),
+        (
+            [
+                {"label": "006", "pids": ["006"]},
+                {"label": "007", "pids": ["006"]},
+            ],
+            "in both participant groups",
+        ),
+        (
+            [{"label": "006", "pids": ["007"], "sessions": ["008_EN_UK_1_ET1"]}],
+            "not in the group's pids",
+        ),
+        (
+            [{"label": "006", "pids": ["006"], "sessions": ["invalid"]}],
+            "Invalid session",
+        ),
+    ],
+)
+def test_validate_participant_groups_rejects_invalid(settings_obj, groups, match):
+    settings_obj.PARTICIPANT_GROUPS = groups
+
+    with pytest.raises(ValueError, match=match):
+        settings_obj.validate_participant_groups()

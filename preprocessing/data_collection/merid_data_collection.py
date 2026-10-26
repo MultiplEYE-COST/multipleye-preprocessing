@@ -1,9 +1,5 @@
 import warnings
 
-from preprocessing.scripts.prepare_language_folder import (
-    extract_stimulus_version_number_from_asc,
-)
-
 from ..data_collection.multipleye_data_collection import MultipleyeDataCollection
 from ..models.sid import Sid
 
@@ -26,33 +22,12 @@ class MeridDataCollection(MultipleyeDataCollection):
             self.stim_order_versions["participant_id"] == int(p_id)
         ]
         if len(stim_order_version) == 0:
-            self._write_to_logfile(
-                f"Participant ID {p_id} not found in stimulus order versions. Please check the "
-                f"participant IDs in the stimulus order versions file. It is possible that the team did not "
-                f"upload the correct stimulus version from the experiment folder. Extracting version "
-                f"from asc file"
+            stim_order_version = self._resolve_stim_order_version(
+                session_identifier,
+                p_id,
+                logfile_order_version,
+                asc_available=session_identifier in self.sessions,
             )
-            version = extract_stimulus_version_number_from_asc(
-                self.sessions[session_identifier].asc_path
-            )
-
-            if version == logfile_order_version:
-                self._write_to_logfile(
-                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                    f"extracted from the asc file ({version}) for participant ID {p_id}. Using the "
-                    f"version from the logfile."
-                )
-                stim_order_version = self.stim_order_versions[
-                    self.stim_order_versions["version_number"] == version
-                ]
-
-            else:
-                self._write_to_logfile(
-                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                    f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
-                    f"Please check the files "
-                    f"carefully."
-                )
 
         if len(stim_order_version) == 1:
             version = stim_order_version["version_number"].values[0]
