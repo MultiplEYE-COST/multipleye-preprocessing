@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import polars as pl
 import pytest
 
@@ -190,6 +192,20 @@ MSG 3500 validation_before_stimulus
     assert "showing_subject_difficulty_screen" in contents
     assert "showing_familiarity_rating_screen_1" in contents
     assert "validation_before_stimulus" in contents
+
+
+@pytest.mark.filterwarnings("ignore")
+def test_load_gaze_data_validates_parsed_asc(synthetic_asc, lab_config):
+    with patch("preprocessing.io.load.validate_asc_parsing") as mock_validate:
+        load_gaze_data(
+            asc_file=synthetic_asc,
+            lab_config=lab_config,
+            sid=Sid("001_SV_CH_Zurich_S1_ET1"),
+            messages=settings.EXPERIMENT_MSG_PATTERNS,
+        )
+
+    mock_validate.assert_called_once()
+    assert mock_validate.call_args.kwargs["session_id"] == "001_SV_CH_Zurich_S1_ET1"
 
 
 def test_blink_loss_ratio_is_scalar_with_trial_columns():

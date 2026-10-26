@@ -581,3 +581,25 @@ def test_practice_trial_answers(tmp_path):
 
     assert result.is_empty()  # unanswered practice rows are dropped
     assert out_path.read_text().strip().endswith("answer_source")  # header only
+
+
+def test_extra_question_order_trials_are_dropped(tmp_path):
+    """Order rows without a matching completed trial are dropped."""
+    qcsv = tmp_path / "question_order_versions.csv"
+    qcsv.write_text(
+        "question_order_version,local_question_1,local_question_2,"
+        "bridging_question_1,bridging_question_2,global_question_1,global_question_2\n"
+        "1,11,12,21,22,31,32\n"
+        "2,11,12,21,22,31,32\n"
+    )
+
+    result = collect_session_answers(
+        qcsv, {"trial_1": "Stim"}, completed_stimuli_ids=[6]
+    )
+
+    assert result.height == 6
+    assert set(result["trial"].to_list()) == {"trial_1"}
+    assert "None" not in result["trial"].to_list()
+    assert not any(
+        str(stim).startswith("Unknown_Stim_") for stim in result["stimulus"].to_list()
+    )

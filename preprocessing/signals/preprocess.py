@@ -56,5 +56,20 @@ def preprocess_gaze(
     if window_length % 2 == 0:
         window_length += 1
 
-    gaze.pix2deg()
+    # pix2deg is element-wise (per-sample). Gaze.pix2deg() otherwise applies it
+    # separately for every trial/page group (hundreds here), which is pure
+    # overhead for a row-wise transform. Run it on the whole samples frame at
+    # once by temporarily disabling trial grouping.
+    trial_columns = getattr(gaze, "trial_columns", None)
+    if trial_columns is None:
+        gaze.pix2deg()
+    else:
+        try:
+            gaze.trial_columns = None
+            gaze.pix2deg()
+        finally:
+            gaze.trial_columns = trial_columns
+
+    # pos2vel smooths across a window, so it must stay grouped by trial/page to
+    # avoid bleeding across page boundaries.
     gaze.pos2vel(method, window_length=window_length, degree=poly_degree)

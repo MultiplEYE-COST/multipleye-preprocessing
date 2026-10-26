@@ -4,8 +4,11 @@ import os
 import re
 import shutil
 import subprocess
+import sys
+import tempfile
 import warnings
-from datetime import UTC, datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, date, datetime
 from functools import partial
 from pathlib import Path
 
@@ -35,16 +38,30 @@ from ..checks.formal_experiment_checks import (
     sanity_check_gaze_frame,
 )
 from ..config import settings
-from ..data_collection.session import Session
-from ..data_collection.stimulus import LabConfig, Stimulus
 from ..models.dcn import Dcn
 from ..models.sid import Sid
-from ..plotting.plot import plot_gaze, plot_main_sequence
+from ..plotting.plot import build_page_frames, plot_gaze, plot_main_sequence
 from ..utils.conversion import convert_to_time_str
 from ..utils.data_collection_utils import _report_to_file
 from ..utils.data_path_utils import _ci_resolve
-from ..utils.fix_questionnaire_data import remap_wrong_pq_values
 from ..utils.logging import get_logger, get_pipeline_info
+from ..utils.pq_normalisation import (
+    build_mapping,
+    find_pq_data,
+    find_questionnaire_files,
+    normalise_pq,
+)
+from ..utils.stimulus_versions import stimulus_folder_name, version_suffix_for_pid
+from .experimenter_doc import ExperimenterDoc
+from .participant_info import (
+    PSYCHOMETRIC_KEY_SCORES,
+    _bi_monolingualism_from_pq,
+    _psychometric_dates,
+    _psychometric_tests_in_folder,
+    _session_date_from_logfile,
+)
+from .session import Session
+from .stimulus import LabConfig, Stimulus
 
 
 def eyelink(method):
@@ -121,10 +138,104 @@ def _compute_session_completeness(data_collection) -> dict:
     return result
 
 
+def _reading_span_ms(start: object, stop: object) -> tuple[int, bool]:
+    """Return the duration for a start/stop timestamp pair.
+
+    Reversed or out-of-order timestamps yield ``(0, True)`` so reading times
+    never become negative.
+
+    Parameters
+    ----------
+    start, stop : object
+        Timestamps convertible to float (for example millisecond strings).
+
+    Returns
+    -------
+    tuple[int, bool]
+        The non-negative duration in milliseconds and whether it was clamped.
+    """
+    span_ms = int(float(stop)) - int(float(start))
+    if span_ms < 0:
+        return 0, True
+    return span_ms, False
+
+
+def _summarize_reading_times(df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate per-page reading-time rows per (stimulus, trial, type).
+
+    Timestamps are cast to numeric before aggregation so ``min``/``max`` are
+    numeric. Comparing them as strings gives a wrong range when the timestamp
+    string length changes (for example ``"999999"`` vs ``"1000000"``), which can
+    make ``stop_ts`` smaller than ``start_ts``.
+    """
+    sum_df = df[
+        ["stimulus", "trial", "type", "duration_ms", "start_ts", "stop_ts"]
+    ].dropna()
+    sum_df = sum_df.assign(
+        duration_ms=sum_df["duration_ms"].astype(float),
+        start_ts=sum_df["start_ts"].astype(float),
+        stop_ts=sum_df["stop_ts"].astype(float),
+    )
+    return (
+        sum_df.groupby(by=["stimulus", "trial", "type"])
+        .agg({"duration_ms": "sum", "start_ts": "min", "stop_ts": "max"})
+        .reset_index()
+    )
+
+
+def _build_stimulus_start_end_ts(sum_df: pd.DataFrame) -> list[dict]:
+    """Build the per-stimulus reading-time records stored on the session.
+
+    Selects the reading-time rows (excluding the synthetic "time before pages and
+    breaks" rows) and keeps ``type`` and ``duration_ms`` alongside ``start_ts``/
+    ``stop_ts``. Downstream consumers (e.g. ``Session._compute_rt_per_stim``) need
+    ``type`` and ``duration_ms``; dropping them silently breaks those computations.
+    """
+    records = sum_df[
+        ["stimulus", "trial", "type", "duration_ms", "start_ts", "stop_ts"]
+    ].dropna()
+    records = records[~records["type"].str.contains("time before")]
+    return records.to_dict(orient="records")
+
+
+def _find_experimenter_doc(
+    dataset_dir: Path,
+    base_name: str,
+    language: str,
+    country: str,
+    city: str,
+) -> Path | None:
+    """Find the experimenter documentation workbook in ``documentation/``.
+
+    Accepts filenames with and without the lab number, case-insensitively.
+    """
+    documentation = dataset_dir / "documentation"
+    if not documentation.is_dir():
+        return None
+    prefix = "multipleye_experimenter_session_documentation_"
+    candidates = [
+        path
+        for path in documentation.iterdir()
+        if path.is_file()
+        and path.suffix.lower() == ".xlsx"
+        and path.name.lower().startswith(prefix)
+    ]
+    wanted = [
+        f"{prefix}{base_name}.xlsx".lower(),
+        f"{prefix}{language}_{country}_{city}.xlsx".lower(),
+    ]
+    for target in wanted:
+        for path in candidates:
+            if path.name.lower() == target:
+                return path
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
 class MultipleyeDataCollection:
-    participant_data_path: Path | str | None
     crashed_session_ids: list[str] = []
-    skipped_session_ids: list[str] = []
+    skipped_sessions: dict = {}
     num_sessions = 1
     overview = {}
 
@@ -152,13 +263,17 @@ class MultipleyeDataCollection:
         data_root: Path,
         lab_configuration: LabConfig,
         session_folder_regex: str,
+        experimenter_doc: ExperimenterDoc | None = None,
         included_sessions: list[str] | None = None,
         excluded_sessions: list[str] | None = None,
         # stimuli: list[Stimulus],
         **kwargs,
     ):
         self.sessions: dict[str, Session] = {}
-        self.skipped_session_ids: list[str] = []
+        self.skipped_sessions: dict[str, Session] = {}
+        self.experimenter_doc = experimenter_doc
+        self.preflight_errors: dict[str, list[str]] = {}
+        self.preflight_warnings: dict[str, list[str]] = {}
         # TODO: in theory this can be multiple languages for the stimuli..
         self.language = stimulus_language
         self.country = country
@@ -192,6 +307,7 @@ class MultipleyeDataCollection:
         self.psychometric_tests = kwargs.get("psychometric_tests", [])
         self.excluded_sessions = excluded_sessions
         self.included_sessions = included_sessions
+        self.pid_stimulus_dirs = kwargs.get("pid_stimulus_dirs", None)
         self.logger = get_logger()
 
         self.logger.info(
@@ -201,7 +317,7 @@ class MultipleyeDataCollection:
 
         self.add_recorded_sessions(self.data_root, self.session_folder_regex)
 
-        if len(self.sessions) == 0:
+        if len(self.sessions) == 0 and len(self.skipped_sessions) == 0:
             msg = f"No sessions found in {self.data_root}. "
             if self.included_sessions:
                 msg += (
@@ -223,9 +339,7 @@ class MultipleyeDataCollection:
             f"{self.language}_{self.country}_{self.lab_number}.csv"
         )
         stim_order_versions = pd.read_csv(stim_order_versions)
-        self.stim_order_versions = stim_order_versions[
-            stim_order_versions["participant_id"].notnull()
-        ]
+        self.stim_order_versions = stim_order_versions
 
         if self.stim_order_versions.empty:
             warnings.warn(
@@ -237,6 +351,28 @@ class MultipleyeDataCollection:
             self.stim_order_versions = stim_order_versions
 
         self.overview = self.create_dataset_overview()
+
+    def _resolve_stimulus_dir(self, session_identifier: str) -> Path:
+        """Resolve the stimulus directory for a session based on its PID.
+
+        Uses the ``pid_stimulus_dirs`` map (built from the ``stimulus_versions``
+        config) to pick the version-specific stimulus folder. Unmapped PIDs and
+        collections without a version map fall back to ``self.stimulus_dir``.
+
+        Parameters
+        ----------
+        session_identifier : str
+            The session identifier (e.g. ``"001_EN_UK_1_ET1"``).
+
+        Returns
+        -------
+        Path
+            The stimulus directory to use for this session.
+        """
+        if not self.pid_stimulus_dirs:
+            return self.stimulus_dir
+        pid = Sid(session_identifier).pid
+        return self.pid_stimulus_dirs.get(pid, self.stimulus_dir)
 
     def __repr__(self):
         if not self.overview:
@@ -319,15 +455,23 @@ class MultipleyeDataCollection:
                             keep = item.name not in self.excluded_sessions
 
                         if keep:
+                            is_pilot = self.include_pilots and (item in pilots)
                             session_file = list(
                                 Path(item.path).glob("*" + session_file_suffix)
                             )
 
                             if len(session_file) == 0:
                                 self.logger.warning(
-                                    f"No EDF file found for {item.name}, skipping."
+                                    f"No EDF file found for {item.name}, only parsing comprehension answers."
                                 )
-                                self.skipped_session_ids.append(item.name)
+                                self.skipped_sessions[item.name] = Session(
+                                    participant_id=int(item.name.split("_")[0]),
+                                    session_identifier=item.name,
+                                    session_folder_path=Path(item.path),
+                                    session_file_path="unknown",
+                                    session_file_name="unknown",
+                                    is_pilot=is_pilot,
+                                )
                                 continue
 
                             elif len(session_file) > 1:
@@ -338,8 +482,6 @@ class MultipleyeDataCollection:
                                 )
                             else:
                                 session_file = session_file[0]
-
-                            is_pilot = self.include_pilots and (item in pilots)
 
                             # When a core and pilot session share the same identifier,
                             # keep the core one (added first) and skip the pilot duplicate.
@@ -427,9 +569,10 @@ class MultipleyeDataCollection:
                 "You can download the EyeLink Developers Kit from the SR Research support forum."
             )
 
-        for session_identifier, session in tqdm(
-            self.sessions.items(), desc="Converting EDF to ASC"
-        ):
+        # Create copy of sessions dict without unconvertable sessions
+        converted_sessions = {}
+        to_convert = []
+        for session_identifier, session in self.sessions.items():
             edf_path = Path(session.session_file_path)
 
             output_asc_folder = (
@@ -442,28 +585,73 @@ class MultipleyeDataCollection:
                     f"ASC already exists in output folder for {session_identifier}. Skipping conversion."
                 )
                 session.asc_path = output_asc_path
+                converted_sessions[session_identifier] = session
                 continue
 
-            # Run conversion if ASC doesn't exist in output folder or force is enabled
-            self.logger.debug(f"Converting EDF to ASC for {session_identifier}")
-            subprocess.run(
-                ["edf2asc", "-y", edf_path],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
+            to_convert.append(
+                (
+                    session_identifier,
+                    session,
+                    edf_path,
+                    output_asc_folder,
+                    output_asc_path,
+                )
             )
 
-            local_asc_path = edf_path.with_suffix(".asc")
-            if local_asc_path.exists():
-                self.logger.debug(f"Copying {local_asc_path} to {output_asc_path}")
-                output_asc_folder.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(local_asc_path, output_asc_path)
-                session.asc_path = output_asc_path
-            else:
-                self.logger.error(
-                    f"Failed to convert EDF to ASC for {session_identifier}"
+        def _convert(item):
+            (
+                session_identifier,
+                session,
+                edf_path,
+                output_asc_folder,
+                output_asc_path,
+            ) = item
+            self.logger.debug(f"Converting EDF to ASC for {session_identifier}")
+            output_asc_folder.mkdir(parents=True, exist_ok=True)
+            # edf2asc is single-threaded per file, so we run several processes.
+            # -p writes the .asc directly into a staging directory instead of
+            # next to the .edf (which may be read-only). The staging directory
+            # is always removed, so a failed conversion leaves neither a partial
+            # .asc nor a stray temporary file behind.
+            staging_dir = Path(
+                tempfile.mkdtemp(prefix=".edf2asc-", dir=output_asc_folder)
+            )
+            try:
+                subprocess.run(
+                    ["edf2asc", "-y", "-c", "-p", str(staging_dir), str(edf_path)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
                 )
 
+                produced_asc = staging_dir / f"{edf_path.stem}.asc"
+                if produced_asc.exists():
+                    os.replace(produced_asc, output_asc_path)
+                    return session_identifier, session, output_asc_path
+                return session_identifier, session, None
+            finally:
+                shutil.rmtree(staging_dir, ignore_errors=True)
+
+        if to_convert:
+            workers = max(1, min(settings.EDF2ASC_WORKERS, len(to_convert)))
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = [executor.submit(_convert, item) for item in to_convert]
+                for future in tqdm(
+                    as_completed(futures),
+                    total=len(futures),
+                    desc="Converting EDF to ASC",
+                ):
+                    session_identifier, session, converted_asc_path = future.result()
+                    if converted_asc_path is not None:
+                        session.asc_path = converted_asc_path
+                        converted_sessions[session_identifier] = session
+                    else:
+                        self.logger.error(
+                            f"Failed to convert EDF to ASC for {session_identifier}. Only processing comprehension answers."
+                        )
+                        self.skipped_sessions[session_identifier] = session
+
+        self.sessions = converted_sessions
         self.logger.info("EDF to ASC conversion completed.")
 
     @staticmethod
@@ -579,12 +767,30 @@ class MultipleyeDataCollection:
             else data_dir / "psychometric-tests"
         )
 
+        # import raw data from experimenter doc file
+        base_name = f"{stimulus_language}_{country}_{city}_{lab_number}"
+        doc_sheet_path = _find_experimenter_doc(
+            Path(settings.DATASET_DIR),
+            base_name,
+            stimulus_language,
+            country,
+            city,
+        )
+        if doc_sheet_path is not None:
+            doc_sheet = ExperimenterDoc.create_from_excel(doc_sheet_path)
+        else:
+            doc_sheet = None
+
+        # Build the per-PID stimulus directory map from the stimulus_versions config.
+        pid_stimulus_dirs = cls._build_pid_stimulus_dirs(data_dir, stimulus_folder_path)
+
         return cls(
             data_collection_name=data_folder_name,
             stimulus_language=stimulus_language,
             country=country,
             year=int(year),
             eye_tracker=eye_tracker,
+            experimenter_doc=doc_sheet,
             session_folder_regex=session_folder_regex,
             config_file=config_file,
             stimulus_dir=stimulus_folder_path,
@@ -599,7 +805,48 @@ class MultipleyeDataCollection:
             included_sessions=included_sessions,
             excluded_sessions=excluded_sessions,
             output_dir=output_dir,
+            pid_stimulus_dirs=pid_stimulus_dirs,
         )
+
+    @classmethod
+    def _build_pid_stimulus_dirs(
+        cls, data_folder_path: Path, default_stimulus_dir: Path
+    ) -> dict[str, Path] | None:
+        """Build a map from participant ID to its stimulus folder.
+
+        Reads the configured ``stimulus_versions`` and resolves each versioned
+        folder (``stimuli_<dcn>_<suffix>``) under the data folder or the default
+        stimulus dir's parent.
+
+        Parameters
+        ----------
+        data_folder_path : Path
+            The raw data collection directory (contains ``stimuli_<dcn>``).
+        default_stimulus_dir : Path
+            The resolved default stimulus directory.
+
+        Returns
+        -------
+        dict[str, Path] | None
+            Mapping from PID to stimulus directory, or ``None`` if no versions
+            are configured.
+        """
+        pid_map = settings.STIMULUS_VERSIONS_PID_MAP or {}
+        if not pid_map:
+            return None
+
+        # Prefer the prepared copy next to the default stimulus dir (the output
+        # folder the pipeline uses, where AOIs are split/fixed); fall back to the
+        # raw data folder.
+        result: dict[str, Path] = {}
+        for version, pids in pid_map.items():
+            folder_name = stimulus_folder_name(data_folder_path.name, version)
+            version_dir = default_stimulus_dir.parent / folder_name
+            if not version_dir.exists():
+                version_dir = data_folder_path / folder_name
+            for pid in pids:
+                result[str(pid)] = version_dir
+        return result
 
     def create_sanity_check_report(
         self,
@@ -1023,7 +1270,7 @@ class MultipleyeDataCollection:
                 "mean_validation_error_dva": None,
                 "mean_data_loss_ratio": None,
                 "mean_blink_ratio": None,
-                "mean_total_reading_time_ms": None,
+                "mean_total_reading_time_s": None,
                 "mean_total_session_duration_s": None,
                 "mean_rt_per_stim_ms": None,
                 "mean_total_question_time_ms": None,
@@ -1054,7 +1301,7 @@ class MultipleyeDataCollection:
             getattr(s, "_measure_blink_loss_ratio", None) for s in non_pilot_sessions
         ]
         blink_loss = [v for v in blink_loss if isinstance(v, (int, float))]
-        reading_times = [
+        reading_times_s = [
             s.total_reading_time
             for s in non_pilot_sessions
             if isinstance(s.total_reading_time, (int, float))
@@ -1082,8 +1329,8 @@ class MultipleyeDataCollection:
         # WPM: total words / total_minutes
         # Word count computed from stimulus page texts
         mean_wpm = None
-        if reading_times:
-            total_reading_s = sum(reading_times) / 1000  # ms to seconds
+        if reading_times_s:
+            total_reading_s = sum(reading_times_s)
             if total_reading_s > 0:
                 mean_wpm = self._compute_dcn_wpm(non_pilot_sessions, total_reading_s)
 
@@ -1105,9 +1352,9 @@ class MultipleyeDataCollection:
             "mean_blink_ratio": (
                 round(sum(blink_loss) / len(blink_loss), 2) if blink_loss else None
             ),
-            "mean_total_reading_time_ms": (
-                round(sum(reading_times) / len(reading_times), 2)
-                if reading_times
+            "mean_total_reading_time_s": (
+                round(sum(reading_times_s) / len(reading_times_s), 2)
+                if reading_times_s
                 else None
             ),
             "mean_total_session_duration_s": (
@@ -1205,6 +1452,10 @@ class MultipleyeDataCollection:
                     f"Session {session} started after a trial. Only the completed stimuli will be considered."
                 )
 
+            self.sessions[session].stimulus_content_version = version_suffix_for_pid(
+                p_id
+            )
+
             (
                 self.sessions[session].completed_stimuli_ids,
                 self.sessions[session].completed_stimuli_names,
@@ -1239,13 +1490,257 @@ class MultipleyeDataCollection:
                 logging._captured_warnings.append(msg)  # type: ignore
 
             self.sessions[session].stimuli = self._load_session_stimuli(
-                self.stimulus_dir,
+                self._resolve_stimulus_dir(session),
                 self.language,
                 self.country,
                 self.lab_number,
                 self.sessions[session].randomization_version,
                 session,
             )
+
+        for session in (
+            pbar := tqdm(self.skipped_sessions.keys(), total=len(self.skipped_sessions))
+        ):
+            pbar.set_description(f"Preparing session {session}")
+            try:
+                p_id = Sid(session).pid
+            except (ValueError, TypeError):
+                p_id = session.split("_")[0] if "_" in session else session
+
+            if "start_after_trial" in session and p_id not in self.crashed_session_ids:
+                self.crashed_session_ids.append(p_id)
+                self.logger.warning(
+                    f"Session {session} started after a trial. Only the completed stimuli will be considered."
+                )
+
+            self.skipped_sessions[
+                session
+            ].stimulus_content_version = version_suffix_for_pid(p_id)
+
+            (
+                self.skipped_sessions[session].completed_stimuli_ids,
+                self.skipped_sessions[session].completed_stimuli_names,
+                self.skipped_sessions[session].stimuli_trial_mapping,
+            ) = self._load_session_completed_stimuli(session)
+            self.skipped_sessions[session].logfile = self._load_session_logfile(session)
+            self.skipped_sessions[
+                session
+            ].randomization_version = self._load_stimulus_order_version_from_logfile(
+                session
+            )
+            self.skipped_sessions[
+                session
+            ].stimulus_order_ids = self._load_session_stimulus_order(
+                session, self.skipped_sessions[session].randomization_version
+            )
+
+            # TODO: lab config should be changeable for each session
+            self.skipped_sessions[session].lab_config = self.lab_configuration
+
+            if (
+                self.skipped_sessions[session].stimulus_order_ids
+                != self.skipped_sessions[session].completed_stimuli_ids
+            ) and p_id not in self.crashed_session_ids:
+                msg = (
+                    f"Stimulus order and completed stimuli do not match for "
+                    f"session {session}. Please check the files carefully."
+                )
+                self.logger.warning(msg)
+                if not hasattr(logging, "_captured_warnings"):
+                    logging._captured_warnings = []  # type: ignore
+                logging._captured_warnings.append(msg)  # type: ignore
+
+            self.skipped_sessions[session].stimuli = self._load_session_stimuli(
+                self._resolve_stimulus_dir(session),
+                self.language,
+                self.country,
+                self.lab_number,
+                self.skipped_sessions[session].randomization_version,
+                session,
+            )
+
+        self._assign_participant_info()
+
+    def _assign_participant_info(self) -> None:
+        """Attach the per-session ``participant`` section.
+
+        Combines participant-questionnaire (PQ) data with psychometric-test session
+        metadata: available tests, tests conducted in this vs a separate session,
+        same-day indicator and day gaps to other sessions/tests, plus a curated set
+        of psychometric scores for the participant.
+
+        All lookups are best-effort: missing data yields ``"unknown"`` (or ``None``
+        for the same-day flag) rather than raising.
+        """
+        participants: dict[str, list[str]] = {}
+        for sid_str in self.sessions:
+            try:
+                sid = Sid(sid_str)
+            except (ValueError, TypeError):
+                continue
+            participants.setdefault(sid.base_id.upper(), []).append(sid_str)
+
+        pt_folders = self._index_psychometric_sessions()
+        results = self._load_psychometric_results()
+        pq_mapping = self._pq_mapping()
+
+        for base_id, sid_strs in participants.items():
+            ordered = sorted(sid_strs, key=lambda s: Sid(s).session_id)
+            pid = Sid(ordered[0]).pid if ordered else None
+            pq = self._participant_pq_data(sid_strs, pid)
+            pq_values = (
+                normalise_pq(pq, pq_mapping)["values"]
+                if pq_mapping is not None and pq
+                else {}
+            )
+            session_dates = {
+                s: _session_date_from_logfile(self.sessions[s].logfile) for s in ordered
+            }
+            pt_by_session = pt_folders.get(base_id, {})
+
+            all_pt_dates: set[date] = set()
+            all_pt_tests: set[str] = set()
+            for folder in pt_by_session.values():
+                all_pt_dates |= _psychometric_dates(folder)
+                all_pt_tests |= set(_psychometric_tests_in_folder(folder))
+
+            scores = self._psychometric_scores_for_participant(results, pid)
+
+            for position, sid_str in enumerate(ordered):
+                session_id = Sid(sid_str).session_id
+                matched = pt_by_session.get(session_id)
+                if matched is not None:
+                    self.sessions[sid_str].psychometric_tests_session = matched.name
+
+                this_tests = set(_psychometric_tests_in_folder(matched))
+                et_date = session_dates.get(sid_str)
+                matched_dates = _psychometric_dates(matched)
+
+                gap_to_tests: int | str = "unknown"
+                if et_date is not None and all_pt_dates:
+                    gap_to_tests = min(abs((et_date - d).days) for d in all_pt_dates)
+
+                gap_prev: int | str = "unknown"
+                if et_date is not None and position > 0:
+                    prev_date = session_dates.get(ordered[position - 1])
+                    if prev_date is not None:
+                        gap_prev = (et_date - prev_date).days
+
+                gap_next: int | str = "unknown"
+                if et_date is not None and position < len(ordered) - 1:
+                    next_date = session_dates.get(ordered[position + 1])
+                    if next_date is not None:
+                        gap_next = (next_date - et_date).days
+
+                self.sessions[sid_str].participant_info = {
+                    "gender": pq_values.get(
+                        "pq_gender", (pq or {}).get("gender", "unknown")
+                    ),
+                    "bi_monolingualism": _bi_monolingualism_from_pq(pq_values or pq),
+                    "psychometric_tests": sorted(all_pt_tests),
+                    "tests_conducted_this_session": sorted(this_tests),
+                    "tests_conducted_separate_session": sorted(
+                        all_pt_tests - this_tests
+                    ),
+                    "has_pt_data_same_day_as_session": (
+                        bool(et_date in matched_dates) if et_date is not None else None
+                    ),
+                    "gap_to_previous_session_days": gap_prev,
+                    "gap_to_next_session_days": gap_next,
+                    "gap_to_psychometric_tests_days": gap_to_tests,
+                    "psychometric_test_scores": scores,
+                }
+
+    def _index_psychometric_sessions(self) -> dict[str, dict[int, Path]]:
+        """Index psychometric-test session folders by participant and session number."""
+        index: dict[str, dict[int, Path]] = {}
+        pt_dir = settings.PSYCHOMETRIC_TESTS_DIR
+        if not Path(pt_dir).exists():
+            return index
+        for folder in Path(pt_dir).iterdir():
+            if not folder.is_dir():
+                continue
+            try:
+                sid = Sid(folder.name)
+            except (ValueError, TypeError):
+                continue
+            index.setdefault(sid.base_id.upper(), {})[sid.session_id] = folder
+        return index
+
+    def _pq_mapping(self) -> dict | None:
+        """Build the PQ label mapping from the data collection's workbooks."""
+        language = getattr(self, "language", None)
+        if not language:
+            return None
+        question_path, language_path = find_questionnaire_files(
+            settings.DATASET_DIR, language
+        )
+        if question_path is None:
+            return None
+        return build_mapping(question_path, language_path)
+
+    def _participant_pq_data(self, sid_strs: list[str], pid: str | None = None) -> dict:
+        """Return the participant's raw PQ data, if present.
+
+        Searches the ET session folders and ``participant_questionnaire_*``
+        (covering participants whose PQ file is not stored with an ET session).
+        """
+        session_dirs = [
+            Path(self.sessions[sid].session_folder_path) for sid in sid_strs
+        ]
+        questionnaire_dirs = list(
+            Path(settings.DATASET_DIR).glob("participant_questionnaire*")
+        )
+        questionnaire_dirs.append(Path(settings.DATASET_DIR) / "documentation")
+
+        pq_file = None
+        if pid is not None:
+            pq_file = find_pq_data(pid, session_dirs, questionnaire_dirs)
+        if pq_file is None:
+            for folder in session_dirs:
+                files = sorted(folder.glob("*_pq_data.json"))
+                if files:
+                    pq_file = files[0]
+                    break
+        if pq_file is None:
+            return {}
+        try:
+            data = json.loads(pq_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _load_psychometric_results(self):
+        """Load the psychometric results table for this data collection, if present."""
+        out = Path(settings.OUTPUT_DIR) / settings.PSYCHOMETRIC_TESTS_FOLDER
+        for name in (
+            f"psychometric_results_{self.data_collection_name}_merged.csv",
+            f"psychometric_results_{self.data_collection_name}.csv",
+        ):
+            path = out / name
+            if path.exists():
+                try:
+                    return pl.read_csv(path)
+                except (ComputeError, OSError):
+                    continue
+        return None
+
+    @staticmethod
+    def _psychometric_scores_for_participant(results, pid: str | None) -> dict | str:
+        """Return the curated psychometric scores for a participant, else ``"unknown"``."""
+        if results is None or pid is None or "participant_id" not in results.columns:
+            return "unknown"
+        try:
+            wanted = int(str(pid))
+        except (ValueError, TypeError):
+            return "unknown"
+        rows = results.filter(
+            pl.col("participant_id").cast(pl.Int64, strict=False) == wanted
+        )
+        if rows.is_empty():
+            return "unknown"
+        row = rows.row(0, named=True)
+        return {key: row.get(key) for key in PSYCHOMETRIC_KEY_SCORES if key in row}
 
     def _load_session_stimuli(
         self,
@@ -1269,16 +1764,21 @@ class MultipleyeDataCollection:
         :param lab_num: The lab number.
 
         """
+        if session_identifier in self.sessions:
+            session = self.sessions[session_identifier]
+        else:
+            session = self.skipped_sessions[session_identifier]
+
         stimuli = []
         if stimulus_names is None:
             stimulus_names = [
                 name
                 for name, num in settings.STIMULUS_NAME_MAPPING.items()
-                if num in self.sessions[session_identifier].completed_stimuli_ids
+                if num in session.completed_stimuli_ids
             ]
 
         for stimulus_name in stimulus_names:
-            trial_mapping = self.sessions[session_identifier].stimuli_trial_mapping
+            trial_mapping = session.stimuli_trial_mapping
             # get the trial id from the mapping, keys are ids and values are strings
             trial_id = [
                 key for key, value in trial_mapping.items() if value == stimulus_name
@@ -1308,7 +1808,11 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier.
         :return: The question order version to correctly map participant, stimulus and question order versions.
         """
-        session_path = self.sessions[session_identifier].session_folder_path
+        if session_identifier in self.sessions:
+            session_path = self.sessions[session_identifier].session_folder_path
+        else:
+            session_path = self.skipped_sessions[session_identifier].session_folder_path
+
         logfile_path = Path(f"{session_path}/logfiles")
         general_logfile = logfile_path.glob("GENERAL_LOGFILE_*.txt")
         general_logfile = next(general_logfile)
@@ -1337,7 +1841,10 @@ class MultipleyeDataCollection:
         :param session_identifier: The session identifier.
         """
 
-        session_path = self.sessions[session_identifier].session_folder_path
+        if session_identifier in self.sessions:
+            session_path = self.sessions[session_identifier].session_folder_path
+        else:
+            session_path = self.skipped_sessions[session_identifier].session_folder_path
         logfile_folder = Path(f"{session_path}/logfiles")
 
         assert logfile_folder.exists(), (
@@ -1365,35 +1872,17 @@ class MultipleyeDataCollection:
     def _load_session_completed_stimuli(
         self, session_identifier
     ) -> tuple[list, list, dict]:
-        session_path = self.sessions[session_identifier].session_folder_path
+        if session_identifier in self.sessions:
+            session_path = self.sessions[session_identifier].session_folder_path
+        else:
+            session_path = self.skipped_sessions[session_identifier].session_folder_path
+
         logfile_folder = Path(f"{session_path}/logfiles")
         completed_stim_path = logfile_folder / "completed_stimuli.csv"
 
         completed_stimuli = pl.read_csv(completed_stim_path, separator=",")
 
         p_id = Sid(session_identifier).pid
-
-        # load trial to stimulus mapping
-        trial_ids = completed_stimuli["trial_id"].to_list()
-        # sometimes there are None values in the trial ids if a session was interrupted. Those are excluded for this step
-        if None in trial_ids:
-            trial_ids.remove(None)
-
-        for trial in trial_ids:
-            if trial == "PRACTICE_1":
-                trial_ids[trial_ids.index(trial)] = "PRACTICE_trial_1"
-            elif trial == "PRACTICE_2":
-                trial_ids[trial_ids.index(trial)] = "PRACTICE_trial_2"
-            else:
-                try:
-                    trial_ids[trial_ids.index(trial)] = f"trial_{int(trial)}"
-                except TypeError:
-                    pass  # trial id already in the target format, leave as-is
-
-        stimulus_names = completed_stimuli["stimulus_name"].to_list()
-        stimuli_trial_mapping = {
-            str(trial): name for trial, name in zip(trial_ids, stimulus_names)
-        }
 
         if completed_stimuli["completed"].cast(pl.Utf8).str.contains("restart").any():
             if p_id not in self.crashed_session_ids:
@@ -1405,79 +1894,128 @@ class MultipleyeDataCollection:
             completed_stimuli = completed_stimuli[:-1]
 
         completed_stimuli = completed_stimuli.cast({"completed": pl.Int8})
-        completed_stimuli_ids = completed_stimuli.filter(
+        # Only completed stimuli are considered, so the trial->stimulus mapping and
+        # the completed stimulus ids always describe the same set of trials.
+        completed_stimuli = completed_stimuli.filter(
             completed_stimuli["completed"] == 1
-        )["stimulus_id"].to_list()
+        )
+
+        completed_stimuli_ids = completed_stimuli["stimulus_id"].to_list()
+        stimulus_names = completed_stimuli["stimulus_name"].to_list()
         # get completed stimuli completes names, i.e. name + id
-        completed_stimulus_names = completed_stimuli["stimulus_name"].to_list()
         completed_stimulus_names = [
             str(name) + "_" + str(stim_id)
-            for name, stim_id in zip(completed_stimulus_names, completed_stimuli_ids)
+            for name, stim_id in zip(stimulus_names, completed_stimuli_ids)
         ]
 
+        # load trial to stimulus mapping (completed stimuli only). Sometimes there
+        # are None values in the trial ids if a session was interrupted; those rows
+        # are excluded so the mapping stays aligned with the stimulus names.
+        stimulus_trial_pairs = [
+            (trial, name)
+            for trial, name in zip(
+                completed_stimuli["trial_id"].to_list(), stimulus_names
+            )
+            if trial is not None
+        ]
+
+        stimuli_trial_mapping = {}
+        for trial, name in stimulus_trial_pairs:
+            if trial == "PRACTICE_1":
+                trial = "PRACTICE_trial_1"
+            elif trial == "PRACTICE_2":
+                trial = "PRACTICE_trial_2"
+            else:
+                try:
+                    trial = f"trial_{int(trial)}"
+                except (TypeError, ValueError):
+                    pass  # trial id already in the target format, leave as-is
+            stimuli_trial_mapping[str(trial)] = name
+
         return completed_stimuli_ids, completed_stimulus_names, stimuli_trial_mapping
+
+    def _load_stim_order_versions(self, session_identifier: str) -> pd.DataFrame:
+        """Load the stimulus order versions CSV for a session's version folder.
+
+        Reads the ``stimulus_order_versions_*.csv`` from the stimulus directory
+        that applies to this session (resolved per PID).
+
+        Parameters
+        ----------
+        session_identifier : str
+            The session identifier.
+
+        Returns
+        -------
+        pd.DataFrame
+            The stimulus order versions as read from the CSV (including rows
+            without a participant ID).
+        """
+        stimulus_dir = self._resolve_stimulus_dir(session_identifier)
+        path = _ci_resolve(
+            stimulus_dir
+            / "config"
+            / f"stimulus_order_versions_{self.language}_{self.country}_{self.lab_number}.csv"
+        )
+        df = pd.read_csv(path)
+        # Do not drop rows with a null participant_id: the version-number
+        # fallback in _resolve_stim_order_version needs them (the PID match
+        # ignores nulls on its own). Filtering here made versions that are not
+        # yet assigned to a participant, for example a pilot, unresolvable.
+        return df
 
     def _load_session_stimulus_order(
         self, session_identifier, logfile_order_version: int
     ) -> list[int]:
-        # if the session crashed, only load the stimuli that were actually completed in that session
         p_id = Sid(session_identifier).pid
+
+        # Check whether an asc should be available for this session or not
+        if session_identifier in self.sessions:
+            asc_available = True
+        elif session_identifier in self.skipped_sessions:
+            asc_available = False
+        else:
+            raise KeyError(
+                f"{session_identifier} not in sessions or skipped_sessions of {self.data_collection_name}."
+            )
+
+        # if the session crashed, only load the stimuli that were actually completed in that session
         incomplete_order = []
         if p_id in self.crashed_session_ids:
-            incomplete_order = self.sessions[session_identifier].completed_stimuli_ids
+            if asc_available:
+                incomplete_order = self.sessions[
+                    session_identifier
+                ].completed_stimuli_ids
+            else:
+                incomplete_order = self.skipped_sessions[
+                    session_identifier
+                ].completed_stimuli_ids
+
+        stim_order_versions = self._load_stim_order_versions(session_identifier)
 
         # get the entry where the participant id matches
-        stim_order_version = self.stim_order_versions[
-            self.stim_order_versions["participant_id"] == int(p_id)
+        stim_order_version = stim_order_versions[
+            stim_order_versions["participant_id"] == int(p_id)
         ]
 
         if stim_order_version.empty:
-            self.logger.warning(
-                f"Participant ID {p_id} not found in stimulus order versions. Please check the "
-                f"participant IDs in the stimulus order versions file. It is possible that the team did not "
-                f"upload the correct stimulus version from the experiment folder. Extracting version "
-                f"from asc file."
+            # stimulus order couldn't be found from participant ID, use version number instead
+            stim_order_version = self._resolve_stim_order_version(
+                session_identifier,
+                p_id,
+                logfile_order_version,
+                asc_available,
+                stim_order_versions=stim_order_versions,
             )
-            version = extract_stimulus_version_number_from_asc(
-                self.sessions[session_identifier].asc_path
-            )
-
-            version = int(version)
-
-            if version == logfile_order_version:
-                # Try to look up the stimulus order by version number instead
-                # of participant ID, since the PID wasn't found in the CSV.
-                stim_order_version = self.stim_order_versions[
-                    self.stim_order_versions["version_number"] == version
-                ]
-
-                if stim_order_version.empty:
-                    raise ValueError(
-                        f"Stimulus order version {version} extracted from the ASC file "
-                        f"cannot be found in the stimulus order versions CSV. "
-                        f"The team should upload the correct stimulus folder."
-                    )
-
-                self.logger.warning(
-                    "Using the stimulus order version from the ASC file. "
-                    "The team should still upload the correct stimulus folder!"
-                )
-
-            else:
-                self.logger.warning(
-                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                    f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
-                    f"Please check the files "
-                    f"carefully."
-                )
 
         if len(stim_order_version) == 1:
+            # version number could be retrieved and is unique in csv. Retrieve completed stimuli
             version = stim_order_version["version_number"].values[0]
             if logfile_order_version != version:
+                # If pid found and unique in csv, but number doesn't match the logfile version number
                 self.logger.warning(
                     f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
-                    f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the "
-                    f"version from the logfile."
+                    f"in the stimulus order versions file ({version}) for participant ID {p_id}. Using the number from the csv."
                 )
             stimulus_order = (
                 stim_order_version.drop(columns=["version_number", "participant_id"])
@@ -1486,6 +2024,7 @@ class MultipleyeDataCollection:
             )
 
             if incomplete_order:
+                # only collect completed stimuli for crashed sessions
                 stimulus_order_copy = stimulus_order.copy()
                 incom, comp = 0, 0
                 for _ in range(len(stimulus_order)):
@@ -1517,6 +2056,83 @@ class MultipleyeDataCollection:
                 f"More than one or no entry found for participant ID {p_id} in stimulus order versions. "
                 f"Please add the used stimulus folder from the experiment. Or check the stimulus order versions file for missing IDs or duplicates."
             )
+
+    def _warn_stim_order_missing(self, p_id: int) -> None:
+        """Loudly warn that the participant ID is missing from the stimulus order CSV."""
+        message = (
+            f"Participant ID {p_id} not found in stimulus order versions. Please check the "
+            f"participant IDs in the stimulus order versions file. It is possible that the team did not "
+            f"upload the correct stimulus version from the experiment folder. Extracting from asc or logfile. "
+            f"Gaze data may be mapped to the wrong stimuli/AOIs. Please verify that the stimulus folder "
+            f"contains the exact stimuli that were presented to this participant."
+        )
+        banner = "-" * (len(message) + len("WARNING: "))
+        print(f"\n{banner}\nWARNING: {message}\n{banner}", file=sys.stderr)
+        self.logger.warning(message)
+
+    def _resolve_stim_order_version(
+        self,
+        session_identifier,
+        p_id: int,
+        logfile_order_version: int,
+        asc_available: bool,
+        stim_order_versions: pd.DataFrame | None = None,
+    ) -> pd.DataFrame:
+        """Resolve the stimulus-order row when the participant ID is not in the CSV.
+
+        Falls back to the version embedded in the ASC file (or the logfile for sessions
+        without an ASC), then looks the version up by ``version_number``.
+
+        Parameters
+        ----------
+        stim_order_versions : pd.DataFrame | None
+            The stimulus-order CSV to search. Defaults to the collection-level
+            ``self.stim_order_versions``; pass the per-session frame when stimulus
+            content versions are configured.
+
+        Raises
+        ------
+        ValueError
+            If the ASC version disagrees with the logfile version, or if the resolved
+            version cannot be found in the stimulus order versions CSV.
+        """
+        if stim_order_versions is None:
+            stim_order_versions = self.stim_order_versions
+
+        self._warn_stim_order_missing(p_id)
+
+        if asc_available:
+            version = int(
+                extract_stimulus_version_number_from_asc(
+                    self.sessions[session_identifier].asc_path
+                )
+            )
+            if version != logfile_order_version:
+                raise ValueError(
+                    f"Stimulus order version in logfile ({logfile_order_version}) does not match the version "
+                    f"extracted from the asc file ({version}) for participant ID {p_id}. OR no version found in asc file. "
+                    f"Please check the files carefully."
+                )
+        else:
+            # For skipped sessions, no asc file is available so we depend on the version number from the logfile
+            version = logfile_order_version
+
+        stim_order_version = stim_order_versions[
+            stim_order_versions["version_number"] == version
+        ]
+
+        if stim_order_version.empty:
+            raise ValueError(
+                f"Stimulus order version {version} extracted from the ASC file or logfile "
+                f"cannot be found in the stimulus order versions CSV. "
+                f"The team should upload the correct stimulus folder."
+            )
+
+        self.logger.warning(
+            "Using the stimulus order version from the ASC or logfile. "
+            "The team should still upload the correct stimulus folder!"
+        )
+        return stim_order_version
 
     def _create_empty_rt_frame(self, session_identifier: str) -> pl.DataFrame:
         session = self.sessions[session_identifier]
@@ -1778,12 +2394,14 @@ class MultipleyeDataCollection:
             reading_times = reading_times_dict
 
         total_reading_duration_ms = 0
+        negative_spans: list[str] = []
 
         for start, stop in zip(reading_times["start_ts"], reading_times["stop_ts"]):
-            time_ms = int(float(stop)) - int(float(start))
-            time_str = convert_to_time_str(time_ms)
+            time_ms, was_negative = _reading_span_ms(start, stop)
+            if was_negative:
+                negative_spans.append(f"{start}->{stop}")
             reading_times["duration_ms"].append(time_ms)
-            reading_times["duration_str"].append(time_str)
+            reading_times["duration_str"].append(convert_to_time_str(time_ms))
             total_reading_duration_ms += time_ms
 
         # calculate duration between pages
@@ -1798,10 +2416,11 @@ class MultipleyeDataCollection:
             reading_times["pages"],
             reading_times["trials"],
         ):
-            time_ms = int(float(start)) - int(float(stop))
-            time_str = convert_to_time_str(time_ms)
+            time_ms, was_negative = _reading_span_ms(stop, start)
+            if was_negative:
+                negative_spans.append(f"{stop}->{start}")
             reading_times["duration_ms"].append(time_ms)
-            reading_times["duration_str"].append(time_str)
+            reading_times["duration_str"].append(convert_to_time_str(time_ms))
             reading_times["start_msg"].append("time inbetween")
             reading_times["stop_msg"].append("time inbetween")
             reading_times["start_ts"].append(stop)
@@ -1843,15 +2462,15 @@ class MultipleyeDataCollection:
             sep="\t",
             index=False,
         )
-        sum_df = df[
-            ["stimulus", "trial", "type", "duration_ms", "start_ts", "stop_ts"]
-        ].dropna()
-        sum_df["duration_ms"] = sum_df["duration_ms"].astype(float)
-        sum_df = (
-            sum_df.groupby(by=["stimulus", "trial", "type"])
-            .agg({"duration_ms": "sum", "start_ts": "min", "stop_ts": "max"})
-            .reset_index()
-        )
+        if negative_spans:
+            self.logger.warning(
+                "Clamped %d negative reading-time span(s) to 0 for %s "
+                "(for example %s). Check the order of the ASC start/stop messages.",
+                len(negative_spans),
+                session_identifier,
+                ", ".join(negative_spans[:3]),
+            )
+        sum_df = _summarize_reading_times(df)
         duration = sum_df["duration_ms"].apply(lambda x: convert_to_time_str(x))
         sum_df["duration-hh:mm:ss"] = duration
 
@@ -1861,13 +2480,9 @@ class MultipleyeDataCollection:
             sep="\t",
         )
 
-        start_end_per_stimulus = sum_df[
-            ["stimulus", "trial", "start_ts", "stop_ts"]
-        ].dropna()[~sum_df["type"].str.contains("time before")]
+        start_end_per_stimulus = _build_stimulus_start_end_ts(sum_df)
 
-        self.sessions[
-            session_identifier
-        ].stimulus_start_end_ts = start_end_per_stimulus.to_dict(orient="records")
+        self.sessions[session_identifier].stimulus_start_end_ts = start_end_per_stimulus
 
         total_times = pd.DataFrame(
             {
@@ -2143,72 +2758,19 @@ class MultipleyeDataCollection:
 
         plot_main_sequence(gaze.events, plot_dir)
 
+        # Clone/unnest the gaze and index pages once, instead of per stimulus.
+        data, samples_by_key, events_by_key = build_page_frames(gaze)
+
         for stimulus in stimuli:
-            plot_gaze(gaze, stimulus, plot_dir, aoi_image=aoi)
-
-    def parse_participant_data(self, path: Path | str) -> None:
-        """
-        Load the participant data for all participants.
-        """
-
-        participant_data = pd.DataFrame()
-
-        for idx, session in (
-            pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))
-        ):
-            pbar.set_description(f"Parsing participant data {session}")
-
-            try:
-                sid = Sid(session)
-                participant_id = sid.pid
-                session_id = sid.session
-                notes = sid.notes
-            except (ValueError, TypeError):
-                logging.warning(
-                    f"Session {session} does not match the expected format."
-                )
-                continue
-
-            folder = Path(self.sessions[session].session_folder_path)
-
-            pq_file = folder / f"{sid.base_id}_pq_data.json"
-            if pq_file.exists():
-                with open(pq_file, encoding="utf-8") as f:
-                    data = json.load(f)
-
-                # due to a bug in an earlier version of the experiment, some of the participant data has been lost,
-                # and we need to correct it
-                if "native_language_1_academic_reading_time" not in data:
-                    data = remap_wrong_pq_values(data)
-
-                data["participant_id"] = participant_id
-                data["notes"] = notes
-                data["session"] = session_id
-
-                participant_data = pd.concat(
-                    [participant_data, pd.DataFrame(data, index=[idx])],
-                    ignore_index=True,
-                )
-
-            else:
-                logging.warning(
-                    f"No participant data found for session {session}. Skipping."
-                )
-
-        # reorder columns such that participant_id is the first column
-        if not participant_data.empty:
-            cols = participant_data.columns.tolist()
-            cols = ["participant_id"] + [col for col in cols if col != "participant_id"]
-            participant_data = participant_data[cols]
-
-            if not path:
-                self.participant_data_path = (
-                    self.data_root.parent / "participant_data.csv"
-                )
-            else:
-                self.participant_data_path = path
-
-            participant_data.to_csv(self.participant_data_path, index=False)
+            plot_gaze(
+                gaze,
+                stimulus,
+                plot_dir,
+                aoi_image=aoi,
+                data=data,
+                samples_by_key=samples_by_key,
+                events_by_key=events_by_key,
+            )
 
 
 if __name__ == "__main__":

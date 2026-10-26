@@ -14,6 +14,7 @@ from pymovements.events import Events
 from ..config import settings
 from ..data_collection.stimulus import LabConfig
 from ..models.sid import Sid
+from .validation import validate_asc_parsing
 
 
 def _blink_loss_table(
@@ -142,6 +143,8 @@ def load_gaze_data(
         gaze._metadata.get("sampling_rate", 1000.0),
     )
     trial_cols = gaze.trial_columns or ["trial", "stimulus", "page"]
+
+    validate_asc_parsing(gaze, session_id=str(sid))
 
     if gaze.events is not None and not gaze.events.frame.is_empty():
         # Use transforms.events2timeratio directly with trial_columns=None

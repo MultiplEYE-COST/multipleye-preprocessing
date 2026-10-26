@@ -92,6 +92,23 @@ def test_create_overview_includes_new_fields() -> None:
     assert dq["session_blink_loss_ratio"] is None
 
 
+def test_create_overview_includes_stimulus_content_version() -> None:
+    sess = _make_session()
+    sess.stimulus_content_version = "v1"
+
+    overview = sess.create_overview()
+
+    assert overview["experiment_procedure"]["stimulus_content_version"] == "v1"
+
+
+def test_create_overview_stimulus_content_version_defaults_to_unknown() -> None:
+    sess = _make_session()
+
+    overview = sess.create_overview()
+
+    assert overview["experiment_procedure"]["stimulus_content_version"] == "unknown"
+
+
 def test_create_overview_includes_measure_based_data_loss() -> None:
     sess = _sess_with_validation_data()
     sess._measure_total_data_loss_ratio = 0.015
@@ -126,6 +143,7 @@ def test_sections_are_present() -> None:
 
     assert list(overview.keys()) == [
         "administrative",
+        "participant",
         "technical_setup",
         "tracking",
         "calibration_validation",
@@ -756,6 +774,29 @@ def test_reading_time_non_positive_total() -> None:
     assert proc["total_reading_time_s"] == "unknown"
 
 
+def test_reading_time_clamps_negative_spans() -> None:
+    sess = _sess_with_validation_data()
+    sess.stimulus_start_end_ts = [
+        {"stimulus": "a", "trial": "trial_1", "start_ts": 1000.0, "stop_ts": 4000.0},
+        {"stimulus": "b", "trial": "trial_2", "start_ts": 9000.0, "stop_ts": 5000.0},
+    ]
+
+    overview = sess.create_overview()
+    proc = overview["experiment_procedure"]
+
+    assert proc["total_reading_time_s"] == 3.0
+
+
+def test_reading_time_by_trial_clamps_negative_spans() -> None:
+    sess = _sess_with_validation_data()
+    sess.stimulus_start_end_ts = [
+        {"stimulus": "a", "trial": "trial_1", "start_ts": 1000.0, "stop_ts": 4000.0},
+        {"stimulus": "b", "trial": "trial_1", "start_ts": 9000.0, "stop_ts": 5000.0},
+    ]
+
+    assert sess._reading_time_by_trial() == {"trial_1": 3000.0}
+
+
 def test_reading_time_already_set() -> None:
     sess = _sess_with_validation_data()
     sess.total_reading_time = 42.0
@@ -934,3 +975,36 @@ def test_trials_unknown_without_usable_answers(
         trials = sess.create_overview()["trials"]
 
     assert trials == "unknown"
+
+
+def test_trials_skip_group_with_missing_stimulus_id(tmp_path: Path) -> None:
+    """A trial whose representative row has no stimulus_id is skipped, not crashed."""
+    answers_dir = _write_answers(
+        tmp_path,
+        [
+            {
+                "trial": "trial_1",
+                "stimulus": "Lit_MagicMountain",
+                "stimulus_id": 3,
+                "is_correct": True,
+            },
+            {
+                "trial": "trial_2",
+                "stimulus": "Unknown_Stim_2",
+                "stimulus_id": None,
+                "is_correct": True,
+            },
+        ],
+    )
+    sess = _trial_sess(answers_dir)
+
+    with patch.object(
+        Session,
+        "sid",
+        property(lambda self: _FakeSid(answers_dir)),
+    ):
+        trials = sess.create_overview()["trials"]
+
+    assert isinstance(trials, list)
+    assert [t["trial_number"] for t in trials] == [1]
+    assert trials[0]["stimulus_id"] == 3
