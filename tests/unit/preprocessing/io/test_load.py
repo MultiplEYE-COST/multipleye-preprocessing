@@ -208,6 +208,25 @@ def test_load_gaze_data_validates_parsed_asc(synthetic_asc, lab_config):
     assert mock_validate.call_args.kwargs["session_id"] == "001_SV_CH_Zurich_S1_ET1"
 
 
+@pytest.mark.filterwarnings("ignore")
+def test_load_gaze_data_stores_session_id_as_metadata(synthetic_asc, lab_config):
+    """The session identifier is stored as metadata, not as a sample column.
+
+    It is constant for the whole session and no code reads a ``session`` column,
+    so passing it via ``add_columns`` only duplicated it across all samples.
+    """
+    sid = Sid("001_SV_CH_Zurich_S1_ET1")
+
+    gaze = load_gaze_data(
+        asc_file=synthetic_asc,
+        lab_config=lab_config,
+        sid=sid,
+    )
+
+    assert gaze.metadata["session"] == str(sid)
+    assert "session" not in gaze.samples.columns
+
+
 def test_blink_loss_ratio_is_scalar_with_trial_columns():
     import pymovements as pm
     from pymovements import transforms
