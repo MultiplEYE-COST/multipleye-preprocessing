@@ -53,6 +53,12 @@ def main():
     # the collection folder only. Set to False to keep them.
     del_hidden = True
 
+    #Change pids for psychometric test sessions to match the eyetracking counterpart
+    pid_dict = {
+        "099_ZH_CN_1_PT1": 999,
+        "098_ZH_CN_1_PT1": 998,
+    }
+
     
 
     # EXECUTION OF COMMON OPERATIONS AND SPACE FOR EXTRA FREE CODE
@@ -75,14 +81,13 @@ def main():
         # Restructure psychometric folder
         from preprocessing.scripts.restructure_psychometric_tests import fix_psychometric_tests_structure
         output_folder = Path(r"psychometric-tests-sessions")
-        data_folder = output_folder / "data_final"
-        config_folder = data_folder / "participant_configs_ZH_CN_1"
+        #data_folder = output_folder / "data_final"
+        #config_folder = data_folder / "participant_configs_ZH_CN_1"
 
-        fix_psychometric_tests_structure(config_folder, data_folder, output_folder)
+        #fix_psychometric_tests_structure(config_folder, data_folder, output_folder)
 
-        old_session_id = "099_ZH_CN_1_PT1"
-        old_pid = 99
-        new_pid = 999
+        #Change pids for psychometric test sessions
+        change_psychometric_pid(output_folder, pid_dict)
 
 
 
@@ -216,6 +221,7 @@ def edit_order_csv(
 
     return
 
+
 def _change_pid_in_csv(file: Path, new_pid:int):
     df = pl.read_csv(file)
     if "participant_id" in df:
@@ -229,6 +235,25 @@ def _change_pid_in_csv(file: Path, new_pid:int):
 
     return
 
+def change_psychometric_pid(psych_path: Path, input_dict: dict):
+    tests = ["PLAB", "RAN", "Stroop_Flanker", "WikiVocab", "WMC"]
+    for session_id, new_pid in input_dict.items():
+        old_pid = int(session_id[:3])
+        lang = session_id[4:6]
+        country = session_id[7:9]
+        session_no = int(session_id[10])
+        subfolder = psych_path / session_id
+
+        #Change pids in psychometric csvs
+        for test in tests:
+            testfolder = subfolder / test
+            for f in os.listdir(testfolder):
+                if f.endswith(".csv"):
+                    print(f"Changing {old_pid} to {new_pid} in {f}")
+                    f_path = testfolder / f
+                    _change_pid_in_csv(f_path, new_pid)
+
+        #TODO Change filenames
 
 
 
