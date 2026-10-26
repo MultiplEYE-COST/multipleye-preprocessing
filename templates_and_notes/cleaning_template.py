@@ -21,6 +21,12 @@ def main():
     # session folders and no longer extracts archives itself.
     unzip_dic = {
         # Path("relative_zip_path"):Path("relative_goal_directory"),  #COMMENT FOR DOCUMENTATION
+        # Psychometric test exports may ship as a zip with a task-first layout.
+        # Extract to a staging directory, rename the inner folder to core_data/
+        # (see move_rename_dic), then restructure it into session-first folders
+        # (see the extra-code block below). Archive and folder names are
+        # collection-specific; keep them in the collection's copy of this script.
+        # Path("psychometric-tests-sessions/<export>.zip"): Path("_extract_pt"),
     }
 
     # Dictionary for unnesting. Keys: Directories to be unnested, Values: Directories to unnest to
@@ -31,6 +37,7 @@ def main():
     # Dictionary for moving and renaming. Keys: Old Paths, Values: New Paths.
     move_rename_dic = {
         # Path("relative_old_path"):Path("relative_new_path"),   #COMMENT FOR DOCUMENTATION
+        # Path("_extract_pt/<inner_folder>"): Path("psychometric-tests-sessions/core_data"),
     }
 
     # Stim order versions csv to be edited and order version dic with version numbers and pids to be assigned. Keys: version numbers, Values: what to write into the participant_id column
@@ -42,6 +49,7 @@ def main():
     # List for all paths to files and directories to be deleted.
     del_list = [
         # Path(r"tobedeleted"),  #CPMMENT FOR DOCUMENTATION
+        # Path("_extract_pt"),
     ]
 
     # Recursively delete hidden files/directories (names starting with "."),
@@ -56,6 +64,9 @@ def main():
         print("=" * 60)
         print(f"Cleaning folder {os.getcwd()}")
         print("=" * 60)
+        # unzip_files does not create its target directory. If you use a staging
+        # directory in unzip_dic, create it before unpacking:
+        # Path("_extract_pt").mkdir(exist_ok=True)
         unzip_files(unzip_dic)
         move_rename_files(move_rename_dic)
         unnest(unnest_dic)
@@ -65,6 +76,17 @@ def main():
             del_hidden_files()
 
         # SPACE FOR FURTHER CODE TO BE EXECUTED IN THE FOLDER
+
+        # Restructure a task-first psychometric-test export into session-first
+        # folders. Uncomment and adapt after extracting the archive.
+        # from preprocessing.scripts.restructure_psychometric_tests import (
+        #     fix_psychometric_tests_structure,
+        # )
+        # fix_psychometric_tests_structure(
+        #     config_folder=Path("psychometric-tests-sessions/participant_configs"),
+        #     data_folder=Path("psychometric-tests-sessions/core_data"),
+        #     out_folder=Path("psychometric-tests-sessions"),
+        # )
 
         print("=" * 60)
         print("Done Cleaning")
