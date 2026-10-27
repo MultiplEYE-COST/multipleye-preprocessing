@@ -84,6 +84,7 @@ def test_create_overview_includes_new_fields() -> None:
     cal = overview["calibration_validation"]
     assert cal["calibration_quality"] == "unknown"
     assert cal["validation_quality"] == "unknown"
+    assert cal["final_validation_score_dva"] == "unknown"
     assert cal["num_aborted_validations"] == 0
     assert cal["num_good_validations"] == 1
     assert cal["num_moderate_validations"] == 1
@@ -1125,3 +1126,176 @@ def test_quality_lines_fall_back_to_asc(tmp_path: Path) -> None:
 
     assert cal["calibration_quality"] == "GOOD"
     assert cal["validation_quality"] == "FAIR"
+
+
+# --- Final validation score ---
+
+
+def _final_validation_session(
+    *,
+    message_time: float | None = 450.0,
+    final_trial_stop: float = 400.0,
+    validation_times: list[float] | None = None,
+    accuracy: list[float | None] | None = None,
+    calibration_times: list[float] | None = None,
+) -> Session:
+    """Build a session with an experiment trial, final_validation, and validations."""
+    sess = _make_session()
+    _seed_metadata(sess)
+    sess.stimulus_start_end_ts = [
+        {
+            "stimulus": "practice",
+            "trial": "PRACTICE_trial_1",
+            "start_ts": 50.0,
+            "stop_ts": 100.0,
+        },
+        {"stimulus": "a", "trial": "trial_1", "start_ts": 200.0, "stop_ts": 300.0},
+        {
+            "stimulus": "b",
+            "trial": "trial_2",
+            "start_ts": 320.0,
+            "stop_ts": final_trial_stop,
+        },
+    ]
+
+    times = [600.0]
+    contents = ["show_final_screen"]
+    if message_time is not None:
+        times.insert(0, message_time)
+        contents.insert(0, "final_validation")
+    sess.messages = pl.DataFrame({"time": times, "content": contents})
+
+    if validation_times is not None:
+        accuracy = accuracy if accuracy is not None else [0.5] * len(validation_times)
+        sess.validations = pl.DataFrame(
+            {
+                "time": validation_times,
+                "accuracy_avg": accuracy,
+                "accuracy_max": [0.7] * len(validation_times),
+                "eye": ["right"] * len(validation_times),
+            }
+        )
+
+    sess.calibrations = pl.DataFrame({"time": calibration_times or [50.0]})
+    return sess
+
+
+def test_final_validation_score_after_final_trial() -> None:
+    sess = _final_validation_session(
+        message_time=450.0,
+        final_trial_stop=400.0,
+        validation_times=[300.0, 480.0],
+        accuracy=[0.9, 0.57],
+        calibration_times=[50.0],
+    )
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["final_validation_score_dva"] == 0.57
+
+
+def test_final_validation_score_averages_eyes_of_final_validation() -> None:
+    sess = _final_validation_session(
+        message_time=450.0,
+        validation_times=[480.0, 480.0],
+        accuracy=[0.5, 0.7],
+    )
+    sess.validations = sess.validations.with_columns(
+        pl.Series("eye", ["left", "right"])
+    )
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["final_validation_score_dva"] == 0.6
+
+
+def test_final_validation_score_unknown_without_final_validation_message() -> None:
+    sess = _final_validation_session(
+        message_time=None,
+        validation_times=[480.0],
+        accuracy=[0.57],
+    )
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["final_validation_score_dva"] == "unknown"
+
+
+def test_final_validation_score_unknown_with_calibration_between() -> None:
+    sess = _final_validation_session(
+        message_time=450.0,
+        final_trial_stop=400.0,
+        validation_times=[480.0],
+        accuracy=[0.57],
+        calibration_times=[50.0, 420.0],
+    )
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["final_validation_score_dva"] == "unknown"
+
+
+def test_final_validation_score_unknown_without_validations() -> None:
+    sess = _final_validation_session(message_time=450.0, validation_times=None)
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["final_validation_score_dva"] == "unknown"
+
+
+def test_final_validation_score_unknown_without_validation_score() -> None:
+    sess = _final_validation_session(
+        message_time=450.0,
+        validation_times=[480.0],
+        accuracy=[None],
+    )
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["final_validation_score_dva"] == "unknown"
+
+
+def test_final_validation_score_unknown_when_validation_precedes_message() -> None:
+    sess = _final_validation_session(
+        message_time=450.0,
+        validation_times=[300.0],
+        accuracy=[0.57],
+    )
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["final_validation_score_dva"] == "unknown"
+
+
+def test_final_validation_score_unknown_without_final_trial_end() -> None:
+    sess = _final_validation_session(
+        message_time=450.0,
+        validation_times=[480.0],
+        accuracy=[0.57],
+    )
+    sess.stimulus_start_end_ts = "unknown"
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["final_validation_score_dva"] == "unknown"
+
+
+# --- Mount short name ---
+
+
+def test_mount_short_name_present() -> None:
+    sess = _sess_with_validation_data()
+    sess.pm_gaze_metadata["mount_configuration"]["short_name"] = "BTABLER"
+
+    tech = sess.create_overview()["technical_setup"]
+
+    assert tech["mount_short_name"] == "BTABLER"
+    assert tech["mount_type"] == "Desktop"
+
+
+def test_mount_short_name_absent() -> None:
+    sess = _sess_with_validation_data()
+
+    tech = sess.create_overview()["technical_setup"]
+
+    assert tech["mount_short_name"] is None

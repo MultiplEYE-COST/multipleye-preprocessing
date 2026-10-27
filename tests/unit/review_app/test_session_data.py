@@ -75,9 +75,12 @@ def test_check_registry_covers_expected_fields() -> None:
     assert "num_calibrations" in fields
     assert "num_validations" in fields
     assert "avg_validation_error_dva" in fields
+    assert "final_validation_score_dva" in fields
     assert "calibration_quality" in fields
     assert "validation_quality" in fields
     assert "num_aborted_validations" in fields
+    assert "mount_type" in fields
+    assert "mount_short_name" in fields
     assert "session_total_data_loss_ratio" in fields
     assert "session_blink_loss_ratio" in fields
     assert "tracked_eye" in fields
