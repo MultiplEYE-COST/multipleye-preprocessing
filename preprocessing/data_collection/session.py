@@ -1,5 +1,6 @@
 import re
 import warnings
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TypeVar
@@ -36,6 +37,14 @@ _QUALITY_LINE_REGEX = re.compile(r"!CAL\s+(?:CALIBRATION|VALIDATION)", re.IGNORE
 _FINAL_VALIDATION_MSG_REGEX = re.compile(r"^\s*final_validation\s*$", re.IGNORECASE)
 _CALIBRATION_MSG_REGEX = re.compile(r"!CAL\s+CALIBRATION\b", re.IGNORECASE)
 _EXPERIMENT_TRIAL_REGEX = re.compile(r"^trial_\d+$")
+_EYELINK_FILTER_RECORD_REGEX = re.compile(
+    r"^\s*(?P<record>EVENTS|SAMPLES)\b",
+    re.IGNORECASE,
+)
+_EYELINK_FILTER_VALUE_REGEX = re.compile(
+    r"\bFILTER\s+(?P<value>\S+)",
+    re.IGNORECASE,
+)
 
 
 def _parse_rating_option(key: object) -> int | None:
@@ -314,6 +323,7 @@ class Session:
             "head_stabilization": mount.get("head_stabilization"),
             "eyes_recorded": mount.get("eyes_recorded"),
             "pupil_data_type": self._get_metadata("pupil_data_type"),
+            "eyelink_filters": self._eyelink_filters(),
             "dominant_eye": dominant_eye,
             "dominant_eye_test": dominant_eye_test,
             "screen_resolution_width_px": screen_res_w,
@@ -433,6 +443,60 @@ class Session:
         max_t = max(times)
         return round((max_t - min_t) / 1000, 3)
 
+    def _asc_lines(self, predicate: Callable[[str], bool]) -> list[str]:
+        """Return ASC lines that match *predicate*, or an empty list.
+
+        Missing paths and unreadable files yield an empty list so callers do
+        not need to handle file errors themselves.
+        """
+        path = self.asc_path
+        if not isinstance(path, (str, Path)) or str(path) == "unknown":
+            return []
+        asc = Path(path)
+        if not asc.exists():
+            return []
+        try:
+            with open(asc, encoding="utf-8", errors="ignore") as f:
+                return [line for line in f if predicate(line)]
+        except OSError:
+            return []
+
+    def _eyelink_filters(self) -> dict[str, list[int]]:
+        """Return the EyeLink recording filters parsed from the ASC file.
+
+        EyeLink writes one ``EVENTS`` and one ``SAMPLES`` line per recording
+        block, optionally ending in ``FILTER <n>``. Values are collected over
+        all recording blocks, deduplicated and sorted. A malformed filter value
+        is skipped with a warning so one bad line does not fail the session.
+        Sessions without an ASC file or filter lines return empty lists.
+
+        Returns
+        -------
+        dict[str, list[int]]
+            Mapping with sorted distinct integer values under ``events`` and
+            ``samples``.
+        """
+        filters: dict[str, set[int]] = {"events": set(), "samples": set()}
+        for line in self._asc_lines(
+            lambda line: bool(_EYELINK_FILTER_RECORD_REGEX.match(line))
+        ):
+            record = _EYELINK_FILTER_RECORD_REGEX.match(line)
+            if record is None:
+                continue
+            key = "events" if record.group("record").upper() == "EVENTS" else "samples"
+            value = _EYELINK_FILTER_VALUE_REGEX.search(line)
+            if value is None:
+                continue
+            raw_value = value.group("value")
+            try:
+                filters[key].add(int(raw_value))
+            except ValueError:
+                logger.warning(
+                    f"Could not parse EyeLink {key} FILTER value {raw_value!r} "
+                    f"in {self.asc_path}."
+                )
+        return {key: sorted(values) for key, values in filters.items()}
+
     def _quality_message_lines(self) -> list[str]:
         """Return lines carrying EyeLink calibration or validation grades.
 
@@ -457,17 +521,7 @@ class Session:
             if any(_QUALITY_LINE_REGEX.search(line) for line in lines):
                 return lines
 
-        path = self.asc_path
-        if not isinstance(path, (str, Path)) or str(path) == "unknown":
-            return []
-        asc = Path(path)
-        if not asc.exists():
-            return []
-        try:
-            with open(asc, encoding="utf-8", errors="ignore") as f:
-                return [line for line in f if "!CAL" in line]
-        except OSError:
-            return []
+        return self._asc_lines(lambda line: "!CAL" in line)
 
     def _compute_calibration_quality(self, lines: list[str] | None = None) -> str:
         """Return the calibration quality flag from the ASC messages or file.

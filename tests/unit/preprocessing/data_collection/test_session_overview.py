@@ -1267,6 +1267,73 @@ def test_overview_includes_calibration_quality(tmp_path: Path) -> None:
     assert cal["calibration_quality"] == "GOOD"
 
 
+def _eyelink_filters_from_asc(tmp_path: Path, content: str) -> dict[str, list[int]]:
+    asc = tmp_path / "session.asc"
+    asc.write_text(content, encoding="utf-8")
+    sess = _make_session()
+    sess.asc_path = asc
+    return sess.create_overview()["technical_setup"]["eyelink_filters"]
+
+
+def test_eyelink_filters_deduplicates_repeated_values(tmp_path: Path) -> None:
+    filters = _eyelink_filters_from_asc(
+        tmp_path,
+        "EVENTS\tGAZE\tRIGHT\tRATE\t1000.00\tTRACKING\tCR\tFILTER\t2\n"
+        "SAMPLES\tGAZE\tRIGHT\tRATE\t1000.00\tTRACKING\tCR\tFILTER\t2\n"
+        "EVENTS\tGAZE\tRIGHT\tRATE\t1000.00\tTRACKING\tCR\tFILTER\t2\n"
+        "SAMPLES\tGAZE\tRIGHT\tRATE\t1000.00\tTRACKING\tCR\tFILTER\t2\n",
+    )
+
+    assert filters == {"events": [2], "samples": [2]}
+
+
+def test_eyelink_filters_sorts_distinct_values(tmp_path: Path) -> None:
+    filters = _eyelink_filters_from_asc(
+        tmp_path,
+        "EVENTS\tGAZE\tRIGHT\tRATE\t1000.00\tTRACKING\tCR\tFILTER\t2\n"
+        "SAMPLES\tGAZE\tRIGHT\tRATE\t1000.00\tTRACKING\tCR\tFILTER\t1\n"
+        "EVENTS\tGAZE\tRIGHT\tRATE\t1000.00\tTRACKING\tCR\tFILTER\t1\n"
+        "SAMPLES\tGAZE\tRIGHT\tRATE\t1000.00\tTRACKING\tCR\tFILTER\t0\n",
+    )
+
+    assert filters == {"events": [1, 2], "samples": [0, 1]}
+
+
+def test_eyelink_filters_empty_without_asc(tmp_path: Path) -> None:
+    expected = {"events": [], "samples": []}
+    sess = _make_session()
+
+    assert sess.create_overview()["technical_setup"]["eyelink_filters"] == expected
+
+    sess.asc_path = tmp_path / "missing.asc"
+    assert sess.create_overview()["technical_setup"]["eyelink_filters"] == expected
+
+
+def test_eyelink_filters_empty_without_filter_lines(tmp_path: Path) -> None:
+    filters = _eyelink_filters_from_asc(
+        tmp_path,
+        "EVENTS\tGAZE\tRIGHT\tRATE\t1000.00\tTRACKING\tCR\n"
+        "SAMPLES\tGAZE\tRIGHT\tRATE\t1000.00\tTRACKING\tCR\n"
+        "START\t1000\tLEFT\tSAMPLES\tEVENTS\n",
+    )
+
+    assert filters == {"events": [], "samples": []}
+
+
+def test_eyelink_filters_malformed_value_does_not_crash(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level("WARNING"):
+        filters = _eyelink_filters_from_asc(
+            tmp_path,
+            "EVENTS\tGAZE\tRIGHT\tRATE\t1000.00\tTRACKING\tCR\tFILTER\t2\n"
+            "SAMPLES\tGAZE\tRIGHT\tRATE\t1000.00\tTRACKING\tCR\tFILTER\ttwo\n",
+        )
+
+    assert filters == {"events": [2], "samples": []}
+    assert "FILTER value 'two'" in caplog.text
+
+
 def test_quality_fields_from_messages() -> None:
     sess = _sess_with_validation_data()
     sess.asc_path = "unknown"
