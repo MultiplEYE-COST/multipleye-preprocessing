@@ -1,6 +1,7 @@
 """Utilities for working with paths, session identifiers, and further data locations."""
 
 import fnmatch
+import json
 import os
 from pathlib import Path
 
@@ -12,7 +13,10 @@ from ..models.sid import Sid
 
 __all__ = [
     "check_data_collection_exists",
+    "find_metadata_form",
     "find_psychometric_config_files",
+    "legacy_metadata_form_path",
+    "load_metadata_form",
     "validate_psychometric_data",
 ]
 
@@ -64,6 +68,236 @@ def _ci_glob(directory: Path, pattern: str) -> list[Path]:
         for entry in entries
         if fnmatch.fnmatch(entry.casefold(), pattern_cf)
     ]
+
+
+def _metadata_form_stem(path: Path) -> str:
+    """Return a metadata-form filename without its extension or trailing spaces."""
+    name = path.name
+    if name.casefold().endswith(".json"):
+        name = name[:-5]
+    return name.rstrip()
+
+
+def legacy_metadata_form_path(
+    documentation_dir: Path,
+    language: str | None,
+    country: str | None,
+    city: str | None,
+    lab_number: int | str | None,
+    year: int | str | None,
+) -> Path | None:
+    """
+    Return the legacy ``MultiplEYE_<...>_metadata_form.json`` path, if derivable.
+
+    Parameters
+    ----------
+    documentation_dir : Path
+        The data collection's ``documentation`` folder.
+    language, country, city : str | None
+        Components of the legacy file name.
+    lab_number, year : int | str | None
+        Components of the legacy file name.
+
+    Returns
+    -------
+    Path | None
+        The expected legacy path, or None if any name component is missing.
+    """
+    components = (language, country, city, lab_number, year)
+    if any(value is None or value == "" for value in components):
+        return None
+    return (
+        documentation_dir
+        / f"MultiplEYE_{language}_{country}_{city}_{lab_number}_{year}_metadata_form.json"
+    )
+
+
+def find_metadata_form(
+    documentation_dir: Path,
+    data_collection_name: str | None = None,
+    *,
+    language: str | None = None,
+    country: str | None = None,
+    city: str | None = None,
+    lab_number: int | str | None = None,
+    year: int | str | None = None,
+) -> Path | None:
+    """
+    Locate the metadata form JSON in a data collection's ``documentation`` folder.
+
+    Uploads use either ``metadataForm_<name>.json`` or
+    ``metadataform_<name>.json``, sometimes with a trailing space before the
+    extension. Matching is case-insensitive. A file matching the data
+    collection name is preferred; if exactly one candidate exists it is used
+    even when its name does not match. The legacy
+    ``MultiplEYE_<...>_metadata_form.json`` naming is used as a fallback.
+
+    Parameters
+    ----------
+    documentation_dir : Path
+        The data collection's ``documentation`` folder.
+    data_collection_name : str | None
+        Name of the data collection, used to pick the matching form.
+    language, country, city : str | None
+        Components of the legacy file name.
+    lab_number, year : int | str | None
+        Components of the legacy file name.
+
+    Returns
+    -------
+    Path | None
+        The metadata form path, or None if no form could be found unambiguously.
+    """
+    candidates = sorted(
+        set(_ci_glob(documentation_dir, "metadataForm_*.json"))
+        | set(_ci_glob(documentation_dir, "metadataform_*.json"))
+    )
+
+    if data_collection_name:
+        expected_stem = f"metadataform_{data_collection_name}".casefold()
+        matching = [
+            path
+            for path in candidates
+            if _metadata_form_stem(path).casefold() == expected_stem
+        ]
+        if matching:
+            return matching[0]
+
+    if len(candidates) == 1:
+        return candidates[0]
+
+    legacy_path = legacy_metadata_form_path(
+        documentation_dir, language, country, city, lab_number, year
+    )
+    if legacy_path is not None:
+        resolved = _ci_resolve(legacy_path)
+        if resolved.exists():
+            return resolved
+    return None
+
+
+def _parse_metadata_form(text: str, strict: bool) -> dict:
+    """Parse metadata-form JSON and require a top-level object."""
+    data = json.loads(text, strict=strict)
+    if not isinstance(data, dict):
+        raise ValueError(  # noqa: TRY004
+            f"Metadata form must contain a JSON object at the top level, "
+            f"got {type(data).__name__}."
+        )
+    return data
+
+
+def _strip_trailing_commas(text: str) -> str:
+    """
+    Remove trailing commas before ``]`` or ``}``, ignoring string contents.
+
+    The scan tracks JSON string state and escapes, so commas inside string
+    values (for example ``"a,}b"``) are never altered.
+
+    Parameters
+    ----------
+    text : str
+        Raw JSON-ish text.
+
+    Returns
+    -------
+    str
+        The text with only structural trailing commas removed.
+    """
+    result: list[str] = []
+    in_string = False
+    escaped = False
+    index = 0
+    length = len(text)
+
+    while index < length:
+        char = text[index]
+
+        if in_string:
+            result.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if char == '"':
+            in_string = True
+            result.append(char)
+            index += 1
+            continue
+
+        if char == ",":
+            lookahead = index + 1
+            while lookahead < length and text[lookahead] in " \t\r\n":
+                lookahead += 1
+            if lookahead < length and text[lookahead] in "]}":
+                index += 1
+                continue
+
+        result.append(char)
+        index += 1
+
+    return "".join(result)
+
+
+def load_metadata_form(path: Path) -> dict:
+    """
+    Load a metadata form JSON file tolerantly.
+
+    Real uploads are not always strict JSON: they may contain raw control
+    characters (for example newlines inside strings) or trailing commas. This
+    function tries strict JSON first, then lenient JSON that allows raw control
+    characters, and finally removes structural trailing commas (ignoring string
+    contents) before ``]``/``}`` and retries.
+
+    Parameters
+    ----------
+    path : Path
+        Path to the metadata form JSON file.
+
+    Returns
+    -------
+    dict
+        The parsed metadata form.
+
+    Raises
+    ------
+    ValueError
+        If the file cannot be parsed as a JSON object even after the tolerant
+        attempts, or if it does not contain an object at the top level.
+    """
+    text = path.read_text(encoding="utf-8-sig")
+
+    try:
+        return _parse_metadata_form(text, strict=True)
+    except json.JSONDecodeError:
+        pass
+    except ValueError as exc:
+        raise ValueError(f"Invalid metadata form '{path}': {exc}") from exc
+
+    try:
+        return _parse_metadata_form(text, strict=False)
+    except json.JSONDecodeError:
+        pass
+    except ValueError as exc:
+        raise ValueError(f"Invalid metadata form '{path}': {exc}") from exc
+
+    relaxed = _strip_trailing_commas(text)
+    try:
+        return _parse_metadata_form(relaxed, strict=False)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Could not parse metadata form '{path}': {exc}. "
+            "The file is not valid JSON, even after tolerating raw control "
+            "characters and trailing commas. Please fix the metadata form and "
+            "re-run the preprocessing."
+        ) from exc
+    except ValueError as exc:
+        raise ValueError(f"Invalid metadata form '{path}': {exc}") from exc
 
 
 def find_psychometric_config_files(

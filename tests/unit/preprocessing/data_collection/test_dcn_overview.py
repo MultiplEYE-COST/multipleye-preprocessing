@@ -98,6 +98,15 @@ def _write_metadata_form(dcn_dir: Path, filename: str, payload: dict) -> Path:
     return path
 
 
+def _write_raw_metadata_form(dcn_dir: Path, filename: str, content: str) -> Path:
+    """Write a metadata form verbatim (for non-strict JSON fixtures)."""
+    doc_dir = dcn_dir / "documentation"
+    doc_dir.mkdir(parents=True, exist_ok=True)
+    path = doc_dir / filename
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
 def _setup_session_with_data(
     session: Session,
     avg_calibration_error: float = 0.5,
@@ -614,6 +623,71 @@ class TestMetadataForm:
         assert ld["language_family"] == ["Indo-European", "Turkic"]
         assert ld["start_date_of_data_collection"] == "2025-02-01"
         assert ld["end_date_of_data_collection"] == "2025-04-30"
+
+    @pytest.mark.parametrize(
+        "dummy_dcn_dir, filename",
+        [
+            (
+                "MultiplEYE_EN_UK_Copenhagen_1_2025",
+                "metadataForm_MultiplEYE_EN_UK_Copenhagen_1_2025 .json",
+            ),
+            (
+                "MultiplEYE_EN_UK_London_1_2025",
+                "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            ),
+        ],
+        indirect=["dummy_dcn_dir"],
+    )
+    def test_real_filename_with_non_strict_json(
+        self, dummy_dcn_dir, filename, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        """Real uploads may contain raw newlines and trailing commas."""
+        _write_raw_metadata_form(
+            dummy_dcn_dir,
+            filename,
+            """{
+  "Tested_language": {
+    "Language_script": ["Latin"],
+    "Language_family": ["Indo-
+European"]
+  },
+  "Time_frame": {
+    "Start_date": "2025-01-15",
+    "End_date": "2025-03-20",
+  },
+}
+""",
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        ld = _lang(overview)
+
+        assert ld["metadata_form_exists"] is True
+        assert ld["language_script"] == ["Latin"]
+        assert ld["language_family"] == ["Indo-\nEuropean"]
+        assert ld["start_date_of_data_collection"] == "2025-01-15"
+        assert ld["end_date_of_data_collection"] == "2025-03-20"
+
+    def test_non_strict_json_preserves_comma_brace_in_string(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        """The trailing-comma sanitizer must not touch string contents."""
+        _write_raw_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            """{
+  "Monitor_name": "Dell U2412M,} odd",
+  "Required_pq_fixing": "yes",
+}
+""",
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+
+        assert _tech(overview)["monitor_name"] == "Dell U2412M,} odd"
+        assert _proc(overview)["required_pq_fixing"] == "yes"
 
     def test_prefers_form_matching_dcn(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version

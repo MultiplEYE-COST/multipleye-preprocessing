@@ -43,7 +43,11 @@ from ..models.sid import Sid
 from ..plotting.plot import build_page_frames, plot_gaze, plot_main_sequence
 from ..utils.conversion import convert_to_time_str
 from ..utils.data_collection_utils import _report_to_file
-from ..utils.data_path_utils import _ci_glob, _ci_resolve
+from ..utils.data_path_utils import (
+    _ci_resolve,
+    find_metadata_form,
+    load_metadata_form,
+)
 from ..utils.logging import get_logger, get_pipeline_info
 from ..utils.pq_normalisation import (
     build_mapping,
@@ -108,14 +112,6 @@ def _metadata_form_value(
         if value is not None:
             return value
     return metadata_form.get(legacy_key)
-
-
-def _metadata_form_stem(path: Path) -> str:
-    """Return a metadata-form filename without its extension or trailing spaces."""
-    name = path.name
-    if name.casefold().endswith(".json"):
-        name = name[:-5]
-    return name.rstrip()
 
 
 def _compute_session_completeness(data_collection) -> dict:
@@ -1277,41 +1273,18 @@ class MultipleyeDataCollection:
             missing or cannot be matched unambiguously.
         """
         documentation_dir = self.stimulus_dir.parent / "documentation"
-
-        candidates = sorted(
-            set(_ci_glob(documentation_dir, "metadataForm_*.json"))
-            | set(_ci_glob(documentation_dir, "metadataform_*.json"))
+        metadata_path = find_metadata_form(
+            documentation_dir,
+            self.data_collection_name,
+            language=self.language,
+            country=self.country,
+            city=self.city,
+            lab_number=self.lab_number,
+            year=self.year,
         )
-        metadata_path: Path | None = None
-
-        dcn_name = (self.data_collection_name or "").casefold()
-        matching = [
-            path
-            for path in candidates
-            if _metadata_form_stem(path).casefold() == f"metadataform_{dcn_name}"
-        ]
-        if matching:
-            metadata_path = matching[0]
-        elif len(candidates) == 1:
-            metadata_path = candidates[0]
-
         if metadata_path is None:
-            lang = self.language.lower() if self.language else ""
-            country = self.country.lower() if self.country else ""
-            city = self.city.capitalize() if self.city else ""
-            labnum = self.lab_number
-            year = self.year
-            legacy_path = _ci_resolve(
-                documentation_dir
-                / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_metadata_form.json"
-            )
-            if legacy_path.exists():
-                metadata_path = legacy_path
-
-        if metadata_path is not None and metadata_path.exists():
-            with open(metadata_path, encoding="utf-8") as f:
-                return json.load(f)
-        return {}
+            return {}
+        return load_metadata_form(metadata_path)
 
     def _compute_attrition_rate(self) -> float | None:
         """

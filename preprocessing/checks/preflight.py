@@ -26,7 +26,14 @@ from ..data_collection.participant_table import (
 )
 from ..data_collection.session import Session
 from ..models.sid import Sid
-from ..utils.data_path_utils import _ci_exists, _ci_glob, _ci_resolve
+from ..utils.data_path_utils import (
+    _ci_exists,
+    _ci_glob,
+    _ci_resolve,
+    find_metadata_form,
+    legacy_metadata_form_path,
+    load_metadata_form,
+)
 from ..utils.logging import get_logger
 from ..utils.pq_normalisation import find_questionnaire_files
 
@@ -308,14 +315,31 @@ def _check_shared_files(
     ]:
         _require_file(stim_dir / folder_name, f"Image folder: {folder_name}", _warnings)
 
-    # --- Documentation folder (warning — flaky, code handles absence) -----
+    # --- Documentation folder ---------------------------------------------
+    # The metadata form is flaky (warning when absent) but must be parseable
+    # when present, otherwise the DCN overview cannot read its fields.
     doc_dir = stim_dir.parent / "documentation"
-    _require_file(
-        doc_dir
-        / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_metadata_form.json",
-        "Metadata form JSON",
-        _warnings,
+    metadata_form_path = find_metadata_form(
+        doc_dir,
+        getattr(data_collection, "data_collection_name", None),
+        language=lang,
+        country=country,
+        city=city,
+        lab_number=labnum,
+        year=year,
     )
+    if metadata_form_path is None:
+        expected_path = legacy_metadata_form_path(
+            doc_dir, lang, country, city, labnum, year
+        )
+        _warnings.setdefault("Metadata form JSON", []).append(
+            str(expected_path) if expected_path is not None else str(doc_dir)
+        )
+    else:
+        try:
+            load_metadata_form(metadata_form_path)
+        except ValueError as exc:
+            errors.setdefault("Metadata form JSON parse error", []).append(str(exc))
 
 
 def _check_sessions(
@@ -804,6 +828,11 @@ def _format_message(groups: dict[str, list[str]]) -> str:
             continue
         for path in groups[label]:
             lines.append(f"\n  {label} not found:\n      {os.path.relpath(path)}")
+
+    if "Metadata form JSON parse error" in groups:
+        lines.append("\n  Metadata form JSON cannot be parsed:")
+        for msg in groups["Metadata form JSON parse error"]:
+            lines.append(f"      {msg}")
 
     # Image folders and stimulus folder (shared, with dynamic messages)
     for label in list(groups.keys()):
