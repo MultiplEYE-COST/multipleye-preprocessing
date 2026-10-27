@@ -380,10 +380,10 @@ Each entry in `trials` has the following fields:
 | `comprehension_score` | float | Proportion of correct answers for the trial, `0` to `1`. |
 | `comprehension_question_time_ms` | float | Total comprehension-question time for the trial, in milliseconds. |
 | `reading_time_ms` | float | Total reading time for the trial's pages, in milliseconds. |
-| `trial_duration_ms` | float | **TODO (#171).** Planned: total trial recording duration in milliseconds. |
-| `data_loss_ratio` | float | **TODO (#171).** Planned: fraction of missing samples in the trial, `0` to `1`. Per-trial data loss is currently written to the sanity-check file `per_trial_data_loss_<sid>.tsv`. |
-| `blink_ratio` | float | **TODO (#171).** Planned: fraction of trial time spent in blinks, `0` to `1`. |
-| `validation_before_start_dva` | float | **TODO (#171).** Planned: validation accuracy before the trial starts, in degrees of visual angle. |
+| `trial_duration_ms` | float, str | Total trial recording duration in milliseconds, from the earliest trial start to the latest trial stop. `"unknown"` when no timestamps are stored. |
+| `data_loss_ratio` | float, str | Fraction of missing or invalid samples in the trial, `0` to `1`, from the per-trial data-loss table. Falls back to the sanity-check TSV. `"unknown"` when no source exists. |
+| `blink_ratio` | float, str | Fraction of the trial recording spent in blinks, `0` to `1`, from the per-trial blink-loss table. Falls back to the sanity-check TSV. `"unknown"` when no source exists. |
+| `validation_before_start_dva` | float, str | Mean validation accuracy in degrees of visual angle immediately before the trial starts, averaged across binocular rows at the same timestamp. `"unknown"` when no trial timestamp or validation is available. |
 
 A real entry looks like this:
 
@@ -407,9 +407,6 @@ The metadata schema is being completed in several issues:
 - [#170](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/170) covers the
   remaining session fields: `dominant_eye`, `dominant_eye_test`, `question_order` and the
   break fields.
-- [#171](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/171) covers the
-  remaining per-trial fields: `trial_duration_ms`, `data_loss_ratio`, `blink_ratio` and
-  `validation_before_start_dva`.
 - [#188](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/188) covers
   `eyelink_filters`.
 - [#291](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/291) covers the
