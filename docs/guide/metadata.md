@@ -63,6 +63,11 @@ administrative:
 processing:
   preprocessing_date: '2026-10-27'
   pipeline_version: 2026.10.13
+processing_environment:
+  pipeline_git: v2026.10.13-4-g52f0519 (2026-10-27 13:13:20 +0200)
+  pymovements_version: 0.28.0
+  edf2asc_version: EDF2ASC version 4.2.1197.0 MacOS X standalone
+  python_version: 3.13.2
 data_quality:
   attrition_rate: 0.0
   mean_validation_error_dva: 0.3
@@ -134,9 +139,16 @@ The MultiplEYE pipeline sets all four flags to `true`.
 | `monitor_name` | str, null | Monitor name from the metadata form. |
 | `screen_resolution_width_px` | int | Screen width in pixels. |
 | `screen_resolution_height_px` | int | Screen height in pixels. |
+| `screen_size_width_cm` | float | Physical screen width in centimetres. |
+| `screen_size_height_cm` | float | Physical screen height in centimetres. |
+| `screen_distance_cm` | float | Eye-to-screen distance in centimetres. |
+| `image_resolution_width_px` | int | Width of the stimulus image area used for gaze mapping, in pixels. |
+| `image_resolution_height_px` | int | Height of the stimulus image area used for gaze mapping, in pixels. |
+| `image_size_width_cm` | float | Physical width of the stimulus image area in centimetres. |
+| `image_size_height_cm` | float | Physical height of the stimulus image area in centimetres. |
 
-The dataset level keeps only the core setup. The session level adds mount, pupil and physical
-screen details.
+The dataset level records the lab-level setup. Mount, head-stabilization and pupil details
+remain session-level because they can vary by session.
 
 ### `processing`
 
@@ -178,6 +190,20 @@ one-versus-one split. The check compares canonical JSON content, so whitespace a
 matter. `all_files_identical` uses every readable version file, including versions that no session
 used; the other statistics use only the versions selected by sessions. A flag is a warning, not
 proof of a bug: verify how the option keys were generated before using or discarding the data.
+
+### `processing_environment`
+
+This section records the software environment used for the run. Any value that cannot be
+determined is `null`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `pipeline_git` | str, null | Git revision and commit date of the pipeline checkout, for example `v2026.10.13-4-g52f0519 (2026-10-27 13:13:20 +0200)`. |
+| `pymovements_version` | str, null | Installed pymovements version. |
+| `edf2asc_version` | str, null | Version string reported by the `edf2asc` executable. |
+| `python_version` | str, null | Python version running the pipeline, for example `3.13.2`. |
+
+`pipeline_version` is not repeated here; it stays in `processing`.
 
 ### `processing_config`
 

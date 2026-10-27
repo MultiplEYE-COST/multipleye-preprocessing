@@ -1,12 +1,15 @@
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pandas as pd
+import pymovements as pm
 import pytest
 import yaml
 
+import preprocessing.data_collection.multipleye_data_collection as dcn_module
 from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
 )
@@ -81,6 +84,25 @@ def mock_pipeline_version(monkeypatch):
         "_get_pipeline_version",
         lambda self: "2026.08.11",
     )
+
+
+@pytest.fixture
+def mock_processing_environment(monkeypatch):
+    """Mock the tool-version helpers used by the processing environment."""
+    monkeypatch.setattr(
+        dcn_module,
+        "get_pipeline_info",
+        lambda: (
+            "2026.08.11",
+            "v2026.08.11-2-gabc1234 (2026-08-11 10:00:00 +0200)",
+        ),
+    )
+    monkeypatch.setattr(
+        dcn_module,
+        "get_edf2asc_version",
+        lambda: "EDF2ASC version 4.2.1197.0 MacOS X standalone",
+    )
+    monkeypatch.setattr(pm, "__version__", "0.28.0")
 
 
 def _create_dc(dummy_dcn_dir: Path, **kwargs) -> MultipleyeDataCollection:
@@ -171,6 +193,10 @@ def _proc(overview: dict) -> dict:
     return overview["processing"]
 
 
+def _env(overview: dict) -> dict:
+    return overview["processing_environment"]
+
+
 def _qual(overview: dict) -> dict:
     return overview["data_quality"]
 
@@ -235,6 +261,80 @@ class TestProcessing:
 
         assert p["pipeline_version"] == "2026.08.11"
         assert p["preprocessing_date"] == datetime.now(tz=UTC).strftime("%Y-%m-%d")
+
+    def test_pipeline_version_not_duplicated_in_environment(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+
+        assert "pipeline_version" not in _env(overview)
+
+
+class TestProcessingEnvironment:
+    def test_processing_environment_values(
+        self,
+        dummy_dcn_dir,
+        mock_load_lab_config,
+        mock_pipeline_version,
+        mock_processing_environment,
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        env = _env(overview)
+
+        assert env["pipeline_git"] == (
+            "v2026.08.11-2-gabc1234 (2026-08-11 10:00:00 +0200)"
+        )
+        assert env["pymovements_version"] == "0.28.0"
+        assert env["edf2asc_version"] == (
+            "EDF2ASC version 4.2.1197.0 MacOS X standalone"
+        )
+        assert env["python_version"] == (
+            f"{sys.version_info.major}.{sys.version_info.minor}."
+            f"{sys.version_info.micro}"
+        )
+
+    def test_unavailable_values_are_none(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            dcn_module, "get_pipeline_info", lambda: ("unknown", "unknown")
+        )
+        monkeypatch.setattr(dcn_module, "get_edf2asc_version", lambda: "unknown")
+        monkeypatch.setattr(pm, "__version__", "unknown")
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        env = _env(overview)
+
+        assert env["pipeline_git"] is None
+        assert env["pymovements_version"] is None
+        assert env["edf2asc_version"] is None
+        assert env["python_version"] is not None
+
+    def test_processing_environment_round_trips_through_yaml(
+        self,
+        dummy_dcn_dir,
+        mock_load_lab_config,
+        mock_pipeline_version,
+        mock_processing_environment,
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        dc.create_dataset_overview(path=dummy_dcn_dir)
+        yaml_path = dummy_dcn_dir / "MultiplEYE_EN_UK_London_1_2025_overview.yaml"
+
+        with open(yaml_path) as f:
+            data = yaml.safe_load(f)
+
+        env = data["processing_environment"]
+        assert env["pipeline_git"] == (
+            "v2026.08.11-2-gabc1234 (2026-08-11 10:00:00 +0200)"
+        )
+        assert env["pymovements_version"] == "0.28.0"
+        assert env["edf2asc_version"] == (
+            "EDF2ASC version 4.2.1197.0 MacOS X standalone"
+        )
 
 
 class TestAnswerOptionShuffling:
@@ -437,6 +537,21 @@ class TestTechnicalSetup:
         assert t["screen_resolution_width_px"] == 1920
         assert t["screen_resolution_height_px"] == 1080
 
+    def test_lab_level_screen_and_image_dimensions(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        t = _tech(overview)
+
+        assert t["screen_size_width_cm"] == 52.0
+        assert t["screen_size_height_cm"] == 32.0
+        assert t["screen_distance_cm"] == 60.0
+        assert t["image_resolution_width_px"] == 1322
+        assert t["image_resolution_height_px"] == 980
+        assert t["image_size_width_cm"] == 38.0
+        assert t["image_size_height_cm"] == 28.3
+
     def test_psychometric_tests(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
     ) -> None:
@@ -473,8 +588,9 @@ class TestYAMLOutput:
         assert keys[3] == "psychometric_tests"
         assert keys[4] == "technical_setup"
         assert keys[5] == "processing"
-        assert keys[6] == "processing_config"
-        assert keys[7] == "data_quality"
+        assert keys[6] == "processing_environment"
+        assert keys[7] == "processing_config"
+        assert keys[8] == "data_quality"
 
 
 class TestProcessingConfig:
@@ -983,4 +1099,11 @@ class TestLabConfigAttributeSafety:
         assert t["sampling_frequency_hz"] is None
         assert t["screen_resolution_width_px"] is None
         assert t["screen_resolution_height_px"] is None
+        assert t["screen_size_width_cm"] is None
+        assert t["screen_size_height_cm"] is None
+        assert t["screen_distance_cm"] is None
+        assert t["image_resolution_width_px"] is None
+        assert t["image_resolution_height_px"] is None
+        assert t["image_size_width_cm"] is None
+        assert t["image_size_height_cm"] is None
         assert p["tests_available"] is None

@@ -56,7 +56,7 @@ from ..utils.eye_tracker import (
     normalize_eye_tracker_name,
     suggest_eye_tracker_names,
 )
-from ..utils.logging import get_logger, get_pipeline_info
+from ..utils.logging import get_edf2asc_version, get_logger, get_pipeline_info
 from ..utils.pq_normalisation import (
     build_mapping,
     find_pq_data,
@@ -120,6 +120,27 @@ def _metadata_form_value(
         if value is not None:
             return value
     return metadata_form.get(legacy_key)
+
+
+def _known_version(value: object) -> str | None:
+    """Return a version string, mapping missing and ``unknown`` values to None.
+
+    Parameters
+    ----------
+    value : object
+        Version or revision string from a version helper.
+
+    Returns
+    -------
+    str | None
+        Stripped value, or None when it is missing or reported as ``unknown``.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() == "unknown":
+        return None
+    return text
 
 
 _ANSWER_OPTION_SET_PREFIX = "question_answer_option_shuffling_"
@@ -1380,6 +1401,18 @@ class MultipleyeDataCollection:
             f"to {end_date if end_date is not None else 'unknown'}."
         )
 
+        def _lab_pair(attr: str) -> tuple[object, object]:
+            value = getattr(self.lab_configuration, attr, None)
+            if isinstance(value, (tuple, list)) and len(value) == 2:
+                return value[0], value[1]
+            return None, None
+
+        screen_res_w, screen_res_h = _lab_pair("screen_resolution")
+        screen_size_w, screen_size_h = _lab_pair("screen_size_cm")
+        image_res_w, image_res_h = _lab_pair("image_resolution")
+        image_size_w, image_size_h = _lab_pair("image_size_cm")
+        screen_distance_cm = getattr(self.lab_configuration, "screen_distance_cm", None)
+
         overview = {
             "administrative": {
                 "title": self.data_collection_name,
@@ -1419,16 +1452,15 @@ class MultipleyeDataCollection:
                     self.lab_configuration, "sampling_frequency_hz", None
                 ),
                 "monitor_name": metadata_form.get("Monitor_name"),
-                "screen_resolution_width_px": (
-                    self.lab_configuration.screen_resolution[0]
-                    if getattr(self.lab_configuration, "screen_resolution", None)
-                    else None
-                ),
-                "screen_resolution_height_px": (
-                    self.lab_configuration.screen_resolution[1]
-                    if getattr(self.lab_configuration, "screen_resolution", None)
-                    else None
-                ),
+                "screen_resolution_width_px": screen_res_w,
+                "screen_resolution_height_px": screen_res_h,
+                "screen_size_width_cm": screen_size_w,
+                "screen_size_height_cm": screen_size_h,
+                "screen_distance_cm": screen_distance_cm,
+                "image_resolution_width_px": image_res_w,
+                "image_resolution_height_px": image_res_h,
+                "image_size_width_cm": image_size_w,
+                "image_size_height_cm": image_size_h,
             },
             "processing": {
                 "preprocessing_date": datetime.now(tz=UTC).strftime("%Y-%m-%d"),
@@ -1449,6 +1481,7 @@ class MultipleyeDataCollection:
                 ),
                 "answer_option_shuffling": self._compute_answer_option_shuffling(),
             },
+            "processing_environment": self._get_processing_environment(),
             "processing_config": {
                 "fixation_method": settings.FIXATION_METHOD,
                 "fixation_minimum_duration_ms": settings.FIXATION_MINIMUM_DURATION_MS,
@@ -1508,6 +1541,37 @@ class MultipleyeDataCollection:
             return version
         except (ImportError, KeyError, subprocess.SubprocessError):
             return None
+
+    @staticmethod
+    def _get_processing_environment() -> dict:
+        """
+        Return the tool versions and git revision used for this run.
+
+        Unavailable values are reported as ``None``. ``pipeline_version`` is
+        not repeated here; it stays in ``processing``.
+
+        Returns
+        -------
+        dict
+            Mapping with ``pipeline_git``, ``pymovements_version``,
+            ``edf2asc_version`` and ``python_version``.
+        """
+        try:
+            _, pipeline_git = get_pipeline_info()
+        except (ImportError, KeyError, subprocess.SubprocessError):
+            pipeline_git = None
+
+        python_version = (
+            f"{sys.version_info.major}.{sys.version_info.minor}."
+            f"{sys.version_info.micro}"
+        )
+
+        return {
+            "pipeline_git": _known_version(pipeline_git),
+            "pymovements_version": _known_version(getattr(pm, "__version__", None)),
+            "edf2asc_version": _known_version(get_edf2asc_version()),
+            "python_version": _known_version(python_version),
+        }
 
     def _load_metadata_form(self) -> dict:
         """
