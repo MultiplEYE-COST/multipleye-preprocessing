@@ -799,8 +799,157 @@ class Session:
             by_trial[trial] = by_trial.get(trial, 0.0) + max(0.0, stop - start)
         return by_trial
 
+    def _trial_time_spans(self) -> dict[str, tuple[float, float]]:
+        """Return the recorded ``(start, stop)`` span per trial in milliseconds.
+
+        The span is the earliest ``start_ts`` and the latest ``stop_ts`` across
+        the trial's entries in ``stimulus_start_end_ts``, so it covers the whole
+        recorded trial rather than only its reading pages. Trials without a
+        usable timestamp pair are omitted.
+        """
+        spans: dict[str, list[float]] = {}
+        if not isinstance(self.stimulus_start_end_ts, list):
+            return {}
+        for entry in self.stimulus_start_end_ts:
+            if not isinstance(entry, dict):
+                continue
+            try:
+                start = float(entry["start_ts"])
+                stop = float(entry["stop_ts"])
+                trial = str(entry["trial"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if trial not in spans:
+                spans[trial] = [start, stop]
+            else:
+                spans[trial][0] = min(spans[trial][0], start)
+                spans[trial][1] = max(spans[trial][1], stop)
+        return {trial: (span[0], span[1]) for trial, span in spans.items()}
+
+    @staticmethod
+    def _collect_loss_metrics(
+        frames: list[pl.DataFrame | None],
+    ) -> dict[str, dict[str, float]]:
+        """Collect per-trial loss ratios from frames keyed by ``trial``.
+
+        Rows from the data-loss and blink-loss tables are merged per trial.
+        Columns without a value are left out so callers can fall back to
+        ``"unknown"``.
+        """
+        metrics: dict[str, dict[str, float]] = {}
+        for frame in frames:
+            if not isinstance(frame, pl.DataFrame) or frame.is_empty():
+                continue
+            if "trial" not in frame.columns:
+                continue
+            for row in frame.iter_rows(named=True):
+                trial = row.get("trial")
+                if trial is None:
+                    continue
+                entry = metrics.setdefault(str(trial), {})
+                for column in ("data_loss_ratio", "blink_loss_ratio"):
+                    if column in entry or row.get(column) is None:
+                        continue
+                    try:
+                        entry[column] = float(row[column])
+                    except (TypeError, ValueError):
+                        continue
+        return metrics
+
+    def _read_per_trial_loss_tsv(self) -> pl.DataFrame | None:
+        """Read the sanity-check ``per_trial_data_loss_<sid>.tsv``, if present."""
+        report_path = self.sanity_report_path
+        if not isinstance(report_path, (str, Path)) or str(report_path) == "unknown":
+            return None
+        tsv_path = Path(report_path).parent / (
+            f"per_trial_data_loss_{self.session_identifier}.tsv"
+        )
+        if not tsv_path.exists():
+            return None
+        try:
+            return pl.read_csv(tsv_path, separator="\t")
+        except Exception as exc:
+            logger.warning(f"Could not read per-trial loss table {tsv_path}: {exc}")
+            return None
+
+    def _per_trial_loss_metrics(self) -> dict[str, dict[str, float]]:
+        """Return per-trial data-loss and blink ratios keyed by trial id.
+
+        Uses the per-trial tables computed during preprocessing. When those are
+        not held in memory (for example after reloading cached outputs), falls
+        back to the TSV the sanity report writes from the same tables. The
+        ratios are fractions between 0 and 1.
+        """
+        metrics = self._collect_loss_metrics(
+            [
+                getattr(self, "_per_trial_data_loss", None),
+                getattr(self, "_per_trial_blink_loss", None),
+            ]
+        )
+        if metrics:
+            return metrics
+        return self._collect_loss_metrics([self._read_per_trial_loss_tsv()])
+
+    def _validation_before_trial_start(
+        self,
+        spans: dict[str, tuple[float, float]],
+    ) -> dict[str, float]:
+        """Return the validation score in dVA immediately before each trial start.
+
+        A validation counts for a trial when its timestamp lies in the
+        inter-trial interval before the trial's ``start_ts``, that is, after the
+        previous trial's ``stop_ts``. This prevents reusing the validation of an
+        earlier trial when the expected pre-trial validation is missing. For
+        binocular validations the rows sharing the selected timestamp are
+        averaged, matching the final-validation score convention.
+        """
+        validations = self.validations
+        if not isinstance(validations, pl.DataFrame) or validations.is_empty():
+            return {}
+        if not {"time", "accuracy_avg"}.issubset(validations.columns):
+            return {}
+
+        rows: list[tuple[float, float]] = []
+        for time_value, accuracy in zip(
+            validations["time"].cast(pl.Float64, strict=False).to_list(),
+            validations["accuracy_avg"].cast(pl.Float64, strict=False).to_list(),
+        ):
+            if time_value is None or accuracy is None:
+                continue
+            rows.append((float(time_value), float(accuracy)))
+        if not rows:
+            return {}
+
+        stops = sorted(stop for _, stop in spans.values())
+        result: dict[str, float] = {}
+        for trial, (start, _) in spans.items():
+            previous_stops = [stop for stop in stops if stop <= start]
+            lower = previous_stops[-1] if previous_stops else None
+            candidates = [
+                (time_value, accuracy)
+                for time_value, accuracy in rows
+                if time_value < start and (lower is None or time_value >= lower)
+            ]
+            if not candidates:
+                continue
+            last_time = max(time_value for time_value, _ in candidates)
+            scores = [
+                accuracy
+                for time_value, accuracy in candidates
+                if time_value == last_time
+            ]
+            result[trial] = round(sum(scores) / len(scores), 3)
+        return result
+
     def _compute_trials(self) -> list[Trial] | str:
-        """Assemble per-trial metrics from the answers CSV and reading times.
+        """Assemble per-trial metrics from the answers CSV and eye-tracking data.
+
+        Comprehension and reading-time fields come from the answers CSV and the
+        per-stimulus reading spans. ``trial_duration_ms`` comes from the trial
+        start/stop timestamps, ``data_loss_ratio`` and ``blink_ratio`` from the
+        per-trial loss tables (or their sanity-check TSV), and
+        ``validation_before_start_dva`` from the session validations. Fields
+        without a matching source stay ``"unknown"``.
 
         Returns
         -------
@@ -822,10 +971,14 @@ class Session:
             return "unknown"
 
         reading_by_trial = self._reading_time_by_trial()
+        trial_spans = self._trial_time_spans()
+        loss_metrics = self._per_trial_loss_metrics()
+        validations_before = self._validation_before_trial_start(trial_spans)
 
         trials: list[Trial] = []
         for trial_id, group in answers.group_by("trial", maintain_order=True):
             trial_id = trial_id[0] if isinstance(trial_id, tuple) else trial_id
+            trial_key = str(trial_id)
             correct = [c for c in group["is_correct"].to_list() if c is not None]
             if not correct:
                 score = 0.0
@@ -850,6 +1003,22 @@ class Session:
             except ValueError:
                 trial_number = 0
 
+            span = trial_spans.get(trial_key)
+            trial_duration: float | str = (
+                round(max(0.0, span[1] - span[0]), 3) if span is not None else "unknown"
+            )
+            loss = loss_metrics.get(trial_key, {})
+            data_loss: float | str = (
+                round(loss["data_loss_ratio"], 3)
+                if "data_loss_ratio" in loss
+                else "unknown"
+            )
+            blink_ratio: float | str = (
+                round(loss["blink_loss_ratio"], 3)
+                if "blink_loss_ratio" in loss
+                else "unknown"
+            )
+
             trials.append(
                 Trial(
                     trial_number=trial_number,
@@ -860,6 +1029,12 @@ class Session:
                     comprehension_score=score,
                     comprehension_question_time_ms=question_time,
                     reading_time_ms=round(reading_by_trial.get(str(trial_id), 0.0), 3),
+                    trial_duration_ms=trial_duration,
+                    data_loss_ratio=data_loss,
+                    blink_ratio=blink_ratio,
+                    validation_before_start_dva=validations_before.get(
+                        trial_key, "unknown"
+                    ),
                 )
             )
 
