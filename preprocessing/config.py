@@ -732,24 +732,6 @@ class Settings:
 
         # --- HARDWARE AND STIMULI MAPPINGS ---
 
-        #: Mapping of eye tracker brands to known model names.
-        self.EYETRACKER_NAMES = {
-            "eyelink": [  # TODO: Update list to mapping between same eyetrackers - use dict
-                "EyeLink 1000 Plus",
-                "Eyelink 1000 Plus",
-                "EyeLink 1000+",
-                "EyeLink 1000-Plus",
-                "EyeLink II",
-                "EyeLink 1000",
-                "EyeLink Portable Duo",
-                "Eyelink Portable Duo",
-                "EyeLink Portable Duo 2000Hz Remote",
-                "Eyelink Duo",
-                "EyeLink Duo",
-                "Eyelink Portable Duo",
-            ],
-        }
-
         #: Mapping of stimulus names to internal numeric IDs.
         self.STIMULUS_NAME_MAPPING = {
             "PopSci_MultiplEYE": 1,

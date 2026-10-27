@@ -15,7 +15,6 @@ from datetime import UTC, date, datetime
 from functools import partial
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import polars as pl
 import pymovements as pm
@@ -50,6 +49,12 @@ from ..utils.data_path_utils import (
     _ci_resolve,
     find_metadata_form,
     load_metadata_form,
+)
+from ..utils.eye_tracker import (
+    CANONICAL_EYE_TRACKERS,
+    eye_tracker_brand,
+    normalize_eye_tracker_name,
+    suggest_eye_tracker_names,
 )
 from ..utils.logging import get_logger, get_pipeline_info
 from ..utils.pq_normalisation import (
@@ -512,18 +517,21 @@ class MultipleyeDataCollection:
         self.pilot_folder = kwargs.get("pilot_folder", "")
         self.reports_folder = "reports"
 
-        for short_name, long_name in settings.EYETRACKER_NAMES.items():
-            if eye_tracker in long_name:
-                self.eye_tracker = short_name
-                self.eye_tracker_name = long_name
-                break
-
-        else:
-            raise ValueError(
-                f"Eye tracker {eye_tracker} not yet supported. "
-                f"Supported eye trackers are: "
-                f"{np.array([val for k, val in settings.EYETRACKER_NAMES.items()]).flatten()}"
+        canonical_eye_tracker = normalize_eye_tracker_name(eye_tracker)
+        if canonical_eye_tracker is None:
+            suggestions = suggest_eye_tracker_names(eye_tracker)
+            supported = ", ".join(CANONICAL_EYE_TRACKERS)
+            message = (
+                f"Eye tracker {eye_tracker!r} is not supported. "
+                f"Supported models are: {supported}."
             )
+            if suggestions:
+                message += f" Did you mean: {', '.join(suggestions)}?"
+            raise ValueError(message)
+
+        self.eye_tracker_name_raw = str(eye_tracker)
+        self.eye_tracker_name = canonical_eye_tracker
+        self.eye_tracker = eye_tracker_brand(canonical_eye_tracker)
         self.config_file = config_file
         self.stimulus_dir = stimulus_dir
         self.lab_number = lab_number
@@ -1405,9 +1413,8 @@ class MultipleyeDataCollection:
                 ),
             },
             "technical_setup": {
-                "eye_tracker_name": getattr(
-                    self.lab_configuration, "name_eye_tracker", None
-                ),
+                "eye_tracker_name_raw": self.eye_tracker_name_raw,
+                "eye_tracker_name": self.eye_tracker_name,
                 "sampling_frequency_hz": getattr(
                     self.lab_configuration, "sampling_frequency_hz", None
                 ),

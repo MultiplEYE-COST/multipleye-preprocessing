@@ -58,7 +58,10 @@ folder automatically. No manual action needed.
 
 :::{dropdown} What eye-trackers are supported?
 
-Currently, we support EyeLink eye-trackers with head-stabilized tracking.
+The pipeline currently supports `EyeLink 1000`, `EyeLink 1000 Plus`, `EyeLink II` and
+`EyeLink Portable Duo` with head-stabilized tracking. Common lab-configuration spellings are
+normalized; for example, `EyeLink Duo` and `EyeLink Portable Duo 2000Hz Remote` are stored as
+`EyeLink Portable Duo`. An unsupported name stops preprocessing and lists close matches.
 :::
 
 
