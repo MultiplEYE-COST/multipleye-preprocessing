@@ -413,7 +413,14 @@ The metadata schema is being completed in several issues:
   `answer_option_shuffling_bug` flag and its detection rule.
 - DCN data-quality metrics such as `mean_pupil_loss_ratio` and
   `mean_missing_values_ratio` remain blocked on definitions and a data source; see #169
-  and #168. Linguistic and UZH features are likewise not part of the current schema.
+  and #168.
+- The DCN schema does not yet emit linguistic annotations: part-of-speech tags, word
+  length, morphology, dependency relations, surprisal, and reading-measure availability.
+  These depend on the external annotation team; the field list, file format and
+  per-language availability are still open.
+- The DCN schema does not yet emit text-summary features such as
+  `mean_num_words_per_participant` and per-stimulus word counts. The required field list
+  and definitions are still being agreed.
 - Eye-tracker names are currently raw lab-config strings. A canonical model mapping and a
   normalized `eye_tracker_model` field are planned for the DCN and session technical setup
   (#169/#170); the raw string will be kept alongside the normalized model.
