@@ -128,7 +128,8 @@ The MultiplEYE pipeline sets all four flags to `true`.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `eye_tracker_name` | str | Eye-tracker model from the lab configuration. |
+| `eye_tracker_name_raw` | str | Eye-tracker name exactly as read from the lab configuration. |
+| `eye_tracker_name` | str | Canonical eye-tracker model: `EyeLink 1000`, `EyeLink 1000 Plus`, `EyeLink II` or `EyeLink Portable Duo`. |
 | `sampling_frequency_hz` | float | Nominal sampling frequency in hertz. |
 | `monitor_name` | str, null | Monitor name from the metadata form. |
 | `screen_resolution_width_px` | int | Screen width in pixels. |
@@ -283,7 +284,7 @@ This is a convenience subset for quick inspection. The complete participant view
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `eye_tracker_name` | str, null | Eye-tracker model. |
+| `eye_tracker_name` | str, null | Canonical eye-tracker model: `EyeLink 1000`, `EyeLink 1000 Plus`, `EyeLink II` or `EyeLink Portable Duo`. `null` when the lab configuration has no recognizable model. |
 | `sampling_frequency_hz` | float, null | Sampling frequency in hertz. |
 | `mount_type` | str, null | Mount type from the gaze mount configuration, for example `Desktop`. |
 | `head_stabilization` | str, null | Head-stabilisation setting, for example `stabilized`. |
@@ -447,9 +448,6 @@ The metadata schema is being completed in several issues:
 - The DCN schema does not yet emit text-summary features such as
   `mean_num_words_per_participant` and per-stimulus word counts. The required field list
   and definitions are still being agreed.
-- Eye-tracker names are currently raw lab-config strings. A canonical model mapping and a
-  normalized `eye_tracker_model` field are planned for the DCN and session technical setup
-  (#169/#170); the raw string will be kept alongside the normalized model.
 
 ## See also
 

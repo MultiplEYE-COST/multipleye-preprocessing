@@ -386,6 +386,43 @@ class TestAnswerOptionShuffling:
         assert stats["flagged"] is False
 
 
+class TestEyeTrackerMapping:
+    @staticmethod
+    def _lab_config(name: str) -> object:
+        class LabConfigStub:
+            psychometric_tests: list[str] = []
+
+        LabConfigStub.name_eye_tracker = name
+        return LabConfigStub()
+
+    def test_alias_is_canonicalized_and_raw_name_is_kept(
+        self, dummy_dcn_dir, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            MultipleyeDataCollection,
+            "load_lab_config",
+            lambda *args, **kwargs: self._lab_config("Eyelink Duo"),
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+
+        assert dc.eye_tracker_name_raw == "Eyelink Duo"
+        assert dc.eye_tracker_name == "EyeLink Portable Duo"
+        assert dc.eye_tracker == "eyelink"
+
+    def test_unsupported_name_raises_with_suggestion(
+        self, dummy_dcn_dir, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            MultipleyeDataCollection,
+            "load_lab_config",
+            lambda *args, **kwargs: self._lab_config("EyeLink 1000 Pluss"),
+        )
+
+        with pytest.raises(ValueError, match="Did you mean: EyeLink 1000 Plus"):
+            _create_dc(dummy_dcn_dir)
+
+
 class TestTechnicalSetup:
     def test_technical_setup(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -394,6 +431,7 @@ class TestTechnicalSetup:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         t = _tech(overview)
 
+        assert t["eye_tracker_name_raw"] == "EyeLink 1000 Plus"
         assert t["eye_tracker_name"] == "EyeLink 1000 Plus"
         assert t["sampling_frequency_hz"] == 1000.0
         assert t["screen_resolution_width_px"] == 1920

@@ -10,6 +10,7 @@ from ..config import settings
 from ..data_collection.stimulus import LabConfig, Stimulus
 from ..data_collection.trial import Trial
 from ..models import Sid
+from ..utils.eye_tracker import normalize_eye_tracker_name
 from ..utils.logging import get_logger
 from .experimenter_doc import (
     ExperimenterDoc,
@@ -304,7 +305,9 @@ class Session:
         dominant_eye, dominant_eye_test = self._dominant_eye_from_doc(experimenter_doc)
 
         return {
-            "eye_tracker_name": _resolve("name_eye_tracker", None),
+            "eye_tracker_name": normalize_eye_tracker_name(
+                _resolve("name_eye_tracker", None)
+            ),
             "sampling_frequency_hz": _resolve("sampling_frequency_hz", None),
             "mount_type": mount.get("mount_type"),
             "mount_short_name": short_name,

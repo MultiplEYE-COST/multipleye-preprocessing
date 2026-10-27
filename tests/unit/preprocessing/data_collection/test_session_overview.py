@@ -30,7 +30,7 @@ def _mock_lab_config() -> LabConfig:
         screen_distance_cm=60.0,
         image_resolution=(1322, 980),
         image_size_cm=(38.0, 28.3),
-        name_eye_tracker="test",
+        name_eye_tracker="Eyelink 1000-Plus",
         sampling_frequency_hz=1000.0,
         psychometric_tests=[],
     )
@@ -166,7 +166,7 @@ def test_technical_setup_from_lab_config() -> None:
     overview = sess.create_overview()
     tech = overview["technical_setup"]
 
-    assert tech["eye_tracker_name"] == "test"
+    assert tech["eye_tracker_name"] == "EyeLink 1000 Plus"
     assert tech["sampling_frequency_hz"] == 1000.0
     assert tech["mount_type"] == "Desktop"
     assert tech["head_stabilization"] == "stabilized"
@@ -455,6 +455,24 @@ def test_data_formats_section() -> None:
     assert formats["saccades"] is True
     assert formats["reading_measures"] is True
     assert formats["answers"] is True
+
+
+def test_technical_setup_unknown_eye_tracker_is_none() -> None:
+    sess = _sess_with_validation_data()
+    sess.lab_config = LabConfig(
+        screen_resolution=(1920, 1080),
+        screen_size_cm=(52.0, 32.0),
+        screen_distance_cm=60.0,
+        image_resolution=(1322, 980),
+        image_size_cm=(38.0, 28.3),
+        name_eye_tracker="test",
+        sampling_frequency_hz=1000.0,
+        psychometric_tests=[],
+    )
+
+    tech = sess.create_overview()["technical_setup"]
+
+    assert tech["eye_tracker_name"] is None
 
 
 def test_data_formats_can_be_disabled_for_other_pipelines() -> None:
