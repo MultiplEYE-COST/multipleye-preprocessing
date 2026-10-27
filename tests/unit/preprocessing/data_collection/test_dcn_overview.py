@@ -27,9 +27,9 @@ def _mock_lab_config():
 
 
 @pytest.fixture
-def dummy_dcn_dir(tmp_path: Path) -> Path:
+def dummy_dcn_dir(request, tmp_path: Path) -> Path:
     """Create a dummy data collection folder structure with sessions."""
-    collection_name = "MultiplEYE_EN_UK_London_1_2025"
+    collection_name = getattr(request, "param", "MultiplEYE_EN_UK_London_1_2025")
     data_dir = tmp_path / collection_name
     data_dir.mkdir()
 
@@ -86,6 +86,16 @@ def mock_pipeline_version(monkeypatch):
 def _create_dc(dummy_dcn_dir: Path, **kwargs) -> MultipleyeDataCollection:
     """Factory to create a MultipleyeDataCollection with dummy data."""
     return MultipleyeDataCollection.create_from_data_folder(dummy_dcn_dir, **kwargs)
+
+
+def _write_metadata_form(dcn_dir: Path, filename: str, payload: dict) -> Path:
+    """Write a metadata form into the data collection's documentation folder."""
+    doc_dir = dcn_dir / "documentation"
+    doc_dir.mkdir(parents=True, exist_ok=True)
+    path = doc_dir / filename
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f)
+    return path
 
 
 def _setup_session_with_data(
@@ -506,28 +516,25 @@ class TestMetadataForm:
         assert ld["metadata_form_exists"] is False
         assert ld["language_script"] is None
         assert ld["language_family"] is None
+        assert ld["start_date_of_data_collection"] is None
+        assert ld["end_date_of_data_collection"] is None
 
     def test_metadata_form_fields_loaded(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
     ) -> None:
-        collection_name = "MultiplEYE_EN_UK_London_1_2025"
-        stimuli_dir = dummy_dcn_dir / f"stimuli_{collection_name}"
-        doc_dir = stimuli_dir.parent / "documentation"
-        doc_dir.mkdir(parents=True, exist_ok=True)
-        metadata_path = doc_dir / "MultiplEYE_en_uk_London_1_2025_metadata_form.json"
-        with open(metadata_path, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "Script": "Latin",
-                    "Language_family": "Indo-European",
-                    "Start_date_of_data_collection": "2025-01-15",
-                    "End_date_of_data_collection": "2025-03-20",
-                    "Required_pq_fixing": "yes",
-                    "Monitor_name": "Dell U2412M",
-                    "Custom_units_of_analysis": False,
-                },
-                f,
-            )
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "MultiplEYE_en_uk_London_1_2025_metadata_form.json",
+            {
+                "Script": "Latin",
+                "Language_family": "Indo-European",
+                "Start_date_of_data_collection": "2025-01-15",
+                "End_date_of_data_collection": "2025-03-20",
+                "Required_pq_fixing": "yes",
+                "Monitor_name": "Dell U2412M",
+                "Custom_units_of_analysis": False,
+            },
+        )
 
         dc = _create_dc(dummy_dcn_dir)
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
@@ -543,6 +550,105 @@ class TestMetadataForm:
         assert t["monitor_name"] == "Dell U2412M"
         assert p["required_pq_fixing"] == "yes"
         assert "2025-01-15" in _admin(overview)["dataset_description"]
+
+    @pytest.mark.parametrize(
+        "dummy_dcn_dir",
+        ["MultiplEYE_EN_UK_Copenhagen_1_2025"],
+        indirect=True,
+    )
+    def test_copenhagen_metadata_form_with_trailing_space(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataForm_MultiplEYE_EN_UK_Copenhagen_1_2025 .json",
+            {
+                "Tested_language": {
+                    "Language_script": ["Latin"],
+                    "Language_family": ["Indo-European"],
+                },
+                "Time_frame": {
+                    "Start_date": "2025-01-15",
+                    "End_date": "2025-03-20",
+                },
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        ld = _lang(overview)
+        description = _admin(overview)["dataset_description"]
+
+        assert ld["metadata_form_exists"] is True
+        assert ld["language_script"] == ["Latin"]
+        assert ld["language_family"] == ["Indo-European"]
+        assert ld["start_date_of_data_collection"] == "2025-01-15"
+        assert ld["end_date_of_data_collection"] == "2025-03-20"
+        assert "2025-01-15" in description
+        assert "2025-03-20" in description
+
+    def test_turin_style_metadata_form(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            {
+                "Tested_language": {
+                    "Language_script": ["Latin", "Cyrillic"],
+                    "Language_family": ["Indo-European", "Turkic"],
+                },
+                "Time_frame": {
+                    "Start_date": "2025-02-01",
+                    "End_date": "2025-04-30",
+                },
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        ld = _lang(overview)
+
+        assert ld["metadata_form_exists"] is True
+        assert ld["language_script"] == ["Latin", "Cyrillic"]
+        assert ld["language_family"] == ["Indo-European", "Turkic"]
+        assert ld["start_date_of_data_collection"] == "2025-02-01"
+        assert ld["end_date_of_data_collection"] == "2025-04-30"
+
+    def test_prefers_form_matching_dcn(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_DE_DE_Berlin_1_2025.json",
+            {
+                "Tested_language": {
+                    "Language_script": ["Latin"],
+                    "Language_family": ["Indo-European"],
+                },
+                "Time_frame": {"Start_date": "2024-01-01", "End_date": "2024-02-01"},
+            },
+        )
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            {
+                "Tested_language": {
+                    "Language_script": ["Latin", "Cyrillic"],
+                    "Language_family": ["Indo-European", "Turkic"],
+                },
+                "Time_frame": {"Start_date": "2025-01-15", "End_date": "2025-03-20"},
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        ld = _lang(overview)
+
+        assert ld["language_script"] == ["Latin", "Cyrillic"]
+        assert ld["language_family"] == ["Indo-European", "Turkic"]
+        assert ld["start_date_of_data_collection"] == "2025-01-15"
+        assert ld["end_date_of_data_collection"] == "2025-03-20"
 
 
 class TestWPM:
