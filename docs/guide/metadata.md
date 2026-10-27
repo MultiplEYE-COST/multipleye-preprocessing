@@ -328,7 +328,7 @@ This is a convenience subset for quick inspection. The complete participant view
 | `dominant_eye` | str | Dominant eye from the experimenter documentation sheet, normalized to `left`, `right`, `both` or `unknown`. Rows are matched by session ID; when the sheet leaves the session ID empty, the participant ID is used. `unknown` when the sheet, column or value is missing, when duplicate sheet rows disagree, or when no dominance test was performed. Never inferred from `tracked_eye`. |
 | `dominant_eye_test` | bool, str | Whether an eye-dominance test was performed, from the experimenter documentation sheet. `true` or `false` for clear yes/no values, `unknown` when the value is missing or duplicate sheet rows disagree. |
 | `mount_short_name` | str, null | Explicit short mount code from the mount configuration, for example `BTABLER`. `null` when the mount configuration does not provide one. |
-| `eyelink_filters` | dict | **TODO (#188).** Planned: EyeLink filter settings parsed from the ASC file. |
+| `eyelink_filters` | dict | Recording filters parsed from the ASC file. Always a dict with `events` and `samples` keys, each a sorted list of distinct integer filter values. Empty lists when the ASC file or its `FILTER` lines are missing. |
 
 ### `tracking`
 
@@ -462,8 +462,6 @@ The metadata schema is being completed in several issues:
   metadata YAML work as a whole.
 - [#170](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/170) covers the
   remaining session fields: `question_order` and the break fields.
-- [#188](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/188) covers
-  `eyelink_filters`.
 - DCN data-quality metrics such as `mean_pupil_loss_ratio` and
   `mean_missing_values_ratio` remain blocked on definitions and a data source; see #169
   and #168.
