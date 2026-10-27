@@ -147,7 +147,7 @@ screen details.
 | `required_pq_fixing` | bool, null | Data-collection flag from the metadata form. |
 | `psychotests_restructuring` | bool, null | Data-collection flag from the metadata form. |
 | `custom_units_of_analysis` | bool, null | Data-collection flag from the metadata form. |
-| `answer_option_shuffling_bug` | bool, null | **TODO (#291).** The flag is read from the metadata form, but the form has no such key and no detection rule is implemented. Currently always `null`. |
+| `answer_option_shuffling_bug` | bool, dict, null | **TODO (#291).** Planned: compare all shuffled option-key JSON files per stimulus set. All identical means the bug exists; generally different means no bug; fewer than two files or unreadable means `null`. Stored as one flag per DCN or as a mapping per stimulus set when the collection uses multiple image sets. |
 
 ### `processing_config`
 
@@ -417,6 +417,9 @@ The metadata schema is being completed in several issues:
 - DCN data-quality metrics such as `mean_pupil_loss_ratio` and
   `mean_missing_values_ratio` remain blocked on definitions and a data source; see #169
   and #168. Linguistic and UZH features are likewise not part of the current schema.
+- Eye-tracker names are currently raw lab-config strings. A canonical model mapping and a
+  normalized `eye_tracker_model` field are planned for the DCN and session technical setup
+  (#169/#170); the raw string will be kept alongside the normalized model.
 
 ## See also
 
