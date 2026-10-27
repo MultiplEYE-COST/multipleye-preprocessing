@@ -1,4 +1,5 @@
 import re
+import warnings
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TypeVar
@@ -10,6 +11,11 @@ from ..data_collection.stimulus import LabConfig, Stimulus
 from ..data_collection.trial import Trial
 from ..models import Sid
 from ..utils.logging import get_logger
+from .experimenter_doc import (
+    ExperimenterDoc,
+    normalize_dominant_eye,
+    normalize_dominant_eye_test,
+)
 
 logger = get_logger()
 
@@ -39,6 +45,14 @@ def _parse_rating_option(key: object) -> int | None:
         return int(key.split("_", 1)[1])
     except (ValueError, IndexError):
         return None
+
+
+def _consensus(values: list[object], unknown: object) -> object:
+    """Return the common value when all values agree, else *unknown*."""
+    if not values:
+        return unknown
+    first = values[0]
+    return first if all(value == first for value in values) else unknown
 
 
 @dataclass
@@ -153,9 +167,16 @@ class Session:
     def sid(self) -> "Sid":
         return Sid(self.session_identifier)
 
-    def create_overview(self) -> dict:
+    def create_overview(self, experimenter_doc: ExperimenterDoc | None = None) -> dict:
         """
         Create a topic-grouped overview of the session.
+
+        Parameters
+        ----------
+        experimenter_doc : ExperimenterDoc, optional
+            Experimenter documentation workbook. Used for the dominant-eye
+            fields in ``technical_setup``. When omitted or missing, those
+            fields are ``unknown``.
 
         Returns
         -------
@@ -175,7 +196,7 @@ class Session:
                 "month_of_data_collection": self._get_metadata("month", "unknown"),
             },
             "participant": self.participant_info,
-            "technical_setup": self._technical_setup(),
+            "technical_setup": self._technical_setup(experimenter_doc),
             "tracking": {
                 "tracked_eye": self.tracked_eye,
                 "tracked_eye_consistent": self.tracked_eye_consistent,
@@ -254,7 +275,7 @@ class Session:
             return self.pm_gaze_metadata.get(key, default)
         return default
 
-    def _technical_setup(self) -> dict:
+    def _technical_setup(self, experimenter_doc: ExperimenterDoc | None = None) -> dict:
         """Assemble the technical setup section from lab config and gaze metadata."""
         cfg = self.lab_config if isinstance(self.lab_config, LabConfig) else None
         mount = self._get_metadata("mount_configuration", {})
@@ -280,6 +301,8 @@ class Session:
         if not isinstance(short_name, str) or not short_name.strip():
             short_name = None
 
+        dominant_eye, dominant_eye_test = self._dominant_eye_from_doc(experimenter_doc)
+
         return {
             "eye_tracker_name": _resolve("name_eye_tracker", None),
             "sampling_frequency_hz": _resolve("sampling_frequency_hz", None),
@@ -288,6 +311,8 @@ class Session:
             "head_stabilization": mount.get("head_stabilization"),
             "eyes_recorded": mount.get("eyes_recorded"),
             "pupil_data_type": self._get_metadata("pupil_data_type"),
+            "dominant_eye": dominant_eye,
+            "dominant_eye_test": dominant_eye_test,
             "screen_resolution_width_px": screen_res_w,
             "screen_resolution_height_px": screen_res_h,
             "screen_size_width_cm": screen_size_w,
@@ -298,6 +323,46 @@ class Session:
             "image_size_width_cm": image_size_w,
             "image_size_height_cm": image_size_h,
         }
+
+    def _dominant_eye_from_doc(
+        self, experimenter_doc: ExperimenterDoc | None
+    ) -> tuple[str, bool | str]:
+        """Return ``(dominant_eye, dominant_eye_test)`` from the experimenter sheet.
+
+        Missing sheets, columns, rows and values yield ``unknown``. Duplicate
+        matching rows are never resolved silently: a warning is emitted, and a
+        field is only used when all duplicate rows agree. ``dominant_eye`` is
+        not inferred from ``tracked_eye`` and is forced to ``unknown`` when the
+        sheet says that no dominance test was performed.
+        """
+        if not isinstance(experimenter_doc, ExperimenterDoc):
+            return "unknown", "unknown"
+
+        rows = experimenter_doc.get_et_rows(
+            self.session_identifier, self.participant_id
+        )
+        if not rows:
+            return "unknown", "unknown"
+
+        eyes = [normalize_dominant_eye(row.get("dominant_eye")) for row in rows]
+        tests = [
+            normalize_dominant_eye_test(row.get("dominant_eye_test")) for row in rows
+        ]
+
+        if len(rows) > 1:
+            warnings.warn(
+                f"Experimenter documentation has {len(rows)} rows for session "
+                f"{self.session_identifier}. Dominant-eye values are only used "
+                "when duplicate rows agree.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        dominant_eye = _consensus(eyes, "unknown")
+        dominant_eye_test = _consensus(tests, "unknown")
+        if dominant_eye_test is False:
+            dominant_eye = "unknown"
+        return str(dominant_eye), dominant_eye_test
 
     def _compute_comprehension_scores(self) -> None:
         """Load the session answers CSV and compute mean comprehension scores.

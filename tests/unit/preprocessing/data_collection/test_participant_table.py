@@ -22,7 +22,7 @@ class FakeSession:
         self.session_folder_path = folder
         self._overview = overview
 
-    def create_overview(self) -> dict:
+    def create_overview(self, experimenter_doc=None) -> dict:
         return self._overview
 
 

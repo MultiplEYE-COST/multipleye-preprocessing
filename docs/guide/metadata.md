@@ -269,8 +269,8 @@ This is a convenience subset for quick inspection. The complete participant view
 | `image_resolution_height_px` | int, null | Height of the stimulus image area used for gaze mapping, in pixels. |
 | `image_size_width_cm` | float, null | Physical width of the stimulus image area in centimetres. |
 | `image_size_height_cm` | float, null | Physical height of the stimulus image area in centimetres. |
-| `dominant_eye` | str | **TODO (#170).** Planned: dominant eye from the experimenter sheet. Must not be inferred from `tracked_eye`. |
-| `dominant_eye_test` | bool, str | **TODO (#170).** Planned: whether an eye-dominance test was performed. |
+| `dominant_eye` | str | Dominant eye from the experimenter documentation sheet, normalized to `left`, `right`, `both` or `unknown`. Rows are matched by session ID; when the sheet leaves the session ID empty, the participant ID is used. `unknown` when the sheet, column or value is missing, when duplicate sheet rows disagree, or when no dominance test was performed. Never inferred from `tracked_eye`. |
+| `dominant_eye_test` | bool, str | Whether an eye-dominance test was performed, from the experimenter documentation sheet. `true` or `false` for clear yes/no values, `unknown` when the value is missing or duplicate sheet rows disagree. |
 | `mount_short_name` | str, null | Explicit short mount code from the mount configuration, for example `BTABLER`. `null` when the mount configuration does not provide one. |
 | `eyelink_filters` | dict | **TODO (#188).** Planned: EyeLink filter settings parsed from the ASC file. |
 
@@ -405,8 +405,7 @@ The metadata schema is being completed in several issues:
 - [#168](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/168) tracks the
   metadata YAML work as a whole.
 - [#170](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/170) covers the
-  remaining session fields: `dominant_eye`, `dominant_eye_test`, `question_order` and the
-  break fields.
+  remaining session fields: `question_order` and the break fields.
 - [#188](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/188) covers
   `eyelink_filters`.
 - [#291](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/291) covers the

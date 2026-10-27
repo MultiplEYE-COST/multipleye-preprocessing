@@ -5,6 +5,7 @@ from unittest.mock import patch
 import polars as pl
 import pytest
 
+from preprocessing.data_collection.experimenter_doc import ExperimenterDoc
 from preprocessing.data_collection.session import Session
 from preprocessing.data_collection.stimulus import LabConfig
 
@@ -1491,3 +1492,226 @@ def test_mount_short_name_absent() -> None:
     tech = sess.create_overview()["technical_setup"]
 
     assert tech["mount_short_name"] is None
+
+
+# --- Dominant eye ---
+
+
+def _doc(rows: list[dict]) -> ExperimenterDoc:
+    return ExperimenterDoc(pl.DataFrame(rows), None, None, None)
+
+
+def _dominant_eye_row(**overrides) -> dict:
+    row = {
+        "session_id": "001_EN_UK_1_ET1",
+        "participant_id": 1,
+        "dominant_eye_test": "yes",
+        "dominant_eye": "left",
+        "tracked_eye": "monocular right eye",
+    }
+    row.update(overrides)
+    return row
+
+
+def test_dominant_eye_full_sid_match() -> None:
+    sess = _make_session()
+    doc = _doc([_dominant_eye_row(dominant_eye="right")])
+
+    tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye"] == "right"
+    assert tech["dominant_eye_test"] is True
+
+
+@pytest.mark.parametrize("sheet_session_id", ["1", "ET1", "et1"])
+def test_dominant_eye_short_sid_match(sheet_session_id: str) -> None:
+    sess = _make_session()
+    doc = _doc([_dominant_eye_row(session_id=sheet_session_id)])
+
+    tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye"] == "left"
+    assert tech["dominant_eye_test"] is True
+
+
+def test_dominant_eye_participant_fallback_when_session_id_missing() -> None:
+    sess = _make_session()
+    doc = _doc(
+        [
+            _dominant_eye_row(
+                session_id=None,
+                participant_id=1,
+                dominant_eye="right",
+            )
+        ]
+    )
+
+    tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye"] == "right"
+    assert tech["dominant_eye_test"] is True
+
+
+def test_dominant_eye_case_and_whitespace_normalization() -> None:
+    sess = _make_session()
+    doc = _doc(
+        [
+            _dominant_eye_row(
+                session_id="  001_en_uk_1_et1  ",
+                dominant_eye="  LEFT  ",
+                dominant_eye_test=" YES ",
+            )
+        ]
+    )
+
+    tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye"] == "left"
+    assert tech["dominant_eye_test"] is True
+
+
+def test_dominant_eye_both_normalization() -> None:
+    sess = _make_session()
+    doc = _doc([_dominant_eye_row(dominant_eye="Binocular")])
+
+    tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye"] == "both"
+
+
+def test_dominant_eye_short_sid_requires_matching_participant() -> None:
+    sess = _make_session()
+    doc = _doc([_dominant_eye_row(session_id="1", participant_id=2)])
+
+    tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye"] == "unknown"
+    assert tech["dominant_eye_test"] == "unknown"
+
+
+def test_dominant_eye_missing_values_are_unknown() -> None:
+    sess = _make_session()
+    doc = _doc(
+        [
+            _dominant_eye_row(
+                dominant_eye=None,
+                dominant_eye_test=None,
+            )
+        ]
+    )
+
+    tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye"] == "unknown"
+    assert tech["dominant_eye_test"] == "unknown"
+
+
+def test_dominant_eye_missing_sheet_is_unknown() -> None:
+    sess = _make_session()
+
+    tech = sess.create_overview()["technical_setup"]
+
+    assert tech["dominant_eye"] == "unknown"
+    assert tech["dominant_eye_test"] == "unknown"
+
+
+def test_dominant_eye_missing_column_is_unknown() -> None:
+    sess = _make_session()
+    doc = _doc([{"session_id": "001_EN_UK_1_ET1", "participant_id": 1}])
+
+    tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye"] == "unknown"
+    assert tech["dominant_eye_test"] == "unknown"
+
+
+def test_dominant_eye_duplicate_rows_warn_and_disagree_are_unknown() -> None:
+    sess = _make_session()
+    doc = _doc(
+        [
+            _dominant_eye_row(dominant_eye="left", dominant_eye_test="yes"),
+            _dominant_eye_row(dominant_eye="right", dominant_eye_test="no"),
+        ]
+    )
+
+    with pytest.warns(UserWarning, match="2 rows for session"):
+        tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye"] == "unknown"
+    assert tech["dominant_eye_test"] == "unknown"
+
+
+def test_dominant_eye_duplicate_agreeing_rows_warn_and_use_value() -> None:
+    sess = _make_session()
+    doc = _doc(
+        [
+            _dominant_eye_row(dominant_eye="right", dominant_eye_test="yes"),
+            _dominant_eye_row(dominant_eye="right", dominant_eye_test="yes"),
+        ]
+    )
+
+    with pytest.warns(UserWarning, match="2 rows for session"):
+        tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye"] == "right"
+    assert tech["dominant_eye_test"] is True
+
+
+def test_dominant_eye_duplicate_missing_and_value_are_unknown() -> None:
+    sess = _make_session()
+    doc = _doc(
+        [
+            _dominant_eye_row(dominant_eye="left", dominant_eye_test="yes"),
+            _dominant_eye_row(dominant_eye=None, dominant_eye_test=None),
+        ]
+    )
+
+    with pytest.warns(UserWarning, match="2 rows for session"):
+        tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye"] == "unknown"
+    assert tech["dominant_eye_test"] == "unknown"
+
+
+@pytest.mark.parametrize(
+    ("sheet_value", "expected"),
+    [("yes", True), ("Yes", True), ("no", False), ("No", False)],
+)
+def test_dominant_eye_test_yes_no(sheet_value: str, expected: bool) -> None:
+    sess = _make_session()
+    doc = _doc([_dominant_eye_row(dominant_eye_test=sheet_value)])
+
+    tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye_test"] is expected
+    if not expected:
+        assert tech["dominant_eye"] == "unknown"
+
+
+def test_dominant_eye_not_inferred_from_tracked_eye() -> None:
+    sess = _sess_with_validation_data()
+    assert sess.pm_gaze_metadata["tracked_eye"] == "R"
+    doc = _doc(
+        [
+            _dominant_eye_row(
+                dominant_eye=None,
+                dominant_eye_test=None,
+                tracked_eye="monocular right eye",
+            )
+        ]
+    )
+
+    tech = sess.create_overview(doc)["technical_setup"]
+
+    assert tech["dominant_eye"] == "unknown"
+    assert tech["dominant_eye_test"] == "unknown"
+
+
+def test_dominant_eye_kept_when_it_differs_from_tracked_eye() -> None:
+    sess = _sess_with_validation_data()
+    doc = _doc([_dominant_eye_row(dominant_eye="left")])
+
+    overview = sess.create_overview(doc)
+
+    assert overview["technical_setup"]["dominant_eye"] == "left"
+    assert overview["tracking"]["tracked_eye"] == "R"

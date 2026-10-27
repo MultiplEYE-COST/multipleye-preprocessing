@@ -482,7 +482,9 @@ def _et_columns(
     stats = []
     for session_id in session_ids:
         session = data_collection.sessions[session_id]
-        overview = session.create_overview()
+        overview = session.create_overview(
+            getattr(data_collection, "experimenter_doc", None)
+        )
         overviews.append(overview)
         trials = overview.get("trials")
         trials = trials if isinstance(trials, list) else []

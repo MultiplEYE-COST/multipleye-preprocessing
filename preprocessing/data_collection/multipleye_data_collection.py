@@ -1487,7 +1487,7 @@ class MultipleyeDataCollection:
             overview_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(overview_path, "w", encoding="utf8") as f:
-            yaml.dump(sess.create_overview(), f)
+            yaml.dump(sess.create_overview(self.experimenter_doc), f)
 
     def prepare_session_level_information(self):
         """
