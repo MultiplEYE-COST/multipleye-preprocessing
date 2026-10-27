@@ -5,12 +5,143 @@ from pathlib import Path
 
 import polars as pl
 
+from ..models import Sid
+
 _WHITESPACE = re.compile(r"\s+")
+_SESSION_NUMBER = re.compile(r"^(?:et|s|session)?\s*0*(\d+)$", re.IGNORECASE)
+
+_MISSING_VALUES = {
+    "",
+    "-",
+    "--",
+    "?",
+    "n/a",
+    "na",
+    "nan",
+    "none",
+    "null",
+    "unknown",
+}
+
+_DOMINANT_EYE_ALIASES = {
+    "left": "left",
+    "left eye": "left",
+    "left eye dominant": "left",
+    "dominant left": "left",
+    "dominant left eye": "left",
+    "l": "left",
+    "os": "left",
+    "right": "right",
+    "right eye": "right",
+    "right eye dominant": "right",
+    "dominant right": "right",
+    "dominant right eye": "right",
+    "r": "right",
+    "od": "right",
+    "both": "both",
+    "both eyes": "both",
+    "bilateral": "both",
+    "binocular": "both",
+    "ambidextrous": "both",
+}
+
+_DOMINANT_EYE_TEST_TRUE = {
+    "1",
+    "done",
+    "performed",
+    "tested",
+    "true",
+    "y",
+    "yes",
+}
+
+_DOMINANT_EYE_TEST_FALSE = {
+    "0",
+    "false",
+    "n",
+    "no",
+    "not done",
+    "not performed",
+    "not tested",
+}
+
+
+def _normalize_value(value: object) -> str:
+    """Return a case- and whitespace-insensitive value string."""
+    return _WHITESPACE.sub(" ", str(value)).strip().lower()
 
 
 def _normalize_header(value: object) -> str:
     """Return a case- and whitespace-insensitive header string."""
-    return _WHITESPACE.sub(" ", str(value)).strip().lower()
+    return _normalize_value(value)
+
+
+def _parse_int(value: object) -> int | None:
+    """Return an integer from a sheet value, or None when it is not numeric."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return int(text)
+    except (TypeError, ValueError):
+        try:
+            number = float(text)
+        except (TypeError, ValueError):
+            return None
+        return int(number) if number.is_integer() else None
+
+
+def normalize_dominant_eye(value: object) -> str:
+    """Normalize an experimenter-sheet dominant-eye value.
+
+    Parameters
+    ----------
+    value : object
+        Raw cell value from the ``dominant_eye`` column.
+
+    Returns
+    -------
+    str
+        One of ``left``, ``right``, ``both`` or ``unknown``.
+    """
+    text = _normalize_value(value)
+    if text in _MISSING_VALUES:
+        return "unknown"
+    if text in _DOMINANT_EYE_ALIASES:
+        return _DOMINANT_EYE_ALIASES[text]
+    if "left" in text and "right" not in text:
+        return "left"
+    if "right" in text and "left" not in text:
+        return "right"
+    if "both" in text or "binocular" in text or "bilateral" in text:
+        return "both"
+    return "unknown"
+
+
+def normalize_dominant_eye_test(value: object) -> bool | str:
+    """Normalize an experimenter-sheet eye-dominance test value.
+
+    Parameters
+    ----------
+    value : object
+        Raw cell value from the ``dominant_eye_test`` column.
+
+    Returns
+    -------
+    bool or str
+        ``True`` or ``False`` when the value is a clear yes/no answer, else
+        ``unknown``.
+    """
+    if isinstance(value, bool):
+        return value
+    text = _normalize_value(value)
+    if text in _DOMINANT_EYE_TEST_TRUE:
+        return True
+    if text in _DOMINANT_EYE_TEST_FALSE:
+        return False
+    return "unknown"
 
 
 class ExperimenterDoc:
@@ -328,3 +459,85 @@ class ExperimenterDoc:
                 valid_ids.append(int(number))
 
         return valid_ids, invalid_ids
+
+    def get_et_rows(
+        self, session_id: str, participant_id: int | str | None = None
+    ) -> list[dict]:
+        """Return experimenter-sheet ET rows matching a session.
+
+        Full session identifiers are matched case- and whitespace-insensitively.
+        Short sheet session IDs such as ``1`` or ``ET1`` match the session part
+        of the SID and additionally require the participant ID to match.
+
+        Parameters
+        ----------
+        session_id : str
+            Session identifier from the data folder, for example
+            ``"041_KL_DK_1_ET1"``.
+        participant_id : int or str, optional
+            Participant ID used to disambiguate short sheet session IDs.
+
+        Returns
+        -------
+        list of dict
+            Matching rows from the ET documentation sheet. Empty when the sheet,
+            the session ID column or a matching row is missing.
+        """
+        frame = self.et_frame
+        if frame is None or "session_id" not in frame.columns:
+            return []
+
+        expected = _normalize_value(session_id)
+        try:
+            parsed = Sid(session_id)
+        except (ValueError, TypeError):
+            parsed = None
+
+        expected_base = (
+            _normalize_value(parsed.id_no_postfix) if parsed is not None else ""
+        )
+        expected_session = (
+            _normalize_value(parsed.session) if parsed is not None else ""
+        )
+        expected_pid = _parse_int(participant_id)
+
+        rows: list[dict] = []
+        for row in frame.iter_rows(named=True):
+            text = _normalize_value(row.get("session_id"))
+            if not text:
+                continue
+
+            is_full_match = text in {expected, expected_base} and text != ""
+            if is_full_match:
+                rows.append(row)
+                continue
+
+            if parsed is None:
+                continue
+
+            is_short_match = text == expected_session
+            if not is_short_match:
+                match = _SESSION_NUMBER.fullmatch(text)
+                is_short_match = bool(
+                    match and int(match.group(1)) == parsed.session_id
+                )
+            if not is_short_match:
+                continue
+
+            row_pid = _parse_int(row.get("participant_id"))
+            if expected_pid is not None and row_pid == expected_pid:
+                rows.append(row)
+
+        if rows or expected_pid is None:
+            return rows
+
+        # Some sheets leave the session ID empty. Only use those rows for the
+        # PID fallback; a row that names another session must not match.
+        for row in frame.iter_rows(named=True):
+            text = _normalize_value(row.get("session_id"))
+            if text and text not in _MISSING_VALUES:
+                continue
+            row_pid = _parse_int(row.get("participant_id"))
+            if row_pid == expected_pid:
+                rows.append(row)
+        return rows
