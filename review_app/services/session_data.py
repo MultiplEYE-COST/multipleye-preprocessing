@@ -25,6 +25,11 @@ CHECK_REGISTRY: list[dict] = [
     },
     {"field": "mount_type", "label": "Mount type", "category": "Hardware"},
     {
+        "field": "mount_short_name",
+        "label": "Mount short name",
+        "category": "Hardware",
+    },
+    {
         "field": "head_stabilization",
         "label": "Head stabilization",
         "category": "Hardware",
@@ -110,6 +115,11 @@ CHECK_REGISTRY: list[dict] = [
     {
         "field": "avg_validation_error_dva",
         "label": "Avg validation error",
+        "category": "Calibration",
+    },
+    {
+        "field": "final_validation_score_dva",
+        "label": "Final validation score (dVA)",
         "category": "Calibration",
     },
     {

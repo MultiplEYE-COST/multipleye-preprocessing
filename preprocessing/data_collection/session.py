@@ -26,6 +26,9 @@ _VALIDATION_QUALITY_REGEX = re.compile(
     re.IGNORECASE,
 )
 _QUALITY_LINE_REGEX = re.compile(r"!CAL\s+(?:CALIBRATION|VALIDATION)", re.IGNORECASE)
+_FINAL_VALIDATION_MSG_REGEX = re.compile(r"^\s*final_validation\s*$", re.IGNORECASE)
+_CALIBRATION_MSG_REGEX = re.compile(r"!CAL\s+CALIBRATION\b", re.IGNORECASE)
+_EXPERIMENT_TRIAL_REGEX = re.compile(r"^trial_\d+$")
 
 
 def _parse_rating_option(key: object) -> int | None:
@@ -109,6 +112,7 @@ class Session:
     num_calibrations: int | str = field(default="unknown", init=False)
     num_validations: int | str = field(default="unknown", init=False)
     avg_validation_error: float | str = field(default="unknown", init=False)
+    final_validation_score_dva: float | str = field(default="unknown", init=False)
 
     # eye tracking metadata
     tracked_eye: str = field(default="unknown", init=False)
@@ -181,6 +185,7 @@ class Session:
                 "num_validations": self.num_validations,
                 "avg_calibration_error_dva": self.avg_calibration_error,
                 "avg_validation_error_dva": self.avg_validation_error,
+                "final_validation_score_dva": self.final_validation_score_dva,
                 "calibration_quality": self.calibration_quality,
                 "validation_quality": self.validation_quality,
                 "num_aborted_validations": self.num_aborted_validations,
@@ -271,10 +276,15 @@ class Session:
         image_res_w, image_res_h = _pair(_resolve("image_resolution"))
         image_size_w, image_size_h = _pair(_resolve("image_size_cm"))
 
+        short_name = mount.get("short_name")
+        if not isinstance(short_name, str) or not short_name.strip():
+            short_name = None
+
         return {
             "eye_tracker_name": _resolve("name_eye_tracker", None),
             "sampling_frequency_hz": _resolve("sampling_frequency_hz", None),
             "mount_type": mount.get("mount_type"),
+            "mount_short_name": short_name,
             "head_stabilization": mount.get("head_stabilization"),
             "eyes_recorded": mount.get("eyes_recorded"),
             "pupil_data_type": self._get_metadata("pupil_data_type"),
@@ -442,6 +452,146 @@ class Session:
             return "FAIR", num_aborted
         return "GOOD", num_aborted
 
+    def _message_rows(self) -> list[tuple[object, object]]:
+        """Return ``(time, content)`` pairs from the parsed messages, if available."""
+        if isinstance(self.messages, pl.DataFrame) and not self.messages.is_empty():
+            if not {"time", "content"}.issubset(self.messages.columns):
+                return []
+            return list(
+                zip(
+                    self.messages["time"].to_list(),
+                    self.messages["content"].to_list(),
+                )
+            )
+        if isinstance(self.messages, list):
+            return [
+                (
+                    item.get("time", item.get("timestamp")),
+                    item.get("content", item.get("message", "")),
+                )
+                for item in self.messages
+                if isinstance(item, dict)
+            ]
+        return []
+
+    def _final_validation_message_time(self) -> float | None:
+        """Return the timestamp of the ``final_validation`` ASC message, if logged."""
+        times: list[float] = []
+        for time_value, content in self._message_rows():
+            if not isinstance(content, str):
+                continue
+            if not _FINAL_VALIDATION_MSG_REGEX.match(content):
+                continue
+            try:
+                times.append(float(time_value))
+            except (TypeError, ValueError):
+                continue
+        return max(times) if times else None
+
+    def _final_experimental_trial_end(self) -> float | None:
+        """Return the end timestamp of the last non-practice trial, if known."""
+        if not isinstance(self.stimulus_start_end_ts, list):
+            return None
+
+        stops: list[float] = []
+        for entry in self.stimulus_start_end_ts:
+            if not isinstance(entry, dict):
+                continue
+            if not _EXPERIMENT_TRIAL_REGEX.match(str(entry.get("trial", ""))):
+                continue
+            try:
+                stops.append(float(entry["stop_ts"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+        return max(stops) if stops else None
+
+    def _calibration_between(self, start: float, end: float) -> bool:
+        """Return whether a calibration lies strictly between two session times.
+
+        Calibrations are read from the calibration table. When no calibration
+        table is stored, the ASC calibration messages are used instead so that
+        an intervening recalibration is still detected.
+        """
+        times: list[float] = []
+        if (
+            isinstance(self.calibrations, pl.DataFrame)
+            and "time" in self.calibrations.columns
+        ):
+            times = [
+                float(time_value)
+                for time_value in self.calibrations["time"]
+                .cast(pl.Float64, strict=False)
+                .drop_nulls()
+                .to_list()
+            ]
+
+        if not times:
+            for time_value, content in self._message_rows():
+                if not isinstance(content, str):
+                    continue
+                if not _CALIBRATION_MSG_REGEX.search(content):
+                    continue
+                try:
+                    times.append(float(time_value))
+                except (TypeError, ValueError):
+                    continue
+
+        return any(start < time_value < end for time_value in times)
+
+    def _compute_final_validation_score(self) -> float | str:
+        """Return the ``accuracy_avg`` (dVA) of the post-experiment final validation.
+
+        The score is the ``accuracy_avg`` of the last validation, but only when
+        the ``final_validation`` screen is logged after the final experimental
+        trial, the validation follows that screen, and no calibration happened
+        between the end of the final trial and the validation. Sessions where
+        this cannot be established from the available data return ``"unknown"``.
+
+        Notes
+        -----
+        A binocular validation produces one row per eye. Rows sharing the final
+        validation timestamp are averaged.
+        """
+        final_validation_time = self._final_validation_message_time()
+        final_trial_end = self._final_experimental_trial_end()
+        if final_validation_time is None or final_trial_end is None:
+            return "unknown"
+        if final_validation_time <= final_trial_end:
+            return "unknown"
+
+        if not isinstance(self.validations, pl.DataFrame):
+            return "unknown"
+        if self.validations.is_empty():
+            return "unknown"
+        if not {"time", "accuracy_avg"}.issubset(self.validations.columns):
+            return "unknown"
+
+        validation_times = (
+            self.validations["time"].cast(pl.Float64, strict=False).drop_nulls()
+        )
+        if validation_times.is_empty():
+            return "unknown"
+
+        last_time = float(validation_times.max())
+        if last_time <= final_validation_time:
+            return "unknown"
+        if self._calibration_between(final_trial_end, last_time):
+            return "unknown"
+
+        final_rows = self.validations.filter(
+            pl.col("time").cast(pl.Float64, strict=False) == last_time
+        )
+        scores = [
+            float(score)
+            for score in final_rows["accuracy_avg"]
+            .cast(pl.Float64, strict=False)
+            .drop_nulls()
+            .to_list()
+        ]
+        if not scores:
+            return "unknown"
+        return round(sum(scores) / len(scores), 3)
+
     def _create_stats(self):
         self.num_calibrations = len(self.calibrations)
         self.num_validations = len(self.validations)
@@ -450,6 +600,7 @@ class Session:
         self.validation_quality, self.num_aborted_validations = (
             self._compute_validation_quality(quality_lines)
         )
+        self.final_validation_score_dva = self._compute_final_validation_score()
 
         self.tracked_eye = self._get_metadata("tracked_eye", "unknown")
 
