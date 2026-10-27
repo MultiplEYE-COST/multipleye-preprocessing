@@ -25,7 +25,7 @@ def main():
 
     # Dictionary for unnesting. Keys: Directories to be unnested, Values: Directories to unnest to
     unnest_dic = {
-        # Path(r"path_to_unwanted_subfolder"):Path(r"path_to_where_to_unnest_to"),
+        # Path(r"path_to_unwanted_subfolder"):Path(r"path_to_where_to_unnest_to"), # COMMENT FOR DOCUMENTATION
     }
 
     # Dictionary for moving and renaming. Keys: Old Paths, Values: New Paths.
@@ -41,13 +41,20 @@ def main():
 
     # List for all paths to files and directories to be deleted.
     del_list = [
-        # Path(r"tobedeleted"),  #CPMMENT FOR DOCUMENTATION
+        # Path(r"tobedeleted"),  #COMMENT FOR DOCUMENTATION
     ]
 
     # Recursively delete hidden files/directories (names starting with "."),
     # e.g. .DS_Store and .localized left behind by macOS/Windows. Runs inside
     # the collection folder only. Set to False to keep them.
     del_hidden = True
+
+    # Change pids for psychometric test sessions to match the eyetracking counterpart for the same participant
+    # Note that this can only be done after uncommenting the code below to restructure the psychometric folder
+    # pid_dict = {
+    # "CURRENT_PSYCH_SESSION_ID": new_id,
+    # "XXX_ZH_CN_1_PT1": 000, #COMMENT FOR DOCUMENTATION
+    # }
 
     # EXECUTION OF COMMON OPERATIONS AND SPACE FOR EXTRA FREE CODE
     with working_directory(collection_folder):
@@ -63,6 +70,20 @@ def main():
         del_files(del_list)
         if del_hidden:
             del_hidden_files()
+
+        # Restructure a task-first psychometric-test export into session-first
+        # folders. Uncomment and adapt after extracting the archive.
+        # from preprocessing.scripts.restructure_psychometric_tests import (
+        #     fix_psychometric_tests_structure,
+        # )
+        # fix_psychometric_tests_structure(
+        #     config_folder=Path("psychometric-tests-sessions/participant_configs"),
+        #     data_folder=Path("psychometric-tests-sessions/core_data"),
+        #     out_folder=Path("psychometric-tests-sessions"),
+        # )
+
+        # Change pids for psychometric test sessions, Requires session-first psychometric folder structure
+        # change_psychometric_pid(out_folder, pid_dict)
 
         # SPACE FOR FURTHER CODE TO BE EXECUTED IN THE FOLDER
 
@@ -195,6 +216,79 @@ def edit_order_csv(
         print(f"No file found at {file_path}. Not editing order file.")
 
     return
+
+
+def _change_pid_in_csv(file: Path, new_pid: int):
+    df = pl.read_csv(file)
+    if "participant_id" in df:
+        df = df.with_columns(pl.lit(new_pid).alias("participant_id"))
+    elif "Participant_id" in df:
+        df = df.with_columns(pl.lit(new_pid).alias("Participant_id"))
+    else:
+        print(f"Column [pP]articipant_id not found in {file}. Please check.")
+
+    df.write_csv(file)
+
+
+def change_psychometric_pid(psych_path: Path, input_dict: dict):
+    print(f"Changing PIDs for {len(input_dict)} psychometric sessions")
+    if not psych_path.exists():
+        print(f"No folder at {psych_path}. Not editing psychometric sessions.")
+        return
+    for session_id, new_pid in input_dict.items():
+        print(f"Changing PID for {session_id} to {new_pid}")
+        old_pid = int(session_id[:3])
+        lang = session_id[4:6]
+        country = session_id[7:9]
+        lab_no = int(session_id[10])
+        subfolder = psych_path / session_id
+
+        if not subfolder.exists():
+            print(f"No session folder at {subfolder}. Skipping")
+            continue
+
+        filename_mappings = {
+            f"{old_pid:03d}_{lang}_{country}": f"{new_pid:03d}_{lang}_{country}",
+            f"{lang}{country}{lab_no}_{old_pid:03d}": f"{lang}{country}{lab_no}_{new_pid:03d}",
+            f"{lang}{country}{lab_no}_{old_pid}_": f"{lang}{country}{lab_no}_{new_pid}_",
+            f"SSTM-{old_pid}.dat": f"SSTM-{new_pid}.dat",
+            f"MU-{old_pid}.dat": f"MU-{new_pid}.dat",
+            f"OS-{old_pid}.dat": f"OS-{new_pid}.dat",
+            f"SS-{old_pid}.dat": f"SS-{new_pid}.dat",
+            f"audio_{lang}{country}{lab_no}_{old_pid:03d}": f"audio_{lang}{country}{lab_no}_{new_pid:03d}",
+        }
+
+        for root, dirs, files in os.walk(subfolder):
+            # Change directory names
+            for i, d in enumerate(dirs):
+                for filestart, new_filestart in filename_mappings.items():
+                    if d.startswith(filestart):
+                        new_dirname = d.replace(filestart, new_filestart)
+                        print(f"Renaming {d} to {new_dirname}")
+                        old_path = Path(root) / d
+                        new_path = Path(root) / new_dirname
+                        os.rename(old_path, new_path)
+                        dirs[i] = new_dirname
+
+            for f in files:
+                # Change pid in csvs
+                if f.endswith(".csv"):
+                    print(f"Editing pid in csv {f}")
+                    f_path = Path(root) / f
+                    _change_pid_in_csv(f_path, new_pid)
+
+                # Change filename if applicable
+                for filestart, new_filestart in filename_mappings.items():
+                    if f.startswith(filestart):
+                        new_filename = f.replace(filestart, new_filestart)
+                        print(f"Renaming {f} to {new_filename}")
+                        old_path = Path(root) / f
+                        new_path = Path(root) / new_filename
+                        os.rename(old_path, new_path)
+
+        # Changing the session folder name
+        new_path = psych_path / (f"{new_pid:03d}" + session_id[3:])
+        os.rename(subfolder, new_path)
 
 
 @contextmanager
