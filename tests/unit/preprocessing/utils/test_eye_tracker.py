@@ -2,7 +2,7 @@ import pytest
 
 from preprocessing.utils.eye_tracker import (
     CANONICAL_EYE_TRACKERS,
-    EYE_TRACKER_BRANDS,
+    EYE_TRACKER_MODELS,
     eye_tracker_brand,
     normalize_eye_tracker_name,
     suggest_eye_tracker_names,
@@ -42,7 +42,7 @@ def test_unsupported_names_return_none(raw: object) -> None:
 @pytest.mark.parametrize("name", CANONICAL_EYE_TRACKERS)
 def test_all_models_keep_the_eyelink_brand(name: str) -> None:
     assert eye_tracker_brand(name) == "eyelink"
-    assert name in EYE_TRACKER_BRANDS["eyelink"]
+    assert EYE_TRACKER_MODELS[name]["brand"] == "eyelink"
 
 
 def test_unknown_brand_is_none() -> None:

@@ -4,41 +4,55 @@ from __future__ import annotations
 
 import difflib
 import re
+from typing import TypedDict
 
 __all__ = [
     "CANONICAL_EYE_TRACKERS",
-    "EYE_TRACKER_BRANDS",
+    "EYE_TRACKER_MODELS",
     "eye_tracker_brand",
     "normalize_eye_tracker_name",
     "suggest_eye_tracker_names",
 ]
 
-CANONICAL_EYE_TRACKERS = (
-    "EyeLink 1000",
-    "EyeLink 1000 Plus",
-    "EyeLink II",
-    "EyeLink Portable Duo",
-)
 
-EYE_TRACKER_BRANDS = {
-    "eyelink": CANONICAL_EYE_TRACKERS,
+class EyeTrackerSpec(TypedDict):
+    """Maintenance metadata for one canonical eye-tracker model."""
+
+    brand: str
+    aliases: tuple[str, ...]
+
+
+EYE_TRACKER_MODELS: dict[str, EyeTrackerSpec] = {
+    "EyeLink 1000": {
+        "brand": "eyelink",
+        "aliases": ("Eyelink 1000", "EyeLink1000"),
+    },
+    "EyeLink 1000 Plus": {
+        "brand": "eyelink",
+        "aliases": (
+            "Eyelink 1000 Plus",
+            "EyeLink 1000+",
+            "EyeLink 1000-Plus",
+            "EyeLink1000 Plus",
+        ),
+    },
+    "EyeLink II": {
+        "brand": "eyelink",
+        "aliases": ("Eyelink II", "EyeLink 2"),
+    },
+    "EyeLink Portable Duo": {
+        "brand": "eyelink",
+        "aliases": (
+            "Eyelink Portable Duo",
+            "EyeLink Duo",
+            "Eyelink Duo",
+            "EyeLink Portable Duo 2000Hz Remote",
+            "EyeLink Portable Duo 2000 Hz Remote",
+        ),
+    },
 }
 
-# Keys use the output of _normalize so aliases stay case-, punctuation- and
-# whitespace-insensitive. Explicit aliases cover the spellings found in lab
-# configurations and older metadata.
-_ALIASES = {
-    "eyelink 1000": "EyeLink 1000",
-    "eyelink1000": "EyeLink 1000",
-    "eyelink 1000 plus": "EyeLink 1000 Plus",
-    "eyelink1000 plus": "EyeLink 1000 Plus",
-    "eyelink ii": "EyeLink II",
-    "eyelink 2": "EyeLink II",
-    "eyelink portable duo": "EyeLink Portable Duo",
-    "eyelink duo": "EyeLink Portable Duo",
-    "eyelink portable duo 2000hz remote": "EyeLink Portable Duo",
-    "eyelink portable duo 2000 hz remote": "EyeLink Portable Duo",
-}
+CANONICAL_EYE_TRACKERS = tuple(EYE_TRACKER_MODELS)
 
 _PUNCTUATION = re.compile(r"[^a-z0-9]+")
 
@@ -47,6 +61,27 @@ def _normalize(value: object) -> str:
     """Return a lowercase, punctuation- and whitespace-insensitive string."""
     text = str(value).casefold().replace("+", " plus ")
     return _PUNCTUATION.sub(" ", text).strip()
+
+
+def _build_alias_lookup() -> dict[str, str]:
+    """Build the flat lookup and reject aliases claimed by two models."""
+    lookup: dict[str, str] = {}
+    for canonical, spec in EYE_TRACKER_MODELS.items():
+        for alias in (canonical, *spec["aliases"]):
+            normalized = _normalize(alias)
+            if not normalized:
+                raise ValueError(f"Empty eye-tracker alias for {canonical!r}.")
+            existing = lookup.get(normalized)
+            if existing is not None and existing != canonical:
+                raise ValueError(
+                    f"Eye-tracker alias {alias!r} maps to both "
+                    f"{existing!r} and {canonical!r}."
+                )
+            lookup[normalized] = canonical
+    return lookup
+
+
+_ALIAS_LOOKUP = _build_alias_lookup()
 
 
 def normalize_eye_tracker_name(value: object) -> str | None:
@@ -65,17 +100,15 @@ def normalize_eye_tracker_name(value: object) -> str | None:
     """
     if value is None:
         return None
-    return _ALIASES.get(_normalize(value))
+    return _ALIAS_LOOKUP.get(_normalize(value))
 
 
 def eye_tracker_brand(name: str | None) -> str | None:
     """Return the brand key for a canonical eye-tracker model, or None."""
     if name is None:
         return None
-    for brand, models in EYE_TRACKER_BRANDS.items():
-        if name in models:
-            return brand
-    return None
+    spec = EYE_TRACKER_MODELS.get(name)
+    return spec["brand"] if spec is not None else None
 
 
 def suggest_eye_tracker_names(value: object, max_suggestions: int = 3) -> list[str]:
@@ -84,13 +117,13 @@ def suggest_eye_tracker_names(value: object, max_suggestions: int = 3) -> list[s
         return []
     close_aliases = difflib.get_close_matches(
         _normalize(value),
-        list(_ALIASES),
+        list(_ALIAS_LOOKUP),
         n=max_suggestions * 2,
         cutoff=0.5,
     )
     suggestions: list[str] = []
     for alias in close_aliases:
-        canonical = _ALIASES[alias]
+        canonical = _ALIAS_LOOKUP[alias]
         if canonical not in suggestions:
             suggestions.append(canonical)
         if len(suggestions) == max_suggestions:
