@@ -107,6 +107,19 @@ def _write_raw_metadata_form(dcn_dir: Path, filename: str, content: str) -> Path
     return path
 
 
+def _write_answer_option_set(
+    stimulus_dir: Path, set_name: str, versions: dict[int, object]
+) -> None:
+    """Write shuffled answer-option JSON files for a set."""
+    set_dir = stimulus_dir / "config" / set_name
+    set_dir.mkdir(parents=True, exist_ok=True)
+    for version, payload in versions.items():
+        path = (
+            set_dir / f"shuffled_option_keys_en_question_images_version_{version}.json"
+        )
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _setup_session_with_data(
     session: Session,
     avg_calibration_error: float = 0.5,
@@ -222,6 +235,155 @@ class TestProcessing:
 
         assert p["pipeline_version"] == "2026.08.11"
         assert p["preprocessing_date"] == datetime.now(tz=UTC).strftime("%Y-%m-%d")
+
+
+class TestAnswerOptionShuffling:
+    set_name = "question_answer_option_shuffling_en_uk_1"
+
+    @staticmethod
+    def _set_versions(dc: MultipleyeDataCollection, versions: dict[str, int]) -> None:
+        for session_id, version in versions.items():
+            dc.sessions[session_id].randomization_version = version
+
+    def test_flags_majority_content(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        self._set_versions(
+            dc,
+            {
+                "001_EN_UK_1_ET1": 1,
+                "002_EN_UK_1_ET1": 2,
+                "003_EN_UK_1_ET1": 3,
+            },
+        )
+        _write_answer_option_set(
+            dc.stimulus_dir,
+            self.set_name,
+            {
+                1: {"q1": ["a", "b"]},
+                2: {"q1": ["a", "b"]},
+                3: {"q1": ["b", "a"]},
+            },
+        )
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        check = _proc(overview)["answer_option_shuffling"]
+
+        assert check["flagged"] is True
+        assert check["num_sets"] == 1
+        assert check["num_sessions"] == 3
+        assert check["num_flagged_sets"] == 1
+        stats = check["sets"][self.set_name]
+        assert stats["num_sessions"] == 3
+        assert stats["num_versions"] == 3
+        assert stats["num_unique"] == 2
+        assert stats["max_identical_sessions"] == 2
+        assert stats["max_identical_share"] == 0.667
+        assert stats["all_files_identical"] is False
+        assert any(
+            "Answer-option shuffling check" in warning
+            for warning in overview["warnings"]
+        )
+
+    def test_one_of_two_split_is_not_flagged(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        dc.sessions.pop("003_EN_UK_1_ET1")
+        self._set_versions(
+            dc,
+            {
+                "001_EN_UK_1_ET1": 1,
+                "002_EN_UK_1_ET1": 2,
+            },
+        )
+        _write_answer_option_set(
+            dc.stimulus_dir,
+            self.set_name,
+            {
+                1: {"q1": ["a", "b"]},
+                2: {"q1": ["b", "a"]},
+            },
+        )
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        stats = _proc(overview)["answer_option_shuffling"]["sets"][self.set_name]
+
+        assert stats["max_identical_sessions"] == 1
+        assert stats["max_identical_share"] == 0.5
+        assert stats["flagged"] is False
+
+    def test_all_files_identical_is_flagged(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        self._set_versions(
+            dc,
+            {
+                "001_EN_UK_1_ET1": 1,
+                "002_EN_UK_1_ET1": 2,
+                "003_EN_UK_1_ET1": 3,
+            },
+        )
+        payload = {"q1": ["a", "b"]}
+        _write_answer_option_set(
+            dc.stimulus_dir,
+            self.set_name,
+            {1: payload, 2: payload, 3: payload},
+        )
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        stats = _proc(overview)["answer_option_shuffling"]["sets"][self.set_name]
+
+        assert stats["all_files_identical"] is True
+        assert stats["max_identical_sessions"] == 3
+        assert stats["flagged"] is True
+
+    def test_all_files_differ_but_used_files_are_identical(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        dc.sessions.pop("003_EN_UK_1_ET1")
+        self._set_versions(
+            dc,
+            {
+                "001_EN_UK_1_ET1": 1,
+                "002_EN_UK_1_ET1": 2,
+            },
+        )
+        shared = {"q1": ["a", "b"]}
+        _write_answer_option_set(
+            dc.stimulus_dir,
+            self.set_name,
+            {1: shared, 2: shared, 3: {"q1": ["b", "a"]}},
+        )
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        stats = _proc(overview)["answer_option_shuffling"]["sets"][self.set_name]
+
+        assert stats["all_files_identical"] is False
+        assert stats["max_identical_sessions"] == 2
+        assert stats["max_identical_share"] == 1.0
+        assert stats["flagged"] is True
+
+    def test_unreadable_files_leave_all_files_identical_unknown(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        set_dir = dc.stimulus_dir / "config" / self.set_name
+        set_dir.mkdir(parents=True)
+        (set_dir / "shuffled_option_keys_en_question_images_version_1.json").write_text(
+            "{not json", encoding="utf-8"
+        )
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        stats = _proc(overview)["answer_option_shuffling"]["sets"][self.set_name]
+
+        assert stats["num_sessions"] == 0
+        assert stats["num_versions"] == 0
+        assert stats["all_files_identical"] is None
+        assert stats["flagged"] is False
 
 
 class TestTechnicalSetup:

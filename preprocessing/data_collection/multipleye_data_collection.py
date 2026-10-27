@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -7,6 +8,8 @@ import subprocess
 import sys
 import tempfile
 import warnings
+from collections import Counter
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, date, datetime
 from functools import partial
@@ -112,6 +115,193 @@ def _metadata_form_value(
         if value is not None:
             return value
     return metadata_form.get(legacy_key)
+
+
+_ANSWER_OPTION_SET_PREFIX = "question_answer_option_shuffling_"
+_ANSWER_OPTION_VERSION_REGEX = re.compile(
+    r"question_images_version_(\d+)\.json$", re.IGNORECASE
+)
+
+
+def _answer_option_version_from_path(path: Path) -> int | None:
+    """Return the question-image version encoded in an option-key filename."""
+    match = _ANSWER_OPTION_VERSION_REGEX.search(path.name)
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
+def _answer_option_session_version(value: object) -> int | None:
+    """Return a session's stimulus-order version as an integer, else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else None
+    if isinstance(value, str):
+        match = re.search(r"(\d+)\s*$", value.strip())
+        if match is not None:
+            return int(match.group(1))
+    return None
+
+
+def _canonical_json_hash(path: Path) -> str | None:
+    """Return a stable content hash for a JSON file, or None if it is unreadable."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    canonical = json.dumps(
+        data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _answer_option_set_files(
+    stimulus_dirs: Iterable[Path],
+) -> dict[str, list[tuple[Path, int, Path]]]:
+    """Discover shuffled option-key files grouped by stimulus set name.
+
+    Parameters
+    ----------
+    stimulus_dirs : Iterable[Path]
+        Stimulus directories used by the collection, including content versions.
+
+    Returns
+    -------
+    dict[str, list[tuple[Path, int, Path]]]
+        Mapping from set directory name to ``(stimulus_dir, version, path)``
+        entries. Only files with a parseable version suffix are included.
+    """
+    entries: dict[str, list[tuple[Path, int, Path]]] = {}
+    seen: set[Path] = set()
+    for stimulus_dir in stimulus_dirs:
+        config_dir = Path(stimulus_dir) / "config"
+        if not config_dir.is_dir():
+            continue
+        for set_dir in sorted(config_dir.glob(f"{_ANSWER_OPTION_SET_PREFIX}*")):
+            if not set_dir.is_dir():
+                continue
+            for path in sorted(set_dir.glob("*.json")):
+                version = _answer_option_version_from_path(path)
+                if version is None:
+                    continue
+                resolved = path.resolve()
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                entries.setdefault(set_dir.name, []).append(
+                    (Path(stimulus_dir), version, path)
+                )
+    return entries
+
+
+def _compute_answer_option_shuffling_stats(
+    sessions: Iterable[object],
+    resolve_stimulus_dir: Callable[[str], Path],
+    stimulus_dirs: Iterable[Path],
+) -> dict[str, object]:
+    """Compute the answer-option shuffling check for the DCN overview.
+
+    The session rule uses the option-key file selected by each session's
+    ``randomization_version``. ``all_files_identical`` is computed from every
+    readable file in the set, including versions not used by a session.
+
+    Parameters
+    ----------
+    sessions : Iterable[object]
+        Non-pilot sessions. Each item must expose ``session_identifier`` and
+        ``randomization_version``.
+    resolve_stimulus_dir : Callable[[str], Path]
+        Resolve a session identifier to its stimulus directory.
+    stimulus_dirs : Iterable[Path]
+        All stimulus directories, including content versions.
+
+    Returns
+    -------
+    dict[str, object]
+        The ``answer_option_shuffling`` mapping written to the DCN overview.
+    """
+    files_by_set = _answer_option_set_files(stimulus_dirs)
+    records: dict[str, dict[str, object]] = {}
+    for set_name, entries in files_by_set.items():
+        hash_by_dir_version: dict[tuple[Path, int], str] = {}
+        all_hashes: list[str] = []
+        for stimulus_dir, version, path in entries:
+            digest = _canonical_json_hash(path)
+            if digest is None:
+                continue
+            hash_by_dir_version[(Path(stimulus_dir).resolve(), version)] = digest
+            all_hashes.append(digest)
+        records[set_name] = {
+            "hash_by_dir_version": hash_by_dir_version,
+            "all_hashes": all_hashes,
+            "session_ids": set(),
+            "session_hashes": [],
+            "used_versions": set(),
+        }
+
+    session_ids: set[str] = set()
+    for session in sessions:
+        session_id = getattr(session, "session_identifier", None)
+        version = _answer_option_session_version(
+            getattr(session, "randomization_version", None)
+        )
+        if not session_id or version is None:
+            continue
+        stimulus_dir = Path(resolve_stimulus_dir(str(session_id))).resolve()
+        for record in records.values():
+            digest = record["hash_by_dir_version"].get((stimulus_dir, version))
+            if digest is None:
+                continue
+            record["session_ids"].add(str(session_id))
+            record["session_hashes"].append(digest)
+            record["used_versions"].add(version)
+            session_ids.add(str(session_id))
+
+    sets: dict[str, dict[str, object]] = {}
+    num_flagged_sets = 0
+    for set_name in sorted(records):
+        record = records[set_name]
+        session_hashes = record["session_hashes"]
+        used_versions = record["used_versions"]
+        all_hashes = record["all_hashes"]
+        num_sessions = len(record["session_ids"])
+        max_identical_sessions = max(Counter(session_hashes).values(), default=0)
+        max_identical_share = (
+            round(max_identical_sessions / num_sessions, 3) if num_sessions else 0.0
+        )
+        all_files_identical = len(set(all_hashes)) == 1 if all_hashes else None
+        flagged = max_identical_sessions >= 2 and (
+            all_files_identical is True or max_identical_share >= 0.5
+        )
+        if flagged:
+            num_flagged_sets += 1
+        sets[set_name] = {
+            "flagged": flagged,
+            "num_sessions": num_sessions,
+            "num_versions": len(used_versions),
+            "num_unique": len(set(session_hashes)),
+            "max_identical_sessions": max_identical_sessions,
+            "max_identical_share": max_identical_share,
+            "all_files_identical": all_files_identical,
+        }
+
+    return {
+        "flagged": num_flagged_sets > 0,
+        "num_sets": len(sets),
+        "num_sessions": len(session_ids),
+        "num_flagged_sets": num_flagged_sets,
+        "sets": sets,
+    }
+
+
+def _capture_overview_warning(message: str) -> None:
+    """Append a warning to the DCN overview warning list."""
+    if not hasattr(logging, "_captured_warnings"):
+        logging._captured_warnings = []  # type: ignore[attr-defined]
+    logging._captured_warnings.append(message)  # type: ignore[attr-defined]
 
 
 def _compute_session_completeness(data_collection) -> dict:
@@ -410,6 +600,64 @@ class MultipleyeDataCollection:
             return self.stimulus_dir
         pid = Sid(session_identifier).pid
         return self.pid_stimulus_dirs.get(pid, self.stimulus_dir)
+
+    def _answer_option_stimulus_dirs(self) -> list[Path]:
+        """Return the default and configured version-specific stimulus directories."""
+        directories = [Path(self.stimulus_dir)]
+        if self.pid_stimulus_dirs:
+            directories.extend(Path(path) for path in self.pid_stimulus_dirs.values())
+        unique: list[Path] = []
+        seen: set[Path] = set()
+        for directory in directories:
+            resolved = directory.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                unique.append(directory)
+        return unique
+
+    def _compute_answer_option_shuffling(self) -> dict[str, object]:
+        """Check whether shuffled answer-option keys repeat across sessions.
+
+        The check compares canonical JSON hashes per stimulus set. A set is
+        flagged when all readable files are identical, or when at least half of
+        the non-pilot sessions share the same content and at least two sessions
+        use it. The threshold avoids flagging a one-versus-one split.
+
+        Returns
+        -------
+        dict[str, object]
+            The ``processing.answer_option_shuffling`` mapping.
+        """
+        result = _compute_answer_option_shuffling_stats(
+            [session for session in self.sessions.values() if not session.is_pilot],
+            self._resolve_stimulus_dir,
+            self._answer_option_stimulus_dirs(),
+        )
+        sets = result.get("sets")
+        if isinstance(sets, dict):
+            for set_name, stats in sets.items():
+                if not isinstance(stats, dict) or not stats.get("flagged"):
+                    continue
+                max_sessions = int(stats["max_identical_sessions"])
+                num_sessions = int(stats["num_sessions"])
+                share = float(stats["max_identical_share"])
+                if stats.get("all_files_identical") is True:
+                    message = (
+                        "Answer-option shuffling check: all shuffled option-key files "
+                        f"in set '{set_name}' are identical. This can indicate a broken "
+                        "randomization seed; verify the option keys before using the data."
+                    )
+                else:
+                    message = (
+                        "Answer-option shuffling check: "
+                        f"{max_sessions} of {num_sessions} sessions in set '{set_name}' "
+                        "share identical shuffled option keys "
+                        f"({share:.1%}). This can indicate a broken randomization seed; "
+                        "verify the option keys before using the data."
+                    )
+                self.logger.warning(message)
+                _capture_overview_warning(message)
+        return result
 
     def __repr__(self):
         if not self.overview:
@@ -1192,9 +1440,7 @@ class MultipleyeDataCollection:
                 "custom_units_of_analysis": metadata_form.get(
                     "Custom_units_of_analysis"
                 ),
-                "answer_option_shuffling_bug": metadata_form.get(
-                    "Answer_option_shuffling_bug"
-                ),
+                "answer_option_shuffling": self._compute_answer_option_shuffling(),
             },
             "processing_config": {
                 "fixation_method": settings.FIXATION_METHOD,

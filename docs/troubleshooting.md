@@ -178,6 +178,32 @@ more than one stimulus content version, so this is never valid.
 
 :::
 
+(errors_metadata_warnings)=
+
+## Metadata YAML Warnings
+
+:::{dropdown} Answer-option shuffling check: identical option keys
+
+The DCN overview writes `processing.answer_option_shuffling` and adds a warning when the shuffled
+answer-option keys look repeated. A set is flagged when at least two sessions share one canonical
+JSON content and either all readable files in the set are identical or at least half of the
+sessions use the same content. A one-versus-one split is not flagged.
+
+**What to do:**
+
+- **Read the set statistics:** `num_sessions`, `num_versions` and `num_unique` show whether only a
+  few used versions repeat or the whole set is affected. `all_files_identical` covers every
+  readable file, including unused versions.
+- **Check how the option keys were generated:** the check detects repeated content, but it cannot
+  tell whether the repetition came from a broken seed, an intentional reuse, or duplicated input
+  files.
+- **Regenerate or replace the affected set:** if the repetition was not intended, regenerate the
+  shuffled option keys and rerun the preprocessing.
+- **Do not filter sessions by this flag alone:** inspect the option keys and the collection
+  documentation first.
+
+:::
+
 (errors_preflight)=
 
 ## Preflight Check Errors
