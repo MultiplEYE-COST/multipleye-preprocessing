@@ -1014,6 +1014,198 @@ def test_trials_skip_group_with_missing_stimulus_id(tmp_path: Path) -> None:
     assert trials[0]["stimulus_id"] == 3
 
 
+def test_trials_include_extended_fields(tmp_path: Path) -> None:
+    answers_dir = _write_answers(tmp_path, _ANSWERS_ROWS)
+    sess = _trial_sess(answers_dir)
+    sess.validations = pl.DataFrame(
+        {
+            "time": [50.0, 700.0, 4500.0],
+            "accuracy_avg": [0.2, 0.4, 0.6],
+        }
+    )
+    sess._per_trial_data_loss = pl.DataFrame(
+        {
+            "trial": ["trial_1", "trial_2", "PRACTICE_trial_1"],
+            "stimulus": ["Lit_MagicMountain", "Lit_Alchemist", "Enc_WikiMoon"],
+            "data_loss_ratio": [0.01, 0.02, 0.03],
+        }
+    )
+    sess._per_trial_blink_loss = pl.DataFrame(
+        {
+            "trial": ["trial_1", "trial_2", "PRACTICE_trial_1"],
+            "stimulus": ["Lit_MagicMountain", "Lit_Alchemist", "Enc_WikiMoon"],
+            "blink_loss_ratio": [0.1, 0.2, 0.3],
+            "blink_duration_ms": [100.0, 200.0, 300.0],
+            "trial_duration_ms": [3000.0, 3000.0, 400.0],
+        }
+    )
+
+    with patch.object(
+        Session,
+        "sid",
+        property(lambda self: _FakeSid(answers_dir)),
+    ):
+        trials = sess.create_overview()["trials"]
+
+    assert isinstance(trials, list)
+    expected_fields = {
+        "trial_number",
+        "stimulus_id",
+        "stimulus_name",
+        "is_practice",
+        "num_questions",
+        "comprehension_score",
+        "comprehension_question_time_ms",
+        "reading_time_ms",
+        "trial_duration_ms",
+        "data_loss_ratio",
+        "blink_ratio",
+        "validation_before_start_dva",
+    }
+    for trial in trials:
+        assert expected_fields.issubset(trial)
+
+    by_key = {(t["trial_number"], t["is_practice"]): t for t in trials}
+    assert by_key[(1, False)]["trial_duration_ms"] == 3000.0
+    assert by_key[(2, False)]["trial_duration_ms"] == 3000.0
+    assert by_key[(1, True)]["trial_duration_ms"] == 400.0
+    assert by_key[(1, False)]["data_loss_ratio"] == 0.01
+    assert by_key[(2, False)]["data_loss_ratio"] == 0.02
+    assert by_key[(1, True)]["data_loss_ratio"] == 0.03
+    assert by_key[(1, False)]["blink_ratio"] == 0.1
+    assert by_key[(2, False)]["blink_ratio"] == 0.2
+    assert by_key[(1, True)]["blink_ratio"] == 0.3
+    assert by_key[(1, False)]["validation_before_start_dva"] == 0.4
+    assert by_key[(2, False)]["validation_before_start_dva"] == 0.6
+    assert by_key[(1, True)]["validation_before_start_dva"] == 0.2
+
+
+def test_trials_extended_fields_unknown_without_sources(tmp_path: Path) -> None:
+    answers_dir = _write_answers(tmp_path, _ANSWERS_ROWS)
+    sess = _trial_sess(answers_dir)
+    sess.stimulus_start_end_ts = "unknown"
+
+    with patch.object(
+        Session,
+        "sid",
+        property(lambda self: _FakeSid(answers_dir)),
+    ):
+        trials = sess.create_overview()["trials"]
+
+    assert isinstance(trials, list)
+    for trial in trials:
+        assert trial["trial_duration_ms"] == "unknown"
+        assert trial["data_loss_ratio"] == "unknown"
+        assert trial["blink_ratio"] == "unknown"
+        assert trial["validation_before_start_dva"] == "unknown"
+
+
+def test_practice_trial_extended_fields_use_matching_entry(tmp_path: Path) -> None:
+    answers_dir = _write_answers(tmp_path, _ANSWERS_ROWS)
+    sess = _trial_sess(answers_dir)
+    sess.validations = pl.DataFrame({"time": [50.0], "accuracy_avg": [0.35]})
+    sess._per_trial_data_loss = pl.DataFrame(
+        {
+            "trial": ["PRACTICE_trial_1"],
+            "stimulus": ["Enc_WikiMoon"],
+            "data_loss_ratio": [0.25],
+        }
+    )
+
+    with patch.object(
+        Session,
+        "sid",
+        property(lambda self: _FakeSid(answers_dir)),
+    ):
+        trials = sess.create_overview()["trials"]
+
+    practice = next(t for t in trials if t["is_practice"])
+    experiment = next(t for t in trials if not t["is_practice"])
+
+    assert practice["trial_duration_ms"] == 400.0
+    assert practice["data_loss_ratio"] == 0.25
+    assert practice["blink_ratio"] == "unknown"
+    assert practice["validation_before_start_dva"] == 0.35
+    assert experiment["trial_duration_ms"] == 3000.0
+    assert experiment["data_loss_ratio"] == "unknown"
+    assert experiment["validation_before_start_dva"] == "unknown"
+
+
+def test_trials_extended_fields_from_sanity_check_tsv(tmp_path: Path) -> None:
+    answers_dir = _write_answers(tmp_path, _ANSWERS_ROWS)
+    sess = _trial_sess(answers_dir)
+    report = (
+        tmp_path / "sanity_checks" / "001_EN_UK_1_ET1" / "001_EN_UK_1_ET1_EN_report.md"
+    )
+    report.parent.mkdir(parents=True)
+    pl.DataFrame(
+        {
+            "trial": ["trial_1", "trial_2"],
+            "stimulus": ["Lit_MagicMountain", "Lit_Alchemist"],
+            "data_loss_ratio": [0.04, 0.05],
+            "blink_loss_ratio": [0.06, 0.07],
+            "blink_duration_ms": [100.0, 200.0],
+            "trial_duration_ms": [3000.0, 3000.0],
+        }
+    ).write_csv(
+        report.parent / "per_trial_data_loss_001_EN_UK_1_ET1.tsv", separator="\t"
+    )
+    sess.sanity_report_path = report
+
+    with patch.object(
+        Session,
+        "sid",
+        property(lambda self: _FakeSid(answers_dir)),
+    ):
+        trials = sess.create_overview()["trials"]
+
+    by_key = {(t["trial_number"], t["is_practice"]): t for t in trials}
+    assert by_key[(1, False)]["data_loss_ratio"] == 0.04
+    assert by_key[(1, False)]["blink_ratio"] == 0.06
+    assert by_key[(2, False)]["data_loss_ratio"] == 0.05
+    assert by_key[(2, False)]["blink_ratio"] == 0.07
+    assert by_key[(1, True)]["data_loss_ratio"] == "unknown"
+    assert by_key[(1, True)]["blink_ratio"] == "unknown"
+
+
+def test_validation_before_start_requires_inter_trial_interval() -> None:
+    """A stale validation from before the previous trial is not reused."""
+    sess = _make_session()
+    sess.stimulus_start_end_ts = [
+        {"trial": "trial_1", "start_ts": 1000.0, "stop_ts": 4000.0},
+        {"trial": "trial_2", "start_ts": 5000.0, "stop_ts": 8000.0},
+    ]
+    # The only validation happens during trial 1.
+    sess.validations = pl.DataFrame({"time": [3000.0], "accuracy_avg": [0.3]})
+
+    scores = sess._validation_before_trial_start(sess._trial_time_spans())
+
+    assert scores == {}
+
+
+def test_trials_unknown_for_empty_answers(tmp_path: Path) -> None:
+    answers_dir = tmp_path / "comp_answers" / "001_EN_UK_1_ET1"
+    answers_dir.mkdir(parents=True)
+    pl.DataFrame(
+        schema={
+            "trial": pl.Utf8,
+            "stimulus": pl.Utf8,
+            "stimulus_id": pl.Int64,
+            "is_correct": pl.Boolean,
+        }
+    ).write_csv(answers_dir / "001_EN_UK_1_ET1_answers.csv")
+    sess = _trial_sess(answers_dir)
+
+    with patch.object(
+        Session,
+        "sid",
+        property(lambda self: _FakeSid(answers_dir)),
+    ):
+        trials = sess.create_overview()["trials"]
+
+    assert trials == "unknown"
+
+
 def test_calibration_quality_aggregation(tmp_path: Path) -> None:
     asc = tmp_path / "session.asc"
     sess = _make_session()
