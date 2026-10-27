@@ -53,7 +53,7 @@ def main():
     # the collection folder only. Set to False to keep them.
     del_hidden = True
 
-    #Change pids for psychometric test sessions to match the eyetracking counterpart
+    #Change pids for psychometric test sessions to match the eyetracking counterpart for the same participant
     pid_dict = {
         "099_ZH_CN_1_PT1": 999,
         "098_ZH_CN_1_PT1": 998,
@@ -236,24 +236,61 @@ def _change_pid_in_csv(file: Path, new_pid:int):
     return
 
 def change_psychometric_pid(psych_path: Path, input_dict: dict):
-    tests = ["PLAB", "RAN", "Stroop_Flanker", "WikiVocab", "WMC"]
+    print(f"Changing PIDs for {len(input_dict)} psychometric sessions")
     for session_id, new_pid in input_dict.items():
+        print(f"Changing PID for {session_id} to {new_pid}")
         old_pid = int(session_id[:3])
         lang = session_id[4:6]
         country = session_id[7:9]
-        session_no = int(session_id[10])
+        lab_no = int(session_id[10])
         subfolder = psych_path / session_id
 
-        #Change pids in psychometric csvs
-        for test in tests:
-            testfolder = subfolder / test
-            for f in os.listdir(testfolder):
+        if not subfolder.exists():
+            print(f"No session folder at {subfolder}. Skipping")
+            continue
+
+        filename_mappings = {
+            f"{old_pid:03d}_{lang}_{country}":f"{new_pid:03d}_{lang}_{country}",
+            f"{lang}{country}{lab_no}_{old_pid:03d}":f"{lang}{country}{lab_no}_{new_pid:03d}",
+            f"{lang}{country}{lab_no}_{old_pid}_":f"{lang}{country}{lab_no}_{new_pid}_",
+            f"SSTM-{old_pid}.dat":f"SSTM-{new_pid}.dat",
+            f"MU-{old_pid}.dat":f"MU-{new_pid}.dat",
+            f"OS-{old_pid}.dat":f"OS-{new_pid}.dat",
+            f"SS-{old_pid}.dat":f"SS-{new_pid}.dat",
+            f"audio_{lang}{country}{lab_no}_{old_pid:03d}":f"audio_{lang}{country}{lab_no}_{new_pid:03d}",
+        }
+        
+        for root, dirs, files in os.walk(subfolder):
+            #Change directory names
+            for i, d in enumerate(dirs):
+                for filestart in filename_mappings:
+                    if d.startswith(filestart):
+                        new_dirname = d.replace(filestart, filename_mappings[filestart])
+                        print(f"Renaming {d} to {new_dirname}")
+                        old_path = Path(root) / d
+                        new_path = Path(root) / new_dirname
+                        os.rename(old_path, new_path)
+                        dirs[i] = new_dirname
+
+            for f in files:
+                # Change pid in csvs
                 if f.endswith(".csv"):
-                    print(f"Changing {old_pid} to {new_pid} in {f}")
-                    f_path = testfolder / f
+                    print(f"Editing pid in csv {f}")
+                    f_path = Path(root) / f
                     _change_pid_in_csv(f_path, new_pid)
 
-        #TODO Change filenames
+                # Change filename if applicable
+                for filestart in filename_mappings:
+                    if f.startswith(filestart):
+                        new_filename = f.replace(filestart, filename_mappings[filestart])
+                        print(f"Renaming {f} to {new_filename}")
+                        old_path = Path(root) / f
+                        new_path = Path(root) / new_filename
+                        os.rename(old_path, new_path)
+
+        # Changing the session folder name
+        new_path = psych_path / (f"{new_pid:03d}" + session_id[3:])
+        os.rename(subfolder, new_path)
 
 
 
