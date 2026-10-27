@@ -374,16 +374,15 @@ EyeLink grade, so a validation can be EyeLink `GOOD` and still count as moderate
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `question_order` | dict, str | **TODO (#170).** Intended to map conditions to question order. Not populated yet, currently `unknown`. |
 | `stimulus_content_version` | str, null | Stimulus content version suffix when the collection configures one. `null` or `unknown` otherwise. |
 | `stimulus_order_ids` | list, str | Numeric stimulus IDs in presentation order, including practice trials. `unknown` when no order is available. |
 | `stimulus_order_ids_with_names` | list, str | One entry per presented stimulus, usually with `stimulus_id`, `stimulus_name` and `trial`, for example `trial: PRACTICE_trial_1` or `trial: trial_1`. |
 | `num_completed_trials` | int, null | Number of entries in `stimulus_order_ids`, including practice trials. |
 | `was_session_interrupted` | bool, str | Whether the session was restarted, derived from the session-ID postfix. |
 | `restarted_session_name` | str | Canonical session ID without the restart postfix, `unknown` when the session is not a restart. |
-| `obligatory_break_made` | bool, str | **TODO (#170).** Field exists but is not populated yet; currently `unknown`. |
-| `num_optional_breaks_made` | int, str | **TODO (#170).** Field exists but is not populated yet; currently `unknown`. |
-| `total_break_time_s` | float, str | **TODO (#170).** Field exists but is not populated yet; currently `unknown`. |
+| `obligatory_break_made` | bool, str | `true` when the ASC contains an `obligatory_break` message, `false` when message data exists without one. `unknown` when no message data is available. |
+| `num_optional_breaks_made` | int, str | Number of `optional_break` starts in the ASC. `0` when message data exists without optional breaks; `unknown` when no message data is available. |
+| `total_break_time_s` | float, str | Sum of `optional_break_duration` and `obligatory_break_duration` messages, in seconds. `0.0` when there are no breaks, `unknown` when breaks exist without duration data or no message data is available. |
 | `total_reading_time_s` | float | Sum of non-negative reading spans over all stimuli, in seconds. |
 | `total_session_duration_s` | float | Last minus first ASC message timestamp, in seconds. |
 | `mean_rt_per_stim_ms` | float | Mean summed reading time per stimulus, in milliseconds. |
@@ -440,6 +439,8 @@ Each entry in `trials` has the following fields:
 | `data_loss_ratio` | float, str | Fraction of missing or invalid samples in the trial, `0` to `1`, from the per-trial data-loss table. Falls back to the sanity-check TSV. `"unknown"` when no source exists. |
 | `blink_ratio` | float, str | Fraction of the trial recording spent in blinks, `0` to `1`, from the per-trial blink-loss table. Falls back to the sanity-check TSV. `"unknown"` when no source exists. |
 | `validation_before_start_dva` | float, str | Mean validation accuracy in degrees of visual angle immediately before the trial starts, averaged across binocular rows at the same timestamp. `"unknown"` when no trial timestamp or validation is available. |
+| `question_order_version` | int, null | Question-order version for this trial from the session CSV. `null` when no matching order record exists. |
+| `question_order` | dict, null | Explicit local, bridging and global order codes for this trial. `null` when no matching order record exists; the trial itself is still included. |
 
 A real entry looks like this:
 
@@ -452,6 +453,11 @@ A real entry looks like this:
   comprehension_score: 0.5
   comprehension_question_time_ms: 146035.0
   reading_time_ms: 204963.0
+  question_order_version: 6
+  question_order:
+    local: [12, 11]
+    bridging: [21, 22]
+    global: [32, 31]
 ```
 
 ## Still open
@@ -460,8 +466,6 @@ The metadata schema is being completed in several issues:
 
 - [#168](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/168) tracks the
   metadata YAML work as a whole.
-- [#170](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/170) covers the
-  remaining session fields: `question_order` and the break fields.
 - DCN data-quality metrics such as `mean_pupil_loss_ratio` and
   `mean_missing_values_ratio` remain blocked on definitions and a data source; see #169
   and #168.

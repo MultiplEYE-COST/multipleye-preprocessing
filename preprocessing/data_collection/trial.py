@@ -47,6 +47,12 @@ class Trial:
         binocular validations the rows sharing the validation timestamp are
         averaged. ``"unknown"`` when no trial timestamp or no such validation
         is available.
+    question_order_version : int | None
+        Question-order version for this trial from the session CSV. ``None``
+        when no matching order record exists.
+    question_order : dict[str, list[int]] | None
+        Explicit local, bridging and global question order codes for this
+        trial. ``None`` when no matching order record exists.
     """
 
     trial_number: int
@@ -61,3 +67,5 @@ class Trial:
     data_loss_ratio: float | str = "unknown"
     blink_ratio: float | str = "unknown"
     validation_before_start_dva: float | str = "unknown"
+    question_order_version: int | None = None
+    question_order: dict[str, list[int]] | None = None

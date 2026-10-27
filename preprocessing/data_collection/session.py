@@ -7,6 +7,7 @@ from typing import TypeVar
 
 import polars as pl
 
+from ..answers.parser import parse_question_order
 from ..config import settings
 from ..data_collection.stimulus import LabConfig, Stimulus
 from ..data_collection.trial import Trial
@@ -57,6 +58,25 @@ def _parse_rating_option(key: object) -> int | None:
         return None
 
 
+def _trial_sort_key(value: object) -> tuple[int, int | str]:
+    """Sort practice trials first, then numbered trials, then other labels."""
+    text = str(value)
+    if text.startswith("PRACTICE_"):
+        try:
+            return 0, int(text.rsplit("_", 1)[1])
+        except (ValueError, IndexError):
+            return 0, 0
+    if text.startswith("trial_"):
+        try:
+            return 1, int(text.split("_", 1)[1])
+        except (ValueError, IndexError):
+            return 1, text
+    try:
+        return 1, int(text)
+    except (TypeError, ValueError):
+        return 2, text
+
+
 def _consensus(values: list[object], unknown: object) -> object:
     """Return the common value when all values agree, else *unknown*."""
     if not values:
@@ -86,7 +106,6 @@ class Session:
     stimulus_folder_name: str = field(default="unknown", init=False)
     completed_stimuli_ids: list[int] | str = field(default="unknown", init=False)
     completed_stimuli_names: list[str] | str = field(default="unknown", init=False)
-    question_order: dict[str, list[str]] | str = field(default="unknown", init=False)
     stimulus_order_ids: list[int] | str = field(default="unknown", init=False)
     stimulus_order_ids_with_names: list[dict[str, object]] | str = field(
         default="unknown", init=False
@@ -237,7 +256,6 @@ class Session:
                 ),
             },
             "experiment_procedure": {
-                "question_order": self.question_order,
                 "stimulus_content_version": self.stimulus_content_version,
                 "stimulus_order_ids": self.stimulus_order_ids,
                 "stimulus_order_ids_with_names": self.stimulus_order_ids_with_names,
@@ -778,6 +796,7 @@ class Session:
         self._compute_rating_stats()
 
         self._compute_restart_info()
+        self._compute_break_stats()
 
         duration = self._compute_session_duration()
         if duration is not None:
@@ -905,6 +924,147 @@ class Session:
         if isinstance(self.interrupted, str):
             self.interrupted = is_restart
         self.restarted_session_name = sid.id_no_postfix if is_restart else "unknown"
+
+    def _question_order_by_trial(self) -> dict[str, dict[str, object]]:
+        """Return question-order records keyed by completed trial label.
+
+        The CSV contains one row per planned trial. Rows are matched to the
+        completed trials in ``stimuli_trial_mapping`` so an aborted session does
+        not report planned-only entries. Missing or malformed rows are omitted;
+        callers can distinguish an absent record with ``None``.
+
+        Returns
+        -------
+        dict[str, dict[str, object]]
+            Mapping from trial label to version and explicit condition codes.
+            Empty when the CSV, the trial mapping or all usable rows are
+            missing.
+        """
+        mapping = self.stimuli_trial_mapping
+        if not isinstance(mapping, dict) or not mapping:
+            return {}
+
+        path = (
+            Path(self.session_folder_path) / "logfiles" / "question_order_versions.csv"
+        )
+        if not path.exists():
+            return {}
+
+        try:
+            frame = parse_question_order(path)
+        except (OSError, ValueError, pl.exceptions.PolarsError) as exc:
+            logger.warning(
+                f"Could not read question order for {self.session_identifier}: {exc}"
+            )
+            return {}
+
+        required = {
+            "question_order_version",
+            "local_question_1",
+            "local_question_2",
+            "bridging_question_1",
+            "bridging_question_2",
+            "global_question_1",
+            "global_question_2",
+        }
+        missing = required - set(frame.columns)
+        if missing:
+            logger.warning(
+                f"Question order CSV for {self.session_identifier} misses "
+                f"columns: {sorted(missing)}"
+            )
+            return {}
+
+        trial_labels = sorted((str(key) for key in mapping), key=_trial_sort_key)
+        records: dict[str, dict[str, object]] = {}
+        for row in frame.iter_rows(named=True):
+            try:
+                index = int(row["trial"])
+            except (TypeError, ValueError):
+                continue
+            if index < 1 or index > len(trial_labels):
+                continue
+            try:
+                version = int(row["question_order_version"])
+                local = [
+                    int(row["local_question_1"]),
+                    int(row["local_question_2"]),
+                ]
+                bridging = [
+                    int(row["bridging_question_1"]),
+                    int(row["bridging_question_2"]),
+                ]
+                global_order = [
+                    int(row["global_question_1"]),
+                    int(row["global_question_2"]),
+                ]
+            except (TypeError, ValueError):
+                logger.warning(
+                    f"Could not parse question order row {index} for "
+                    f"{self.session_identifier}."
+                )
+                continue
+            records[trial_labels[index - 1]] = {
+                "version": version,
+                "local": local,
+                "bridging": bridging,
+                "global": global_order,
+            }
+
+        if len(records) != len(trial_labels):
+            logger.warning(
+                f"Question order records for {self.session_identifier} cover "
+                f"{len(records)} of {len(trial_labels)} completed trials."
+            )
+        return records
+
+    def _compute_break_stats(self) -> None:
+        """Populate the break fields from ASC messages.
+
+        Break presence is read from ``optional_break`` and ``obligatory_break``
+        messages. Durations are the corresponding ``*_break_duration`` values in
+        milliseconds and are summed into seconds. Missing message data leaves
+        the fields at their ``unknown`` defaults; a session with messages but no
+        breaks reports zero breaks.
+        """
+        messages = self._message_rows()
+        if not messages:
+            return
+
+        obligatory_starts = 0
+        optional_starts = 0
+        durations_ms: list[float] = []
+        for _, content in messages:
+            if not isinstance(content, str):
+                continue
+            text = content.strip()
+            if text == "obligatory_break":
+                obligatory_starts += 1
+            elif text == "optional_break":
+                optional_starts += 1
+            elif ":" in text:
+                name, value = text.split(":", 1)
+                if name.strip() not in {
+                    "obligatory_break_duration",
+                    "optional_break_duration",
+                }:
+                    continue
+                try:
+                    durations_ms.append(float(value.strip()))
+                except ValueError:
+                    logger.warning(
+                        f"Could not parse break duration {value.strip()!r} for "
+                        f"{self.session_identifier}."
+                    )
+
+        self.obligatory_break_made = obligatory_starts > 0
+        self.num_optional_breaks_made = optional_starts
+        if durations_ms:
+            self.total_break_time = round(sum(durations_ms) / 1000, 3)
+        elif obligatory_starts or optional_starts:
+            self.total_break_time = "unknown"
+        else:
+            self.total_break_time = 0.0
 
     def _reading_time_by_trial(self) -> dict[str, float]:
         """Return total reading time in ms per trial from stimulus timestamps."""
@@ -1070,8 +1230,10 @@ class Session:
         per-stimulus reading spans. ``trial_duration_ms`` comes from the trial
         start/stop timestamps, ``data_loss_ratio`` and ``blink_ratio`` from the
         per-trial loss tables (or their sanity-check TSV), and
-        ``validation_before_start_dva`` from the session validations. Fields
-        without a matching source stay ``"unknown"``.
+        ``validation_before_start_dva`` from the session validations.
+        Question-order fields are joined by trial key and stay ``None`` when no
+        matching record exists. Fields without a matching source stay
+        ``"unknown"``.
 
         Returns
         -------
@@ -1096,6 +1258,7 @@ class Session:
         trial_spans = self._trial_time_spans()
         loss_metrics = self._per_trial_loss_metrics()
         validations_before = self._validation_before_trial_start(trial_spans)
+        question_orders = self._question_order_by_trial()
 
         trials: list[Trial] = []
         for trial_id, group in answers.group_by("trial", maintain_order=True):
@@ -1140,6 +1303,16 @@ class Session:
                 if "blink_loss_ratio" in loss
                 else "unknown"
             )
+            order = question_orders.get(trial_key)
+            question_order_version: int | None = None
+            question_order: dict[str, list[int]] | None = None
+            if order is not None:
+                question_order_version = int(order["version"])
+                question_order = {
+                    "local": list(order["local"]),
+                    "bridging": list(order["bridging"]),
+                    "global": list(order["global"]),
+                }
 
             trials.append(
                 Trial(
@@ -1157,6 +1330,8 @@ class Session:
                     validation_before_start_dva=validations_before.get(
                         trial_key, "unknown"
                     ),
+                    question_order_version=question_order_version,
+                    question_order=question_order,
                 )
             )
 
