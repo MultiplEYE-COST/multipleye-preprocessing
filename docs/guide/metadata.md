@@ -147,7 +147,36 @@ screen details.
 | `required_pq_fixing` | bool, null | Data-collection flag from the metadata form. |
 | `psychotests_restructuring` | bool, null | Data-collection flag from the metadata form. |
 | `custom_units_of_analysis` | bool, null | Data-collection flag from the metadata form. |
-| `answer_option_shuffling_bug` | bool, dict, null | **TODO (#291).** Planned: compare all shuffled option-key JSON files per stimulus set. All identical means the bug exists; generally different means no bug; fewer than two files or unreadable means `null`. Stored as one flag per DCN or as a mapping per stimulus set when the collection uses multiple image sets. |
+| `answer_option_shuffling` | dict | Content check for the shuffled answer-option keys. See the fields below. |
+
+The `answer_option_shuffling` mapping records whether the shuffled option keys look repeated:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `flagged` | bool | `true` when at least one set is flagged. |
+| `num_sets` | int | Number of discovered `question_answer_option_shuffling_*` directories. |
+| `num_sessions` | int | Number of non-pilot sessions matched to at least one set. |
+| `num_flagged_sets` | int | Number of flagged sets. |
+| `sets` | dict | Mapping keyed by the set directory name. |
+
+Each entry in `sets` contains:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `flagged` | bool | Whether this set meets the warning rule. |
+| `num_sessions` | int | Non-pilot sessions that used a file from this set. |
+| `num_versions` | int | Distinct stimulus-order versions used by those sessions. |
+| `num_unique` | int | Distinct canonical JSON contents among the used versions. |
+| `max_identical_sessions` | int | Largest number of sessions sharing one content. |
+| `max_identical_share` | float | `max_identical_sessions / num_sessions`, rounded to three decimals. |
+| `all_files_identical` | bool, null | Whether every readable file in the set has the same canonical content. `null` when no file could be read. |
+
+A set is flagged when `max_identical_sessions` is at least 2 and either all readable files are
+identical or at least half of the sessions share one content. This deliberately does not flag a
+one-versus-one split. The check compares canonical JSON content, so whitespace and key order do not
+matter. `all_files_identical` uses every readable version file, including versions that no session
+used; the other statistics use only the versions selected by sessions. A flag is a warning, not
+proof of a bug: verify how the option keys were generated before using or discarding the data.
 
 ### `processing_config`
 
@@ -409,8 +438,6 @@ The metadata schema is being completed in several issues:
   break fields.
 - [#188](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/188) covers
   `eyelink_filters`.
-- [#291](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/291) covers the
-  `answer_option_shuffling_bug` flag and its detection rule.
 - DCN data-quality metrics such as `mean_pupil_loss_ratio` and
   `mean_missing_values_ratio` remain blocked on definitions and a data source; see #169
   and #168.
