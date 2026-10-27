@@ -12,7 +12,11 @@ from pymovements.stimulus import TextStimulus
 
 from ..config import settings
 from ..mapping.aoi import enlarge_aois
-from ..utils.data_path_utils import _ci_resolve
+from ..utils.data_path_utils import (
+    _ci_resolve,
+    find_metadata_form,
+    load_metadata_form,
+)
 from ..utils.logging import get_logger
 
 logger = get_logger()
@@ -294,6 +298,23 @@ class Stimulus:
         return stim
 
 
+def _metadata_sampling_frequency(metadata_form: dict) -> object:
+    """Read ``Default_frequency`` from a nested or top-level metadata form key.
+
+    Real forms store it under
+    ``Apparatus_lab_equipment.Sampling_rate.Default_frequency``. Older forms
+    store it as a flat ``Default_frequency`` key, which remains supported.
+    """
+    apparatus = metadata_form.get("Apparatus_lab_equipment")
+    if isinstance(apparatus, dict):
+        sampling_rate = apparatus.get("Sampling_rate")
+        if isinstance(sampling_rate, dict):
+            value = sampling_rate.get("Default_frequency")
+            if value is not None:
+                return value
+    return metadata_form.get("Default_frequency")
+
+
 @dataclass
 class LabConfig:
     screen_resolution: tuple[int, int]
@@ -336,10 +357,14 @@ class LabConfig:
             / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_lab_configuration.json"
         )
 
-        final_metadata_path = (
-            stimulus_dir.parent
-            / "documentation"
-            / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_metadata_form.json"
+        final_metadata_path = find_metadata_form(
+            stimulus_dir.parent / "documentation",
+            None,
+            language=lang,
+            country=country,
+            city=city,
+            lab_number=labnum,
+            year=year,
         )
 
         with open(json_config_path) as f:
@@ -349,12 +374,11 @@ class LabConfig:
         logger.info(f"JSON lab config loaded from {json_config_path}")
 
         # if the final data has been collected and this is not just a sanity check
-        if final_metadata_path.exists():
-            with open(final_metadata_path) as f:
-                final_metadata_json = json.load(f)
-            sampling_frequency_hz = final_metadata_json["Default_frequency"]
-
-        else:
+        sampling_frequency_hz = None
+        if final_metadata_path is not None:
+            final_metadata_json = load_metadata_form(final_metadata_path)
+            sampling_frequency_hz = _metadata_sampling_frequency(final_metadata_json)
+        if sampling_frequency_hz is None:
             sampling_frequency_hz = settings.EXPECTED_SAMPLING_RATE_HZ
 
         psychometric_tests = json_config.get("Psychometric_tests", {})
