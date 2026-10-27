@@ -43,7 +43,7 @@ from ..models.sid import Sid
 from ..plotting.plot import build_page_frames, plot_gaze, plot_main_sequence
 from ..utils.conversion import convert_to_time_str
 from ..utils.data_collection_utils import _report_to_file
-from ..utils.data_path_utils import _ci_resolve
+from ..utils.data_path_utils import _ci_glob, _ci_resolve
 from ..utils.logging import get_logger, get_pipeline_info
 from ..utils.pq_normalisation import (
     build_mapping,
@@ -75,6 +75,47 @@ def eyelink(method):
             )
 
     return wrapper
+
+
+def _metadata_form_value(
+    metadata_form: dict, section: str, key: str, legacy_key: str
+) -> object:
+    """Read a nested metadata-form value with a fallback to the flat legacy key.
+
+    Real metadata forms group values into sections (for example
+    ``Tested_language.Language_script``), while older/generated forms store
+    them as flat keys (``Script``). The nested value wins when it is present.
+
+    Parameters
+    ----------
+    metadata_form : dict
+        Parsed metadata form.
+    section : str
+        Name of the nested section.
+    key : str
+        Key within the nested section.
+    legacy_key : str
+        Flat key used by older/generated forms.
+
+    Returns
+    -------
+    object
+        The nested value, the flat value, or None if neither exists.
+    """
+    section_data = metadata_form.get(section)
+    if isinstance(section_data, dict):
+        value = section_data.get(key)
+        if value is not None:
+            return value
+    return metadata_form.get(legacy_key)
+
+
+def _metadata_form_stem(path: Path) -> str:
+    """Return a metadata-form filename without its extension or trailing spaces."""
+    name = path.name
+    if name.casefold().endswith(".json"):
+        name = name[:-5]
+    return name.rstrip()
 
 
 def _compute_session_completeness(data_collection) -> dict:
@@ -1061,11 +1102,30 @@ class MultipleyeDataCollection:
         metadata_form = self._load_metadata_form()
         metadata_form_exists = bool(metadata_form)
 
+        language_script = _metadata_form_value(
+            metadata_form, "Tested_language", "Language_script", "Script"
+        )
+        language_family = _metadata_form_value(
+            metadata_form, "Tested_language", "Language_family", "Language_family"
+        )
+        start_date = _metadata_form_value(
+            metadata_form,
+            "Time_frame",
+            "Start_date",
+            "Start_date_of_data_collection",
+        )
+        end_date = _metadata_form_value(
+            metadata_form,
+            "Time_frame",
+            "End_date",
+            "End_date_of_data_collection",
+        )
+
         dataset_description = (
             f"{self.country}, {self.city} (lab {self.lab_number}). "
             f"{self.language} corpus. "
-            f"Data collected from {metadata_form.get('Start_date_of_data_collection', 'unknown')} "
-            f"to {metadata_form.get('End_date_of_data_collection', 'unknown')}."
+            f"Data collected from {start_date if start_date is not None else 'unknown'} "
+            f"to {end_date if end_date is not None else 'unknown'}."
         )
 
         overview = {
@@ -1084,14 +1144,10 @@ class MultipleyeDataCollection:
             },
             "language_details": {
                 "metadata_form_exists": metadata_form_exists,
-                "language_script": metadata_form.get("Script"),
-                "language_family": metadata_form.get("Language_family"),
-                "start_date_of_data_collection": metadata_form.get(
-                    "Start_date_of_data_collection"
-                ),
-                "end_date_of_data_collection": metadata_form.get(
-                    "End_date_of_data_collection"
-                ),
+                "language_script": language_script,
+                "language_family": language_family,
+                "start_date_of_data_collection": start_date,
+                "end_date_of_data_collection": end_date,
             },
             "data_availability": {
                 "raw_data_available": True,
@@ -1208,23 +1264,51 @@ class MultipleyeDataCollection:
         """
         Load the final metadata form JSON for this data collection, if present.
 
+        Uploads use either ``metadataForm_MultiplEYE_<dcn>.json`` or
+        ``metadataform_MultiplEYE_<dcn>.json`` in the ``documentation`` folder,
+        sometimes with a trailing space before the extension. The older
+        ``MultiplEYE_<...>_metadata_form.json`` naming is still supported as a
+        fallback.
+
         Returns
         -------
         dict
-            Parsed metadata form contents, or an empty dict if the file is missing.
+            Parsed metadata form contents, or an empty dict if the file is
+            missing or cannot be matched unambiguously.
         """
-        lang = self.language.lower() if self.language else ""
-        country = self.country.lower() if self.country else ""
-        city = self.city.capitalize() if self.city else ""
-        labnum = self.lab_number
-        year = self.year
+        documentation_dir = self.stimulus_dir.parent / "documentation"
 
-        metadata_path = (
-            self.stimulus_dir.parent
-            / "documentation"
-            / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_metadata_form.json"
+        candidates = sorted(
+            set(_ci_glob(documentation_dir, "metadataForm_*.json"))
+            | set(_ci_glob(documentation_dir, "metadataform_*.json"))
         )
-        if metadata_path.exists():
+        metadata_path: Path | None = None
+
+        dcn_name = (self.data_collection_name or "").casefold()
+        matching = [
+            path
+            for path in candidates
+            if _metadata_form_stem(path).casefold() == f"metadataform_{dcn_name}"
+        ]
+        if matching:
+            metadata_path = matching[0]
+        elif len(candidates) == 1:
+            metadata_path = candidates[0]
+
+        if metadata_path is None:
+            lang = self.language.lower() if self.language else ""
+            country = self.country.lower() if self.country else ""
+            city = self.city.capitalize() if self.city else ""
+            labnum = self.lab_number
+            year = self.year
+            legacy_path = _ci_resolve(
+                documentation_dir
+                / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_metadata_form.json"
+            )
+            if legacy_path.exists():
+                metadata_path = legacy_path
+
+        if metadata_path is not None and metadata_path.exists():
             with open(metadata_path, encoding="utf-8") as f:
                 return json.load(f)
         return {}
