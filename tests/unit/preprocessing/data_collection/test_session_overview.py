@@ -1792,6 +1792,141 @@ def test_dominant_eye_not_inferred_from_tracked_eye() -> None:
     assert tech["dominant_eye_test"] == "unknown"
 
 
+def _question_order_csv(session_path: Path, versions: list[int] | None = None) -> None:
+    logfiles = session_path / "logfiles"
+    logfiles.mkdir(parents=True)
+    versions = versions or [6, 7, 8]
+    rows = [
+        (
+            "question_order_version,local_question_1,local_question_2,"
+            "bridging_question_1,bridging_question_2,"
+            "global_question_1,global_question_2"
+        )
+    ]
+    for index, version in enumerate(versions):
+        rows.append(f"{version},12,11,21,22,{32 - index},31")
+    (logfiles / "question_order_versions.csv").write_text(
+        "\n".join(rows) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _question_order_trials(tmp_path: Path, versions: list[int] | None = None):
+    answers_dir = _write_answers(tmp_path, _ANSWERS_ROWS)
+    sess = _trial_sess(answers_dir)
+    sess.session_folder_path = tmp_path
+    sess.stimuli_trial_mapping = {
+        "PRACTICE_trial_1": "Enc_WikiMoon",
+        "trial_1": "Lit_MagicMountain",
+        "trial_2": "Lit_Alchemist",
+    }
+    _question_order_csv(tmp_path, versions)
+    with patch.object(
+        Session,
+        "sid",
+        property(lambda self: _FakeSid(answers_dir)),
+    ):
+        trials = sess.create_overview()["trials"]
+    return {(t["trial_number"], t["is_practice"]): t for t in trials}
+
+
+def test_question_order_is_attached_to_trials(tmp_path: Path) -> None:
+    by_key = _question_order_trials(tmp_path)
+
+    assert by_key[(1, False)]["question_order_version"] == 7
+    assert by_key[(1, False)]["question_order"] == {
+        "local": [12, 11],
+        "bridging": [21, 22],
+        "global": [31, 31],
+    }
+    assert by_key[(1, True)]["question_order_version"] == 6
+
+
+def test_question_order_missing_csv_is_none_on_trials(tmp_path: Path) -> None:
+    answers_dir = _write_answers(tmp_path, _ANSWERS_ROWS)
+    sess = _trial_sess(answers_dir)
+    sess.session_folder_path = tmp_path
+    sess.stimuli_trial_mapping = {
+        "PRACTICE_trial_1": "Enc_WikiMoon",
+        "trial_1": "Lit_MagicMountain",
+        "trial_2": "Lit_Alchemist",
+    }
+
+    with patch.object(
+        Session,
+        "sid",
+        property(lambda self: _FakeSid(answers_dir)),
+    ):
+        trials = sess.create_overview()["trials"]
+
+    assert all(trial["question_order"] is None for trial in trials)
+    assert all(trial["question_order_version"] is None for trial in trials)
+
+
+def test_question_order_partial_records_do_not_drop_trials(tmp_path: Path) -> None:
+    by_key = _question_order_trials(tmp_path, versions=[6])
+
+    assert len(by_key) == 3
+    assert by_key[(1, True)]["question_order_version"] == 6
+    assert by_key[(1, False)]["question_order"] is None
+    assert by_key[(2, False)]["question_order"] is None
+
+
+def test_break_fields_from_messages() -> None:
+    sess = _make_session()
+    sess.messages = pl.DataFrame(
+        {
+            "time": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0],
+            "content": [
+                "optional_break",
+                "optional_break_end",
+                "optional_break_duration: 1500",
+                "optional_break",
+                "optional_break_end",
+                "obligatory_break",
+                "obligatory_break_duration: 2500",
+            ],
+        }
+    )
+
+    proc = sess.create_overview()["experiment_procedure"]
+
+    assert proc["obligatory_break_made"] is True
+    assert proc["num_optional_breaks_made"] == 2
+    assert proc["total_break_time_s"] == 4.0
+
+
+def test_break_fields_no_breaks_in_messages() -> None:
+    sess = _make_session()
+    sess.messages = pl.DataFrame({"time": [1.0], "content": ["reading starts"]})
+
+    proc = sess.create_overview()["experiment_procedure"]
+
+    assert proc["obligatory_break_made"] is False
+    assert proc["num_optional_breaks_made"] == 0
+    assert proc["total_break_time_s"] == 0.0
+
+
+def test_break_fields_without_messages_are_unknown() -> None:
+    sess = _make_session()
+
+    proc = sess.create_overview()["experiment_procedure"]
+
+    assert proc["obligatory_break_made"] == "unknown"
+    assert proc["num_optional_breaks_made"] == "unknown"
+    assert proc["total_break_time_s"] == "unknown"
+
+
+def test_break_fields_without_duration_are_unknown() -> None:
+    sess = _make_session()
+    sess.messages = pl.DataFrame({"time": [1.0], "content": ["obligatory_break"]})
+
+    proc = sess.create_overview()["experiment_procedure"]
+
+    assert proc["obligatory_break_made"] is True
+    assert proc["total_break_time_s"] == "unknown"
+
+
 def test_dominant_eye_kept_when_it_differs_from_tracked_eye() -> None:
     sess = _sess_with_validation_data()
     doc = _doc([_dominant_eye_row(dominant_eye="left")])
