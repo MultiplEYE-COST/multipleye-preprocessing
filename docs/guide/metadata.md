@@ -20,8 +20,8 @@ output layout, see {ref}`technical_architecture`. For where the files are writte
 see {ref}`pipeline_stages`. Participant-level metadata is centralised in `participants.csv`, see
 {ref}`participants_table`.
 
-The schema is still being completed. Fields that are planned but not written yet are marked
-**TODO** with the issue that tracks them.
+The schema covers all fields emitted by the current pipeline. Known gaps are listed at the end
+of this page.
 
 ## Conventions
 
@@ -418,8 +418,8 @@ to `false` when they do not generate a format.
 ### `trials`
 
 A list of per-trial entries. The value is the string `"unknown"` when the session answers CSV is
-missing or lacks the required columns. Practice trials are listed after the experiment trials and
-are marked with `is_practice: true`.
+missing or lacks the required columns. Partial answers produce entries only for the trials present.
+Practice trials are listed after the experiment trials and are marked with `is_practice: true`.
 
 ## Trial list
 
@@ -460,9 +460,9 @@ A real entry looks like this:
     global: [32, 31]
 ```
 
-## Still open
+## Known gaps
 
-The metadata schema is being completed in several issues:
+The emitted schema is complete for the current pipeline. The remaining gaps are tracked in:
 
 - [#168](https://github.com/MultiplEYE-COST/multipleye-preprocessing/issues/168) tracks the
   metadata YAML work as a whole.

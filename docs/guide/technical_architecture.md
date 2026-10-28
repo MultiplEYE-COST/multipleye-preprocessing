@@ -128,7 +128,8 @@ parameters (`velocity_estimation_method`, `velocity_smoothing_window_ms`,
 `char_idx_col`) and fixed design decisions that are not configurable (`aoi_enlargement`,
 `reading_measures_null_fill`, `scanpath_drop_unmapped`, `data_loss_missingness_column`,
 `per_trial_loss_weighting`). These values are read from the resolved configuration, so the
-overview always reflects what was actually applied.
+overview always reflects what was actually applied. The separate `processing_environment`
+block records the pipeline git revision plus the pymovements, edf2asc and Python versions.
 
 **Reading times are recorded in seconds.** The session overview stores `total_reading_time_s`, the
 dataset overview averages it as `mean_total_reading_time_s`, and `mean_wpm` is computed as
