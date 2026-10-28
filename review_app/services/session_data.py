@@ -36,6 +36,12 @@ CHECK_REGISTRY: list[dict] = [
     },
     {"field": "eyes_recorded", "label": "Eyes recorded", "category": "Hardware"},
     {"field": "pupil_data_type", "label": "Pupil data type", "category": "Hardware"},
+    {"field": "dominant_eye", "label": "Dominant eye", "category": "Hardware"},
+    {
+        "field": "dominant_eye_test",
+        "label": "Dominant eye test",
+        "category": "Hardware",
+    },
     {
         "field": "screen_resolution_width_px",
         "label": "Screen resolution width (px)",

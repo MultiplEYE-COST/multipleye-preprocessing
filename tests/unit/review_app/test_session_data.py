@@ -81,6 +81,8 @@ def test_check_registry_covers_expected_fields() -> None:
     assert "num_aborted_validations" in fields
     assert "mount_type" in fields
     assert "mount_short_name" in fields
+    assert "dominant_eye" in fields
+    assert "dominant_eye_test" in fields
     assert "session_total_data_loss_ratio" in fields
     assert "session_blink_loss_ratio" in fields
     assert "tracked_eye" in fields
@@ -96,6 +98,46 @@ def test_check_registry_covers_expected_fields() -> None:
     assert "gender" in fields
     assert "bi_monolingualism" in fields
     assert "has_pt_data_same_day_as_session" in fields
+
+
+def test_dominant_eye_fields_are_rendered() -> None:
+    overview = {
+        "technical_setup": {
+            "dominant_eye": "left",
+            "dominant_eye_test": True,
+        }
+    }
+
+    check_map = {c.check_id: c for c in compute_checks(overview, None)}
+
+    assert check_map["dominant_eye"].value == "left"
+    assert check_map["dominant_eye"].status == "pass"
+    assert check_map["dominant_eye_test"].value is True
+    assert check_map["dominant_eye_test"].status == "pass"
+
+
+def test_break_fields_are_rendered() -> None:
+    overview = {
+        "experiment_procedure": {
+            "obligatory_break_made": True,
+            "num_optional_breaks_made": 2,
+            "total_break_time_s": 4.0,
+        }
+    }
+
+    check_map = {c.check_id: c for c in compute_checks(overview, None)}
+
+    assert check_map["obligatory_break_made"].value is True
+    assert check_map["num_optional_breaks_made"].value == 2
+    assert check_map["total_break_time_s"].value == 4.0
+    assert all(
+        check_map[field].status == "pass"
+        for field in (
+            "obligatory_break_made",
+            "num_optional_breaks_made",
+            "total_break_time_s",
+        )
+    )
 
 
 def test_compute_checks_num_completed_trials_pass() -> None:
