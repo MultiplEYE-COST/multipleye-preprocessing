@@ -98,17 +98,6 @@ def main():
 
         # SPACE FOR FURTHER CODE TO BE EXECUTED IN THE FOLDER
 
-        # Restructure a task-first psychometric-test export into session-first
-        # folders. Uncomment and adapt after extracting the archive.
-        # from preprocessing.scripts.restructure_psychometric_tests import (
-        #     fix_psychometric_tests_structure,
-        # )
-        # fix_psychometric_tests_structure(
-        #     config_folder=Path("psychometric-tests-sessions/participant_configs"),
-        #     data_folder=Path("psychometric-tests-sessions/core_data"),
-        #     out_folder=Path("psychometric-tests-sessions"),
-        # )
-
         print("=" * 60)
         print("Done Cleaning")
         print("=" * 60)
