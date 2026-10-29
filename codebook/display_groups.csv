@@ -1,0 +1,6 @@
+group_id,label,description,order,default
+default,Default view,Common fields shown across views,1,true
+data_quality,Data quality,Administrative fields plus quality metrics,2,false
+comprehension,Comprehension,Comprehension scores and answer fields,3,false
+annotations,Annotations,Annotation availability fields,4,false
+hardware,Hardware,Eye tracker and lab setup fields,5,false
