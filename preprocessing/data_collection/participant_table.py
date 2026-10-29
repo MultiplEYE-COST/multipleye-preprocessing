@@ -362,9 +362,16 @@ def collect_participant_sources(
     pt_rows = [
         row
         for row in _pt_rows(prefer_table)
-        if _session_id_allowed(_pt_session_id(row))
+        if _session_id_allowed(_pt_session_id(row), apply_include=False)
     ]
-    return et_sessions, pt_rows, _pq_pids()
+    pq_pids = _pq_pids()
+    for session in getattr(data_collection, "sessions", {}).values():
+        folder = Path(getattr(session, "session_folder_path", ""))
+        for pq_file in folder.glob("*_pq_data.json"):
+            pid = _pid(pq_file.name.split("_", 1)[0])
+            if pid is not None:
+                pq_pids.add(pid)
+    return et_sessions, pt_rows, pq_pids
 
 
 def build_participant_groups(
@@ -475,7 +482,9 @@ def _et_columns(
     stats = []
     for session_id in session_ids:
         session = data_collection.sessions[session_id]
-        overview = session.create_overview()
+        overview = session.create_overview(
+            getattr(data_collection, "experimenter_doc", None)
+        )
         overviews.append(overview)
         trials = overview.get("trials")
         trials = trials if isinstance(trials, list) else []
@@ -766,12 +775,16 @@ def build_participant_table(data_collection) -> pl.DataFrame:
     return pl.DataFrame(rows)
 
 
-def _session_id_allowed(session_id: str) -> bool:
+def _session_id_allowed(session_id: str, apply_include: bool = True) -> bool:
     if not session_id:
         return True
     excluded = set(settings.EXCLUDE_SESSIONS or [])
-    included = set(settings.INCLUDE_SESSIONS or [])
-    return session_id not in excluded and not (included and session_id not in included)
+    if session_id in excluded:
+        return False
+    if apply_include:
+        included = set(settings.INCLUDE_SESSIONS or [])
+        return not (included and session_id not in included)
+    return True
 
 
 def write_participants_table(data_collection, path: Path | str) -> Path:

@@ -1,3 +1,4 @@
+import re
 from unittest.mock import patch
 
 import polars as pl
@@ -54,6 +55,18 @@ def lab_config():
 @pytest.mark.filterwarnings("ignore:No eye tracker vendor found")
 @pytest.mark.filterwarnings("ignore:No eye tracker model found")
 @pytest.mark.filterwarnings("ignore:No eye tracker software version found")
+def test_experiment_msg_patterns_include_quality_lines() -> None:
+    lines = [
+        "!CAL CALIBRATION HV9 L LEFT GOOD",
+        "!CAL VALIDATION HV9 L LEFT GOOD ERROR 0.13 avg. 0.60 max",
+        "!CAL VALIDATION L ABORTED",
+    ]
+    for line in lines:
+        assert any(
+            re.match(pattern, line) for pattern in settings.EXPERIMENT_MSG_PATTERNS
+        ), line
+
+
 def test_load_gaze_data_with_messages(synthetic_asc, lab_config):
     # Load with messages=True
     gaze = load_gaze_data(
@@ -206,6 +219,25 @@ def test_load_gaze_data_validates_parsed_asc(synthetic_asc, lab_config):
 
     mock_validate.assert_called_once()
     assert mock_validate.call_args.kwargs["session_id"] == "001_SV_CH_Zurich_S1_ET1"
+
+
+@pytest.mark.filterwarnings("ignore")
+def test_load_gaze_data_stores_session_id_as_metadata(synthetic_asc, lab_config):
+    """The session identifier is stored as metadata, not as a sample column.
+
+    It is constant for the whole session and no code reads a ``session`` column,
+    so passing it via ``add_columns`` only duplicated it across all samples.
+    """
+    sid = Sid("001_SV_CH_Zurich_S1_ET1")
+
+    gaze = load_gaze_data(
+        asc_file=synthetic_asc,
+        lab_config=lab_config,
+        sid=sid,
+    )
+
+    assert gaze.metadata["session"] == str(sid)
+    assert "session" not in gaze.samples.columns
 
 
 def test_blink_loss_ratio_is_scalar_with_trial_columns():

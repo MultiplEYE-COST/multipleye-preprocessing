@@ -178,6 +178,32 @@ more than one stimulus content version, so this is never valid.
 
 :::
 
+(errors_metadata_warnings)=
+
+## Metadata YAML Warnings
+
+:::{dropdown} Answer-option shuffling check: identical option keys
+
+The DCN overview writes `processing.answer_option_shuffling` and adds a warning when the shuffled
+answer-option keys look repeated. A set is flagged when at least two sessions share one canonical
+JSON content and either all readable files in the set are identical or at least half of the
+sessions use the same content. A one-versus-one split is not flagged.
+
+**What to do:**
+
+- **Read the set statistics:** `num_sessions`, `num_versions` and `num_unique` show whether only a
+  few used versions repeat or the whole set is affected. `all_files_identical` covers every
+  readable file, including unused versions.
+- **Check how the option keys were generated:** the check detects repeated content, but it cannot
+  tell whether the repetition came from a broken seed, an intentional reuse, or duplicated input
+  files.
+- **Regenerate or replace the affected set:** if the repetition was not intended, regenerate the
+  shuffled option keys and rerun the preprocessing.
+- **Do not filter sessions by this flag alone:** inspect the option keys and the collection
+  documentation first.
+
+:::
+
 (errors_preflight)=
 
 ## Preflight Check Errors
@@ -185,8 +211,28 @@ more than one stimulus content version, so this is never valid.
 The preflight check validates all input files before the pipeline starts. When stimulus content
 versions are configured, it additionally verifies that every configured version folder exists,
 contains its `stimulus_order_versions_*.csv`, and that every session's participant ID is present
-in the version it was assigned to. Failures are reported under the **Stimulus versions** group in
-the `PreflightError` output.
+in the version it was assigned to. Failures are reported under the relevant group in the
+`PreflightError` output.
+
+:::{dropdown} PreflightError: Metadata form JSON parse error
+
+This error occurs when the data-collection metadata form is present in the `documentation/`
+folder but cannot be parsed as a JSON object. Real uploads often contain raw line breaks inside
+string values or a trailing comma before a closing `}` or `]`. The loader first tries strict
+JSON, then JSON that allows raw control characters, and finally removes trailing commas outside
+strings. If all attempts fail, preprocessing stops because the DCN overview cannot read the form
+fields.
+
+**What to do:**
+
+- **Check the reported position:** Fix the JSON syntax around the line and column in the error
+  message.
+- **Look for the usual causes:** Raw line breaks inside string values and trailing commas before
+  a closing bracket.
+- **Do not simply delete the form:** A missing form is only a warning, but the DCN overview then
+  loses the tested language's script and family and the collection dates.
+
+:::
 
 :::{dropdown} PreflightError: Stimulus folder for version 'v2' does not exist: /path/to/data/stimuli_MultiplEYE_EN_UK_London_1_2025_v2
 

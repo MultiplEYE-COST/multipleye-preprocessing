@@ -1,18 +1,51 @@
+import re
+import warnings
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TypeVar
 
 import polars as pl
 
+from ..answers.parser import parse_question_order
 from ..config import settings
 from ..data_collection.stimulus import LabConfig, Stimulus
 from ..data_collection.trial import Trial
 from ..models import Sid
+from ..utils.eye_tracker import normalize_eye_tracker_name
 from ..utils.logging import get_logger
+from .experimenter_doc import (
+    ExperimenterDoc,
+    normalize_dominant_eye,
+    normalize_dominant_eye_test,
+)
 
 logger = get_logger()
 
 T = TypeVar("T")
+
+_CALIBRATION_QUALITY_REGEX = re.compile(
+    r"!CAL\s+CALIBRATION\b.*?\b(GOOD|FAILED)\b",
+    re.IGNORECASE,
+)
+_VALIDATION_QUALITY_REGEX = re.compile(
+    r"!CAL\s+VALIDATION\s+"
+    r"(?:HV\d+\s+\S+\s+(?:LEFT|RIGHT)|[LR])\s+"
+    r"(?P<grade>GOOD|FAIR|POOR|ABORTED)\b",
+    re.IGNORECASE,
+)
+_QUALITY_LINE_REGEX = re.compile(r"!CAL\s+(?:CALIBRATION|VALIDATION)", re.IGNORECASE)
+_FINAL_VALIDATION_MSG_REGEX = re.compile(r"^\s*final_validation\s*$", re.IGNORECASE)
+_CALIBRATION_MSG_REGEX = re.compile(r"!CAL\s+CALIBRATION\b", re.IGNORECASE)
+_EXPERIMENT_TRIAL_REGEX = re.compile(r"^trial_\d+$")
+_EYELINK_FILTER_RECORD_REGEX = re.compile(
+    r"^\s*(?P<record>EVENTS|SAMPLES)\b",
+    re.IGNORECASE,
+)
+_EYELINK_FILTER_VALUE_REGEX = re.compile(
+    r"\bFILTER\s+(?P<value>\S+)",
+    re.IGNORECASE,
+)
 
 
 def _parse_rating_option(key: object) -> int | None:
@@ -23,6 +56,33 @@ def _parse_rating_option(key: object) -> int | None:
         return int(key.split("_", 1)[1])
     except (ValueError, IndexError):
         return None
+
+
+def _trial_sort_key(value: object) -> tuple[int, int | str]:
+    """Sort practice trials first, then numbered trials, then other labels."""
+    text = str(value)
+    if text.startswith("PRACTICE_"):
+        try:
+            return 0, int(text.rsplit("_", 1)[1])
+        except (ValueError, IndexError):
+            return 0, 0
+    if text.startswith("trial_"):
+        try:
+            return 1, int(text.split("_", 1)[1])
+        except (ValueError, IndexError):
+            return 1, text
+    try:
+        return 1, int(text)
+    except (TypeError, ValueError):
+        return 2, text
+
+
+def _consensus(values: list[object], unknown: object) -> object:
+    """Return the common value when all values agree, else *unknown*."""
+    if not values:
+        return unknown
+    first = values[0]
+    return first if all(value == first for value in values) else unknown
 
 
 @dataclass
@@ -46,7 +106,6 @@ class Session:
     stimulus_folder_name: str = field(default="unknown", init=False)
     completed_stimuli_ids: list[int] | str = field(default="unknown", init=False)
     completed_stimuli_names: list[str] | str = field(default="unknown", init=False)
-    question_order: dict[str, list[str]] | str = field(default="unknown", init=False)
     stimulus_order_ids: list[int] | str = field(default="unknown", init=False)
     stimulus_order_ids_with_names: list[dict[str, object]] | str = field(
         default="unknown", init=False
@@ -90,9 +149,13 @@ class Session:
     avg_comprehension_score_global: float | str = field(default="unknown", init=False)
     avg_comprehension_score_bridging: float | str = field(default="unknown", init=False)
     avg_calibration_error: float | str = field(default="unknown", init=False)
+    calibration_quality: str = field(default="unknown", init=False)
+    validation_quality: str = field(default="unknown", init=False)
+    num_aborted_validations: int = field(default=0, init=False)
     num_calibrations: int | str = field(default="unknown", init=False)
     num_validations: int | str = field(default="unknown", init=False)
     avg_validation_error: float | str = field(default="unknown", init=False)
+    final_validation_score_dva: float | str = field(default="unknown", init=False)
 
     # eye tracking metadata
     tracked_eye: str = field(default="unknown", init=False)
@@ -133,9 +196,16 @@ class Session:
     def sid(self) -> "Sid":
         return Sid(self.session_identifier)
 
-    def create_overview(self) -> dict:
+    def create_overview(self, experimenter_doc: ExperimenterDoc | None = None) -> dict:
         """
         Create a topic-grouped overview of the session.
+
+        Parameters
+        ----------
+        experimenter_doc : ExperimenterDoc, optional
+            Experimenter documentation workbook. Used for the dominant-eye
+            fields in ``technical_setup``. When omitted or missing, those
+            fields are ``unknown``.
 
         Returns
         -------
@@ -155,7 +225,7 @@ class Session:
                 "month_of_data_collection": self._get_metadata("month", "unknown"),
             },
             "participant": self.participant_info,
-            "technical_setup": self._technical_setup(),
+            "technical_setup": self._technical_setup(experimenter_doc),
             "tracking": {
                 "tracked_eye": self.tracked_eye,
                 "tracked_eye_consistent": self.tracked_eye_consistent,
@@ -165,6 +235,10 @@ class Session:
                 "num_validations": self.num_validations,
                 "avg_calibration_error_dva": self.avg_calibration_error,
                 "avg_validation_error_dva": self.avg_validation_error,
+                "final_validation_score_dva": self.final_validation_score_dva,
+                "calibration_quality": self.calibration_quality,
+                "validation_quality": self.validation_quality,
+                "num_aborted_validations": self.num_aborted_validations,
                 "num_good_validations": self.num_good_validations,
                 "num_moderate_validations": self.num_moderate_validations,
                 "num_bad_validations": self.num_bad_validations,
@@ -182,7 +256,6 @@ class Session:
                 ),
             },
             "experiment_procedure": {
-                "question_order": self.question_order,
                 "stimulus_content_version": self.stimulus_content_version,
                 "stimulus_order_ids": self.stimulus_order_ids,
                 "stimulus_order_ids_with_names": self.stimulus_order_ids_with_names,
@@ -230,7 +303,7 @@ class Session:
             return self.pm_gaze_metadata.get(key, default)
         return default
 
-    def _technical_setup(self) -> dict:
+    def _technical_setup(self, experimenter_doc: ExperimenterDoc | None = None) -> dict:
         """Assemble the technical setup section from lab config and gaze metadata."""
         cfg = self.lab_config if isinstance(self.lab_config, LabConfig) else None
         mount = self._get_metadata("mount_configuration", {})
@@ -252,13 +325,25 @@ class Session:
         image_res_w, image_res_h = _pair(_resolve("image_resolution"))
         image_size_w, image_size_h = _pair(_resolve("image_size_cm"))
 
+        short_name = mount.get("short_name")
+        if not isinstance(short_name, str) or not short_name.strip():
+            short_name = None
+
+        dominant_eye, dominant_eye_test = self._dominant_eye_from_doc(experimenter_doc)
+
         return {
-            "eye_tracker_name": _resolve("name_eye_tracker", None),
+            "eye_tracker_name": normalize_eye_tracker_name(
+                _resolve("name_eye_tracker", None)
+            ),
             "sampling_frequency_hz": _resolve("sampling_frequency_hz", None),
             "mount_type": mount.get("mount_type"),
+            "mount_short_name": short_name,
             "head_stabilization": mount.get("head_stabilization"),
             "eyes_recorded": mount.get("eyes_recorded"),
             "pupil_data_type": self._get_metadata("pupil_data_type"),
+            "eyelink_filters": self._eyelink_filters(),
+            "dominant_eye": dominant_eye,
+            "dominant_eye_test": dominant_eye_test,
             "screen_resolution_width_px": screen_res_w,
             "screen_resolution_height_px": screen_res_h,
             "screen_size_width_cm": screen_size_w,
@@ -269,6 +354,46 @@ class Session:
             "image_size_width_cm": image_size_w,
             "image_size_height_cm": image_size_h,
         }
+
+    def _dominant_eye_from_doc(
+        self, experimenter_doc: ExperimenterDoc | None
+    ) -> tuple[str, bool | str]:
+        """Return ``(dominant_eye, dominant_eye_test)`` from the experimenter sheet.
+
+        Missing sheets, columns, rows and values yield ``unknown``. Duplicate
+        matching rows are never resolved silently: a warning is emitted, and a
+        field is only used when all duplicate rows agree. ``dominant_eye`` is
+        not inferred from ``tracked_eye`` and is forced to ``unknown`` when the
+        sheet says that no dominance test was performed.
+        """
+        if not isinstance(experimenter_doc, ExperimenterDoc):
+            return "unknown", "unknown"
+
+        rows = experimenter_doc.get_et_rows(
+            self.session_identifier, self.participant_id
+        )
+        if not rows:
+            return "unknown", "unknown"
+
+        eyes = [normalize_dominant_eye(row.get("dominant_eye")) for row in rows]
+        tests = [
+            normalize_dominant_eye_test(row.get("dominant_eye_test")) for row in rows
+        ]
+
+        if len(rows) > 1:
+            warnings.warn(
+                f"Experimenter documentation has {len(rows)} rows for session "
+                f"{self.session_identifier}. Dominant-eye values are only used "
+                "when duplicate rows agree.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        dominant_eye = _consensus(eyes, "unknown")
+        dominant_eye_test = _consensus(tests, "unknown")
+        if dominant_eye_test is False:
+            dominant_eye = "unknown"
+        return str(dominant_eye), dominant_eye_test
 
     def _compute_comprehension_scores(self) -> None:
         """Load the session answers CSV and compute mean comprehension scores.
@@ -336,9 +461,286 @@ class Session:
         max_t = max(times)
         return round((max_t - min_t) / 1000, 3)
 
+    def _asc_lines(self, predicate: Callable[[str], bool]) -> list[str]:
+        """Return ASC lines that match *predicate*, or an empty list.
+
+        Missing paths and unreadable files yield an empty list so callers do
+        not need to handle file errors themselves.
+        """
+        path = self.asc_path
+        if not isinstance(path, (str, Path)) or str(path) == "unknown":
+            return []
+        asc = Path(path)
+        if not asc.exists():
+            return []
+        try:
+            with open(asc, encoding="utf-8", errors="ignore") as f:
+                return [line for line in f if predicate(line)]
+        except OSError:
+            return []
+
+    def _eyelink_filters(self) -> dict[str, list[int]]:
+        """Return the EyeLink recording filters parsed from the ASC file.
+
+        EyeLink writes one ``EVENTS`` and one ``SAMPLES`` line per recording
+        block, optionally ending in ``FILTER <n>``. Values are collected over
+        all recording blocks, deduplicated and sorted. A malformed filter value
+        is skipped with a warning so one bad line does not fail the session.
+        Sessions without an ASC file or filter lines return empty lists.
+
+        Returns
+        -------
+        dict[str, list[int]]
+            Mapping with sorted distinct integer values under ``events`` and
+            ``samples``.
+        """
+        filters: dict[str, set[int]] = {"events": set(), "samples": set()}
+        for line in self._asc_lines(
+            lambda line: bool(_EYELINK_FILTER_RECORD_REGEX.match(line))
+        ):
+            record = _EYELINK_FILTER_RECORD_REGEX.match(line)
+            if record is None:
+                continue
+            key = "events" if record.group("record").upper() == "EVENTS" else "samples"
+            value = _EYELINK_FILTER_VALUE_REGEX.search(line)
+            if value is None:
+                continue
+            raw_value = value.group("value")
+            try:
+                filters[key].add(int(raw_value))
+            except ValueError:
+                logger.warning(
+                    f"Could not parse EyeLink {key} FILTER value {raw_value!r} "
+                    f"in {self.asc_path}."
+                )
+        return {key: sorted(values) for key, values in filters.items()}
+
+    def _quality_message_lines(self) -> list[str]:
+        """Return lines carrying EyeLink calibration or validation grades.
+
+        Prefer the already-parsed messages frame. Fall back to reading the ASC
+        when the message filter did not include the ``!CAL`` lines, which is the
+        case for older message CSVs and the default message patterns.
+        """
+        if isinstance(self.messages, pl.DataFrame) and not self.messages.is_empty():
+            if "content" in self.messages.columns:
+                lines = [
+                    str(value)
+                    for value in self.messages["content"].drop_nulls().to_list()
+                ]
+                if any(_QUALITY_LINE_REGEX.search(line) for line in lines):
+                    return lines
+        elif isinstance(self.messages, list):
+            lines = [
+                str(item.get("content", item.get("message", "")))
+                for item in self.messages
+                if isinstance(item, dict)
+            ]
+            if any(_QUALITY_LINE_REGEX.search(line) for line in lines):
+                return lines
+
+        return self._asc_lines(lambda line: "!CAL" in line)
+
+    def _compute_calibration_quality(self, lines: list[str] | None = None) -> str:
+        """Return the calibration quality flag from the ASC messages or file.
+
+        EyeLink reports calibration quality only as a ``GOOD``/``FAILED`` flag on
+        the ``!CAL CALIBRATION ...`` line (there is no numeric calibration error;
+        that is only reported for validations). Returns ``"GOOD"`` or
+        ``"FAILED"`` when all calibrations agree, ``"MIXED"`` when they differ,
+        and ``"unknown"`` when no calibration line or ASC file is available.
+        """
+        flags: list[str] = []
+        for line in self._quality_message_lines() if lines is None else lines:
+            match = _CALIBRATION_QUALITY_REGEX.search(line)
+            if match:
+                flags.append(match.group(1).upper())
+
+        if not flags:
+            return "unknown"
+        if all(flag == "GOOD" for flag in flags):
+            return "GOOD"
+        if all(flag == "FAILED" for flag in flags):
+            return "FAILED"
+        return "MIXED"
+
+    def _compute_validation_quality(
+        self,
+        lines: list[str] | None = None,
+    ) -> tuple[str, int]:
+        """Return the worst validation grade and the number of aborted validations.
+
+        ``GOOD``/``FAIR``/``POOR`` come from the validation summary lines.
+        ``ABORTED`` comes from the dedicated aborted-validation lines. The
+        returned grade is the worst scored grade; it is ``ABORTED`` when only
+        aborted validations exist and ``unknown`` when no validation line exists.
+        """
+        grades: list[str] = []
+        for line in self._quality_message_lines() if lines is None else lines:
+            match = _VALIDATION_QUALITY_REGEX.search(line)
+            if match:
+                grades.append(match.group("grade").upper())
+
+        num_aborted = sum(1 for grade in grades if grade == "ABORTED")
+        scored = [grade for grade in grades if grade in {"GOOD", "FAIR", "POOR"}]
+
+        if not scored:
+            return ("ABORTED" if num_aborted else "unknown", num_aborted)
+        if "POOR" in scored:
+            return "POOR", num_aborted
+        if "FAIR" in scored:
+            return "FAIR", num_aborted
+        return "GOOD", num_aborted
+
+    def _message_rows(self) -> list[tuple[object, object]]:
+        """Return ``(time, content)`` pairs from the parsed messages, if available."""
+        if isinstance(self.messages, pl.DataFrame) and not self.messages.is_empty():
+            if not {"time", "content"}.issubset(self.messages.columns):
+                return []
+            return list(
+                zip(
+                    self.messages["time"].to_list(),
+                    self.messages["content"].to_list(),
+                )
+            )
+        if isinstance(self.messages, list):
+            return [
+                (
+                    item.get("time", item.get("timestamp")),
+                    item.get("content", item.get("message", "")),
+                )
+                for item in self.messages
+                if isinstance(item, dict)
+            ]
+        return []
+
+    def _final_validation_message_time(self) -> float | None:
+        """Return the timestamp of the ``final_validation`` ASC message, if logged."""
+        times: list[float] = []
+        for time_value, content in self._message_rows():
+            if not isinstance(content, str):
+                continue
+            if not _FINAL_VALIDATION_MSG_REGEX.match(content):
+                continue
+            try:
+                times.append(float(time_value))
+            except (TypeError, ValueError):
+                continue
+        return max(times) if times else None
+
+    def _final_experimental_trial_end(self) -> float | None:
+        """Return the end timestamp of the last non-practice trial, if known."""
+        if not isinstance(self.stimulus_start_end_ts, list):
+            return None
+
+        stops: list[float] = []
+        for entry in self.stimulus_start_end_ts:
+            if not isinstance(entry, dict):
+                continue
+            if not _EXPERIMENT_TRIAL_REGEX.match(str(entry.get("trial", ""))):
+                continue
+            try:
+                stops.append(float(entry["stop_ts"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+        return max(stops) if stops else None
+
+    def _calibration_between(self, start: float, end: float) -> bool:
+        """Return whether a calibration lies strictly between two session times.
+
+        Calibrations are read from the calibration table. When no calibration
+        table is stored, the ASC calibration messages are used instead so that
+        an intervening recalibration is still detected.
+        """
+        times: list[float] = []
+        if (
+            isinstance(self.calibrations, pl.DataFrame)
+            and "time" in self.calibrations.columns
+        ):
+            times = [
+                float(time_value)
+                for time_value in self.calibrations["time"]
+                .cast(pl.Float64, strict=False)
+                .drop_nulls()
+                .to_list()
+            ]
+
+        if not times:
+            for time_value, content in self._message_rows():
+                if not isinstance(content, str):
+                    continue
+                if not _CALIBRATION_MSG_REGEX.search(content):
+                    continue
+                try:
+                    times.append(float(time_value))
+                except (TypeError, ValueError):
+                    continue
+
+        return any(start < time_value < end for time_value in times)
+
+    def _compute_final_validation_score(self) -> float | str:
+        """Return the ``accuracy_avg`` (dVA) of the post-experiment final validation.
+
+        The score is the ``accuracy_avg`` of the last validation, but only when
+        the ``final_validation`` screen is logged after the final experimental
+        trial, the validation follows that screen, and no calibration happened
+        between the end of the final trial and the validation. Sessions where
+        this cannot be established from the available data return ``"unknown"``.
+
+        Notes
+        -----
+        A binocular validation produces one row per eye. Rows sharing the final
+        validation timestamp are averaged.
+        """
+        final_validation_time = self._final_validation_message_time()
+        final_trial_end = self._final_experimental_trial_end()
+        if final_validation_time is None or final_trial_end is None:
+            return "unknown"
+        if final_validation_time <= final_trial_end:
+            return "unknown"
+
+        if not isinstance(self.validations, pl.DataFrame):
+            return "unknown"
+        if self.validations.is_empty():
+            return "unknown"
+        if not {"time", "accuracy_avg"}.issubset(self.validations.columns):
+            return "unknown"
+
+        validation_times = (
+            self.validations["time"].cast(pl.Float64, strict=False).drop_nulls()
+        )
+        if validation_times.is_empty():
+            return "unknown"
+
+        last_time = float(validation_times.max())
+        if last_time <= final_validation_time:
+            return "unknown"
+        if self._calibration_between(final_trial_end, last_time):
+            return "unknown"
+
+        final_rows = self.validations.filter(
+            pl.col("time").cast(pl.Float64, strict=False) == last_time
+        )
+        scores = [
+            float(score)
+            for score in final_rows["accuracy_avg"]
+            .cast(pl.Float64, strict=False)
+            .drop_nulls()
+            .to_list()
+        ]
+        if not scores:
+            return "unknown"
+        return round(sum(scores) / len(scores), 3)
+
     def _create_stats(self):
         self.num_calibrations = len(self.calibrations)
         self.num_validations = len(self.validations)
+        quality_lines = self._quality_message_lines()
+        self.calibration_quality = self._compute_calibration_quality(quality_lines)
+        self.validation_quality, self.num_aborted_validations = (
+            self._compute_validation_quality(quality_lines)
+        )
+        self.final_validation_score_dva = self._compute_final_validation_score()
 
         self.tracked_eye = self._get_metadata("tracked_eye", "unknown")
 
@@ -394,6 +796,7 @@ class Session:
         self._compute_rating_stats()
 
         self._compute_restart_info()
+        self._compute_break_stats()
 
         duration = self._compute_session_duration()
         if duration is not None:
@@ -522,6 +925,147 @@ class Session:
             self.interrupted = is_restart
         self.restarted_session_name = sid.id_no_postfix if is_restart else "unknown"
 
+    def _question_order_by_trial(self) -> dict[str, dict[str, object]]:
+        """Return question-order records keyed by completed trial label.
+
+        The CSV contains one row per planned trial. Rows are matched to the
+        completed trials in ``stimuli_trial_mapping`` so an aborted session does
+        not report planned-only entries. Missing or malformed rows are omitted;
+        callers can distinguish an absent record with ``None``.
+
+        Returns
+        -------
+        dict[str, dict[str, object]]
+            Mapping from trial label to version and explicit condition codes.
+            Empty when the CSV, the trial mapping or all usable rows are
+            missing.
+        """
+        mapping = self.stimuli_trial_mapping
+        if not isinstance(mapping, dict) or not mapping:
+            return {}
+
+        path = (
+            Path(self.session_folder_path) / "logfiles" / "question_order_versions.csv"
+        )
+        if not path.exists():
+            return {}
+
+        try:
+            frame = parse_question_order(path)
+        except (OSError, ValueError, pl.exceptions.PolarsError) as exc:
+            logger.warning(
+                f"Could not read question order for {self.session_identifier}: {exc}"
+            )
+            return {}
+
+        required = {
+            "question_order_version",
+            "local_question_1",
+            "local_question_2",
+            "bridging_question_1",
+            "bridging_question_2",
+            "global_question_1",
+            "global_question_2",
+        }
+        missing = required - set(frame.columns)
+        if missing:
+            logger.warning(
+                f"Question order CSV for {self.session_identifier} misses "
+                f"columns: {sorted(missing)}"
+            )
+            return {}
+
+        trial_labels = sorted((str(key) for key in mapping), key=_trial_sort_key)
+        records: dict[str, dict[str, object]] = {}
+        for row in frame.iter_rows(named=True):
+            try:
+                index = int(row["trial"])
+            except (TypeError, ValueError):
+                continue
+            if index < 1 or index > len(trial_labels):
+                continue
+            try:
+                version = int(row["question_order_version"])
+                local = [
+                    int(row["local_question_1"]),
+                    int(row["local_question_2"]),
+                ]
+                bridging = [
+                    int(row["bridging_question_1"]),
+                    int(row["bridging_question_2"]),
+                ]
+                global_order = [
+                    int(row["global_question_1"]),
+                    int(row["global_question_2"]),
+                ]
+            except (TypeError, ValueError):
+                logger.warning(
+                    f"Could not parse question order row {index} for "
+                    f"{self.session_identifier}."
+                )
+                continue
+            records[trial_labels[index - 1]] = {
+                "version": version,
+                "local": local,
+                "bridging": bridging,
+                "global": global_order,
+            }
+
+        if len(records) != len(trial_labels):
+            logger.warning(
+                f"Question order records for {self.session_identifier} cover "
+                f"{len(records)} of {len(trial_labels)} completed trials."
+            )
+        return records
+
+    def _compute_break_stats(self) -> None:
+        """Populate the break fields from ASC messages.
+
+        Break presence is read from ``optional_break`` and ``obligatory_break``
+        messages. Durations are the corresponding ``*_break_duration`` values in
+        milliseconds and are summed into seconds. Missing message data leaves
+        the fields at their ``unknown`` defaults; a session with messages but no
+        breaks reports zero breaks.
+        """
+        messages = self._message_rows()
+        if not messages:
+            return
+
+        obligatory_starts = 0
+        optional_starts = 0
+        durations_ms: list[float] = []
+        for _, content in messages:
+            if not isinstance(content, str):
+                continue
+            text = content.strip()
+            if text == "obligatory_break":
+                obligatory_starts += 1
+            elif text == "optional_break":
+                optional_starts += 1
+            elif ":" in text:
+                name, value = text.split(":", 1)
+                if name.strip() not in {
+                    "obligatory_break_duration",
+                    "optional_break_duration",
+                }:
+                    continue
+                try:
+                    durations_ms.append(float(value.strip()))
+                except ValueError:
+                    logger.warning(
+                        f"Could not parse break duration {value.strip()!r} for "
+                        f"{self.session_identifier}."
+                    )
+
+        self.obligatory_break_made = obligatory_starts > 0
+        self.num_optional_breaks_made = optional_starts
+        if durations_ms:
+            self.total_break_time = round(sum(durations_ms) / 1000, 3)
+        elif obligatory_starts or optional_starts:
+            self.total_break_time = "unknown"
+        else:
+            self.total_break_time = 0.0
+
     def _reading_time_by_trial(self) -> dict[str, float]:
         """Return total reading time in ms per trial from stimulus timestamps."""
         by_trial: dict[str, float] = {}
@@ -537,8 +1081,159 @@ class Session:
             by_trial[trial] = by_trial.get(trial, 0.0) + max(0.0, stop - start)
         return by_trial
 
+    def _trial_time_spans(self) -> dict[str, tuple[float, float]]:
+        """Return the recorded ``(start, stop)`` span per trial in milliseconds.
+
+        The span is the earliest ``start_ts`` and the latest ``stop_ts`` across
+        the trial's entries in ``stimulus_start_end_ts``, so it covers the whole
+        recorded trial rather than only its reading pages. Trials without a
+        usable timestamp pair are omitted.
+        """
+        spans: dict[str, list[float]] = {}
+        if not isinstance(self.stimulus_start_end_ts, list):
+            return {}
+        for entry in self.stimulus_start_end_ts:
+            if not isinstance(entry, dict):
+                continue
+            try:
+                start = float(entry["start_ts"])
+                stop = float(entry["stop_ts"])
+                trial = str(entry["trial"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if trial not in spans:
+                spans[trial] = [start, stop]
+            else:
+                spans[trial][0] = min(spans[trial][0], start)
+                spans[trial][1] = max(spans[trial][1], stop)
+        return {trial: (span[0], span[1]) for trial, span in spans.items()}
+
+    @staticmethod
+    def _collect_loss_metrics(
+        frames: list[pl.DataFrame | None],
+    ) -> dict[str, dict[str, float]]:
+        """Collect per-trial loss ratios from frames keyed by ``trial``.
+
+        Rows from the data-loss and blink-loss tables are merged per trial.
+        Columns without a value are left out so callers can fall back to
+        ``"unknown"``.
+        """
+        metrics: dict[str, dict[str, float]] = {}
+        for frame in frames:
+            if not isinstance(frame, pl.DataFrame) or frame.is_empty():
+                continue
+            if "trial" not in frame.columns:
+                continue
+            for row in frame.iter_rows(named=True):
+                trial = row.get("trial")
+                if trial is None:
+                    continue
+                entry = metrics.setdefault(str(trial), {})
+                for column in ("data_loss_ratio", "blink_loss_ratio"):
+                    if column in entry or row.get(column) is None:
+                        continue
+                    try:
+                        entry[column] = float(row[column])
+                    except (TypeError, ValueError):
+                        continue
+        return metrics
+
+    def _read_per_trial_loss_tsv(self) -> pl.DataFrame | None:
+        """Read the sanity-check ``per_trial_data_loss_<sid>.tsv``, if present."""
+        report_path = self.sanity_report_path
+        if not isinstance(report_path, (str, Path)) or str(report_path) == "unknown":
+            return None
+        tsv_path = Path(report_path).parent / (
+            f"per_trial_data_loss_{self.session_identifier}.tsv"
+        )
+        if not tsv_path.exists():
+            return None
+        try:
+            return pl.read_csv(tsv_path, separator="\t")
+        except Exception as exc:
+            logger.warning(f"Could not read per-trial loss table {tsv_path}: {exc}")
+            return None
+
+    def _per_trial_loss_metrics(self) -> dict[str, dict[str, float]]:
+        """Return per-trial data-loss and blink ratios keyed by trial id.
+
+        Uses the per-trial tables computed during preprocessing. When those are
+        not held in memory (for example after reloading cached outputs), falls
+        back to the TSV the sanity report writes from the same tables. The
+        ratios are fractions between 0 and 1.
+        """
+        metrics = self._collect_loss_metrics(
+            [
+                getattr(self, "_per_trial_data_loss", None),
+                getattr(self, "_per_trial_blink_loss", None),
+            ]
+        )
+        if metrics:
+            return metrics
+        return self._collect_loss_metrics([self._read_per_trial_loss_tsv()])
+
+    def _validation_before_trial_start(
+        self,
+        spans: dict[str, tuple[float, float]],
+    ) -> dict[str, float]:
+        """Return the validation score in dVA immediately before each trial start.
+
+        A validation counts for a trial when its timestamp lies in the
+        inter-trial interval before the trial's ``start_ts``, that is, after the
+        previous trial's ``stop_ts``. This prevents reusing the validation of an
+        earlier trial when the expected pre-trial validation is missing. For
+        binocular validations the rows sharing the selected timestamp are
+        averaged, matching the final-validation score convention.
+        """
+        validations = self.validations
+        if not isinstance(validations, pl.DataFrame) or validations.is_empty():
+            return {}
+        if not {"time", "accuracy_avg"}.issubset(validations.columns):
+            return {}
+
+        rows: list[tuple[float, float]] = []
+        for time_value, accuracy in zip(
+            validations["time"].cast(pl.Float64, strict=False).to_list(),
+            validations["accuracy_avg"].cast(pl.Float64, strict=False).to_list(),
+        ):
+            if time_value is None or accuracy is None:
+                continue
+            rows.append((float(time_value), float(accuracy)))
+        if not rows:
+            return {}
+
+        stops = sorted(stop for _, stop in spans.values())
+        result: dict[str, float] = {}
+        for trial, (start, _) in spans.items():
+            previous_stops = [stop for stop in stops if stop <= start]
+            lower = previous_stops[-1] if previous_stops else None
+            candidates = [
+                (time_value, accuracy)
+                for time_value, accuracy in rows
+                if time_value < start and (lower is None or time_value >= lower)
+            ]
+            if not candidates:
+                continue
+            last_time = max(time_value for time_value, _ in candidates)
+            scores = [
+                accuracy
+                for time_value, accuracy in candidates
+                if time_value == last_time
+            ]
+            result[trial] = round(sum(scores) / len(scores), 3)
+        return result
+
     def _compute_trials(self) -> list[Trial] | str:
-        """Assemble per-trial metrics from the answers CSV and reading times.
+        """Assemble per-trial metrics from the answers CSV and eye-tracking data.
+
+        Comprehension and reading-time fields come from the answers CSV and the
+        per-stimulus reading spans. ``trial_duration_ms`` comes from the trial
+        start/stop timestamps, ``data_loss_ratio`` and ``blink_ratio`` from the
+        per-trial loss tables (or their sanity-check TSV), and
+        ``validation_before_start_dva`` from the session validations.
+        Question-order fields are joined by trial key and stay ``None`` when no
+        matching record exists. Fields without a matching source stay
+        ``"unknown"``.
 
         Returns
         -------
@@ -560,10 +1255,15 @@ class Session:
             return "unknown"
 
         reading_by_trial = self._reading_time_by_trial()
+        trial_spans = self._trial_time_spans()
+        loss_metrics = self._per_trial_loss_metrics()
+        validations_before = self._validation_before_trial_start(trial_spans)
+        question_orders = self._question_order_by_trial()
 
         trials: list[Trial] = []
         for trial_id, group in answers.group_by("trial", maintain_order=True):
             trial_id = trial_id[0] if isinstance(trial_id, tuple) else trial_id
+            trial_key = str(trial_id)
             correct = [c for c in group["is_correct"].to_list() if c is not None]
             if not correct:
                 score = 0.0
@@ -588,6 +1288,32 @@ class Session:
             except ValueError:
                 trial_number = 0
 
+            span = trial_spans.get(trial_key)
+            trial_duration: float | str = (
+                round(max(0.0, span[1] - span[0]), 3) if span is not None else "unknown"
+            )
+            loss = loss_metrics.get(trial_key, {})
+            data_loss: float | str = (
+                round(loss["data_loss_ratio"], 3)
+                if "data_loss_ratio" in loss
+                else "unknown"
+            )
+            blink_ratio: float | str = (
+                round(loss["blink_loss_ratio"], 3)
+                if "blink_loss_ratio" in loss
+                else "unknown"
+            )
+            order = question_orders.get(trial_key)
+            question_order_version: int | None = None
+            question_order: dict[str, list[int]] | None = None
+            if order is not None:
+                question_order_version = int(order["version"])
+                question_order = {
+                    "local": list(order["local"]),
+                    "bridging": list(order["bridging"]),
+                    "global": list(order["global"]),
+                }
+
             trials.append(
                 Trial(
                     trial_number=trial_number,
@@ -598,6 +1324,14 @@ class Session:
                     comprehension_score=score,
                     comprehension_question_time_ms=question_time,
                     reading_time_ms=round(reading_by_trial.get(str(trial_id), 0.0), 3),
+                    trial_duration_ms=trial_duration,
+                    data_loss_ratio=data_loss,
+                    blink_ratio=blink_ratio,
+                    validation_before_start_dva=validations_before.get(
+                        trial_key, "unknown"
+                    ),
+                    question_order_version=question_order_version,
+                    question_order=question_order,
                 )
             )
 

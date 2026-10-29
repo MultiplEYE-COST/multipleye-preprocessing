@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -7,12 +8,13 @@ import subprocess
 import sys
 import tempfile
 import warnings
+from collections import Counter
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, date, datetime
 from functools import partial
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import polars as pl
 import pymovements as pm
@@ -43,9 +45,18 @@ from ..models.sid import Sid
 from ..plotting.plot import build_page_frames, plot_gaze, plot_main_sequence
 from ..utils.conversion import convert_to_time_str
 from ..utils.data_collection_utils import _report_to_file
-from ..utils.data_path_utils import _ci_resolve
-from ..utils.fix_questionnaire_data import remap_wrong_pq_values
-from ..utils.logging import get_logger, get_pipeline_info
+from ..utils.data_path_utils import (
+    _ci_resolve,
+    find_metadata_form,
+    load_metadata_form,
+)
+from ..utils.eye_tracker import (
+    CANONICAL_EYE_TRACKERS,
+    eye_tracker_brand,
+    normalize_eye_tracker_name,
+    suggest_eye_tracker_names,
+)
+from ..utils.logging import get_edf2asc_version, get_logger, get_pipeline_info
 from ..utils.pq_normalisation import (
     build_mapping,
     find_pq_data,
@@ -76,6 +87,247 @@ def eyelink(method):
             )
 
     return wrapper
+
+
+def _metadata_form_value(
+    metadata_form: dict, section: str, key: str, legacy_key: str
+) -> object:
+    """Read a nested metadata-form value with a fallback to the flat legacy key.
+
+    Real metadata forms group values into sections (for example
+    ``Tested_language.Language_script``), while older/generated forms store
+    them as flat keys (``Script``). The nested value wins when it is present.
+
+    Parameters
+    ----------
+    metadata_form : dict
+        Parsed metadata form.
+    section : str
+        Name of the nested section.
+    key : str
+        Key within the nested section.
+    legacy_key : str
+        Flat key used by older/generated forms.
+
+    Returns
+    -------
+    object
+        The nested value, the flat value, or None if neither exists.
+    """
+    section_data = metadata_form.get(section)
+    if isinstance(section_data, dict):
+        value = section_data.get(key)
+        if value is not None:
+            return value
+    return metadata_form.get(legacy_key)
+
+
+def _known_version(value: object) -> str | None:
+    """Return a version string, mapping missing and ``unknown`` values to None.
+
+    Parameters
+    ----------
+    value : object
+        Version or revision string from a version helper.
+
+    Returns
+    -------
+    str | None
+        Stripped value, or None when it is missing or reported as ``unknown``.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() == "unknown":
+        return None
+    return text
+
+
+_ANSWER_OPTION_SET_PREFIX = "question_answer_option_shuffling_"
+_ANSWER_OPTION_VERSION_REGEX = re.compile(
+    r"question_images_version_(\d+)\.json$", re.IGNORECASE
+)
+
+
+def _answer_option_version_from_path(path: Path) -> int | None:
+    """Return the question-image version encoded in an option-key filename."""
+    match = _ANSWER_OPTION_VERSION_REGEX.search(path.name)
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
+def _answer_option_session_version(value: object) -> int | None:
+    """Return a session's stimulus-order version as an integer, else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else None
+    if isinstance(value, str):
+        match = re.search(r"(\d+)\s*$", value.strip())
+        if match is not None:
+            return int(match.group(1))
+    return None
+
+
+def _canonical_json_hash(path: Path) -> str | None:
+    """Return a stable content hash for a JSON file, or None if it is unreadable."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    canonical = json.dumps(
+        data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _answer_option_set_files(
+    stimulus_dirs: Iterable[Path],
+) -> dict[str, list[tuple[Path, int, Path]]]:
+    """Discover shuffled option-key files grouped by stimulus set name.
+
+    Parameters
+    ----------
+    stimulus_dirs : Iterable[Path]
+        Stimulus directories used by the collection, including content versions.
+
+    Returns
+    -------
+    dict[str, list[tuple[Path, int, Path]]]
+        Mapping from set directory name to ``(stimulus_dir, version, path)``
+        entries. Only files with a parseable version suffix are included.
+    """
+    entries: dict[str, list[tuple[Path, int, Path]]] = {}
+    seen: set[Path] = set()
+    for stimulus_dir in stimulus_dirs:
+        config_dir = Path(stimulus_dir) / "config"
+        if not config_dir.is_dir():
+            continue
+        for set_dir in sorted(config_dir.glob(f"{_ANSWER_OPTION_SET_PREFIX}*")):
+            if not set_dir.is_dir():
+                continue
+            for path in sorted(set_dir.glob("*.json")):
+                version = _answer_option_version_from_path(path)
+                if version is None:
+                    continue
+                resolved = path.resolve()
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                entries.setdefault(set_dir.name, []).append(
+                    (Path(stimulus_dir), version, path)
+                )
+    return entries
+
+
+def _compute_answer_option_shuffling_stats(
+    sessions: Iterable[object],
+    resolve_stimulus_dir: Callable[[str], Path],
+    stimulus_dirs: Iterable[Path],
+) -> dict[str, object]:
+    """Compute the answer-option shuffling check for the DCN overview.
+
+    The session rule uses the option-key file selected by each session's
+    ``randomization_version``. ``all_files_identical`` is computed from every
+    readable file in the set, including versions not used by a session.
+
+    Parameters
+    ----------
+    sessions : Iterable[object]
+        Non-pilot sessions. Each item must expose ``session_identifier`` and
+        ``randomization_version``.
+    resolve_stimulus_dir : Callable[[str], Path]
+        Resolve a session identifier to its stimulus directory.
+    stimulus_dirs : Iterable[Path]
+        All stimulus directories, including content versions.
+
+    Returns
+    -------
+    dict[str, object]
+        The ``answer_option_shuffling`` mapping written to the DCN overview.
+    """
+    files_by_set = _answer_option_set_files(stimulus_dirs)
+    records: dict[str, dict[str, object]] = {}
+    for set_name, entries in files_by_set.items():
+        hash_by_dir_version: dict[tuple[Path, int], str] = {}
+        all_hashes: list[str] = []
+        for stimulus_dir, version, path in entries:
+            digest = _canonical_json_hash(path)
+            if digest is None:
+                continue
+            hash_by_dir_version[(Path(stimulus_dir).resolve(), version)] = digest
+            all_hashes.append(digest)
+        records[set_name] = {
+            "hash_by_dir_version": hash_by_dir_version,
+            "all_hashes": all_hashes,
+            "session_ids": set(),
+            "session_hashes": [],
+            "used_versions": set(),
+        }
+
+    session_ids: set[str] = set()
+    for session in sessions:
+        session_id = getattr(session, "session_identifier", None)
+        version = _answer_option_session_version(
+            getattr(session, "randomization_version", None)
+        )
+        if not session_id or version is None:
+            continue
+        stimulus_dir = Path(resolve_stimulus_dir(str(session_id))).resolve()
+        for record in records.values():
+            digest = record["hash_by_dir_version"].get((stimulus_dir, version))
+            if digest is None:
+                continue
+            record["session_ids"].add(str(session_id))
+            record["session_hashes"].append(digest)
+            record["used_versions"].add(version)
+            session_ids.add(str(session_id))
+
+    sets: dict[str, dict[str, object]] = {}
+    num_flagged_sets = 0
+    for set_name in sorted(records):
+        record = records[set_name]
+        session_hashes = record["session_hashes"]
+        used_versions = record["used_versions"]
+        all_hashes = record["all_hashes"]
+        num_sessions = len(record["session_ids"])
+        max_identical_sessions = max(Counter(session_hashes).values(), default=0)
+        max_identical_share = (
+            round(max_identical_sessions / num_sessions, 3) if num_sessions else 0.0
+        )
+        all_files_identical = len(set(all_hashes)) == 1 if all_hashes else None
+        flagged = max_identical_sessions >= 2 and (
+            all_files_identical is True or max_identical_share >= 0.5
+        )
+        if flagged:
+            num_flagged_sets += 1
+        sets[set_name] = {
+            "flagged": flagged,
+            "num_sessions": num_sessions,
+            "num_versions": len(used_versions),
+            "num_unique": len(set(session_hashes)),
+            "max_identical_sessions": max_identical_sessions,
+            "max_identical_share": max_identical_share,
+            "all_files_identical": all_files_identical,
+        }
+
+    return {
+        "flagged": num_flagged_sets > 0,
+        "num_sets": len(sets),
+        "num_sessions": len(session_ids),
+        "num_flagged_sets": num_flagged_sets,
+        "sets": sets,
+    }
+
+
+def _capture_overview_warning(message: str) -> None:
+    """Append a warning to the DCN overview warning list."""
+    if not hasattr(logging, "_captured_warnings"):
+        logging._captured_warnings = []  # type: ignore[attr-defined]
+    logging._captured_warnings.append(message)  # type: ignore[attr-defined]
 
 
 def _compute_session_completeness(data_collection) -> dict:
@@ -199,8 +451,42 @@ def _build_stimulus_start_end_ts(sum_df: pd.DataFrame) -> list[dict]:
     return records.to_dict(orient="records")
 
 
+def _find_experimenter_doc(
+    dataset_dir: Path,
+    base_name: str,
+    language: str,
+    country: str,
+    city: str,
+) -> Path | None:
+    """Find the experimenter documentation workbook in ``documentation/``.
+
+    Accepts filenames with and without the lab number, case-insensitively.
+    """
+    documentation = dataset_dir / "documentation"
+    if not documentation.is_dir():
+        return None
+    prefix = "multipleye_experimenter_session_documentation_"
+    candidates = [
+        path
+        for path in documentation.iterdir()
+        if path.is_file()
+        and path.suffix.lower() == ".xlsx"
+        and path.name.lower().startswith(prefix)
+    ]
+    wanted = [
+        f"{prefix}{base_name}.xlsx".lower(),
+        f"{prefix}{language}_{country}_{city}.xlsx".lower(),
+    ]
+    for target in wanted:
+        for path in candidates:
+            if path.name.lower() == target:
+                return path
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
 class MultipleyeDataCollection:
-    participant_data_path: Path | str | None
     crashed_session_ids: list[str] = []
     skipped_sessions: dict = {}
     num_sessions = 1
@@ -252,18 +538,21 @@ class MultipleyeDataCollection:
         self.pilot_folder = kwargs.get("pilot_folder", "")
         self.reports_folder = "reports"
 
-        for short_name, long_name in settings.EYETRACKER_NAMES.items():
-            if eye_tracker in long_name:
-                self.eye_tracker = short_name
-                self.eye_tracker_name = long_name
-                break
-
-        else:
-            raise ValueError(
-                f"Eye tracker {eye_tracker} not yet supported. "
-                f"Supported eye trackers are: "
-                f"{np.array([val for k, val in settings.EYETRACKER_NAMES.items()]).flatten()}"
+        canonical_eye_tracker = normalize_eye_tracker_name(eye_tracker)
+        if canonical_eye_tracker is None:
+            suggestions = suggest_eye_tracker_names(eye_tracker)
+            supported = ", ".join(CANONICAL_EYE_TRACKERS)
+            message = (
+                f"Eye tracker {eye_tracker!r} is not supported. "
+                f"Supported models are: {supported}."
             )
+            if suggestions:
+                message += f" Did you mean: {', '.join(suggestions)}?"
+            raise ValueError(message)
+
+        self.eye_tracker_name_raw = str(eye_tracker)
+        self.eye_tracker_name = canonical_eye_tracker
+        self.eye_tracker = eye_tracker_brand(canonical_eye_tracker)
         self.config_file = config_file
         self.stimulus_dir = stimulus_dir
         self.lab_number = lab_number
@@ -340,6 +629,64 @@ class MultipleyeDataCollection:
             return self.stimulus_dir
         pid = Sid(session_identifier).pid
         return self.pid_stimulus_dirs.get(pid, self.stimulus_dir)
+
+    def _answer_option_stimulus_dirs(self) -> list[Path]:
+        """Return the default and configured version-specific stimulus directories."""
+        directories = [Path(self.stimulus_dir)]
+        if self.pid_stimulus_dirs:
+            directories.extend(Path(path) for path in self.pid_stimulus_dirs.values())
+        unique: list[Path] = []
+        seen: set[Path] = set()
+        for directory in directories:
+            resolved = directory.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                unique.append(directory)
+        return unique
+
+    def _compute_answer_option_shuffling(self) -> dict[str, object]:
+        """Check whether shuffled answer-option keys repeat across sessions.
+
+        The check compares canonical JSON hashes per stimulus set. A set is
+        flagged when all readable files are identical, or when at least half of
+        the non-pilot sessions share the same content and at least two sessions
+        use it. The threshold avoids flagging a one-versus-one split.
+
+        Returns
+        -------
+        dict[str, object]
+            The ``processing.answer_option_shuffling`` mapping.
+        """
+        result = _compute_answer_option_shuffling_stats(
+            [session for session in self.sessions.values() if not session.is_pilot],
+            self._resolve_stimulus_dir,
+            self._answer_option_stimulus_dirs(),
+        )
+        sets = result.get("sets")
+        if isinstance(sets, dict):
+            for set_name, stats in sets.items():
+                if not isinstance(stats, dict) or not stats.get("flagged"):
+                    continue
+                max_sessions = int(stats["max_identical_sessions"])
+                num_sessions = int(stats["num_sessions"])
+                share = float(stats["max_identical_share"])
+                if stats.get("all_files_identical") is True:
+                    message = (
+                        "Answer-option shuffling check: all shuffled option-key files "
+                        f"in set '{set_name}' are identical. This can indicate a broken "
+                        "randomization seed; verify the option keys before using the data."
+                    )
+                else:
+                    message = (
+                        "Answer-option shuffling check: "
+                        f"{max_sessions} of {num_sessions} sessions in set '{set_name}' "
+                        "share identical shuffled option keys "
+                        f"({share:.1%}). This can indicate a broken randomization seed; "
+                        "verify the option keys before using the data."
+                    )
+                self.logger.warning(message)
+                _capture_overview_warning(message)
+        return result
 
     def __repr__(self):
         if not self.overview:
@@ -736,13 +1083,14 @@ class MultipleyeDataCollection:
 
         # import raw data from experimenter doc file
         base_name = f"{stimulus_language}_{country}_{city}_{lab_number}"
-        doc_sheet_path = (
-            settings.DATASET_DIR
-            / "documentation"
-            / f"MultiplEYE_Experimenter_Session_Documentation_{base_name}.xlsx"
+        doc_sheet_path = _find_experimenter_doc(
+            Path(settings.DATASET_DIR),
+            base_name,
+            stimulus_language,
+            country,
+            city,
         )
-        doc_sheet_path = _ci_resolve(doc_sheet_path)
-        if doc_sheet_path.exists():
+        if doc_sheet_path is not None:
             doc_sheet = ExperimenterDoc.create_from_excel(doc_sheet_path)
         else:
             doc_sheet = None
@@ -1027,12 +1375,43 @@ class MultipleyeDataCollection:
         metadata_form = self._load_metadata_form()
         metadata_form_exists = bool(metadata_form)
 
+        language_script = _metadata_form_value(
+            metadata_form, "Tested_language", "Language_script", "Script"
+        )
+        language_family = _metadata_form_value(
+            metadata_form, "Tested_language", "Language_family", "Language_family"
+        )
+        start_date = _metadata_form_value(
+            metadata_form,
+            "Time_frame",
+            "Start_date",
+            "Start_date_of_data_collection",
+        )
+        end_date = _metadata_form_value(
+            metadata_form,
+            "Time_frame",
+            "End_date",
+            "End_date_of_data_collection",
+        )
+
         dataset_description = (
             f"{self.country}, {self.city} (lab {self.lab_number}). "
             f"{self.language} corpus. "
-            f"Data collected from {metadata_form.get('Start_date_of_data_collection', 'unknown')} "
-            f"to {metadata_form.get('End_date_of_data_collection', 'unknown')}."
+            f"Data collected from {start_date if start_date is not None else 'unknown'} "
+            f"to {end_date if end_date is not None else 'unknown'}."
         )
+
+        def _lab_pair(attr: str) -> tuple[object, object]:
+            value = getattr(self.lab_configuration, attr, None)
+            if isinstance(value, (tuple, list)) and len(value) == 2:
+                return value[0], value[1]
+            return None, None
+
+        screen_res_w, screen_res_h = _lab_pair("screen_resolution")
+        screen_size_w, screen_size_h = _lab_pair("screen_size_cm")
+        image_res_w, image_res_h = _lab_pair("image_resolution")
+        image_size_w, image_size_h = _lab_pair("image_size_cm")
+        screen_distance_cm = getattr(self.lab_configuration, "screen_distance_cm", None)
 
         overview = {
             "administrative": {
@@ -1050,14 +1429,10 @@ class MultipleyeDataCollection:
             },
             "language_details": {
                 "metadata_form_exists": metadata_form_exists,
-                "language_script": metadata_form.get("Script"),
-                "language_family": metadata_form.get("Language_family"),
-                "start_date_of_data_collection": metadata_form.get(
-                    "Start_date_of_data_collection"
-                ),
-                "end_date_of_data_collection": metadata_form.get(
-                    "End_date_of_data_collection"
-                ),
+                "language_script": language_script,
+                "language_family": language_family,
+                "start_date_of_data_collection": start_date,
+                "end_date_of_data_collection": end_date,
             },
             "data_availability": {
                 "raw_data_available": True,
@@ -1071,23 +1446,21 @@ class MultipleyeDataCollection:
                 ),
             },
             "technical_setup": {
-                "eye_tracker_name": getattr(
-                    self.lab_configuration, "name_eye_tracker", None
-                ),
+                "eye_tracker_name_raw": self.eye_tracker_name_raw,
+                "eye_tracker_name": self.eye_tracker_name,
                 "sampling_frequency_hz": getattr(
                     self.lab_configuration, "sampling_frequency_hz", None
                 ),
                 "monitor_name": metadata_form.get("Monitor_name"),
-                "screen_resolution_width_px": (
-                    self.lab_configuration.screen_resolution[0]
-                    if getattr(self.lab_configuration, "screen_resolution", None)
-                    else None
-                ),
-                "screen_resolution_height_px": (
-                    self.lab_configuration.screen_resolution[1]
-                    if getattr(self.lab_configuration, "screen_resolution", None)
-                    else None
-                ),
+                "screen_resolution_width_px": screen_res_w,
+                "screen_resolution_height_px": screen_res_h,
+                "screen_size_width_cm": screen_size_w,
+                "screen_size_height_cm": screen_size_h,
+                "screen_distance_cm": screen_distance_cm,
+                "image_resolution_width_px": image_res_w,
+                "image_resolution_height_px": image_res_h,
+                "image_size_width_cm": image_size_w,
+                "image_size_height_cm": image_size_h,
             },
             "processing": {
                 "preprocessing_date": datetime.now(tz=UTC).strftime("%Y-%m-%d"),
@@ -1106,10 +1479,9 @@ class MultipleyeDataCollection:
                 "custom_units_of_analysis": metadata_form.get(
                     "Custom_units_of_analysis"
                 ),
-                "answer_option_shuffling_bug": metadata_form.get(
-                    "Answer_option_shuffling_bug"
-                ),
+                "answer_option_shuffling": self._compute_answer_option_shuffling(),
             },
+            "processing_environment": self._get_processing_environment(),
             "processing_config": {
                 "fixation_method": settings.FIXATION_METHOD,
                 "fixation_minimum_duration_ms": settings.FIXATION_MINIMUM_DURATION_MS,
@@ -1170,30 +1542,66 @@ class MultipleyeDataCollection:
         except (ImportError, KeyError, subprocess.SubprocessError):
             return None
 
-    def _load_metadata_form(self) -> dict:
+    @staticmethod
+    def _get_processing_environment() -> dict:
         """
-        Load the final metadata form JSON for this data collection, if present.
+        Return the tool versions and git revision used for this run.
+
+        Unavailable values are reported as ``None``. ``pipeline_version`` is
+        not repeated here; it stays in ``processing``.
 
         Returns
         -------
         dict
-            Parsed metadata form contents, or an empty dict if the file is missing.
+            Mapping with ``pipeline_git``, ``pymovements_version``,
+            ``edf2asc_version`` and ``python_version``.
         """
-        lang = self.language.lower() if self.language else ""
-        country = self.country.lower() if self.country else ""
-        city = self.city.capitalize() if self.city else ""
-        labnum = self.lab_number
-        year = self.year
+        try:
+            _, pipeline_git = get_pipeline_info()
+        except (ImportError, KeyError, subprocess.SubprocessError):
+            pipeline_git = None
 
-        metadata_path = (
-            self.stimulus_dir.parent
-            / "documentation"
-            / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_metadata_form.json"
+        python_version = (
+            f"{sys.version_info.major}.{sys.version_info.minor}."
+            f"{sys.version_info.micro}"
         )
-        if metadata_path.exists():
-            with open(metadata_path, encoding="utf-8") as f:
-                return json.load(f)
-        return {}
+
+        return {
+            "pipeline_git": _known_version(pipeline_git),
+            "pymovements_version": _known_version(getattr(pm, "__version__", None)),
+            "edf2asc_version": _known_version(get_edf2asc_version()),
+            "python_version": _known_version(python_version),
+        }
+
+    def _load_metadata_form(self) -> dict:
+        """
+        Load the final metadata form JSON for this data collection, if present.
+
+        Uploads use either ``metadataForm_MultiplEYE_<dcn>.json`` or
+        ``metadataform_MultiplEYE_<dcn>.json`` in the ``documentation`` folder,
+        sometimes with a trailing space before the extension. The older
+        ``MultiplEYE_<...>_metadata_form.json`` naming is still supported as a
+        fallback.
+
+        Returns
+        -------
+        dict
+            Parsed metadata form contents, or an empty dict if the file is
+            missing or cannot be matched unambiguously.
+        """
+        documentation_dir = self.stimulus_dir.parent / "documentation"
+        metadata_path = find_metadata_form(
+            documentation_dir,
+            self.data_collection_name,
+            language=self.language,
+            country=self.country,
+            city=self.city,
+            lab_number=self.lab_number,
+            year=self.year,
+        )
+        if metadata_path is None:
+            return {}
+        return load_metadata_form(metadata_path)
 
     def _compute_attrition_rate(self) -> float | None:
         """
@@ -1396,7 +1804,7 @@ class MultipleyeDataCollection:
             overview_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(overview_path, "w", encoding="utf8") as f:
-            yaml.dump(sess.create_overview(), f)
+            yaml.dump(sess.create_overview(self.experimenter_doc), f)
 
     def prepare_session_level_information(self):
         """
@@ -2737,70 +3145,6 @@ class MultipleyeDataCollection:
                 samples_by_key=samples_by_key,
                 events_by_key=events_by_key,
             )
-
-    def parse_participant_data(self, path: Path | str) -> None:
-        """
-        Load the participant data for all participants.
-        """
-
-        participant_data = pd.DataFrame()
-
-        for idx, session in (
-            pbar := tqdm(enumerate(self.sessions), total=len(self.sessions))
-        ):
-            pbar.set_description(f"Parsing participant data {session}")
-
-            try:
-                sid = Sid(session)
-                participant_id = sid.pid
-                session_id = sid.session
-                notes = sid.notes
-            except (ValueError, TypeError):
-                logging.warning(
-                    f"Session {session} does not match the expected format."
-                )
-                continue
-
-            folder = Path(self.sessions[session].session_folder_path)
-
-            pq_file = folder / f"{sid.base_id}_pq_data.json"
-            if pq_file.exists():
-                with open(pq_file, encoding="utf-8") as f:
-                    data = json.load(f)
-
-                # due to a bug in an earlier version of the experiment, some of the participant data has been lost,
-                # and we need to correct it
-                if "native_language_1_academic_reading_time" not in data:
-                    data = remap_wrong_pq_values(data)
-
-                data["participant_id"] = participant_id
-                data["notes"] = notes
-                data["session"] = session_id
-
-                participant_data = pd.concat(
-                    [participant_data, pd.DataFrame(data, index=[idx])],
-                    ignore_index=True,
-                )
-
-            else:
-                logging.warning(
-                    f"No participant data found for session {session}. Skipping."
-                )
-
-        # reorder columns such that participant_id is the first column
-        if not participant_data.empty:
-            cols = participant_data.columns.tolist()
-            cols = ["participant_id"] + [col for col in cols if col != "participant_id"]
-            participant_data = participant_data[cols]
-
-            if not path:
-                self.participant_data_path = (
-                    self.data_root.parent / "participant_data.csv"
-                )
-            else:
-                self.participant_data_path = path
-
-            participant_data.to_csv(self.participant_data_path, index=False)
 
 
 if __name__ == "__main__":

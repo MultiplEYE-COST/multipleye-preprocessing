@@ -1,3 +1,5 @@
+import warnings
+
 import polars as pl
 import pymovements as pm
 import pytest
@@ -19,6 +21,18 @@ from preprocessing.io.save import (
 from preprocessing.models.sid import Sid
 
 SID_STRINGS = ["001_EN_UK_1_S1", "017_DA_DK_1_ET1_start_after_trial_3"]
+
+RAW_DATA_COLUMNS = [
+    "time",
+    "pixel_x",
+    "pixel_y",
+    "position_x",
+    "position_y",
+    "velocity_x",
+    "velocity_y",
+    "pupil",
+    "page",
+]
 
 
 @pytest.fixture(autouse=True)
@@ -96,6 +110,27 @@ def test_save_load_raw_data_structure(tmp_path, dummy_gaze, sid_str):
         sid, trial_columns=["trial", "stimulus", "page"]
     )
     assert len(loaded_gaze.samples) == 3
+
+
+@pytest.mark.parametrize("sid_str", SID_STRINGS)
+def test_save_raw_data_nested_samples_does_not_warn(tmp_path, dummy_gaze, sid_str):
+    sid = Sid(sid_str)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        save_raw_data(sid, dummy_gaze)
+
+    saved_file = sid.raw_data_dir / f"{sid!s}_trial_1_Enc_WikiMoon_1_raw_data.csv"
+    assert pl.read_csv(saved_file).columns == RAW_DATA_COLUMNS
+
+
+@pytest.mark.parametrize("sid_str", SID_STRINGS)
+def test_save_raw_data_warns_for_unnested_samples(dummy_gaze, sid_str):
+    sid = Sid(sid_str)
+    dummy_gaze.unnest()
+
+    with pytest.warns(UserWarning, match="No columns to unnest"):
+        save_raw_data(sid, dummy_gaze)
 
 
 @pytest.mark.parametrize("event_type", ["fixation", "saccade"])

@@ -1,12 +1,15 @@
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pandas as pd
+import pymovements as pm
 import pytest
 import yaml
 
+import preprocessing.data_collection.multipleye_data_collection as dcn_module
 from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
 )
@@ -27,9 +30,9 @@ def _mock_lab_config():
 
 
 @pytest.fixture
-def dummy_dcn_dir(tmp_path: Path) -> Path:
+def dummy_dcn_dir(request, tmp_path: Path) -> Path:
     """Create a dummy data collection folder structure with sessions."""
-    collection_name = "MultiplEYE_EN_UK_London_1_2025"
+    collection_name = getattr(request, "param", "MultiplEYE_EN_UK_London_1_2025")
     data_dir = tmp_path / collection_name
     data_dir.mkdir()
 
@@ -83,9 +86,60 @@ def mock_pipeline_version(monkeypatch):
     )
 
 
+@pytest.fixture
+def mock_processing_environment(monkeypatch):
+    """Mock the tool-version helpers used by the processing environment."""
+    monkeypatch.setattr(
+        dcn_module,
+        "get_pipeline_info",
+        lambda: (
+            "2026.08.11",
+            "v2026.08.11-2-gabc1234 (2026-08-11 10:00:00 +0200)",
+        ),
+    )
+    monkeypatch.setattr(
+        dcn_module,
+        "get_edf2asc_version",
+        lambda: "EDF2ASC version 4.2.1197.0 MacOS X standalone",
+    )
+    monkeypatch.setattr(pm, "__version__", "0.28.0")
+
+
 def _create_dc(dummy_dcn_dir: Path, **kwargs) -> MultipleyeDataCollection:
     """Factory to create a MultipleyeDataCollection with dummy data."""
     return MultipleyeDataCollection.create_from_data_folder(dummy_dcn_dir, **kwargs)
+
+
+def _write_metadata_form(dcn_dir: Path, filename: str, payload: dict) -> Path:
+    """Write a metadata form into the data collection's documentation folder."""
+    doc_dir = dcn_dir / "documentation"
+    doc_dir.mkdir(parents=True, exist_ok=True)
+    path = doc_dir / filename
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f)
+    return path
+
+
+def _write_raw_metadata_form(dcn_dir: Path, filename: str, content: str) -> Path:
+    """Write a metadata form verbatim (for non-strict JSON fixtures)."""
+    doc_dir = dcn_dir / "documentation"
+    doc_dir.mkdir(parents=True, exist_ok=True)
+    path = doc_dir / filename
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def _write_answer_option_set(
+    stimulus_dir: Path, set_name: str, versions: dict[int, object]
+) -> None:
+    """Write shuffled answer-option JSON files for a set."""
+    set_dir = stimulus_dir / "config" / set_name
+    set_dir.mkdir(parents=True, exist_ok=True)
+    for version, payload in versions.items():
+        path = (
+            set_dir / f"shuffled_option_keys_en_question_images_version_{version}.json"
+        )
+        path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def _setup_session_with_data(
@@ -137,6 +191,10 @@ def _tech(overview: dict) -> dict:
 
 def _proc(overview: dict) -> dict:
     return overview["processing"]
+
+
+def _env(overview: dict) -> dict:
+    return overview["processing_environment"]
 
 
 def _qual(overview: dict) -> dict:
@@ -204,6 +262,266 @@ class TestProcessing:
         assert p["pipeline_version"] == "2026.08.11"
         assert p["preprocessing_date"] == datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
+    def test_pipeline_version_not_duplicated_in_environment(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+
+        assert "pipeline_version" not in _env(overview)
+
+
+class TestProcessingEnvironment:
+    def test_processing_environment_values(
+        self,
+        dummy_dcn_dir,
+        mock_load_lab_config,
+        mock_pipeline_version,
+        mock_processing_environment,
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        env = _env(overview)
+
+        assert env["pipeline_git"] == (
+            "v2026.08.11-2-gabc1234 (2026-08-11 10:00:00 +0200)"
+        )
+        assert env["pymovements_version"] == "0.28.0"
+        assert env["edf2asc_version"] == (
+            "EDF2ASC version 4.2.1197.0 MacOS X standalone"
+        )
+        assert env["python_version"] == (
+            f"{sys.version_info.major}.{sys.version_info.minor}."
+            f"{sys.version_info.micro}"
+        )
+
+    def test_unavailable_values_are_none(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            dcn_module, "get_pipeline_info", lambda: ("unknown", "unknown")
+        )
+        monkeypatch.setattr(dcn_module, "get_edf2asc_version", lambda: "unknown")
+        monkeypatch.setattr(pm, "__version__", "unknown")
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        env = _env(overview)
+
+        assert env["pipeline_git"] is None
+        assert env["pymovements_version"] is None
+        assert env["edf2asc_version"] is None
+        assert env["python_version"] is not None
+
+    def test_processing_environment_round_trips_through_yaml(
+        self,
+        dummy_dcn_dir,
+        mock_load_lab_config,
+        mock_pipeline_version,
+        mock_processing_environment,
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        dc.create_dataset_overview(path=dummy_dcn_dir)
+        yaml_path = dummy_dcn_dir / "MultiplEYE_EN_UK_London_1_2025_overview.yaml"
+
+        with open(yaml_path) as f:
+            data = yaml.safe_load(f)
+
+        env = data["processing_environment"]
+        assert env["pipeline_git"] == (
+            "v2026.08.11-2-gabc1234 (2026-08-11 10:00:00 +0200)"
+        )
+        assert env["pymovements_version"] == "0.28.0"
+        assert env["edf2asc_version"] == (
+            "EDF2ASC version 4.2.1197.0 MacOS X standalone"
+        )
+
+
+class TestAnswerOptionShuffling:
+    set_name = "question_answer_option_shuffling_en_uk_1"
+
+    @staticmethod
+    def _set_versions(dc: MultipleyeDataCollection, versions: dict[str, int]) -> None:
+        for session_id, version in versions.items():
+            dc.sessions[session_id].randomization_version = version
+
+    def test_flags_majority_content(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        self._set_versions(
+            dc,
+            {
+                "001_EN_UK_1_ET1": 1,
+                "002_EN_UK_1_ET1": 2,
+                "003_EN_UK_1_ET1": 3,
+            },
+        )
+        _write_answer_option_set(
+            dc.stimulus_dir,
+            self.set_name,
+            {
+                1: {"q1": ["a", "b"]},
+                2: {"q1": ["a", "b"]},
+                3: {"q1": ["b", "a"]},
+            },
+        )
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        check = _proc(overview)["answer_option_shuffling"]
+
+        assert check["flagged"] is True
+        assert check["num_sets"] == 1
+        assert check["num_sessions"] == 3
+        assert check["num_flagged_sets"] == 1
+        stats = check["sets"][self.set_name]
+        assert stats["num_sessions"] == 3
+        assert stats["num_versions"] == 3
+        assert stats["num_unique"] == 2
+        assert stats["max_identical_sessions"] == 2
+        assert stats["max_identical_share"] == 0.667
+        assert stats["all_files_identical"] is False
+        assert any(
+            "Answer-option shuffling check" in warning
+            for warning in overview["warnings"]
+        )
+
+    def test_one_of_two_split_is_not_flagged(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        dc.sessions.pop("003_EN_UK_1_ET1")
+        self._set_versions(
+            dc,
+            {
+                "001_EN_UK_1_ET1": 1,
+                "002_EN_UK_1_ET1": 2,
+            },
+        )
+        _write_answer_option_set(
+            dc.stimulus_dir,
+            self.set_name,
+            {
+                1: {"q1": ["a", "b"]},
+                2: {"q1": ["b", "a"]},
+            },
+        )
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        stats = _proc(overview)["answer_option_shuffling"]["sets"][self.set_name]
+
+        assert stats["max_identical_sessions"] == 1
+        assert stats["max_identical_share"] == 0.5
+        assert stats["flagged"] is False
+
+    def test_all_files_identical_is_flagged(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        self._set_versions(
+            dc,
+            {
+                "001_EN_UK_1_ET1": 1,
+                "002_EN_UK_1_ET1": 2,
+                "003_EN_UK_1_ET1": 3,
+            },
+        )
+        payload = {"q1": ["a", "b"]}
+        _write_answer_option_set(
+            dc.stimulus_dir,
+            self.set_name,
+            {1: payload, 2: payload, 3: payload},
+        )
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        stats = _proc(overview)["answer_option_shuffling"]["sets"][self.set_name]
+
+        assert stats["all_files_identical"] is True
+        assert stats["max_identical_sessions"] == 3
+        assert stats["flagged"] is True
+
+    def test_all_files_differ_but_used_files_are_identical(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        dc.sessions.pop("003_EN_UK_1_ET1")
+        self._set_versions(
+            dc,
+            {
+                "001_EN_UK_1_ET1": 1,
+                "002_EN_UK_1_ET1": 2,
+            },
+        )
+        shared = {"q1": ["a", "b"]}
+        _write_answer_option_set(
+            dc.stimulus_dir,
+            self.set_name,
+            {1: shared, 2: shared, 3: {"q1": ["b", "a"]}},
+        )
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        stats = _proc(overview)["answer_option_shuffling"]["sets"][self.set_name]
+
+        assert stats["all_files_identical"] is False
+        assert stats["max_identical_sessions"] == 2
+        assert stats["max_identical_share"] == 1.0
+        assert stats["flagged"] is True
+
+    def test_unreadable_files_leave_all_files_identical_unknown(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        set_dir = dc.stimulus_dir / "config" / self.set_name
+        set_dir.mkdir(parents=True)
+        (set_dir / "shuffled_option_keys_en_question_images_version_1.json").write_text(
+            "{not json", encoding="utf-8"
+        )
+
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        stats = _proc(overview)["answer_option_shuffling"]["sets"][self.set_name]
+
+        assert stats["num_sessions"] == 0
+        assert stats["num_versions"] == 0
+        assert stats["all_files_identical"] is None
+        assert stats["flagged"] is False
+
+
+class TestEyeTrackerMapping:
+    @staticmethod
+    def _lab_config(name: str) -> object:
+        class LabConfigStub:
+            psychometric_tests: list[str] = []
+
+        LabConfigStub.name_eye_tracker = name
+        return LabConfigStub()
+
+    def test_alias_is_canonicalized_and_raw_name_is_kept(
+        self, dummy_dcn_dir, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            MultipleyeDataCollection,
+            "load_lab_config",
+            lambda *args, **kwargs: self._lab_config("Eyelink Duo"),
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+
+        assert dc.eye_tracker_name_raw == "Eyelink Duo"
+        assert dc.eye_tracker_name == "EyeLink Portable Duo"
+        assert dc.eye_tracker == "eyelink"
+
+    def test_unsupported_name_raises_with_suggestion(
+        self, dummy_dcn_dir, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            MultipleyeDataCollection,
+            "load_lab_config",
+            lambda *args, **kwargs: self._lab_config("EyeLink 1000 Pluss"),
+        )
+
+        with pytest.raises(ValueError, match="Did you mean: EyeLink 1000 Plus"):
+            _create_dc(dummy_dcn_dir)
+
 
 class TestTechnicalSetup:
     def test_technical_setup(
@@ -213,10 +531,26 @@ class TestTechnicalSetup:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         t = _tech(overview)
 
+        assert t["eye_tracker_name_raw"] == "EyeLink 1000 Plus"
         assert t["eye_tracker_name"] == "EyeLink 1000 Plus"
         assert t["sampling_frequency_hz"] == 1000.0
         assert t["screen_resolution_width_px"] == 1920
         assert t["screen_resolution_height_px"] == 1080
+
+    def test_lab_level_screen_and_image_dimensions(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        t = _tech(overview)
+
+        assert t["screen_size_width_cm"] == 52.0
+        assert t["screen_size_height_cm"] == 32.0
+        assert t["screen_distance_cm"] == 60.0
+        assert t["image_resolution_width_px"] == 1322
+        assert t["image_resolution_height_px"] == 980
+        assert t["image_size_width_cm"] == 38.0
+        assert t["image_size_height_cm"] == 28.3
 
     def test_psychometric_tests(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -254,8 +588,9 @@ class TestYAMLOutput:
         assert keys[3] == "psychometric_tests"
         assert keys[4] == "technical_setup"
         assert keys[5] == "processing"
-        assert keys[6] == "processing_config"
-        assert keys[7] == "data_quality"
+        assert keys[6] == "processing_environment"
+        assert keys[7] == "processing_config"
+        assert keys[8] == "data_quality"
 
 
 class TestProcessingConfig:
@@ -506,28 +841,25 @@ class TestMetadataForm:
         assert ld["metadata_form_exists"] is False
         assert ld["language_script"] is None
         assert ld["language_family"] is None
+        assert ld["start_date_of_data_collection"] is None
+        assert ld["end_date_of_data_collection"] is None
 
     def test_metadata_form_fields_loaded(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
     ) -> None:
-        collection_name = "MultiplEYE_EN_UK_London_1_2025"
-        stimuli_dir = dummy_dcn_dir / f"stimuli_{collection_name}"
-        doc_dir = stimuli_dir.parent / "documentation"
-        doc_dir.mkdir(parents=True, exist_ok=True)
-        metadata_path = doc_dir / "MultiplEYE_en_uk_London_1_2025_metadata_form.json"
-        with open(metadata_path, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "Script": "Latin",
-                    "Language_family": "Indo-European",
-                    "Start_date_of_data_collection": "2025-01-15",
-                    "End_date_of_data_collection": "2025-03-20",
-                    "Required_pq_fixing": "yes",
-                    "Monitor_name": "Dell U2412M",
-                    "Custom_units_of_analysis": False,
-                },
-                f,
-            )
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "MultiplEYE_en_uk_London_1_2025_metadata_form.json",
+            {
+                "Script": "Latin",
+                "Language_family": "Indo-European",
+                "Start_date_of_data_collection": "2025-01-15",
+                "End_date_of_data_collection": "2025-03-20",
+                "Required_pq_fixing": "yes",
+                "Monitor_name": "Dell U2412M",
+                "Custom_units_of_analysis": False,
+            },
+        )
 
         dc = _create_dc(dummy_dcn_dir)
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
@@ -543,6 +875,170 @@ class TestMetadataForm:
         assert t["monitor_name"] == "Dell U2412M"
         assert p["required_pq_fixing"] == "yes"
         assert "2025-01-15" in _admin(overview)["dataset_description"]
+
+    @pytest.mark.parametrize(
+        "dummy_dcn_dir",
+        ["MultiplEYE_EN_UK_Copenhagen_1_2025"],
+        indirect=True,
+    )
+    def test_copenhagen_metadata_form_with_trailing_space(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataForm_MultiplEYE_EN_UK_Copenhagen_1_2025 .json",
+            {
+                "Tested_language": {
+                    "Language_script": ["Latin"],
+                    "Language_family": ["Indo-European"],
+                },
+                "Time_frame": {
+                    "Start_date": "2025-01-15",
+                    "End_date": "2025-03-20",
+                },
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        ld = _lang(overview)
+        description = _admin(overview)["dataset_description"]
+
+        assert ld["metadata_form_exists"] is True
+        assert ld["language_script"] == ["Latin"]
+        assert ld["language_family"] == ["Indo-European"]
+        assert ld["start_date_of_data_collection"] == "2025-01-15"
+        assert ld["end_date_of_data_collection"] == "2025-03-20"
+        assert "2025-01-15" in description
+        assert "2025-03-20" in description
+
+    def test_turin_style_metadata_form(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            {
+                "Tested_language": {
+                    "Language_script": ["Latin", "Cyrillic"],
+                    "Language_family": ["Indo-European", "Turkic"],
+                },
+                "Time_frame": {
+                    "Start_date": "2025-02-01",
+                    "End_date": "2025-04-30",
+                },
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        ld = _lang(overview)
+
+        assert ld["metadata_form_exists"] is True
+        assert ld["language_script"] == ["Latin", "Cyrillic"]
+        assert ld["language_family"] == ["Indo-European", "Turkic"]
+        assert ld["start_date_of_data_collection"] == "2025-02-01"
+        assert ld["end_date_of_data_collection"] == "2025-04-30"
+
+    @pytest.mark.parametrize(
+        "dummy_dcn_dir, filename",
+        [
+            (
+                "MultiplEYE_EN_UK_Copenhagen_1_2025",
+                "metadataForm_MultiplEYE_EN_UK_Copenhagen_1_2025 .json",
+            ),
+            (
+                "MultiplEYE_EN_UK_London_1_2025",
+                "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            ),
+        ],
+        indirect=["dummy_dcn_dir"],
+    )
+    def test_real_filename_with_non_strict_json(
+        self, dummy_dcn_dir, filename, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        """Real uploads may contain raw newlines and trailing commas."""
+        _write_raw_metadata_form(
+            dummy_dcn_dir,
+            filename,
+            """{
+  "Tested_language": {
+    "Language_script": ["Latin"],
+    "Language_family": ["Indo-
+European"]
+  },
+  "Time_frame": {
+    "Start_date": "2025-01-15",
+    "End_date": "2025-03-20",
+  },
+}
+""",
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        ld = _lang(overview)
+
+        assert ld["metadata_form_exists"] is True
+        assert ld["language_script"] == ["Latin"]
+        assert ld["language_family"] == ["Indo-\nEuropean"]
+        assert ld["start_date_of_data_collection"] == "2025-01-15"
+        assert ld["end_date_of_data_collection"] == "2025-03-20"
+
+    def test_non_strict_json_preserves_comma_brace_in_string(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        """The trailing-comma sanitizer must not touch string contents."""
+        _write_raw_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            """{
+  "Monitor_name": "Dell U2412M,} odd",
+  "Required_pq_fixing": "yes",
+}
+""",
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+
+        assert _tech(overview)["monitor_name"] == "Dell U2412M,} odd"
+        assert _proc(overview)["required_pq_fixing"] == "yes"
+
+    def test_prefers_form_matching_dcn(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_DE_DE_Berlin_1_2025.json",
+            {
+                "Tested_language": {
+                    "Language_script": ["Latin"],
+                    "Language_family": ["Indo-European"],
+                },
+                "Time_frame": {"Start_date": "2024-01-01", "End_date": "2024-02-01"},
+            },
+        )
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            {
+                "Tested_language": {
+                    "Language_script": ["Latin", "Cyrillic"],
+                    "Language_family": ["Indo-European", "Turkic"],
+                },
+                "Time_frame": {"Start_date": "2025-01-15", "End_date": "2025-03-20"},
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        ld = _lang(overview)
+
+        assert ld["language_script"] == ["Latin", "Cyrillic"]
+        assert ld["language_family"] == ["Indo-European", "Turkic"]
+        assert ld["start_date_of_data_collection"] == "2025-01-15"
+        assert ld["end_date_of_data_collection"] == "2025-03-20"
 
 
 class TestWPM:
@@ -603,4 +1099,11 @@ class TestLabConfigAttributeSafety:
         assert t["sampling_frequency_hz"] is None
         assert t["screen_resolution_width_px"] is None
         assert t["screen_resolution_height_px"] is None
+        assert t["screen_size_width_cm"] is None
+        assert t["screen_size_height_cm"] is None
+        assert t["screen_distance_cm"] is None
+        assert t["image_resolution_width_px"] is None
+        assert t["image_resolution_height_px"] is None
+        assert t["image_size_width_cm"] is None
+        assert t["image_size_height_cm"] is None
         assert p["tests_available"] is None

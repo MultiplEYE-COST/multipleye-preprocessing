@@ -8,6 +8,10 @@ class Trial:
     A trial corresponds to one stimulus presentation (including practice
     trials). The comprehension fields are derived from the session answers
     CSV; ``reading_time_ms`` from the documented per-stimulus reading span.
+    The eye-tracking fields use the per-trial tables computed during
+    preprocessing (or the sanity-check TSV written from them) and the session
+    timestamps/validations. They are set to ``"unknown"`` when the session does
+    not provide the corresponding source.
 
     Fields
     ------
@@ -27,6 +31,28 @@ class Trial:
         Total time spent on comprehension questions, in milliseconds.
     reading_time_ms : float
         Total reading time for the trial's pages, in milliseconds.
+    trial_duration_ms : float | str
+        Total trial recording duration in milliseconds, computed from the
+        trial's ``start_ts``/``stop_ts`` entries as the span from the earliest
+        start to the latest stop. ``"unknown"`` when no timestamps are stored.
+    data_loss_ratio : float | str
+        Fraction of missing or invalid samples in the trial, 0 to 1, from the
+        per-trial data-loss table. ``"unknown"`` when no such table exists.
+    blink_ratio : float | str
+        Fraction of the trial recording spent in blinks, 0 to 1, from the
+        per-trial blink-loss table. ``"unknown"`` when no such table exists.
+    validation_before_start_dva : float | str
+        ``accuracy_avg`` in degrees of visual angle of the validation in the
+        inter-trial interval immediately before the trial starts. For
+        binocular validations the rows sharing the validation timestamp are
+        averaged. ``"unknown"`` when no trial timestamp or no such validation
+        is available.
+    question_order_version : int | None
+        Question-order version for this trial from the session CSV. ``None``
+        when no matching order record exists.
+    question_order : dict[str, list[int]] | None
+        Explicit local, bridging and global question order codes for this
+        trial. ``None`` when no matching order record exists.
     """
 
     trial_number: int
@@ -37,3 +63,9 @@ class Trial:
     comprehension_score: float
     comprehension_question_time_ms: float
     reading_time_ms: float
+    trial_duration_ms: float | str = "unknown"
+    data_loss_ratio: float | str = "unknown"
+    blink_ratio: float | str = "unknown"
+    validation_before_start_dva: float | str = "unknown"
+    question_order_version: int | None = None
+    question_order: dict[str, list[int]] | None = None

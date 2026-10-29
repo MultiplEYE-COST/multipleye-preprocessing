@@ -433,6 +433,36 @@ def test_preflight_scenarios(preflight_env, scenario, modify_env, expected_error
 # ---------------------------------------------------------------------------
 
 
+def test_preflight_accepts_real_metadata_form_filename(preflight_env):
+    """A metadataForm_* file (with trailing space) is accepted as before."""
+    dc = preflight_env[0]
+    doc_dir = dc.stimulus_dir.parent / "documentation"
+    for path in doc_dir.glob("*.json"):
+        path.unlink()
+    (doc_dir / "metadataForm_MultiplEYE_EN_UK_city_1_2024 .json").write_text(
+        '{"Default_frequency": 500}', encoding="utf-8"
+    )
+
+    run_preflight_check(dc)
+
+
+def test_preflight_errors_on_unparseable_metadata_form(preflight_env):
+    """An existing but unparseable metadata form is a hard error."""
+    dc = preflight_env[0]
+    doc_dir = dc.stimulus_dir.parent / "documentation"
+    (doc_dir / "MultiplEYE_EN_UK_city_1_2024_metadata_form.json").write_text(
+        "this is not json", encoding="utf-8"
+    )
+
+    with pytest.raises(PreflightError) as exc_info:
+        run_preflight_check(dc)
+
+    assert exc_info.value.num_errors == 1
+    message = str(exc_info.value)
+    assert "Metadata form JSON cannot be parsed" in message
+    assert "Could not parse metadata form" in message
+
+
 def test_preflight_multiple_sessions(tmp_path: Path):
     """Three sessions with different failures — all reported in one error."""
     stim_dir = tmp_path / "stimuli"

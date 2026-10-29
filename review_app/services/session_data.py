@@ -25,12 +25,23 @@ CHECK_REGISTRY: list[dict] = [
     },
     {"field": "mount_type", "label": "Mount type", "category": "Hardware"},
     {
+        "field": "mount_short_name",
+        "label": "Mount short name",
+        "category": "Hardware",
+    },
+    {
         "field": "head_stabilization",
         "label": "Head stabilization",
         "category": "Hardware",
     },
     {"field": "eyes_recorded", "label": "Eyes recorded", "category": "Hardware"},
     {"field": "pupil_data_type", "label": "Pupil data type", "category": "Hardware"},
+    {"field": "dominant_eye", "label": "Dominant eye", "category": "Hardware"},
+    {
+        "field": "dominant_eye_test",
+        "label": "Dominant eye test",
+        "category": "Hardware",
+    },
     {
         "field": "screen_resolution_width_px",
         "label": "Screen resolution width (px)",
@@ -93,8 +104,28 @@ CHECK_REGISTRY: list[dict] = [
         "category": "Calibration",
     },
     {
+        "field": "calibration_quality",
+        "label": "Calibration quality",
+        "category": "Calibration",
+    },
+    {
+        "field": "validation_quality",
+        "label": "Validation quality",
+        "category": "Calibration",
+    },
+    {
+        "field": "num_aborted_validations",
+        "label": "Aborted validations",
+        "category": "Calibration",
+    },
+    {
         "field": "avg_validation_error_dva",
         "label": "Avg validation error",
+        "category": "Calibration",
+    },
+    {
+        "field": "final_validation_score_dva",
+        "label": "Final validation score (dVA)",
         "category": "Calibration",
     },
     {

@@ -7,6 +7,9 @@ import pytest
 from openpyxl import Workbook
 
 from preprocessing.data_collection.experimenter_doc import ExperimenterDoc
+from preprocessing.data_collection.multipleye_data_collection import (
+    _find_experimenter_doc,
+)
 
 ET_HEADERS = list(ExperimenterDoc.et_header_prefixes.values())
 PT_HEADERS = list(ExperimenterDoc.pt_header_prefixes.values())
@@ -167,3 +170,35 @@ def test_get_pids_rejects_unknown_sheet():
 
     with pytest.raises(ValueError, match="sheet must be 'et' or 'pt'"):
         doc.get_pids("nope")
+
+
+def test_find_experimenter_doc_accepts_name_without_lab(tmp_path: Path) -> None:
+    documentation = tmp_path / "documentation"
+    documentation.mkdir()
+    expected = (
+        documentation
+        / "MultiplEYE_Experimenter_Session_Documentation_IT_IT_TORINO.xlsx"
+    )
+    expected.write_text("x", encoding="utf-8")
+
+    found = _find_experimenter_doc(tmp_path, "IT_IT_Torino_1", "IT", "IT", "Torino")
+
+    assert found == expected
+
+
+def test_find_experimenter_doc_accepts_name_with_lab(tmp_path: Path) -> None:
+    documentation = tmp_path / "documentation"
+    documentation.mkdir()
+    expected = (
+        documentation
+        / "MultiplEYE_Experimenter_Session_Documentation_KL_DK_Nuuk_1.xlsx"
+    )
+    expected.write_text("x", encoding="utf-8")
+
+    found = _find_experimenter_doc(tmp_path, "KL_DK_Nuuk_1", "KL", "DK", "Nuuk")
+
+    assert found == expected
+
+
+def test_find_experimenter_doc_returns_none(tmp_path: Path) -> None:
+    assert _find_experimenter_doc(tmp_path, "X_Y_Z_1", "X", "Y", "Z") is None

@@ -490,6 +490,7 @@ class Settings:
             r"transition_screen",
             r"final_validation",
             r"validation_before_stimulus",
+            r"!CAL\s+(?:CALIBRATION|VALIDATION).*",
             r"show_final_screen",
             r"optional_break_screen",
             r"fixation_trigger:.*",
@@ -730,24 +731,6 @@ class Settings:
         )
 
         # --- HARDWARE AND STIMULI MAPPINGS ---
-
-        #: Mapping of eye tracker brands to known model names.
-        self.EYETRACKER_NAMES = {
-            "eyelink": [  # TODO: Update list to mapping between same eyetrackers - use dict
-                "EyeLink 1000 Plus",
-                "Eyelink 1000 Plus",
-                "EyeLink 1000+",
-                "EyeLink 1000-Plus",
-                "EyeLink II",
-                "EyeLink 1000",
-                "EyeLink Portable Duo",
-                "Eyelink Portable Duo",
-                "EyeLink Portable Duo 2000Hz Remote",
-                "Eyelink Duo",
-                "EyeLink Duo",
-                "Eyelink Portable Duo",
-            ],
-        }
 
         #: Mapping of stimulus names to internal numeric IDs.
         self.STIMULUS_NAME_MAPPING = {
