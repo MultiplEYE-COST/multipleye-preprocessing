@@ -535,6 +535,7 @@ def run_preprocessing(config_path: str | None = None):
             sess.answers = True
 
     data_collection.create_dataset_overview(path=settings.OUTPUT_DIR)
+    data_collection.write_codebook_outputs(settings.OUTPUT_DIR)
     write_participants_table(data_collection, settings.OUTPUT_DIR / "participants.csv")
 
 

@@ -40,6 +40,8 @@ from ..checks.formal_experiment_checks import (
     sanity_check_gaze_frame,
 )
 from ..config import settings
+from ..metadata.codebook import load_codebook_info
+from ..metadata.codebook import write_codebook_outputs as write_codebook_package
 from ..models.dcn import Dcn
 from ..models.sid import Sid
 from ..plotting.plot import build_page_frames, plot_gaze, plot_main_sequence
@@ -1412,6 +1414,7 @@ class MultipleyeDataCollection:
         image_res_w, image_res_h = _lab_pair("image_resolution")
         image_size_w, image_size_h = _lab_pair("image_size_cm")
         screen_distance_cm = getattr(self.lab_configuration, "screen_distance_cm", None)
+        codebook_info = load_codebook_info()
 
         overview = {
             "administrative": {
@@ -1515,6 +1518,10 @@ class MultipleyeDataCollection:
                 "attrition_rate": self._compute_attrition_rate(),
                 **self._compute_dcn_averages(),
             },
+            "codebook": {
+                "version": codebook_info.get("codebook_version"),
+                "credit": codebook_info.get("credit"),
+            },
         }
 
         # Add warnings to overview
@@ -1525,6 +1532,12 @@ class MultipleyeDataCollection:
             yaml.dump(overview, f, sort_keys=False)
 
         return overview
+
+    def write_codebook_outputs(self, path: str | Path) -> Path | None:
+        """Write the codebook package, environment and generated bundle."""
+        environment = self._get_processing_environment()
+        environment["pipeline_version"] = self._get_pipeline_version()
+        return write_codebook_package(path, environment)
 
     @staticmethod
     def _get_pipeline_version() -> str | None:
@@ -1547,8 +1560,8 @@ class MultipleyeDataCollection:
         """
         Return the tool versions and git revision used for this run.
 
-        Unavailable values are reported as ``None``. ``pipeline_version`` is
-        not repeated here; it stays in ``processing``.
+        Unavailable values are reported as ``None``. ``pipeline_version`` stays in
+        ``processing``.
 
         Returns
         -------
