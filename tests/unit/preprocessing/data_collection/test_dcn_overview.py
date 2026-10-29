@@ -562,6 +562,35 @@ class TestTechnicalSetup:
         assert p["tests_available"] == ["TestA", "TestB"]
 
 
+class TestCodebookMetadata:
+    def test_codebook_version_and_credit(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        codebook = overview["codebook"]
+
+        assert codebook["version"] == "2.0-dev0"
+        assert "Marie-Luise Müller" in codebook["credit"]
+        assert "Carlson Moses Büth" in codebook["credit"]
+
+
+class TestCodebookOutputs:
+    def test_dcn_writes_codebook_outputs(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version, tmp_path
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+
+        destination = dc.write_codebook_outputs(tmp_path)
+
+        assert destination == tmp_path / "codebook"
+        assert (tmp_path / "codebook.csv").exists()
+        assert (tmp_path / "codebook" / "codebook_info.csv").exists()
+        assert (tmp_path / "codebook" / "environment.csv").exists()
+        assert (tmp_path / "codebook" / "generated" / "codebook_bundle.json").exists()
+        assert (tmp_path / "codebook" / "generated" / "codebook_bundle.zip").exists()
+
+
 class TestYAMLOutput:
     def test_yaml_output_is_valid(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
