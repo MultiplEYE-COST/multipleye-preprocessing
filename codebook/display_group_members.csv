@@ -1,0 +1,6 @@
+group_id,variable_id
+default,dataset.data_collection_name
+default,session.session_identifier
+default,trial.trial_id
+default,participant.participant_id
+default,item.text_id

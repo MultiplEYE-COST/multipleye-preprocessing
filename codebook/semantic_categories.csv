@@ -1,0 +1,13 @@
+category_id,label,description
+administrative,Administrative,"Identifiers, titles and collection level administration"
+participant,Participant,Participant background and questionnaire fields
+language,Language,"Language codes, family, script and language tree fields"
+stimulus,Stimulus,"Stimulus text, item and annotation fields"
+hardware,Hardware,"Eye tracker, display and lab equipment fields"
+procedure,Procedure,"Calibration, breaks, instructions and experiment flow"
+data_quality,Data quality,"Data loss, blink loss and quality metrics"
+comprehension,Comprehension,"Comprehension questions, answers and accuracy"
+reading_measure,Reading measure,Reading time and reading measure fields
+annotation,Annotation,Linguistic annotation fields and availability
+availability,Availability,Data availability and file availability fields
+provenance,Provenance,"Codebook, schema, pipeline and processing environment fields"
