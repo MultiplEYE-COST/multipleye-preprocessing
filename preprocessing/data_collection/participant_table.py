@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 import polars as pl
+import yaml
 
 from ..config import settings
 from ..models.sid import Sid
@@ -24,7 +25,7 @@ from .completeness import (
     read_sheet_expectations,
 )
 from .experimenter_doc import ExperimenterDoc
-from .participant_info import _bi_monolingualism_from_pq
+from .participant_info import PSYCHOMETRIC_KEY_SCORES, _bi_monolingualism_from_pq
 
 LANGUAGE_SLOTS = [
     "native_language_1",
@@ -71,6 +72,20 @@ DOC_FIELDS = {
     "doc_abortion": "abortion",
     "doc_file_issues": "file_issues",
     "doc_comments": "comments",
+}
+
+PSYCHOMETRIC_TEST_PREFIXES = (
+    "LWMC",
+    "RAN",
+    "Stroop",
+    "Flanker",
+    "WikiVocab",
+    "PLAB",
+)
+
+PARTICIPANT_YAML_DOCUMENTATION = {
+    "participant_csv": "participants.csv",
+    "note": "Full tabular participant output for download and manual inspection",
 }
 
 
@@ -775,6 +790,133 @@ def build_participant_table(data_collection) -> pl.DataFrame:
     return pl.DataFrame(rows)
 
 
+def _split_cell(value: object) -> list[str]:
+    """Split a ``"; "`` separated table cell into a list."""
+    if _is_missing(value):
+        return []
+    return [part.strip() for part in str(value).split(";") if part.strip()]
+
+
+def _json_object(value: object) -> dict:
+    """Parse a JSON object cell, returning an empty dict on invalid input."""
+    if _is_missing(value):
+        return {}
+    try:
+        payload = json.loads(str(value))
+    except (TypeError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _psychometric_test_name(key: str) -> str:
+    """Return the psychometric test prefix for a curated score column."""
+    for prefix in PSYCHOMETRIC_TEST_PREFIXES:
+        if key.startswith(prefix):
+            return prefix
+    return key.split("_", 1)[0]
+
+
+def _psychometric_value(key: str, value: object) -> object | None:
+    """Normalise a psychometric result cell for the YAML view."""
+    if _is_missing(value):
+        return None
+    if key.endswith("_Done"):
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "1.0", "true", "yes"}
+        return bool(value)
+    number = _number(value)
+    if number is not None:
+        return None if _is_missing(number) else number
+    if isinstance(value, str):
+        text = value.strip()
+        if text.lower() in {"unknown", "nan", "none", "null", "na", "n/a"}:
+            return None
+        return text
+    return value
+
+
+def _curated_psychometric_scores(rows: list[dict]) -> dict[str, dict]:
+    """Nest the curated psychometric score subset by test."""
+    scores: dict[str, dict] = {}
+    for row in rows:
+        for key in PSYCHOMETRIC_KEY_SCORES:
+            value = _psychometric_value(key, row.get(key))
+            if value is None:
+                continue
+            test_scores = scores.setdefault(_psychometric_test_name(key), {})
+            if key.endswith("_Done"):
+                test_scores[key] = bool(test_scores.get(key, False) or value)
+            else:
+                test_scores.setdefault(key, value)
+    return scores
+
+
+def _participant_yaml_record(row: dict, pt_rows_by_pid: dict[str, list[dict]]) -> dict:
+    """Convert one participant table row into the nested YAML record."""
+    source_pids = _split_cell(row.get("pids"))
+    psychometric_session_ids = _split_cell(row.get("pt_session_ids"))
+    record = {
+        "participant_id": row.get("participant_id"),
+        "source_pids": source_pids,
+        "session_ids": _split_cell(row.get("et_session_ids")),
+        "psychometric_session_ids": psychometric_session_ids,
+    }
+
+    for key, value in row.items():
+        if not key.startswith("pq_") or _is_missing(value):
+            continue
+        if key == "pq_language_reading_times":
+            reading_times = _json_object(value)
+            if reading_times:
+                record[key] = reading_times
+        else:
+            record[key] = value
+
+    allowed_sessions = set(psychometric_session_ids)
+    group_pt_rows: list[dict] = []
+    for pid in source_pids:
+        for pt_row in pt_rows_by_pid.get(pid, []):
+            session_id = _pt_session_id(pt_row)
+            if allowed_sessions and session_id and session_id not in allowed_sessions:
+                continue
+            group_pt_rows.append(pt_row)
+
+    scores = _curated_psychometric_scores(group_pt_rows)
+    if scores:
+        record["psychometric_tests"] = scores
+    record["documentation"] = dict(PARTICIPANT_YAML_DOCUMENTATION)
+    return record
+
+
+def build_participants_yaml(data_collection, table: pl.DataFrame | None = None) -> dict:
+    """Build the nested participant view for ``participants.yaml``.
+
+    The view is derived from the same participant groups as ``participants.csv``.
+    It keeps the curated PQ and psychometric subset, while the CSV remains the
+    full download table for eye-tracking, documentation and completeness fields.
+
+    Parameters
+    ----------
+    data_collection : MultipleyeDataCollection
+        Collection used to build the participant table when ``table`` is absent.
+    table : polars.DataFrame, optional
+        Prebuilt participant table, so the caller can write both outputs from one build.
+    """
+    table = table if table is not None else build_participant_table(data_collection)
+    pt_rows_by_pid: dict[str, list[dict]] = {}
+    for pt_row in _pt_rows():
+        pid = pt_row.get("participant_id")
+        if pid is not None:
+            pt_rows_by_pid.setdefault(str(pid), []).append(pt_row)
+
+    participants = [
+        _participant_yaml_record(row, pt_rows_by_pid)
+        for row in table.iter_rows(named=True)
+        if row.get("pids")
+    ]
+    return {"participants": participants}
+
+
 def _session_id_allowed(session_id: str, apply_include: bool = True) -> bool:
     if not session_id:
         return True
@@ -787,12 +929,31 @@ def _session_id_allowed(session_id: str, apply_include: bool = True) -> bool:
     return True
 
 
-def write_participants_table(data_collection, path: Path | str) -> Path:
+def write_participants_table(
+    data_collection, path: Path | str, table: pl.DataFrame | None = None
+) -> Path:
     """Write ``participants.csv`` and return its path."""
-    table = build_participant_table(data_collection)
+    table = table if table is not None else build_participant_table(data_collection)
     path = Path(path)
     table.write_csv(path)
     return path
 
 
-__all__ = ["build_participant_table", "write_participants_table"]
+def write_participants_yaml(
+    data_collection, path: Path | str, table: pl.DataFrame | None = None
+) -> Path:
+    """Write ``participants.yaml`` and return its path."""
+    payload = build_participants_yaml(data_collection, table=table)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        yaml.safe_dump(payload, handle, sort_keys=False, allow_unicode=True)
+    return path
+
+
+__all__ = [
+    "build_participant_table",
+    "build_participants_yaml",
+    "write_participants_table",
+    "write_participants_yaml",
+]

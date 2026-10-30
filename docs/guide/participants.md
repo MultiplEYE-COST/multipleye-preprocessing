@@ -6,7 +6,9 @@
 sessions, psychometric tests and the participant questionnaire, and is intended for publishing,
 processing and lab feedback.
 
-The file is written to `preprocessed_data/<data_collection_id>/participants.csv`.
+The file is written to `preprocessed_data/<data_collection_id>/participants.csv`. A curated nested
+participant view is written to `preprocessed_data/<data_collection_id>/metadata/participants.yaml`;
+this page describes the full CSV download table.
 
 ## Participant set
 

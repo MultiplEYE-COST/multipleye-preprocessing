@@ -12,7 +12,11 @@ from preprocessing.checks.quality_thresholds import write_quality_thresholds
 from preprocessing.metrics.data_loss import compute_data_loss
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
-from ..data_collection.participant_table import write_participants_table
+from ..data_collection.participant_table import (
+    build_participant_table,
+    write_participants_table,
+    write_participants_yaml,
+)
 from ..utils.logging import get_logger
 from ..utils.pq_normalisation import write_pq_assets
 
@@ -536,7 +540,17 @@ def run_preprocessing(config_path: str | None = None):
 
     data_collection.create_dataset_overview(path=settings.OUTPUT_DIR)
     data_collection.write_codebook_outputs(settings.OUTPUT_DIR)
-    write_participants_table(data_collection, settings.OUTPUT_DIR / "participants.csv")
+    participant_table = build_participant_table(data_collection)
+    write_participants_table(
+        data_collection,
+        settings.OUTPUT_DIR / "participants.csv",
+        table=participant_table,
+    )
+    write_participants_yaml(
+        data_collection,
+        settings.OUTPUT_DIR / "metadata" / "participants.yaml",
+        table=participant_table,
+    )
 
 
 def main():
