@@ -66,8 +66,28 @@ variable name is `eye_tracker_name` and the path is `technical_setup.eye_tracker
 The codebook describes fields. It does not track development progress.
 
 Each processed data collection contains an `availability.csv` file. It records whether a field
-was calculated for that collection and why a field is unavailable. Reasons can be a missing
-source, an optional test that was not collected or an annotation package that is still pending.
+was calculated for that collection and why a field is unavailable.
+
+The file has three columns:
+
+```text
+variable_id
+available
+reason
+```
+
+`available` is one of `true`, `false` or `not_applicable`. A field that is not in the overlay is
+`true` by default. Every field with `false` or `not_applicable` must also have a reason. A `true`
+field must not have a reason.
+
+The allowed reason categories are:
+
+```text
+missing_source
+optional_test_not_collected
+annotation_pending
+external
+```
 
 This keeps the codebook stable across data collections while still showing what was calculated
 and what was not.
