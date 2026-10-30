@@ -67,6 +67,7 @@ def test_write_codebook_outputs(tmp_path: Path) -> None:
         (tmp_path / "codebook" / "generated" / "codebook_bundle.json").read_text()
     )
     assert bundle["codebook"]["codebook_version"] == "2.0-dev0"
+    assert bundle["codebook"]["hash"].startswith("sha256:")
     assert bundle["environment"]["pymovements_version"] == "0.28.0"
     assert bundle["views"]
     assert bundle["display_groups"]
@@ -81,6 +82,25 @@ def test_write_codebook_outputs(tmp_path: Path) -> None:
     assert "codebook/codebook_info.csv" in names
     assert "codebook/README.md" in names
     assert "codebook/generated/codebook_bundle.json" in names
+
+
+def test_bundle_matches_csv_package(tmp_path: Path) -> None:
+    write_codebook_outputs(tmp_path, {}, codebook_dir=CODEBOOK_DIR)
+
+    bundle = json.loads(
+        (tmp_path / "codebook" / "generated" / "codebook_bundle.json").read_text()
+    )
+
+    for key, name in (
+        ("fields", "fields.csv"),
+        ("views", "views.csv"),
+        ("relations", "relations.csv"),
+        ("display_groups", "display_groups.csv"),
+        ("display_group_members", "display_group_members.csv"),
+        ("semantic_categories", "semantic_categories.csv"),
+    ):
+        with (CODEBOOK_DIR / name).open(newline="") as handle:
+            assert bundle[key] == list(csv.DictReader(handle))
 
 
 def test_write_codebook_outputs_overwrites_previous_run(tmp_path: Path) -> None:

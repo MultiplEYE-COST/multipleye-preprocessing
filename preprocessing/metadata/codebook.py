@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import logging
 import shutil
 import zipfile
 from pathlib import Path
 from typing import Any
+
+from preprocessing.metadata.schema import validate_codebook_package
+
+__all__ = [
+    "CODEBOOK_DIR",
+    "codebook_hash",
+    "load_codebook_identity",
+    "load_codebook_info",
+    "write_codebook_outputs",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +35,8 @@ _CODEBOOK_FILES = (
     "codebook_info.csv",
     "README.md",
 )
+
+_HASH_FILES = tuple(name for name in _CODEBOOK_FILES if name.endswith(".csv"))
 
 _ENVIRONMENT_COLUMNS = (
     "codebook_version",
@@ -49,6 +62,30 @@ def load_codebook_info(codebook_dir: Path | None = None) -> dict[str, str]:
         return {}
     rows = _read_csv(path)
     return dict(rows[0]) if rows else {}
+
+
+def codebook_hash(codebook_dir: Path | None = None) -> str:
+    """Return a deterministic SHA256 hash of the canonical CSV package."""
+    source = Path(codebook_dir or CODEBOOK_DIR)
+    digest = hashlib.sha256()
+    for name in _HASH_FILES:
+        path = source / name
+        if not path.exists():
+            raise FileNotFoundError(f"Codebook file not found: {path}")
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return f"sha256:{digest.hexdigest()}"
+
+
+def load_codebook_identity(codebook_dir: Path | None = None) -> dict[str, str]:
+    """Return the codebook version, credit and package hash."""
+    source = Path(codebook_dir or CODEBOOK_DIR)
+    info = load_codebook_info(source)
+    if not info:
+        return {}
+    return {**info, "hash": codebook_hash(source)}
 
 
 def _environment_rows(
@@ -94,6 +131,7 @@ def write_codebook_outputs(
     if not source.is_dir():
         logger.warning("Codebook source package not found at %s", source)
         return None
+    validate_codebook_package(source)
 
     output = Path(output_dir)
     destination = output / "codebook"
@@ -113,7 +151,7 @@ def write_codebook_outputs(
     root_codebook = output / "codebook.csv"
     shutil.copy2(source / "fields.csv", root_codebook)
 
-    codebook_info = load_codebook_info(source)
+    codebook_info = load_codebook_identity(source)
     environment_path = destination / "environment.csv"
     with environment_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(_ENVIRONMENT_COLUMNS))

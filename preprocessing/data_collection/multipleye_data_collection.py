@@ -40,7 +40,7 @@ from ..checks.formal_experiment_checks import (
     sanity_check_gaze_frame,
 )
 from ..config import settings
-from ..metadata.codebook import load_codebook_info
+from ..metadata.codebook import load_codebook_identity
 from ..metadata.codebook import write_codebook_outputs as write_codebook_package
 from ..models.dcn import Dcn
 from ..models.sid import Sid
@@ -1414,7 +1414,7 @@ class MultipleyeDataCollection:
         image_res_w, image_res_h = _lab_pair("image_resolution")
         image_size_w, image_size_h = _lab_pair("image_size_cm")
         screen_distance_cm = getattr(self.lab_configuration, "screen_distance_cm", None)
-        codebook_info = load_codebook_info()
+        codebook_info = load_codebook_identity()
 
         overview = {
             "administrative": {
@@ -1521,6 +1521,7 @@ class MultipleyeDataCollection:
             "codebook": {
                 "version": codebook_info.get("codebook_version"),
                 "credit": codebook_info.get("credit"),
+                "hash": codebook_info.get("hash"),
             },
         }
 
