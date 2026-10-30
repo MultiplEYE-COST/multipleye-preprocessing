@@ -66,9 +66,10 @@ def _repair_word_labels(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def fix_aoi_file(aoi_file_path: str | Path) -> None:
-    """Apply both AOI fixes in a single read and write pass.
+    """Apply all AOI fixes in a single read and write pass.
 
     Remaps inter-word spaces to the following word and repairs the word labels.
+    Renames all word columns to unit of analysis for consistent naming conventions.
     The file is changed and then rewritten to the same path.
 
     Parameters
@@ -78,6 +79,14 @@ def fix_aoi_file(aoi_file_path: str | Path) -> None:
     """
     df = pl.read_csv(aoi_file_path)
     df = _repair_word_labels(_remap_space(df))
+    aoi_data = aoi_data.rename(
+                {
+                    "word_idx": "unit_of_analysis_idx",
+                    "word": "unit_of_analysis",
+                    "word_idx_in_line": "unit_of_analysis_idx_in_line",
+                },
+                strict=False
+            )
     df.write_csv(aoi_file_path)
     logger.debug(f"Applied AOI fixes to: {aoi_file_path}")
 

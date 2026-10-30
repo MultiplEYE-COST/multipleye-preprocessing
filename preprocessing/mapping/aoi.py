@@ -122,29 +122,6 @@ def enlarge_aois(
     return aois
 
 
-def rename_aoi_columns(aoi_file: Path) -> None:
-    """
-    Refactor the aoi files for a given data collection to have consistent naming conventions.
-    If necessary, add the custom uoa aois for the given language.
-    :param aoi_file: Path to the AOI file
-    """
-
-    aoi_data = pd.read_csv(aoi_file)
-
-    # rename columns
-    aoi_data = aoi_data.rename(
-        {
-            "word_idx": "unit_of_analysis_idx",
-            "word": "unit_of_analysis",
-            "word_idx_in_line": "unit_of_analysis_idx_in_line",
-        },
-        axis="columns",
-    )
-
-    # save the refactored aoi files
-    aoi_data.sort_values(by=["page", "char_idx"], inplace=True)
-    aoi_data.to_csv(aoi_file, index=False)
-
 
 def add_custom_aois(aoi_file: Path, language: str) -> None:
     """
