@@ -3,13 +3,14 @@
 # Metadata YAML Files
 
 The pipeline writes structured metadata alongside the preprocessed data. The metadata is split
-into three levels:
+into dataset, session, trial and participant views:
 
 | Level | File | Scope |
 | --- | --- | --- |
 | Dataset (DCN) | `preprocessed_data/<dcn>/<dcn>_overview.yaml` | One data collection: sessions, setup, processing settings and dataset-wide quality averages |
 | Session | `preprocessed_data/<dcn>/metadata/<sid>/<sid>_overview.yaml` | One eye-tracking session: participant context, technical setup, calibration, procedure and quality |
 | Trial | `trials` key inside the session overview | One entry per presented trial, including practice trials |
+| Participant | `preprocessed_data/<dcn>/metadata/participants.yaml` | One entry per participant group: source PIDs, session IDs, questionnaire fields and curated psychometric scores |
 
 `<dcn>` is the data-collection name, for example `MultiplEYE_KL_DK_Copenhagen_1_2026`. `<sid>` is
 the session identifier, for example `048_KL_DK_1_ET1`.
@@ -17,7 +18,8 @@ the session identifier, for example `048_KL_DK_1_ET1`.
 The trial level is a list inside the session file, not a separate YAML file. All files are
 rewritten at the end of a preprocessing run, so they always describe the most recent run. For the
 output layout, see {ref}`technical_architecture`. For where the files are written in the pipeline,
-see {ref}`pipeline_stages`. Participant-level metadata is centralised in `participants.csv`, see
+see {ref}`pipeline_stages`. Participant-level metadata is available as the curated
+`participants.yaml` view and as the full `participants.csv` download table, see
 {ref}`participants_table`.
 
 The schema covers all fields emitted by the current pipeline. Known gaps are listed at the end
@@ -290,8 +292,9 @@ experiment_procedure:
 
 ### `participant`
 
-This is a convenience subset for quick inspection. The complete participant view is
-`participants.csv`, see {ref}`participants_table`.
+This is a convenience subset for quick inspection. The curated participant view is
+`metadata/participants.yaml`, and the complete download table is `participants.csv`, see
+{ref}`participants_table`.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -525,6 +528,90 @@ answer data stay `null`.
 The raw answer CSV remains in `comp_answers` for download and backwards compatibility. The nested
 list is the view used by EyeStore.
 
+## Participant view
+
+`metadata/participants.yaml` contains one entry per participant group. The groups are the same
+groups used for `participants.csv`: the union of eye-tracking sessions, psychometric tests and
+questionnaire sources, with `participant_groups` configuration applied. The file is written at the
+end of preprocessing, after `participants.csv`.
+
+The YAML is a curated nested view. The full tabular output remains `participants.csv` in the data
+collection root and is the file to use for download and manual inspection. The CSV keeps the
+eye-tracking, experimenter-sheet, completeness and preflight columns that the YAML does not repeat.
+
+```yaml
+participants:
+  - participant_id: '020'
+    source_pids: ['001', '002']
+    session_ids: ['001_EN_UK_1_ET1', '001_EN_UK_1_ET2', '002_EN_UK_1_ET1']
+    psychometric_session_ids: ['001_EN_UK_1_PT1', '002_EN_UK_1_PT1']
+    pq_gender: female
+    pq_age: 24
+    pq_native_language_1: English
+    pq_bi_monolingualism: monolingual
+    pq_language_reading_times:
+      native_language_1:
+        academic: 1_to_3_hours
+    psychometric_tests:
+      LWMC:
+        LWMC_Done: true
+        LWMC_Total_score_mean: 0.62
+      PLAB:
+        PLAB_Done: true
+        PLAB_accuracy: 0.71
+    documentation:
+      participant_csv: participants.csv
+      note: Full tabular participant output for download and manual inspection
+```
+
+### Participant identity
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `participant_id` | str | Participant group label, normally the 3-digit PID. |
+| `source_pids` | list | All source PIDs combined into the group. A group can contain more than one PID. |
+| `session_ids` | list | All eye-tracking session IDs attributed to the group. A group can contain multiple sessions. |
+| `psychometric_session_ids` | list | All psychometric-test session IDs attributed to the group. A group can contain multiple PT sessions. |
+
+Lists are empty when the participant has no data for that source. For example, a participant with
+only questionnaire data has an empty `session_ids` and `psychometric_session_ids`.
+
+### Participant questionnaire fields
+
+Normalized questionnaire fields are flat keys on the participant entry, using the same `pq_*`
+names as `participants.csv`. The fields cover the base questions
+(`pq_gender` to `pq_alcohol_today`), the raw language names per slot
+(`pq_native_language_1` to `pq_additional_read_language_4`) and the derived
+`pq_bi_monolingualism`. Missing answers are omitted.
+
+`pq_language_reading_times` is a mapping keyed by language slot and question, not a JSON string:
+
+```yaml
+pq_language_reading_times:
+  native_language_1:
+    academic: 1_to_3_hours
+```
+
+The CSV stores the same value as a JSON string. See {ref}`participants_table` for the full
+questionnaire column list and normalization rules.
+
+### `psychometric_tests`
+
+The curated psychometric score subset is nested under `psychometric_tests`, keyed by test name:
+`LWMC`, `RAN`, `Stroop`, `Flanker`, `WikiVocab` and `PLAB`. Only tests with at least one available
+value are present. `*_Done` flags are booleans. Score columns keep their result-table names, so
+they can be traced to `psychometric_results_<dcn>.csv` and
+`psychometric_results_<dcn>_merged.csv`.
+
+The complete psychometric result tables stay in their CSV files. The participant YAML embeds only
+the curated subset used by the participant view.
+
+### `documentation`
+
+The `documentation` block appears on every participant entry and points to the full download table.
+`participant_csv` is the relative path `participants.csv`. The note explains that the YAML is a
+curated view and the CSV is the full tabular output.
+
 ## Known gaps
 
 The emitted schema is complete for the current pipeline. The remaining gaps are tracked in:
@@ -546,5 +633,5 @@ The emitted schema is complete for the current pipeline. The remaining gaps are 
 
 - {ref}`technical_architecture`: output layout and processing-config settings.
 - {ref}`pipeline_stages`: when the overview files are written.
-- {ref}`participants_table`: the participant-level table derived from the session metadata.
+- {ref}`participants_table`: the participant-level table and its companion full download CSV.
 - {ref}`sanity_check_report`: per-session quality report, including per-trial data loss tables.
