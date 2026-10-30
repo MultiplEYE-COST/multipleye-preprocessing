@@ -72,6 +72,27 @@ source, an optional test that was not collected or an annotation package that is
 This keeps the codebook stable across data collections while still showing what was calculated
 and what was not.
 
+## Field registry
+
+Output fields are registered in `preprocessing/metadata/registry/`, with one module per view.
+Curated source form rows stay in `fields.csv`. The build step merges the registry with the
+curated rows and validates the package.
+
+Check the committed table:
+
+```bash
+uv run python -m preprocessing.scripts.build_codebook --check
+```
+
+Update `fields.csv` after adding or changing a registered field:
+
+```bash
+uv run python -m preprocessing.scripts.build_codebook --write
+```
+
+The validator checks field identifiers, view levels, YAML paths, semantic categories,
+display group members, relations and aggregation references.
+
 ## Pipeline connection
 
 The pipeline code registers output fields. A build step merges those registrations with the

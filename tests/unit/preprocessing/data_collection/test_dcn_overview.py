@@ -573,6 +573,7 @@ class TestCodebookMetadata:
         assert codebook["version"] == "2.0-dev0"
         assert "Marie-Luise Müller" in codebook["credit"]
         assert "Carlson Moses Büth" in codebook["credit"]
+        assert codebook["hash"].startswith("sha256:")
 
 
 class TestCodebookOutputs:
