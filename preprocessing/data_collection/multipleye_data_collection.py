@@ -42,6 +42,7 @@ from ..checks.formal_experiment_checks import (
 from ..config import settings
 from ..metadata.codebook import load_codebook_identity
 from ..metadata.codebook import write_codebook_outputs as write_codebook_package
+from ..metadata.language_tree import language_node_overview
 from ..models.dcn import Dcn
 from ..models.sid import Sid
 from ..plotting.plot import build_page_frames, plot_gaze, plot_main_sequence
@@ -1528,6 +1529,17 @@ class MultipleyeDataCollection:
                 "hash": codebook_info.get("hash"),
             },
         }
+
+        # Add the configured language node. Kept separate from the ISO language,
+        # country and session identifier fields.
+        language_node = language_node_overview(
+            settings.LANGUAGE_NODE_ID,
+            settings.LANGUAGE_TREE_PATH,
+            settings.LANGUAGE_TREE_VERSION,
+            settings.LANGUAGE_TREE_SNAPSHOT,
+        )
+        if language_node:
+            overview["language_node"] = language_node
 
         # Add warnings to overview
         if hasattr(logging, "_captured_warnings") and logging._captured_warnings:

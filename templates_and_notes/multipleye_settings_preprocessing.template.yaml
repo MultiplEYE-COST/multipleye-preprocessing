@@ -44,6 +44,21 @@ plot_aoi_overlay: true
 # Whether to copy AOI images overlay to the output directory.
 copy_aoi_images_overlay: false
 
+# ----------------------- Language Node -----------------------
+# Optional EyeStore language tree node for this data collection. The node is
+# metadata only. It does not replace the ISO language code in the data
+# collection name, the country code or the language fragment of session IDs.
+# Leave these values empty when no language node is configured.
+language_node_id: null
+# Optional full path from the tree root to the node, for example
+# "indo_european/germanic/german". Checked against the snapshot when set.
+language_tree_path: null
+# Optional pinned tree version. Checked against the snapshot when set.
+language_tree_version: null
+# Optional path to a pinned language tree snapshot (YAML or JSON). EyeStore
+# owns the canonical tree. Validation is skipped when this is null.
+language_tree_snapshot: null
+
 # ----------------------- Stimulus Content Versions -----------------------
 # Only needed if your lab used MULTIPLE stimulus folders, e.g. after
 # correcting spelling/grammar errors in the stimuli mid-collection.

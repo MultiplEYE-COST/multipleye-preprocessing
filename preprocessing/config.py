@@ -382,6 +382,20 @@ class Settings:
         #: a preflight error. True: it becomes a warning and raw values are kept.
         self.ALLOW_PQ_FALLBACK: bool = False
 
+        #: Selected EyeStore language tree node for this data collection. This is
+        #: metadata only and does not replace the ISO language code in the name.
+        self.LANGUAGE_NODE_ID: str | None = None
+
+        #: Optional full path from the language tree root to the selected node.
+        self.LANGUAGE_TREE_PATH: str | None = None
+
+        #: Optional pinned language tree version.
+        self.LANGUAGE_TREE_VERSION: str | None = None
+
+        #: Optional path to a pinned language tree snapshot. Validation only runs
+        #: when a snapshot path is set, because the pipeline does not ship a tree.
+        self.LANGUAGE_TREE_SNAPSHOT: Path | None = None
+
         #: Default log level for the package/Python.
         self.LOG_LEVEL: str = "INFO"
 
@@ -952,6 +966,7 @@ class Settings:
         self._validate()
         self.validate_stimulus_versions()
         self.validate_participant_groups()
+        self.validate_language_node()
         self._loaded = True
 
     def update(self, config_dict: dict[str, Any]) -> None:
@@ -1061,6 +1076,28 @@ class Settings:
                         f"Session '{sid}' in participant group '{label}' has PID "
                         f"'{parsed.pid}', which is not in the group's pids."
                     )
+
+    def validate_language_node(self) -> None:
+        """Validate the selected language node against the pinned tree snapshot.
+
+        The node is only checked when ``LANGUAGE_NODE_ID`` and
+        ``LANGUAGE_TREE_SNAPSHOT`` are both set. Without a snapshot the
+        configuration is kept as provided.
+
+        Raises
+        ------
+        LanguageTreeError
+            If the snapshot is missing or malformed, the node is unknown, or the
+            configured path or version does not match the snapshot.
+        """
+        from .metadata.language_tree import language_node_overview
+
+        language_node_overview(
+            self.LANGUAGE_NODE_ID,
+            self.LANGUAGE_TREE_PATH,
+            self.LANGUAGE_TREE_VERSION,
+            self.LANGUAGE_TREE_SNAPSHOT,
+        )
 
     def setup_logging(self, log_file: str | Path | None = None) -> None:
         """Configure logging with separate levels for console and file.

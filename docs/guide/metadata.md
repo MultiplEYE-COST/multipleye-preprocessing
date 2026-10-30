@@ -74,8 +74,8 @@ data_quality:
   attrition_rate: 0.0
   mean_validation_error_dva: 0.3
   mean_comprehension_score: 0.4
-# further sections: language_details, data_availability, psychometric_tests,
-# technical_setup, processing_config, warnings
+# further sections: language_details, language_node, data_availability,
+# psychometric_tests, technical_setup, processing_config, warnings
 ```
 
 ### Dataset `administrative`
@@ -113,6 +113,36 @@ data_quality:
 | `end_date_of_data_collection` | str, null | End date as recorded in the metadata form, normally `YYYY-MM-DD`. |
 
 The content fields are `null` when the metadata form is missing or does not contain the value.
+
+### `language_node`
+
+The `language_node` section records the selected node of the EyeStore language tree. It is only
+written when `language_node_id` is configured. The section is independent of the ISO language
+code, the country code and the language fragment in session identifiers. Do not derive one from
+another.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `language_node_id` | str | Stable identifier of the selected node. |
+| `language_node_path` | str, null | Full path from the tree root to the node, for example `indo_european/germanic/german`. |
+| `language_node_label` | str, null | Human readable label of the node. |
+| `language_tree_version` | str, null | Version recorded in the pinned tree snapshot, or the configured version when the snapshot has none. |
+| `language_tree_hash` | str, null | `sha256:` hash of the pinned snapshot file. |
+
+The pipeline does not ship a language tree. Configure `language_node_id`, optionally
+`language_tree_path` and `language_tree_version`, and optionally `language_tree_snapshot` in the
+settings file. When a snapshot path is set, the node is validated before the metadata is written:
+
+- the snapshot file must exist and contain a non-empty node list,
+- the selected node id must exist,
+- a configured path must match the path derived from the snapshot,
+- a configured version must match the snapshot version when the snapshot records one.
+
+Without a snapshot the configured id, path and version are written, while
+`language_node_label` and `language_tree_hash` stay `null`. The exact snapshot format is owned by
+EyeStore. The pipeline currently assumes a YAML or JSON mapping with `version` and `nodes`; each
+node has an `id`, a `label`, and optionally a `parent` and an explicit `path`. The full node path
+is taken from `path` when present and otherwise built from the node ids along the parent chain.
 
 ### `data_availability`
 

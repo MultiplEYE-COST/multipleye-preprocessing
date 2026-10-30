@@ -10,10 +10,12 @@ import pytest
 import yaml
 
 import preprocessing.data_collection.multipleye_data_collection as dcn_module
+from preprocessing import settings as pipeline_settings
 from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
 )
 from preprocessing.data_collection.session import Session
+from preprocessing.metadata.language_tree import LanguageTreeError
 
 
 def _mock_lab_config():
@@ -1104,6 +1106,101 @@ class TestWPM:
 
         assert q["mean_total_reading_time_s"] == 60.0
         assert q["mean_wpm"] == pytest.approx(18.0, abs=0.5)
+
+
+class TestLanguageNode:
+    @pytest.fixture
+    def language_snapshot(self, tmp_path):
+        path = tmp_path / "language_tree.yaml"
+        path.write_text(
+            yaml.safe_dump(
+                {
+                    "version": "2026.10",
+                    "nodes": [
+                        {"id": "root", "label": "Root"},
+                        {"id": "branch", "label": "Branch", "parent": "root"},
+                        {"id": "leaf", "label": "Leaf", "parent": "branch"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    @pytest.fixture
+    def configured_language_node(self, monkeypatch, language_snapshot):
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "leaf")
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_PATH", "root/branch/leaf")
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_VERSION", "2026.10")
+        monkeypatch.setattr(
+            pipeline_settings, "LANGUAGE_TREE_SNAPSHOT", language_snapshot
+        )
+        return language_snapshot
+
+    def test_no_language_node_configured(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+
+        assert "language_node" not in overview
+
+    def test_language_node_written_to_dcn_yaml(
+        self,
+        dummy_dcn_dir,
+        mock_load_lab_config,
+        mock_pipeline_version,
+        configured_language_node,
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        node = overview["language_node"]
+
+        assert node["language_node_id"] == "leaf"
+        assert node["language_node_path"] == "root/branch/leaf"
+        assert node["language_node_label"] == "Leaf"
+        assert node["language_tree_version"] == "2026.10"
+        assert node["language_tree_hash"].startswith("sha256:")
+
+        yaml_path = dummy_dcn_dir / "MultiplEYE_EN_UK_London_1_2025_overview.yaml"
+        data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        assert data["language_node"] == node
+        assert data["administrative"]["tested_language"] == "EN"
+        assert data["administrative"]["country"] == "UK"
+
+    def test_invalid_language_node_raises(
+        self,
+        dummy_dcn_dir,
+        mock_load_lab_config,
+        mock_pipeline_version,
+        monkeypatch,
+        language_snapshot,
+    ) -> None:
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "unknown")
+        monkeypatch.setattr(
+            pipeline_settings, "LANGUAGE_TREE_SNAPSHOT", language_snapshot
+        )
+
+        with pytest.raises(LanguageTreeError, match="not in the pinned"):
+            _create_dc(dummy_dcn_dir)
+
+    def test_missing_language_snapshot_raises(
+        self,
+        dummy_dcn_dir,
+        mock_load_lab_config,
+        mock_pipeline_version,
+        monkeypatch,
+        tmp_path,
+    ) -> None:
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "leaf")
+        monkeypatch.setattr(
+            pipeline_settings,
+            "LANGUAGE_TREE_SNAPSHOT",
+            tmp_path / "missing.yaml",
+        )
+
+        with pytest.raises(LanguageTreeError, match="snapshot not found"):
+            _create_dc(dummy_dcn_dir)
 
 
 class TestLabConfigAttributeSafety:
