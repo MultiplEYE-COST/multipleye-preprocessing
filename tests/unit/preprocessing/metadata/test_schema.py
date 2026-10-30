@@ -99,11 +99,20 @@ def test_build_check_detects_outdated_fields(tmp_path: Path) -> None:
 
 def test_build_write_updates_fields(tmp_path: Path) -> None:
     target = _copy_package(tmp_path)
-    _set_field(target, 0, description="Changed outside the registry")
+    fields = read_fields(target / "fields.csv")
+    index = next(
+        position
+        for position, field in enumerate(fields)
+        if field.variable_id == "dataset.data_collection_name"
+    )
+    _set_field(target, index, description="Changed outside the registry")
 
     assert main(["--codebook-dir", str(target), "--write"]) == 0
     actual = read_fields(target / "fields.csv")
-    assert actual[0].description == "Name of the data collection"
+    restored = next(
+        field for field in actual if field.variable_id == "dataset.data_collection_name"
+    )
+    assert restored.description == "Name of the data collection"
 
 
 def test_validate_rejects_duplicate_field_id(tmp_path: Path) -> None:
