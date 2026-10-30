@@ -787,6 +787,8 @@ class MultipleyeDataCollection:
                                     session_file_path="unknown",
                                     session_file_name="unknown",
                                     is_pilot=is_pilot,
+                                    tested_language=getattr(self, "language", None)
+                                    or "unknown",
                                 )
                                 continue
 
@@ -815,6 +817,8 @@ class MultipleyeDataCollection:
                                 session_file_path=session_file,
                                 session_file_name=session_file.name,
                                 is_pilot=is_pilot,
+                                tested_language=getattr(self, "language", None)
+                                or "unknown",
                             )
 
                             self.sessions[item.name] = ses

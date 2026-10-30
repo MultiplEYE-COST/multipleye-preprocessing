@@ -430,38 +430,103 @@ Each entry in `trials` has the following fields:
 
 | Field | Type | Description |
 | --- | --- | --- |
+| `trial_id` | str | Trial identifier inside the session, for example `trial_1` or `PRACTICE_trial_1`. |
 | `trial_number` | int | Trial number, 1-based. Numbering restarts for practice trials, so pair it with `is_practice`. |
 | `stimulus_id` | int | Numeric stimulus ID. |
 | `stimulus_name` | str | Stimulus name, for example `Lit_MagicMountain`. |
+| `text_id` | str | Language-specific stimulus text identifier, built as `<stimulus_name>_<language>`, for example `Lit_MagicMountain_de`. It joins the trial view to the item view. |
 | `is_practice` | bool | `true` for practice trials. |
 | `num_questions` | int | Number of comprehension questions answered for the trial. |
+| `num_questions_local` | int | Number of local comprehension questions, from `condition_number` 1. |
+| `num_questions_global` | int | Number of global comprehension questions, from `condition_number` 3. |
+| `num_questions_bridging` | int | Number of bridging comprehension questions, from `condition_number` 2. |
 | `comprehension_score` | float | Proportion of correct answers for the trial, `0` to `1`. |
+| `comprehension_score_local` | float, str | Proportion of correct local answers, `"unknown"` when the trial has no local questions. |
+| `comprehension_score_global` | float, str | Proportion of correct global answers, `"unknown"` when the trial has no global questions. |
+| `comprehension_score_bridging` | float, str | Proportion of correct bridging answers, `"unknown"` when the trial has no bridging questions. |
 | `comprehension_question_time_ms` | float | Total comprehension-question time for the trial, in milliseconds. |
 | `reading_time_ms` | float | Total reading time for the trial's pages, in milliseconds. |
+| `familiarity_1` | float, str | Selected option number on the first familiarity rating screen, `"unknown"` when no rating was logged for the trial. |
+| `familiarity_2` | float, str | Selected option number on the second familiarity rating screen. |
+| `subjective_difficulty` | float, str | Selected option number on the subjective-difficulty rating screen. |
+| `rating_time_ms` | float, str | Summed duration of the trial's rating screens, in milliseconds. `"unknown"` when no rating was logged for the trial. |
 | `trial_duration_ms` | float, str | Total trial recording duration in milliseconds, from the earliest trial start to the latest trial stop. `"unknown"` when no timestamps are stored. |
 | `data_loss_ratio` | float, str | Fraction of missing or invalid samples in the trial, `0` to `1`, from the per-trial data-loss table. Falls back to the sanity-check TSV. `"unknown"` when no source exists. |
 | `blink_ratio` | float, str | Fraction of the trial recording spent in blinks, `0` to `1`, from the per-trial blink-loss table. Falls back to the sanity-check TSV. `"unknown"` when no source exists. |
 | `validation_before_start_dva` | float, str | Mean validation accuracy in degrees of visual angle immediately before the trial starts, averaged across binocular rows at the same timestamp. `"unknown"` when no trial timestamp or validation is available. |
 | `question_order_version` | int, null | Question-order version for this trial from the session CSV. `null` when no matching order record exists. |
 | `question_order` | dict, null | Explicit local, bridging and global order codes for this trial. `null` when no matching order record exists; the trial itself is still included. |
+| `answers` | list | Nested comprehension answers for this trial. See the answer fields below. |
+
+The condition scores and counts use the same `condition_number` mapping as the session
+comprehension fields: 1 is local, 2 is bridging and 3 is global. A score is `"unknown"` when the
+trial has no question of that condition, while the count is `0`.
 
 A real entry looks like this:
 
 ```yaml
-- trial_number: 5
+- trial_id: trial_5
+  trial_number: 5
   stimulus_id: 6
   stimulus_name: Lit_MagicMountain
+  text_id: Lit_MagicMountain_de
   is_practice: false
   num_questions: 6
+  num_questions_local: 2
+  num_questions_global: 2
+  num_questions_bridging: 2
   comprehension_score: 0.5
+  comprehension_score_local: 1.0
+  comprehension_score_global: 0.5
+  comprehension_score_bridging: 0.0
   comprehension_question_time_ms: 146035.0
   reading_time_ms: 204963.0
+  familiarity_1: 2.0
+  familiarity_2: 1.0
+  subjective_difficulty: 3.0
+  rating_time_ms: 12000.0
   question_order_version: 6
   question_order:
     local: [12, 11]
     bridging: [21, 22]
     global: [32, 31]
+  answers:
+    - question_id: "6111"
+      condition: local
+      slot: local_question_1
+      selected_option_key: target
+      selected_option_text: The mountain was quiet
+      is_correct: true
+      correct_answer_key: target
+      correct_answer_text: The mountain was quiet
+      preliminary_answer_keys: [distractor_b, target]
+      preliminary_answer_onsets_ms: [1200.0, 2400.0]
+      confirmation_rt_ms: 2600.0
+      answer_source: logfile
 ```
+
+### Trial answer fields
+
+Each entry in `trials[].answers` has the following fields. Columns that are missing from partial
+answer data stay `null`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `question_id` | str, null | Question identifier. Together with the trial it identifies the answer. |
+| `condition` | str, null | Question condition, `local`, `bridging` or `global`, from `condition_number` or the slot prefix. |
+| `slot` | str, null | Question slot from the question-order CSV, for example `local_question_1`. |
+| `selected_option_key` | str, null | Key of the option the participant confirmed. |
+| `selected_option_text` | str, null | Text of the confirmed option. |
+| `is_correct` | bool, null | Whether the confirmed option is the target option. |
+| `correct_answer_key` | str, null | Key of the target option. |
+| `correct_answer_text` | str, null | Text of the target option. |
+| `preliminary_answer_keys` | list, null | Preliminary key presses in order. |
+| `preliminary_answer_onsets_ms` | list, null | Question-onset-relative timestamps of the preliminary key presses, in milliseconds. |
+| `confirmation_rt_ms` | float, null | Time from question onset to the confirmation key press, in milliseconds. |
+| `answer_source` | str, null | Source the answer was parsed from, for example `logfile`. |
+
+The raw answer CSV remains in `comp_answers` for download and backwards compatibility. The nested
+list is the view used by EyeStore.
 
 ## Participant view
 

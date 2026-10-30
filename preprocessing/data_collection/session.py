@@ -10,7 +10,7 @@ import polars as pl
 from ..answers.parser import parse_question_order
 from ..config import settings
 from ..data_collection.stimulus import LabConfig, Stimulus
-from ..data_collection.trial import Trial
+from ..data_collection.trial import Trial, TrialAnswer
 from ..models import Sid
 from ..utils.eye_tracker import normalize_eye_tracker_name
 from ..utils.logging import get_logger
@@ -46,6 +46,13 @@ _EYELINK_FILTER_VALUE_REGEX = re.compile(
     r"\bFILTER\s+(?P<value>\S+)",
     re.IGNORECASE,
 )
+
+_CONDITION_NAMES = {1: "local", 2: "bridging", 3: "global"}
+_RATING_SCREEN_FIELDS = {
+    "familiarity_rating_screen_1": "familiarity_1",
+    "familiarity_rating_screen_2": "familiarity_2",
+    "subject_difficulty_screen": "subjective_difficulty",
+}
 
 
 def _parse_rating_option(key: object) -> int | None:
@@ -83,6 +90,68 @@ def _consensus(values: list[object], unknown: object) -> object:
         return unknown
     first = values[0]
     return first if all(value == first for value in values) else unknown
+
+
+def _optional_str(value: object) -> str | None:
+    """Return *value* as a non-empty string, or None when it is absent."""
+    if value is None:
+        return None
+    text = str(value)
+    return text if text else None
+
+
+def _optional_float(value: object) -> float | None:
+    """Return *value* as a float, or None when it cannot be parsed."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_semicolon_list(value: object) -> list[str] | None:
+    """Parse a semicolon-joined CSV list column, or None when it is empty.
+
+    ``preprocessing.answers.io.write_answers`` stores list columns as
+    semicolon-joined strings, so this is the inverse for the session CSV.
+    """
+    if value is None:
+        return None
+    if isinstance(value, list | tuple):
+        return [str(item) for item in value]
+    text = str(value).strip()
+    if not text:
+        return None
+    return [part for part in text.split(";") if part]
+
+
+def _parse_float_list(value: object) -> list[float] | None:
+    """Parse a semicolon-joined numeric CSV list column into floats."""
+    items = _parse_semicolon_list(value)
+    if items is None:
+        return None
+    parsed: list[float] = []
+    for item in items:
+        try:
+            parsed.append(float(item))
+        except (TypeError, ValueError):
+            continue
+    return parsed or None
+
+
+def _condition_name(condition_number: object, slot: str | None) -> str | None:
+    """Return the condition name from the numeric code or the slot prefix."""
+    try:
+        name = _CONDITION_NAMES.get(int(condition_number))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        name = None
+    if name is not None:
+        return name
+    if slot is None:
+        return None
+    prefix = slot.split("_", 1)[0]
+    return prefix if prefix in _CONDITION_NAMES.values() else None
 
 
 @dataclass
@@ -191,6 +260,9 @@ class Session:
 
     # per-trial metrics
     trials: list[Trial] | str = field(default="unknown", init=False)
+
+    # tested language, used to build item text identifiers
+    tested_language: str = field(default="unknown", init=True)
 
     @property
     def sid(self) -> "Sid":
@@ -431,9 +503,8 @@ class Session:
                 sum(1 for c in correct if c) / len(correct), 3
             )
 
-        type_map = {1: "local", 2: "bridging", 3: "global"}
         if "condition_number" in experiment.columns:
-            for condition, name in type_map.items():
+            for condition, name in _CONDITION_NAMES.items():
                 subset = [
                     c
                     for c in experiment.filter(pl.col("condition_number") == condition)[
@@ -1223,6 +1294,159 @@ class Session:
             result[trial] = round(sum(scores) / len(scores), 3)
         return result
 
+    def _language_code(self) -> str:
+        """Return the lowercase tested-language code, or ``"unknown"``."""
+        if not isinstance(self.tested_language, str):
+            return "unknown"
+        language = self.tested_language.strip().lower()
+        return language if language else "unknown"
+
+    @staticmethod
+    def _trial_condition_stats(
+        group: pl.DataFrame,
+        condition_number: int,
+    ) -> tuple[float | str, int]:
+        """Return ``(score, count)`` for one question condition in a trial.
+
+        The score is the proportion of correct answers among rows with the
+        given ``condition_number``. It is ``"unknown"`` when the trial has no
+        such question or no correctness value. The count stays an integer so
+        weighted aggregation can distinguish zero questions from missing data.
+        """
+        if "condition_number" not in group.columns:
+            return "unknown", 0
+        rows = group.filter(pl.col("condition_number") == condition_number)
+        if rows.is_empty():
+            return "unknown", 0
+        correct = [value for value in rows["is_correct"].to_list() if value is not None]
+        if not correct:
+            return "unknown", rows.height
+        return round(
+            sum(1 for value in correct if value) / len(correct), 3
+        ), rows.height
+
+    @staticmethod
+    def _build_trial_answers(group: pl.DataFrame) -> list[TrialAnswer]:
+        """Build the nested answer records for one trial from the answers CSV.
+
+        Columns that are absent from partial answer data stay ``None`` on the
+        record. List columns are stored as semicolon-joined strings by
+        ``write_answers`` and are parsed back into lists here.
+        """
+        answers: list[TrialAnswer] = []
+        for row in group.iter_rows(named=True):
+            slot = _optional_str(row.get("slot"))
+            is_correct = row.get("is_correct")
+            answers.append(
+                TrialAnswer(
+                    question_id=_optional_str(row.get("question_id")),
+                    condition=_condition_name(row.get("condition_number"), slot),
+                    slot=slot,
+                    selected_option_key=_optional_str(row.get("final_answer_key")),
+                    selected_option_text=_optional_str(row.get("answer_text")),
+                    is_correct=is_correct if isinstance(is_correct, bool) else None,
+                    correct_answer_key=_optional_str(row.get("correct_answer_key")),
+                    correct_answer_text=_optional_str(row.get("correct_answer_text")),
+                    preliminary_answer_keys=_parse_semicolon_list(
+                        row.get("preliminary_answer_keys")
+                    ),
+                    preliminary_answer_onsets_ms=_parse_float_list(
+                        row.get("preliminary_answer_onsets_ms")
+                    ),
+                    confirmation_rt_ms=_optional_float(row.get("confirmation_rt_ms")),
+                    answer_source=_optional_str(row.get("answer_source")),
+                )
+            )
+        return answers
+
+    def _rating_stats_by_trial(self) -> dict[tuple[int, int], dict[str, object]]:
+        """Return rating values and rating time keyed by trial and stimulus.
+
+        Rating rows in the experiment logfile carry ``trial_number`` but often
+        no ``stimulus_number``. The most recent non-null stimulus number for
+        the same trial number is used, which separates a practice trial from
+        the experiment trial with the same trial number. Trials without a
+        usable logfile mapping are omitted so callers can fall back to
+        ``"unknown"``.
+        """
+        if not isinstance(self.logfile, pl.DataFrame) or self.logfile.is_empty():
+            return {}
+        required = {
+            "trial_number",
+            "stimulus_number",
+            "page_number",
+            "key_pressed",
+            "screen_onset_timestamp",
+            "timestamp",
+        }
+        if not required.issubset(self.logfile.columns):
+            return {}
+
+        entries: dict[tuple[int, int], dict[str, object]] = {}
+        current_stimulus: dict[int, int] = {}
+        columns = [
+            "trial_number",
+            "stimulus_number",
+            "page_number",
+            "key_pressed",
+            "screen_onset_timestamp",
+            "timestamp",
+        ]
+        for (
+            trial_value,
+            stimulus_value,
+            page,
+            key,
+            onset,
+            response,
+        ) in self.logfile.select(columns).iter_rows():
+            trial_number = _optional_float(trial_value)
+            if trial_number is None:
+                continue
+            trial_number = int(trial_number)
+            stimulus_id = _optional_float(stimulus_value)
+            if stimulus_id is not None:
+                current_stimulus[trial_number] = int(stimulus_id)
+
+            if not isinstance(page, str) or page not in _RATING_SCREEN_FIELDS:
+                continue
+            stimulus_id = current_stimulus.get(trial_number)
+            if stimulus_id is None:
+                continue
+
+            entry = entries.setdefault(
+                (trial_number, stimulus_id),
+                {
+                    "values": {name: [] for name in _RATING_SCREEN_FIELDS.values()},
+                    "total_ms": 0.0,
+                },
+            )
+            onset_ms = _optional_float(onset)
+            response_ms = _optional_float(response)
+            if (
+                onset_ms is not None
+                and response_ms is not None
+                and response_ms >= onset_ms
+            ):
+                entry["total_ms"] = float(entry["total_ms"]) + (response_ms - onset_ms)
+            option = _parse_rating_option(key)
+            if option is not None:
+                values = entry["values"]
+                if isinstance(values, dict):
+                    values[_RATING_SCREEN_FIELDS[page]].append(float(option))
+
+        result: dict[tuple[int, int], dict[str, object]] = {}
+        for key, entry in entries.items():
+            values = entry["values"]
+            if not isinstance(values, dict):
+                continue
+            result[key] = {
+                name: round(sum(options) / len(options), 3) if options else "unknown"
+                for name, options in values.items()
+            }
+            result[key]["rating_time_ms"] = round(float(entry["total_ms"]), 3)
+        return result
+
     def _compute_trials(self) -> list[Trial] | str:
         """Assemble per-trial metrics from the answers CSV and eye-tracking data.
 
@@ -1259,6 +1483,8 @@ class Session:
         loss_metrics = self._per_trial_loss_metrics()
         validations_before = self._validation_before_trial_start(trial_spans)
         question_orders = self._question_order_by_trial()
+        ratings_by_trial = self._rating_stats_by_trial()
+        language = self._language_code()
 
         trials: list[Trial] = []
         for trial_id, group in answers.group_by("trial", maintain_order=True):
@@ -1288,6 +1514,14 @@ class Session:
             except ValueError:
                 trial_number = 0
 
+            local_score, local_count = self._trial_condition_stats(group, 1)
+            bridging_score, bridging_count = self._trial_condition_stats(group, 2)
+            global_score, global_count = self._trial_condition_stats(group, 3)
+            answer_records = self._build_trial_answers(group)
+            rat = ratings_by_trial.get((trial_number, int(first["stimulus_id"])), {})
+            stimulus_name = str(first["stimulus"])
+            text_id = f"{stimulus_name}_{language}"
+
             span = trial_spans.get(trial_key)
             trial_duration: float | str = (
                 round(max(0.0, span[1] - span[0]), 3) if span is not None else "unknown"
@@ -1316,14 +1550,26 @@ class Session:
 
             trials.append(
                 Trial(
+                    trial_id=trial_key,
                     trial_number=trial_number,
                     stimulus_id=int(first["stimulus_id"]),
-                    stimulus_name=str(first["stimulus"]),
+                    stimulus_name=stimulus_name,
+                    text_id=text_id,
                     is_practice=str(trial_id).startswith("PRACTICE_"),
                     num_questions=group.height,
+                    num_questions_local=local_count,
+                    num_questions_global=global_count,
+                    num_questions_bridging=bridging_count,
                     comprehension_score=score,
+                    comprehension_score_local=local_score,
+                    comprehension_score_global=global_score,
+                    comprehension_score_bridging=bridging_score,
                     comprehension_question_time_ms=question_time,
                     reading_time_ms=round(reading_by_trial.get(str(trial_id), 0.0), 3),
+                    familiarity_1=rat.get("familiarity_1", "unknown"),
+                    familiarity_2=rat.get("familiarity_2", "unknown"),
+                    subjective_difficulty=rat.get("subjective_difficulty", "unknown"),
+                    rating_time_ms=rat.get("rating_time_ms", "unknown"),
                     trial_duration_ms=trial_duration,
                     data_loss_ratio=data_loss,
                     blink_ratio=blink_ratio,
@@ -1332,6 +1578,7 @@ class Session:
                     ),
                     question_order_version=question_order_version,
                     question_order=question_order,
+                    answers=answer_records,
                 )
             )
 
@@ -1373,19 +1620,16 @@ class Session:
         if not required.issubset(self.logfile.columns):
             return
 
-        screen_to_field = {
-            "familiarity_rating_screen_1": "familiarity_1",
-            "familiarity_rating_screen_2": "familiarity_2",
-            "subject_difficulty_screen": "subjective_difficulty",
+        responses: dict[str, list[float]] = {
+            value: [] for value in _RATING_SCREEN_FIELDS.values()
         }
-        responses: dict[str, list[float]] = {v: [] for v in screen_to_field.values()}
         total_ms = 0.0
         found = False
 
         for page, key, onset, response_ts in self.logfile.select(
             ["page_number", "key_pressed", "screen_onset_timestamp", "timestamp"]
         ).iter_rows():
-            if not isinstance(page, str) or page not in screen_to_field:
+            if not isinstance(page, str) or page not in _RATING_SCREEN_FIELDS:
                 continue
             try:
                 onset_ms = float(onset)
@@ -1397,7 +1641,7 @@ class Session:
                 total_ms += response_ms - onset_ms
             option = _parse_rating_option(key)
             if option is not None:
-                responses[screen_to_field[page]].append(float(option))
+                responses[_RATING_SCREEN_FIELDS[page]].append(float(option))
 
         if not found:
             return
