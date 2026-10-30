@@ -6,12 +6,13 @@ from collections.abc import Iterator
 
 from preprocessing.metadata.schema import CodebookField
 
-from . import dataset, item, participant, session, trial
+from . import dataset, item, language, participant, session, trial
 
 __all__ = ["REGISTRY_FIELDS", "iter_registry_fields"]
 
 REGISTRY_FIELDS = (
     *dataset.FIELDS,
+    *language.FIELDS,
     *session.FIELDS,
     *trial.FIELDS,
     *participant.FIELDS,
