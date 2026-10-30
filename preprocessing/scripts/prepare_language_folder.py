@@ -384,6 +384,24 @@ def _copy_stimulus_assets(
                     _to_win_long_path(dest_file) if os.name == "nt" else dest_file,
                 )
 
+    # 6. Copy Custom units of analysis, if applicable
+    uoa_folder = "custom_units_of_analysis"
+    uoa_dir = source_stimulus_dir / uoa_folder
+    dest_uoa = dest_stimulus_dir / "custom_units_of_analysis"
+    if uoa_dir.exists():
+        if not dest_uoa.exists():
+            os.mkdir(dest_uoa)
+        for file in uoa_dir.glob("*.csv"):
+            dest_file = dest_uoa / file.name
+            if not dest_file.exists():
+                shutil.copy2(
+                    _to_win_long_path(file) if os.name == "nt" else file,
+                    _to_win_long_path(dest_file) if os.name == "nt" else dest_file,
+                )
+
+
+
+
 
 def _copy_used_question_images(
     source_stimulus_dir: Path,
