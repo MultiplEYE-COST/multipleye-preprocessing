@@ -147,7 +147,7 @@ def add_custom_aois(aoi_file: Path, language: str) -> None:
 
 
 def _add_custom_uoa(
-    aoi_file: Path, uoa_column_name, uoa_idx_colum_name, custom_file_name: str = ""
+    stimuli_folder: Path, aoi_file: Path, uoa_column_name, uoa_idx_colum_name, custom_file_name: str = ""
 ) -> None:
     """
     The custom units of analysis can be added as follows for ZH:
@@ -177,12 +177,14 @@ def _add_custom_uoa(
 
     """
 
-    if custom_file_name:
-        uoa_file = settings.DATASET_DIR / "custom_units_of_analysis" / custom_file_name
-    else:
-        uoa_file = settings.DATASET_DIR / "custom_units_of_analysis" / aoi_file.name
+    aoi_data = pl.read_csv(aoi_file)
+    aoi_data = aoi_data.sort(by=["page", "line_idx", "char_idx"])
+    
+    
+    uoa_file = stimuli_folder / "custom_units_of_analysis" / aoi_file.name
 
     if not uoa_file.exists():
+        #TODO What about files that are just missing e.g. the question files for Greenlandic
         raise FileNotFoundError(
             f"We could not find a matching uoa file for {aoi_file.name}. Please make "
             f"sure that the uoa file is named exactly as the corresponding aoi file and "
@@ -190,7 +192,7 @@ def _add_custom_uoa(
         )
 
     if "questions" in uoa_file.name:
-        uoa_data = pd.read_csv(uoa_file, dtype={uoa_column_name: str})[
+        uoa_data = pl.read_csv(uoa_file)[
             [
                 uoa_column_name,
                 uoa_idx_colum_name,
@@ -200,34 +202,32 @@ def _add_custom_uoa(
                 "question_image_version",
             ]
         ]
-        uoa_data = uoa_data[
+        uoa_data = uoa_data.filter(
             uoa_data["question_image_version"] == "question_images_version_1"
-        ]
+        )
 
         uoa_data = uoa_data[
             [uoa_column_name, uoa_idx_colum_name, "char", "char_idx", "page"]
         ]
 
     else:
-        uoa_data = pd.read_csv(uoa_file, dtype={uoa_column_name: str})[
+        uoa_data = pl.read_csv(uoa_file)[
             [uoa_column_name, uoa_idx_colum_name, "char", "char_idx", "page"]
         ]
 
-    aoi_data = pd.read_csv(aoi_file, dtype={uoa_column_name: str})
+    uoa_data = uoa_data.sort(by=["page", "char_idx"])
+    uoa_chars = list(uoa_data["char"])
 
-    uoa_data = uoa_data.sort_values(by=["page"], ascending=False).reset_index()
-    aoi_data = aoi_data.sort_values(by=["page"], ascending=False).reset_index()
-
-    uoa_chars = uoa_data["char"].tolist()
 
     if "questions" in uoa_file.name:
-        aoi_chars = aoi_data[
-            aoi_data["question_image_version"] == "question_images_version_1"
-        ]["char"].tolist()
+        aoi_chars = list(aoi_data["char"].filter(
+            aoi_data["question_image_version"] == "question_images_version_1"))
     else:
-        aoi_chars = aoi_data["char"].tolist()
+        aoi_chars = list(aoi_data["char"])
 
     if len(uoa_data) != len(aoi_data):
+        # TODO: Raise proper error
+        print("Character lists are not identical")
         for line in difflib.unified_diff(aoi_chars, uoa_chars, lineterm=""):
             print(line)
 
@@ -240,26 +240,33 @@ def _add_custom_uoa(
             f"They do not contain the same characters."
         )
 
-    # join the segment and segment idx on page and char idx
-    new_aois = aoi_data.merge(uoa_data, on=["page", "char_idx", "char"])
-
-    # rename columns
-    new_aois = new_aois.rename(
+    aoi_data = aoi_data.rename(
         {
             "unit_of_analysis_idx": "secondary_unit_of_analysis_idx",
             "unit_of_analysis": "secondary_unit_of_analysis",
-            "unit_of_analysis_idx_in_line": "secondary_unit_of_analysis_idx_in_line",
-            uoa_column_name: "unit_of_analysis",
-            uoa_idx_colum_name: "unit_of_analysis_idx",
-        },
-        axis="columns",
+            "unit_of_analysis_idx_in_line": "secondary_unit_of_analysis_idx_in_line",            
+        }
     )
 
+    uoa_data = uoa_data.rename(
+        {
+            uoa_column_name: "unit_of_analysis",
+            uoa_idx_colum_name: "unit_of_analysis_idx",
+        }
+    )
+    
+    
+    # join the segment and segment idx on page and char idx
+    new_aois = aoi_data.join(uoa_data, on=["page", "char_idx", "char"])
+
+
     # get the line index of the segments
-    new_aois["unit_of_analysis_idx_in_line"] = (
-        new_aois.groupby(["page", "line_idx"])["unit_of_analysis_idx"]
+    new_aois = new_aois.with_columns(
+        pl.col("unit_of_analysis_idx")
         .rank(method="dense")
-        .astype(pd.Int64Dtype())
+        .over(["page", "line_idx"])
+        .cast(pl.Int64)
+        .alias("unit_of_analysis_idx_in_line")
     )
 
     col_order = [
@@ -281,5 +288,5 @@ def _add_custom_uoa(
     ]
 
     new_aois = new_aois[col_order]
-    new_aois.sort_values(by=["page", "line_idx", "char_idx"], inplace=True)
-    new_aois.to_csv(aoi_file, index=False)
+    new_aois = new_aois.sort(by=["page", "line_idx", "char_idx"])
+    new_aois.write_csv(aoi_file)
