@@ -10,10 +10,21 @@ import pytest
 import yaml
 
 from preprocessing import settings
+from preprocessing.data_collection import participant_table
 from preprocessing.data_collection.participant_table import (
     write_participants_table,
     write_participants_yaml,
 )
+
+PQ_MAPPING = {
+    "labels": {
+        "gender": {"female": "female", "male": "male"},
+        "reading_time_bin": {"1_to_3_hours": "1_to_3_hours"},
+    },
+    "ordinal_positions": {},
+    "languages": {"english": "en", "german": "de"},
+    "issues": [],
+}
 
 PT_ROWS = [
     {
@@ -169,6 +180,16 @@ def participant_setup(tmp_path: Path, monkeypatch) -> tuple[object, Path]:
 
     collection = FakeCollection()
     collection.sessions = sessions
+    monkeypatch.setattr(
+        participant_table,
+        "find_questionnaire_files",
+        lambda *_args, **_kwargs: (Path("questions.xlsx"), Path("languages.xlsx")),
+    )
+    monkeypatch.setattr(
+        participant_table,
+        "build_mapping",
+        lambda *_args, **_kwargs: PQ_MAPPING,
+    )
     for key, value in {
         "_loaded": True,
         "DATASET_DIR": dataset_dir,
@@ -216,7 +237,7 @@ def grouped(participants_payload) -> dict:
         ),
         ("pq_gender", "female"),
         ("pq_age", 24),
-        ("pq_native_language_1", "English"),
+        ("pq_native_language_1", "en"),
         ("pq_bi_monolingualism", "monolingual"),
     ],
 )
@@ -262,7 +283,7 @@ def test_pq_only_participant(participants_payload) -> None:
     assert pq_only["source_pids"] == ["003"]
     assert pq_only["session_ids"] == []
     assert pq_only["psychometric_session_ids"] == []
-    assert pq_only["pq_native_language_1"] == "English"
+    assert pq_only["pq_native_language_1"] == "en"
     assert "psychometric_tests" not in pq_only
 
 

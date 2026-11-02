@@ -140,13 +140,6 @@ def _is_missing(value: object) -> bool:
         return False
 
 
-def _first_value(*values: object) -> object:
-    for value in values:
-        if not _is_missing(value):
-            return value
-    return None
-
-
 def _number(value: object) -> float | None:
     if isinstance(value, bool):
         return None
@@ -433,19 +426,14 @@ def _pq_values(
         from ..utils.fix_questionnaire_data import remap_wrong_pq_values
 
         pq = remap_wrong_pq_values(pq)
-    if mapping is None:
-        return pq
-    return {**pq, **normalise_pq(pq, mapping)["values"]}
+    return normalise_pq(pq, mapping or {})["values"]
 
 
 def _pq_columns(pq: dict) -> dict:
-    result = {
-        field: _first_value(pq.get(field), pq.get(field.removeprefix("pq_")))
-        for field in PQ_BASE_FIELDS
-    }
+    result = {field: pq.get(field) for field in PQ_BASE_FIELDS}
     result["pq_bi_monolingualism"] = _bi_monolingualism_from_pq(pq)
     for slot in LANGUAGE_SLOTS:
-        result[f"pq_{slot}"] = _first_value(pq.get(slot), pq.get(f"pq_raw_{slot}"))
+        result[f"pq_{slot}"] = pq.get(f"pq_{slot}")
     reading_times = {}
     for slot in LANGUAGE_SLOTS:
         values = {}
