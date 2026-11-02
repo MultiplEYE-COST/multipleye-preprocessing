@@ -40,6 +40,63 @@ curated from Codebook v1.1 and the source forms.
 `display_group_members.csv` defines which variables belong to each display group. A variable can
 belong to several groups.
 
+### How display groups work across views
+
+The codebook has five views. Each view has a key:
+
+| View | Key field |
+| --- | --- |
+| dataset | `data_collection_name` |
+| session | `session_identifier` |
+| trial | `trial_id` |
+| participant | `participant_id` |
+| item | `text_id` |
+
+A display group is a set of `variable_id` values. When EyeStore shows a view, it displays only the
+group members whose `view_level` matches that view. Members from other views are ignored.
+
+The scope of a group is derived from its members. There is no separate view column. A group that
+has members in several views is a cross-view preset. A group that has members in one view is a
+single-view preset.
+
+Every group must include the key of every view it covers. This keeps the table readable after a
+view switch. For example, the `quality` group covers dataset, session and trial, so it contains
+`dataset.data_collection_name`, `session.session_identifier` and `trial.trial_id`. When the user
+switches from session to trial, the session key is dropped and the trial key is shown.
+
+If a group has no member in the active view, the group does not apply. EyeStore should not offer it
+for that view and should fall back to `default`. `default` contains one key for every view, so it
+always applies.
+
+The current groups are:
+
+| Group | Views | Purpose |
+| --- | --- | --- |
+| `default` | all | View keys, the universal fallback |
+| `collection` | dataset | Collection identity, language and coverage |
+| `provenance` | dataset | Codebook, pipeline and environment |
+| `reading` | dataset, session, trial, item | Reading time and text size |
+| `quality` | dataset, session, trial | Calibration, validation and data loss |
+| `comprehension` | dataset, session, trial, item | Scores, questions and answers |
+| `hardware` | dataset, session | Eye tracker and display setup |
+| `stimulus` | dataset, trial, item | Stimulus identity and text properties |
+| `annotations` | dataset, item | Annotation availability and package |
+| `participant_profile` | participant | Demographics and questionnaire answers |
+| `participant_psychometrics` | participant | Psychometric test scores |
+
+### Adding a display group
+
+1. Add a row to `display_groups.csv` with a unique `group_id`, a label, a description, an integer
+   `order` and a boolean `default`. Only one group may be the default.
+2. Add the members to `display_group_members.csv`.
+3. Include the key of every view the group covers.
+4. Keep the comparison meaningful. A dataset mean, a session value and a trial value can belong to
+   the same cross-view group when they describe the same concept at different levels.
+5. Run `uv run python -m preprocessing.scripts.build_codebook --check`.
+
+Validation checks that every group has at least one member, that exactly one group is the default,
+and that every covered view has its key in the group.
+
 `semantic_categories.csv` defines the one semantic category assigned to each variable.
 
 ## Why CSV

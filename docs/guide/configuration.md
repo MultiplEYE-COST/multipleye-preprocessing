@@ -62,8 +62,9 @@ Settings are divided into user-configurable parameters and internal constants.
   `data/[DATA_COLLECTION_NAME]/participant_questionnaire_*/` or under
   `documentation/questionnaire/` and are copied to
   `[OUTPUT_DIR]/documentation/questionnaire/` together with the generated
-  `pq_codebook.yaml` and `pq_mapping_<lang>.yaml`. With fallback enabled, language fields stay
-  in the data collection language instead of being mapped to ISO 639-1.
+  `pq_codebook.yaml` and `pq_mapping_<lang>.yaml`. With fallback enabled, processing continues with a
+  warning. Questionnaire fields that cannot be mapped to canonical codes stay empty in the
+  participant view, and raw answers remain in the source JSON.
 - `PARTICIPANT_GROUPS` (`participant_groups`): optional groups for merging different PIDs into
   one participant row or restricting a group to specific session IDs. Labels must be unique
   3-digit IDs. See {ref}`participants_table`.

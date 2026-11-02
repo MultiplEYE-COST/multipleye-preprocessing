@@ -29,10 +29,11 @@ of this page.
 ## Conventions
 
 - Section and field names are lowercase `snake_case`.
-- Units are part of the field name when the value has a physical unit: `_ms` (milliseconds),
-  `_s` (seconds), `_hz` (hertz), `_px` (pixels), `_cm` (centimetres), `_dva` (degrees of visual
-  angle), `_year` and `_days`. The codebook `unit` column repeats that unit. Counts, ratios,
-  scores and identifiers have no unit.
+- Units are part of the field name when the value has a physical unit. Examples are `_ms`
+  (milliseconds), `_s` and `_sec` (seconds), `_hz` (hertz), `_px` (pixels), `_cm` (centimetres),
+  `_dva` (degrees of visual angle), `_wpm` (words per minute), `_year` and `_days`. The codebook
+  `unit` column repeats that unit. The canonical suffix list lives in
+  `preprocessing/metadata/vocabulary.py`. Counts, ratios, scores and identifiers have no unit.
 - Categorical and boolean fields declare canonical codes in `allowed_values` and display labels
   in `value_labels`. Labels use `code=label` pairs separated by ` | `. Boolean fields use
   `true,false`.
