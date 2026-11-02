@@ -9,7 +9,7 @@ import sys
 import tempfile
 import warnings
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, date, datetime
 from functools import partial
@@ -40,6 +40,7 @@ from ..checks.formal_experiment_checks import (
     sanity_check_gaze_frame,
 )
 from ..config import settings
+from ..metadata.availability import AvailabilityValue
 from ..metadata.codebook import load_codebook_identity
 from ..metadata.codebook import write_codebook_outputs as write_codebook_package
 from ..metadata.language_tree import language_node_overview
@@ -1550,11 +1551,30 @@ class MultipleyeDataCollection:
 
         return overview
 
-    def write_codebook_outputs(self, path: str | Path) -> Path | None:
-        """Write the codebook package, environment and generated bundle."""
+    def write_codebook_outputs(
+        self,
+        path: str | Path,
+        availability: Mapping[str, AvailabilityValue] | None = None,
+    ) -> Path | None:
+        """Write the codebook package, environment and generated bundle.
+
+        Parameters
+        ----------
+        path : str or Path
+            Processed data collection directory.
+        availability : Mapping[str, AvailabilityValue], optional
+            Per collection availability overrides keyed by ``variable_id``. Fields
+            without an entry default to available.
+
+        Returns
+        -------
+        Path or None
+            Destination codebook directory, or None when the source package is
+            absent.
+        """
         environment = self._get_processing_environment()
         environment["pipeline_version"] = self._get_pipeline_version()
-        return write_codebook_package(path, environment)
+        return write_codebook_package(path, environment, availability=availability)
 
     @staticmethod
     def _get_pipeline_version() -> str | None:

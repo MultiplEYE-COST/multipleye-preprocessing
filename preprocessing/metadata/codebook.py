@@ -8,10 +8,16 @@ import json
 import logging
 import shutil
 import zipfile
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from preprocessing.metadata.schema import validate_codebook_package
+from preprocessing.metadata.availability import (
+    AvailabilityValue,
+    build_availability_rows,
+    write_availability,
+)
+from preprocessing.metadata.schema import read_fields, validate_codebook_package
 
 __all__ = [
     "CODEBOOK_DIR",
@@ -108,6 +114,7 @@ def write_codebook_outputs(
     output_dir: Path | str,
     environment: dict[str, Any],
     codebook_dir: Path | str | None = None,
+    availability: Mapping[str, AvailabilityValue] | None = None,
 ) -> Path | None:
     """Copy the codebook package and write the generated bundle.
 
@@ -121,11 +128,22 @@ def write_codebook_outputs(
         Pipeline, edf2asc, Python and pymovements versions.
     codebook_dir : Path or str, optional
         Source codebook package. Defaults to the repository ``codebook/`` folder.
+    availability : Mapping[str, AvailabilityValue], optional
+        Per collection availability overrides keyed by ``variable_id``. A value
+        is a state, a ``(state, reason)`` tuple or a mapping with ``available``
+        and ``reason`` keys. Fields without an entry default to available. The
+        written file always contains one row for every field in ``fields.csv``.
 
     Returns
     -------
     Path or None
         Destination codebook directory, or None when the source package is absent.
+
+    Raises
+    ------
+    CodebookValidationError
+        If the source package is invalid or the availability overrides are
+        invalid, for example an unknown field or a missing reason.
     """
     source = Path(codebook_dir or CODEBOOK_DIR)
     if not source.is_dir():
@@ -158,6 +176,13 @@ def write_codebook_outputs(
         writer.writeheader()
         writer.writerows(_environment_rows(codebook_info, environment))
 
+    availability_path = destination / "availability.csv"
+    availability_rows = build_availability_rows(
+        availability,
+        fields=read_fields(source / "fields.csv"),
+    )
+    write_availability(availability_path, availability_rows)
+
     bundle = {
         "codebook": codebook_info,
         "environment": environment,
@@ -174,10 +199,13 @@ def write_codebook_outputs(
     )
 
     archive_path = generated / "codebook_bundle.zip"
-    archive_files = [*copied, root_codebook, environment_path, bundle_path]
-    availability = destination / "availability.csv"
-    if availability.exists():
-        archive_files.append(availability)
+    archive_files = [
+        *copied,
+        root_codebook,
+        environment_path,
+        availability_path,
+        bundle_path,
+    ]
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in archive_files:
             archive.write(path, path.relative_to(output))
