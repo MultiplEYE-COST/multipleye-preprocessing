@@ -530,7 +530,7 @@ class Settings:
         self.STIMULUS_COL = "stimulus"
 
         #: Column name for the word index.
-        self.WORD_IDX_COL = "word_idx"
+        self.WORD_IDX_COL = "unit_of_analysis_idx"
 
         #: Column name for the character index.
         self.CHAR_IDX_COL = "char_idx"

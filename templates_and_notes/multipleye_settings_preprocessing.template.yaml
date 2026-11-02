@@ -204,5 +204,5 @@ trial_cols: ["trial", "stimulus", "page"]
 trial_col: "trial"
 page_col: "page"
 stimulus_col: "stimulus"
-word_idx_col: "word_idx"
+word_idx_col: "unit_of_analysis_idx"
 char_idx_col: "char_idx"
