@@ -118,7 +118,7 @@ The content fields are `null` when the metadata form is missing or does not cont
 ### `language_node`
 
 The `language_node` section records the selected node of the EyeStore language tree. It is only
-written when `language_node_id` is configured. The section is independent of the ISO language
+written when `language_tree.node_id` is configured. The section is independent of the ISO language
 code, the country code and the language fragment in session identifiers. Do not derive one from
 another.
 
@@ -127,23 +127,47 @@ another.
 | `language_node_id` | str | Stable identifier of the selected node. |
 | `language_node_path` | str, null | Full path from the tree root to the node, for example `indo_european/germanic/german`. |
 | `language_node_label` | str, null | Human readable label of the node. |
-| `language_tree_version` | str, null | Version recorded in the pinned tree snapshot, or the configured version when the snapshot has none. |
-| `language_tree_hash` | str, null | `sha256:` hash of the pinned snapshot file. |
+| `language_tree_version` | str, null | Configured tree version, or the version recorded in the pinned tree snapshot. |
+| `language_tree_hash` | str, null | Configured tree hash, or the `sha256:` hash of the pinned snapshot file. |
 
-The pipeline does not ship a language tree. Configure `language_node_id`, optionally
-`language_tree_path` and `language_tree_version`, and optionally `language_tree_snapshot` in the
-settings file. When a snapshot path is set, the node is validated before the metadata is written:
+The pipeline does not ship a language tree. Configure the nested `language_tree` block in the
+settings file:
+
+```yaml
+language_tree:
+  node_id: german
+  node_path: indo_european/germanic/german
+  node_label: German
+  version: "2026.10"
+  hash: "sha256:8d1a..."
+  snapshot: null
+```
+
+`node_id` selects the node. All other keys are optional. When no `node_id` is configured, the
+`language_node` section is omitted from the dataset overview and the language node fields stay
+empty in the item view.
+
+When `snapshot` is `null` or absent, the pipeline writes the configured `node_path`,
+`node_label`, `version` and `hash` directly and does not require a tree file. The pipeline still
+works when the configured label or hash is `null`. It logs a warning when a node is configured
+without a snapshot, because the node cannot be checked against the authoritative tree.
+
+When `snapshot` points to a pinned YAML or JSON snapshot, the node is validated before the
+metadata is written:
 
 - the snapshot file must exist and contain a non-empty node list,
 - the selected node id must exist,
 - a configured path must match the path derived from the snapshot,
-- a configured version must match the snapshot version when the snapshot records one.
+- a configured version must match the snapshot version when the snapshot records one,
+- node IDs, labels and path segments must not have leading, trailing or repeated spaces.
+  Single spaces inside a segment are allowed.
 
-Without a snapshot the configured id, path and version are written, while
-`language_node_label` and `language_tree_hash` stay `null`. The exact snapshot format is owned by
-EyeStore. The pipeline currently assumes a YAML or JSON mapping with `version` and `nodes`; each
-node has an `id`, a `label`, and optionally a `parent` and an explicit `path`. The full node path
-is taken from `path` when present and otherwise built from the node ids along the parent chain.
+Missing path, label or hash values are filled from the snapshot. Configured label and hash values
+are kept when they are set. A missing or malformed snapshot raises a clear error instead of
+silently writing unvalidated metadata. The exact snapshot format is owned by EyeStore. The
+pipeline currently assumes a YAML or JSON mapping with `version` and `nodes`; each node has an
+`id`, a `label`, and optionally a `parent` and an explicit `path`. The full node path is taken
+from `path` when present and otherwise built from the node ids along the parent chain.
 
 ### `data_availability`
 
@@ -664,6 +688,9 @@ items:
     tested_language: DE
     language_node_id: german
     language_node_path: indo_european/germanic/german
+    language_node_label: German
+    language_tree_version: "2026.10"
+    language_tree_hash: "sha256:8d1a..."
     language_script: [Latin]
     stimulus_role: experiment
     stimulus_genre: unknown

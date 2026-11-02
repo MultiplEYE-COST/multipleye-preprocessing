@@ -142,6 +142,32 @@ def test_settings_update(settings_obj, update_dict, attr, expected):
     assert getattr(settings_obj, attr) == expected
 
 
+@pytest.mark.parametrize(
+    "block, attr, expected",
+    [
+        ({"node_id": "german"}, "LANGUAGE_NODE_ID", "german"),
+        ({"node_path": "a/b/c"}, "LANGUAGE_TREE_PATH", "a/b/c"),
+        ({"node_label": "German"}, "LANGUAGE_NODE_LABEL", "German"),
+        ({"version": "2026.10"}, "LANGUAGE_TREE_VERSION", "2026.10"),
+        ({"hash": "sha256:abc"}, "LANGUAGE_TREE_HASH", "sha256:abc"),
+        ({"snapshot": "tree.yaml"}, "LANGUAGE_TREE_SNAPSHOT", "tree.yaml"),
+    ],
+)
+def test_settings_nested_language_tree_mapping(settings_obj, block, attr, expected):
+    """The nested language_tree block maps onto flat settings."""
+    settings_obj._loaded = True
+    settings_obj.update({"language_tree": block})
+
+    assert getattr(settings_obj, attr) == expected
+
+
+def test_settings_nested_language_tree_rejects_non_mapping(settings_obj):
+    settings_obj._loaded = True
+
+    with pytest.raises(TypeError, match="language_tree config block"):
+        settings_obj.update({"language_tree": "not a mapping"})
+
+
 def test_settings_load_from_yaml(settings_obj, tmp_path):
     """Test loading settings from a YAML file."""
     config_file = tmp_path / "test_config.yaml"

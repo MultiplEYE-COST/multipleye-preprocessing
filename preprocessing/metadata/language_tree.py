@@ -34,6 +34,38 @@ class LanguageTreeError(ValueError):
     """Raised when a language tree snapshot or selected node is invalid."""
 
 
+def _clean_text(value: object, field: str, source: str) -> str:
+    """Validate one node ID, label or path segment and return it as text."""
+    text = str(value)
+    if text != text.strip():
+        raise LanguageTreeError(
+            f"{source} {field} {text!r} must not have leading or trailing spaces."
+        )
+    if "  " in text or "\t" in text or "\n" in text:
+        raise LanguageTreeError(
+            f"{source} {field} {text!r} must not contain extra spaces."
+        )
+    return text
+
+
+def _clean_path(value: object, field: str, source: str) -> str:
+    """Validate a slash separated path with optional single spaces."""
+    text = _clean_text(value, field, source)
+    if not text:
+        raise LanguageTreeError(f"{source} {field} must not be empty.")
+    if text.startswith("/") or text.endswith("/"):
+        raise LanguageTreeError(
+            f"{source} {field} {text!r} must not start or end with a slash."
+        )
+    for segment in text.split("/"):
+        _clean_text(segment, field, source)
+        if not segment:
+            raise LanguageTreeError(
+                f"{source} {field} {text!r} must not contain empty segments."
+            )
+    return text
+
+
 @dataclass(frozen=True, slots=True)
 class LanguageNode:
     """One resolved node from a pinned language tree snapshot."""
@@ -83,11 +115,15 @@ def _parse_snapshot(payload: Any, source: Path) -> tuple[dict[str, dict], str | 
             raise LanguageTreeError(
                 f"Language tree snapshot {source} node {index} is not a mapping."
             )
-        node_id = str(raw_node.get("id", "")).strip()
-        label = str(raw_node.get("label", "")).strip()
+        node_id = _clean_text(raw_node.get("id", ""), "node id", f"snapshot {source}")
+        label = _clean_text(raw_node.get("label", ""), "label", f"snapshot {source}")
         if not node_id:
             raise LanguageTreeError(
                 f"Language tree snapshot {source} node {index} has no id."
+            )
+        if "/" in node_id:
+            raise LanguageTreeError(
+                f"Language tree snapshot {source} node id {node_id!r} must not contain a slash."
             )
         if not label:
             raise LanguageTreeError(
@@ -98,10 +134,19 @@ def _parse_snapshot(payload: Any, source: Path) -> tuple[dict[str, dict], str | 
                 f"Language tree snapshot {source} has duplicate node id {node_id!r}."
             )
         parent = raw_node.get("parent")
+        parent_text = (
+            _clean_text(parent, "parent id", f"snapshot {source}") if parent else None
+        )
+        explicit_path = raw_node.get("path")
+        path_text = (
+            _clean_path(explicit_path, "path", f"snapshot {source}")
+            if explicit_path not in (None, "")
+            else None
+        )
         nodes[node_id] = {
             "label": label,
-            "parent": str(parent).strip() if parent else None,
-            "path": str(raw_node.get("path", "")).strip() or None,
+            "parent": parent_text,
+            "path": path_text,
         }
 
     for node_id, node in nodes.items():
@@ -180,7 +225,11 @@ def resolve_language_node(
         configured path or version does not match the snapshot.
     """
     loaded_nodes, loaded_version, tree_hash = _load_snapshot(snapshot)
-    selected = str(node_id).strip()
+    selected = _clean_text(node_id, "node id", "configured")
+    if "/" in selected:
+        raise LanguageTreeError(
+            f"Configured language node id {selected!r} must not contain a slash."
+        )
     if selected not in loaded_nodes:
         available = ", ".join(sorted(loaded_nodes))
         raise LanguageTreeError(
@@ -195,11 +244,13 @@ def resolve_language_node(
         )
 
     path = _node_path(selected, loaded_nodes)
-    if expected_path and expected_path.strip("/") != path.strip("/"):
-        raise LanguageTreeError(
-            f"Language node path {expected_path!r} does not match the pinned "
-            f"snapshot path {path!r} for node {selected!r}."
-        )
+    if expected_path:
+        expected_path = _clean_path(expected_path, "path", "configured")
+        if expected_path != path:
+            raise LanguageTreeError(
+                f"Language node path {expected_path!r} does not match the pinned "
+                f"snapshot path {path!r} for node {selected!r}."
+            )
 
     return LanguageNode(
         node_id=selected,
@@ -215,6 +266,8 @@ def language_node_overview(
     tree_path: str | None = None,
     tree_version: str | None = None,
     snapshot: Path | str | None = None,
+    tree_label: str | None = None,
+    tree_hash: str | None = None,
 ) -> dict[str, str | None] | None:
     """Return the dataset overview block for the configured language node.
 
@@ -231,6 +284,12 @@ def language_node_overview(
         Configured tree version, checked against the snapshot when available.
     snapshot : Path or str, optional
         Path to a pinned language tree snapshot.
+    tree_label : str, optional
+        Configured human readable node label. Used when no snapshot is given,
+        or when the snapshot does not provide one.
+    tree_hash : str, optional
+        Configured tree hash. Used when no snapshot is given, or when the
+        snapshot does not provide one.
 
     Returns
     -------
@@ -240,7 +299,8 @@ def language_node_overview(
     Raises
     ------
     LanguageTreeError
-        If a snapshot is provided and validation fails.
+        If a snapshot is provided and validation fails, or the snapshot is
+        missing or malformed.
     """
     if not node_id:
         return None
@@ -249,14 +309,23 @@ def language_node_overview(
         return {
             "language_node_id": str(node_id),
             "language_node_path": tree_path or None,
-            "language_node_label": None,
+            "language_node_label": tree_label or None,
             "language_tree_version": tree_version or None,
-            "language_tree_hash": None,
+            "language_tree_hash": tree_hash or None,
         }
 
-    return resolve_language_node(
+    resolved = resolve_language_node(
         snapshot,
         node_id,
         expected_path=tree_path,
         expected_version=tree_version,
-    ).to_overview()
+    )
+    if tree_label:
+        tree_label = _clean_text(tree_label, "label", "configured")
+    return {
+        "language_node_id": resolved.node_id,
+        "language_node_path": resolved.path or tree_path or None,
+        "language_node_label": tree_label or resolved.label or None,
+        "language_tree_version": resolved.tree_version,
+        "language_tree_hash": tree_hash or resolved.tree_hash,
+    }
