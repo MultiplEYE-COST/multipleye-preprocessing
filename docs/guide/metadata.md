@@ -94,6 +94,11 @@ data_quality:
 | `lab_number` | int | Lab number within the collection. |
 | `country` | str | Country code. |
 | `tested_language` | str | Tested-language code. |
+| `institution` | str, null | Institution at which the data collection was conducted, from the metadata form. |
+| `contact_name` | str, null | Name of the corresponding contact person, from the metadata form. |
+| `contact_email` | str, null | Email address of the corresponding contact person, from the metadata form. |
+| `script_direction` | str, null | Script direction of the tested language, for example `ltr` or `rtl`, from the lab configuration or metadata form. |
+| `estimated_end_year` | int, null | Estimated year in which the data collection ends, from the lab configuration. |
 
 `session_completeness` contains:
 
@@ -192,8 +197,12 @@ The MultiplEYE pipeline sets all four flags to `true`.
 | --- | --- | --- |
 | `eye_tracker_name_raw` | str | Eye-tracker name exactly as read from the lab configuration. |
 | `eye_tracker_name` | str | Canonical eye-tracker model: `EyeLink 1000`, `EyeLink 1000 Plus`, `EyeLink II` or `EyeLink Portable Duo`. |
+| `eye_tracker_manufacturer` | str, null | Eye-tracker manufacturer from the lab configuration. |
 | `sampling_frequency_hz` | float | Nominal sampling frequency in hertz. |
-| `monitor_name` | str, null | Monitor name from the metadata form. |
+| `camera_system` | str, null | Eye-tracker camera system from the lab configuration. |
+| `operating_system` | str, null | Operating system of the presentation computer from the lab configuration. |
+| `monitor_name` | str, null | Monitor name from the metadata form or lab configuration. |
+| `monitor_resolution` | str, null | Monitor resolution exactly as reported in the lab configuration. |
 | `screen_resolution_width_px` | int | Screen width in pixels. |
 | `screen_resolution_height_px` | int | Screen height in pixels. |
 | `screen_size_width_cm` | float | Physical screen width in centimetres. |
@@ -205,7 +214,11 @@ The MultiplEYE pipeline sets all four flags to `true`.
 | `image_size_height_cm` | float | Physical height of the stimulus image area in centimetres. |
 
 The dataset level records the lab-level setup. Mount, head-stabilization and pupil details
-remain session-level because they can vary by session.
+remain session-level because they can vary by session. `monitor_resolution` preserves the raw
+lab configuration string; the normalized pixel values are in
+`screen_resolution_width_px` and `screen_resolution_height_px`. The administrative and
+technical fields are `null` when the metadata form or lab configuration is missing or does not
+contain the value.
 
 ### `processing`
 

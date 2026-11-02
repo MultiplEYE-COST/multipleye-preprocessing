@@ -126,6 +126,53 @@ def _metadata_form_value(
     return metadata_form.get(legacy_key)
 
 
+def _first_present_value(metadata_form: dict, *paths: tuple[str, ...]) -> object:
+    """Return the first non-empty value for a list of nested metadata paths.
+
+    Parameters
+    ----------
+    metadata_form : dict
+        Parsed metadata form or lab configuration.
+    *paths : tuple[str, ...]
+        Key paths to try in order.
+
+    Returns
+    -------
+    object
+        The first non-empty value, or None when no path provides one.
+    """
+    for path in paths:
+        value: object = metadata_form
+        for key in path:
+            if not isinstance(value, dict):
+                value = None
+                break
+            value = value.get(key)
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _metadata_text(value: object) -> str | None:
+    """Return a scalar or list metadata value as text, or None when empty."""
+    if isinstance(value, dict) or value is None:
+        return None
+    if isinstance(value, (list, tuple, set)):
+        parts = [str(item).strip() for item in value if item not in (None, "")]
+        text = "; ".join(part for part in parts if part)
+        return text or None
+    text = str(value).strip()
+    return text or None
+
+
+def _metadata_year(value: object) -> int | None:
+    """Return a four-digit year from a metadata value, or None."""
+    text = _metadata_text(value)
+    if text is None or not re.fullmatch(r"\d{4}", text):
+        return None
+    return int(text)
+
+
 def _known_version(value: object) -> str | None:
     """Return a version string, mapping missing and ``unknown`` values to None.
 
@@ -1382,6 +1429,105 @@ class MultipleyeDataCollection:
 
         metadata_form = self._load_metadata_form()
         metadata_form_exists = bool(metadata_form)
+        lab_config_form = self._load_lab_config_form()
+
+        contact_information = _first_present_value(
+            metadata_form, ("Contact_information",), ("Contact information",)
+        )
+        if not isinstance(contact_information, dict):
+            contact_information = {}
+        contact_name = _metadata_text(
+            _first_present_value(
+                metadata_form,
+                ("Creators_collection_site", "Name_corresponding_contributor"),
+            )
+        )
+        if contact_name is None:
+            contact_first_name = _metadata_text(contact_information.get("First_name"))
+            contact_last_name = _metadata_text(
+                contact_information.get("Last_name")
+                or contact_information.get("Last name")
+            )
+            contact_name = (
+                " ".join(
+                    part for part in (contact_first_name, contact_last_name) if part
+                )
+                or None
+            )
+        contact_email = _metadata_text(
+            _first_present_value(
+                metadata_form,
+                ("Creators_collection_site", "Contact_corresponding_contributor"),
+                ("Contact_information", "Email"),
+                ("Contact information", "Email"),
+            )
+        )
+        institution = _metadata_text(
+            _first_present_value(
+                metadata_form,
+                ("Location", "Institution"),
+                ("Contact_information", "Affiliation"),
+                ("Contact information", "Affiliation"),
+            )
+        )
+        script_direction = _metadata_text(
+            _first_present_value(
+                lab_config_form, ("Script_direction",), ("Script direction",)
+            )
+            or _first_present_value(
+                metadata_form, ("Script_direction",), ("Script direction",)
+            )
+        )
+        estimated_end_year = _metadata_year(
+            _first_present_value(
+                lab_config_form, ("Estimated_end_year_of_data_collection",)
+            )
+            or _first_present_value(
+                metadata_form, ("Estimated_end_year_of_data_collection",)
+            )
+        )
+        eye_tracker_manufacturer = _metadata_text(
+            _first_present_value(lab_config_form, ("Name_eye-tracker_manufacturer",))
+            or _first_present_value(metadata_form, ("Name_eye-tracker_manufacturer",))
+        )
+        camera_system = _metadata_text(
+            _first_present_value(
+                lab_config_form,
+                ("Specification_camera_system",),
+                ("SpeciÉcation_camera_system",),
+            )
+            or _first_present_value(
+                metadata_form,
+                ("Apparatus_lab_equipment", "Specification_camera_system"),
+                ("Specification_camera_system",),
+                ("SpeciÉcation_camera_system",),
+            )
+        )
+        operating_system = _metadata_text(
+            _first_present_value(lab_config_form, ("Name_computer_operation_system",))
+            or _first_present_value(
+                metadata_form,
+                ("Apparatus_lab_equipment", "Name_computer_operation_system"),
+                ("Name_computer_operation_system",),
+            )
+        )
+        monitor_resolution = _metadata_text(
+            _first_present_value(lab_config_form, ("Monitor_resolution_in_px",))
+            or _first_present_value(
+                metadata_form,
+                ("Apparatus_lab_equipment", "Monitor", "Monitor_resolution_in_px"),
+                ("Monitor_resolution_in_px",),
+            )
+        )
+        monitor_name = _metadata_text(
+            _first_present_value(
+                metadata_form,
+                ("Apparatus_lab_equipment", "Monitor", "Name_monitor"),
+                ("Name_monitor",),
+                ("Monitor_name",),
+            )
+            or _first_present_value(lab_config_form, ("Name_monitor",))
+        )
 
         language_script = _metadata_form_value(
             metadata_form, "Tested_language", "Language_script", "Script"
@@ -1435,6 +1581,11 @@ class MultipleyeDataCollection:
                 "lab_number": self.lab_number,
                 "country": self.country,
                 "tested_language": self.language,
+                "institution": institution,
+                "contact_name": contact_name,
+                "contact_email": contact_email,
+                "script_direction": script_direction,
+                "estimated_end_year": estimated_end_year,
             },
             "language_details": {
                 "metadata_form_exists": metadata_form_exists,
@@ -1457,10 +1608,14 @@ class MultipleyeDataCollection:
             "technical_setup": {
                 "eye_tracker_name_raw": self.eye_tracker_name_raw,
                 "eye_tracker_name": self.eye_tracker_name,
+                "eye_tracker_manufacturer": eye_tracker_manufacturer,
                 "sampling_frequency_hz": getattr(
                     self.lab_configuration, "sampling_frequency_hz", None
                 ),
-                "monitor_name": metadata_form.get("Monitor_name"),
+                "camera_system": camera_system,
+                "operating_system": operating_system,
+                "monitor_name": monitor_name,
+                "monitor_resolution": monitor_resolution,
                 "screen_resolution_width_px": screen_res_w,
                 "screen_resolution_height_px": screen_res_h,
                 "screen_size_width_cm": screen_size_w,
@@ -1654,6 +1809,28 @@ class MultipleyeDataCollection:
         if metadata_path is None:
             return {}
         return load_metadata_form(metadata_path)
+
+    def _load_lab_config_form(self) -> dict:
+        """
+        Load the lab configuration JSON for this data collection, if present.
+
+        The lab configuration is stored next to the stimulus configuration. An
+        empty mapping is returned when no single file can be matched or when the
+        file cannot be parsed.
+
+        Returns
+        -------
+        dict
+            Parsed lab configuration, or an empty dict.
+        """
+        config_dir = self.stimulus_dir / "config"
+        candidates = sorted(config_dir.glob("*_lab_configuration.json"))
+        if len(candidates) != 1:
+            return {}
+        try:
+            return load_metadata_form(candidates[0])
+        except (OSError, ValueError):
+            return {}
 
     def _compute_attrition_rate(self) -> float | None:
         """
