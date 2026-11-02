@@ -3,7 +3,7 @@
 # Metadata YAML Files
 
 The pipeline writes structured metadata alongside the preprocessed data. The metadata is split
-into dataset, session, trial and participant views:
+into dataset, session, trial, participant and item views:
 
 | Level | File | Scope |
 | --- | --- | --- |
@@ -11,6 +11,7 @@ into dataset, session, trial and participant views:
 | Session | `preprocessed_data/<dcn>/metadata/<sid>/<sid>_overview.yaml` | One eye-tracking session: participant context, technical setup, calibration, procedure and quality |
 | Trial | `trials` key inside the session overview | One entry per presented trial, including practice trials |
 | Participant | `preprocessed_data/<dcn>/metadata/participants.yaml` | One entry per participant group: source PIDs, session IDs, questionnaire fields and curated psychometric scores |
+| Item | `preprocessed_data/<dcn>/metadata/items.yaml` and `items.csv` | One entry per language specific stimulus text: stimulus metadata, questions and basic trial aggregates |
 
 `<dcn>` is the data-collection name, for example `MultiplEYE_KL_DK_Copenhagen_1_2026`. `<sid>` is
 the session identifier, for example `048_KL_DK_1_ET1`.
@@ -642,6 +643,127 @@ The `documentation` block appears on every participant entry and points to the f
 `participant_csv` is the relative path `participants.csv`. The note explains that the YAML is a
 curated view and the CSV is the full tabular output.
 
+## Item view
+
+`metadata/items.yaml` contains one entry per language specific stimulus text. The key is
+`text_id`, built with the same convention as the trial view:
+`<stimulus_name>_<lowercase tested language>`, for example `Lit_MagicMountain_de`. The trial
+`text_id` joins the trial view to the item view. The cross-language text concept remains
+`stimulus_id`.
+
+`metadata/items.csv` contains the same item rows in tabular form. List and object fields are
+stored as JSON strings in the CSV. Both files are written at the end of preprocessing, after the
+session overviews and participant outputs.
+
+```yaml
+items:
+  - data_collection_name: MultiplEYE_KL_DK_Copenhagen_1_2026
+    text_id: Lit_MagicMountain_de
+    stimulus_id: 6
+    stimulus_name: Lit_MagicMountain
+    tested_language: DE
+    language_node_id: german
+    language_node_path: indo_european/germanic/german
+    language_script: [Latin]
+    stimulus_role: experiment
+    stimulus_genre: unknown
+    stimulus_structure: unknown
+    num_words: 1012
+    num_chars: 6120
+    num_screens: 7
+    annotation_layers: []
+    annotation_package: unknown
+    familiarity_mean: 1.8
+    familiarity_mode: 2
+    difficulty_mean: 2.4
+    difficulty_mode: 2
+    comprehension_accuracy_mean: 0.78
+    num_participants: 45
+    num_trials: 46
+    questions:
+      - question_id: "6111"
+        item_id: Lit_MagicMountain_6_6111
+        condition: local
+        condition_number: 1
+        question_type: local
+        question_text: What did the mountain do?
+        options:
+          target: The mountain was quiet
+          distractor_a: The mountain was loud
+          distractor_b: The mountain was cold
+          distractor_c: The mountain was green
+```
+
+### Item identity and stimulus fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `data_collection_name` | str | Data collection the item belongs to. Matches `dataset.data_collection_name`. |
+| `text_id` | str | Item key: `<stimulus_name>_<lowercase tested language>`. |
+| `stimulus_id` | int | Numeric stimulus identifier from the stimulus workbook. |
+| `stimulus_name` | str | Stimulus name, for example `Lit_MagicMountain`. |
+| `tested_language` | str | Tested-language code recorded for the session. |
+| `language_script` | list, str | Script or scripts of the tested language from the metadata form. `unknown` when the form or value is absent. |
+| `stimulus_role` | str | Role mapped from the source `stimulus_type`: `experiment`, `practice` or `test`. |
+| `stimulus_genre` | str | Source text genre. The current stimulus workbook does not carry it, so it is `unknown`. |
+| `stimulus_structure` | str | Source text structure. The current stimulus workbook does not carry it, so it is `unknown`. |
+| `num_words` | int | Whitespace-separated words across all stimulus pages. |
+| `num_chars` | int | Characters across all stimulus pages, including spaces. |
+| `num_screens` | int | Number of stimulus pages. |
+
+The `language_node_id`, `language_node_path`, `language_node_label`,
+`language_tree_version` and `language_tree_hash` fields are added to every item only when a
+language node is configured. They follow the same configuration and validation rules as the
+dataset `language_node` section.
+
+### Item annotation availability
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `annotation_layers` | list | Linguistic annotation layers available for the item. Empty in v1 because the annotation layers are not delivered yet. |
+| `annotation_package` | str | Identifier of the annotation package. `unknown` in v1. |
+
+Filtering by an annotation layer selects items that have it. The annotation files themselves are a
+separate download; the item metadata only records availability and the package pointer.
+
+### Item aggregates
+
+Aggregates use all processed trials that match the item `text_id`. Practice items use their own
+practice trials. A value is `null` when no matching trial or no source value exists. The CSV
+stores it as an empty cell.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `familiarity_mean` | float, null | Mean of `familiarity_1` and `familiarity_2` over the matching trials. |
+| `familiarity_mode` | int, float, null | Most frequent familiarity rating over the matching trials. |
+| `difficulty_mean` | float, null | Mean `subjective_difficulty` over the matching trials. |
+| `difficulty_mode` | int, float, null | Most frequent `subjective_difficulty` over the matching trials. |
+| `comprehension_accuracy_mean` | float, null | Mean trial `comprehension_score` over the matching trials. |
+| `num_participants` | int, null | Distinct participants with at least one matching trial. |
+| `num_trials` | int, null | Number of trials that use the item. |
+
+`num_participants` and `num_trials` are `null` when no session provides a trial list. When trial
+data exists, an item without matching trials has `0`.
+
+### Item questions
+
+`questions` is a list of the comprehension questions that belong to the item. It is empty when no
+question source is available. `question_id` is the canonical identifier used by the trial
+`answers` list, so it can join the two views.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `question_id` | str | Canonical question identifier, for example `6111`. |
+| `item_id` | str | Full source item identifier from the question workbook. |
+| `condition` | str | `local`, `bridging`, `global` or `unknown`. |
+| `condition_number` | int | Numeric condition: 1 local, 2 bridging, 3 global. |
+| `question_type` | str | Question type from the question workbook. |
+| `question_text` | str | Question text. |
+| `options` | dict | Answer option texts keyed by `target`, `distractor_a`, `distractor_b` and `distractor_c`. |
+
+The raw question workbook stays in the stimulus folder. The item view carries the question text
+and options so EyeStore can display them without reading the stimulus folder.
+
 ## Known gaps
 
 The emitted schema is complete for the current pipeline. The remaining gaps are tracked in:
@@ -651,10 +773,14 @@ The emitted schema is complete for the current pipeline. The remaining gaps are 
 - DCN data-quality metrics such as `mean_pupil_loss_ratio` and
   `mean_missing_values_ratio` remain blocked on definitions and a data source; see #169
   and #168.
-- The DCN schema does not yet emit linguistic annotations: part-of-speech tags, word
-  length, morphology, dependency relations, surprisal, and reading-measure availability.
-  These depend on the external annotation team; the field list, file format and
-  per-language availability are still open.
+- The item view marks `annotation_layers` as empty and `annotation_package` as `unknown` in v1.
+  It does not yet emit linguistic annotations: part-of-speech tags, word length, morphology,
+  dependency relations, surprisal, or annotation availability beyond the empty layer list. These
+  depend on the external annotation team; the field list, file format and per-language
+  availability are still open.
+- The item view emits `stimulus_genre` and `stimulus_structure` as `unknown` because the current
+  stimulus workbook does not carry either value. The item aggregate definitions may need to be
+  aligned with the final EyeStore definitions.
 - The DCN schema does not yet emit text-summary features such as
   `mean_num_words_per_participant` and per-stimulus word counts. The required field list
   and definitions are still being agreed.
