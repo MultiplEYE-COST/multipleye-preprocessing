@@ -1153,10 +1153,27 @@ class TestLanguageNode:
         monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "leaf")
         monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_PATH", "root/branch/leaf")
         monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_VERSION", "2026.10")
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_LABEL", None)
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_HASH", None)
         monkeypatch.setattr(
             pipeline_settings, "LANGUAGE_TREE_SNAPSHOT", language_snapshot
         )
         return language_snapshot
+
+    @pytest.fixture
+    def configured_language_node_without_snapshot(self, monkeypatch):
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "german")
+        monkeypatch.setattr(
+            pipeline_settings,
+            "LANGUAGE_TREE_PATH",
+            "indo_european/germanic/german",
+        )
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_LABEL", "German")
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_VERSION", "2026.10")
+        monkeypatch.setattr(
+            pipeline_settings, "LANGUAGE_TREE_HASH", "sha256:configured"
+        )
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_SNAPSHOT", None)
 
     def test_no_language_node_configured(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -1188,6 +1205,28 @@ class TestLanguageNode:
         assert data["language_node"] == node
         assert data["administrative"]["tested_language"] == "EN"
         assert data["administrative"]["country"] == "UK"
+
+    def test_language_node_written_without_snapshot(
+        self,
+        dummy_dcn_dir,
+        mock_load_lab_config,
+        mock_pipeline_version,
+        configured_language_node_without_snapshot,
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+
+        assert overview["language_node"] == {
+            "language_node_id": "german",
+            "language_node_path": "indo_european/germanic/german",
+            "language_node_label": "German",
+            "language_tree_version": "2026.10",
+            "language_tree_hash": "sha256:configured",
+        }
+
+        yaml_path = dummy_dcn_dir / "MultiplEYE_EN_UK_London_1_2025_overview.yaml"
+        data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        assert data["language_node"] == overview["language_node"]
 
     def test_invalid_language_node_raises(
         self,

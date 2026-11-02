@@ -1538,6 +1538,8 @@ class MultipleyeDataCollection:
             settings.LANGUAGE_TREE_PATH,
             settings.LANGUAGE_TREE_VERSION,
             settings.LANGUAGE_TREE_SNAPSHOT,
+            settings.LANGUAGE_NODE_LABEL,
+            settings.LANGUAGE_TREE_HASH,
         )
         if language_node:
             overview["language_node"] = language_node
