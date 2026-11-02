@@ -88,6 +88,8 @@ class ComprehensionQuestion:
     distractor_c: str
     image_path: Path
     aoi_image_path: Path
+    condition_no: int | str | None = None
+    question_type: str | None = None
 
 
 @dataclass
@@ -230,6 +232,8 @@ class Stimulus:
                 distractor_c=distractor_c,
                 image_path=question_image_path,
                 aoi_image_path=aoi_qeustion_img_path,
+                condition_no=question_row.get("condition_no"),
+                question_type=question_row.get("question_type"),
             )
             questions.append(question)
 

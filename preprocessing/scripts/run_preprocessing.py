@@ -12,6 +12,7 @@ from preprocessing.checks.quality_thresholds import write_quality_thresholds
 from preprocessing.metrics.data_loss import compute_data_loss
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
+from ..data_collection.item_table import write_item_outputs
 from ..data_collection.participant_table import (
     build_participant_table,
     write_participants_table,
@@ -551,6 +552,7 @@ def run_preprocessing(config_path: str | None = None):
         settings.OUTPUT_DIR / "metadata" / "participants.yaml",
         table=participant_table,
     )
+    write_item_outputs(data_collection, settings.OUTPUT_DIR / settings.METADATA_FOLDER)
 
 
 def main():
