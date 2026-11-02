@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from preprocessing.metadata.schema import CodebookField
 
 __all__ = ["FIELDS"]
@@ -689,4 +691,110 @@ FIELDS = (
         "data_formats",
         "availability",
     ),
+)
+
+_AGGREGATION_OVERRIDES = {
+    "session.experiment_procedure.total_reading_time_s": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "sum",
+        "aggregation_input": "trial.reading_time_ms",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+        "aggregation_notes": "Divide by 1000 to convert milliseconds to seconds.",
+    },
+    "session.experiment_procedure.mean_rt_per_stim_ms": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "mean",
+        "aggregation_input": "trial.reading_time_ms",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "session.experiment_procedure.sd_rt_per_stim_ms": {
+        "aggregation_base_level": "trial",
+        "aggregation_input": "trial.reading_time_ms",
+        "aggregation_behavior": "precomputed_only",
+        "aggregation_notes": "Sample standard deviation is not in the dynamic method list.",
+    },
+    "session.experiment_procedure.total_question_time_ms": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "sum",
+        "aggregation_input": "trial.comprehension_question_time_ms",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "session.experiment_procedure.total_rating_time_ms": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "sum",
+        "aggregation_input": "trial.rating_time_ms",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "session.experiment_procedure.familiarity_1": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "mean",
+        "aggregation_input": "trial.familiarity_1",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "session.experiment_procedure.familiarity_2": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "mean",
+        "aggregation_input": "trial.familiarity_2",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "session.experiment_procedure.subjective_difficulty": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "mean",
+        "aggregation_input": "trial.subjective_difficulty",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "session.comprehension.avg_comprehension_score": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "weighted_mean",
+        "aggregation_input": "trial.comprehension_score",
+        "aggregation_weight": "trial.num_questions",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "session.comprehension.avg_comprehension_score_local": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "weighted_mean",
+        "aggregation_input": "trial.comprehension_score_local",
+        "aggregation_weight": "trial.num_questions_local",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "session.comprehension.avg_comprehension_score_global": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "weighted_mean",
+        "aggregation_input": "trial.comprehension_score_global",
+        "aggregation_weight": "trial.num_questions_global",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "session.comprehension.avg_comprehension_score_bridging": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "weighted_mean",
+        "aggregation_input": "trial.comprehension_score_bridging",
+        "aggregation_weight": "trial.num_questions_bridging",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "session.experiment_procedure.num_completed_trials": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "count",
+        "aggregation_input": "trial.trial_id",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+        "aggregation_notes": "Count experiment trials and exclude practice trials.",
+    },
+    "session.data_quality.session_total_data_loss_ratio": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "weighted_mean",
+        "aggregation_input": "trial.data_loss_ratio",
+        "aggregation_weight": "trial.trial_duration_ms",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "session.data_quality.session_blink_loss_ratio": {
+        "aggregation_base_level": "trial",
+        "aggregation_method": "weighted_mean",
+        "aggregation_input": "trial.blink_ratio",
+        "aggregation_weight": "trial.trial_duration_ms",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+}
+
+FIELDS = tuple(
+    replace(field, **(_AGGREGATION_OVERRIDES.get(field.variable_id, {})))
+    for field in FIELDS
 )

@@ -130,6 +130,28 @@ uv run python -m preprocessing.scripts.build_codebook --write
 The validator checks field identifiers, view levels, YAML paths, semantic categories,
 display group members, relations and aggregation references.
 
+## Dynamic aggregation
+
+Aggregate fields declare how EyeStore can recompute them after filtering. The declaration uses the
+`aggregation_*` columns in `fields.csv`:
+
+* `aggregation_base_level`
+* `aggregation_method`
+* `aggregation_input`
+* `aggregation_weight`
+* `aggregation_denominator`
+* `aggregation_behavior`
+* `aggregation_notes`
+* `dynamic_equivalent`
+
+`aggregation_behavior` is one of `recompute_from_filtered_rows`, `precomputed_only`, `static` or
+`not_applicable`. A field marked `recompute_from_filtered_rows` must declare its base level, method
+and input. A `weighted_mean` field must also declare a weight.
+
+The precomputed values stay in the YAML files for download and offline use. EyeStore recomputes
+only when a filter requires it. Session aggregates use trials as the base level. Dataset aggregates
+use sessions. Item aggregates use trials.
+
 ## Pipeline connection
 
 The pipeline code registers output fields. A build step merges those registrations with the

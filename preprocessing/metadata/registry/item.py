@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from preprocessing.metadata.schema import CodebookField
 
 __all__ = ["FIELDS"]
@@ -420,4 +422,35 @@ FIELDS = (
         "stimuli",
         "comprehension",
     ),
+)
+
+_AGGREGATION_OVERRIDES = {
+    "item.familiarity_mean": {
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "item.familiarity_mode": {
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "item.difficulty_mean": {
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "item.difficulty_mode": {
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "item.comprehension_accuracy_mean": {
+        "aggregation_method": "weighted_mean",
+        "aggregation_weight": "trial.num_questions",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "item.num_participants": {
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "item.num_trials": {
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+}
+
+FIELDS = tuple(
+    replace(field, **(_AGGREGATION_OVERRIDES.get(field.variable_id, {})))
+    for field in FIELDS
 )
