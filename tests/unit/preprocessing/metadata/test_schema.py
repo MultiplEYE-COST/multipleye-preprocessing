@@ -18,6 +18,7 @@ from preprocessing.metadata.schema import (
     CodebookValidationError,
     read_fields,
     validate_codebook_package,
+    validate_fields,
     write_fields,
 )
 from preprocessing.scripts.build_codebook import build_fields, main
@@ -228,3 +229,42 @@ def test_write_codebook_outputs_rejects_invalid_package(tmp_path: Path) -> None:
 
     with pytest.raises(CodebookValidationError, match="description is required"):
         write_codebook_outputs(tmp_path / "output", {}, codebook_dir=target)
+
+
+def test_recompute_field_requires_method_and_input() -> None:
+    field = CodebookField(
+        variable_id="session.example_aggregate",
+        view_level="session",
+        variable_name="example_aggregate",
+        feature_label="Example aggregate",
+        description="Example aggregate",
+        data_type="number",
+        semantic_category="administrative",
+        aggregation_behavior="recompute_from_filtered_rows",
+    )
+
+    issues = validate_fields([field], ["administrative"])
+
+    assert "aggregation_base_level is required" in "\n".join(issues)
+    assert "aggregation_method is required" in "\n".join(issues)
+    assert "aggregation_input is required" in "\n".join(issues)
+
+
+def test_weighted_mean_requires_weight() -> None:
+    field = CodebookField(
+        variable_id="session.example_weighted",
+        view_level="session",
+        variable_name="example_weighted",
+        feature_label="Example weighted mean",
+        description="Example weighted mean",
+        data_type="number",
+        semantic_category="administrative",
+        aggregation_base_level="trial",
+        aggregation_method="weighted_mean",
+        aggregation_input="trial.comprehension_score",
+        aggregation_behavior="recompute_from_filtered_rows",
+    )
+
+    issues = validate_fields([field], ["administrative"])
+
+    assert "aggregation_weight is required for weighted_mean" in "\n".join(issues)

@@ -329,3 +329,100 @@ def test_registry_paths_have_unique_field_ids(
 
     assert len(paths) == len(set(paths))
     assert len(ids) == len(set(ids))
+
+
+@pytest.mark.parametrize(
+    ("variable_id", "base", "method", "input_fields", "weight", "denominator"),
+    [
+        (
+            "session.comprehension.avg_comprehension_score",
+            "trial",
+            "weighted_mean",
+            "trial.comprehension_score",
+            "trial.num_questions",
+            "",
+        ),
+        (
+            "session.experiment_procedure.total_reading_time_s",
+            "trial",
+            "sum",
+            "trial.reading_time_ms",
+            "",
+            "",
+        ),
+        (
+            "session.data_quality.session_total_data_loss_ratio",
+            "trial",
+            "weighted_mean",
+            "trial.data_loss_ratio",
+            "trial.trial_duration_ms",
+            "",
+        ),
+        (
+            "dataset.data_quality.mean_comprehension_score",
+            "session",
+            "mean",
+            "session.comprehension.avg_comprehension_score",
+            "",
+            "",
+        ),
+        (
+            "dataset.data_quality.mean_wpm",
+            "session",
+            "ratio",
+            "item.num_words,session.experiment_procedure.total_reading_time_s",
+            "",
+            "session.experiment_procedure.total_reading_time_s",
+        ),
+        (
+            "item.comprehension_accuracy_mean",
+            "trial",
+            "weighted_mean",
+            "trial.comprehension_score",
+            "trial.num_questions",
+            "",
+        ),
+        (
+            "item.num_trials",
+            "trial",
+            "count",
+            "trial.trial_id",
+            "",
+            "",
+        ),
+    ],
+)
+def test_dynamic_aggregation_declarations(
+    variable_id: str,
+    base: str,
+    method: str,
+    input_fields: str,
+    weight: str,
+    denominator: str,
+) -> None:
+    field = next(
+        field for field in iter_registry_fields() if field.variable_id == variable_id
+    )
+
+    assert field.aggregation_behavior == "recompute_from_filtered_rows"
+    assert field.aggregation_base_level == base
+    assert field.aggregation_method == method
+    assert field.aggregation_input == input_fields
+    assert field.aggregation_weight == weight
+    assert field.aggregation_denominator == denominator
+
+
+def test_every_recompute_field_has_method_input_and_base_level() -> None:
+    fields = [
+        field
+        for field in iter_registry_fields()
+        if field.aggregation_behavior == "recompute_from_filtered_rows"
+    ]
+
+    assert fields
+    for field in fields:
+        assert field.aggregation_base_level
+        assert field.aggregation_method
+        assert field.aggregation_input
+        if field.aggregation_method == "weighted_mean":
+            assert field.aggregation_weight

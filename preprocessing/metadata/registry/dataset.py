@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from preprocessing.metadata.schema import CodebookField
 
 __all__ = ["FIELDS"]
@@ -1005,4 +1007,114 @@ FIELDS = (
         "warnings",
         "provenance",
     ),
+)
+
+_AGGREGATION_OVERRIDES = {
+    "dataset.administrative.number_of_sessions": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "count",
+        "aggregation_input": "session.session_identifier",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+        "aggregation_notes": "Count non-pilot sessions.",
+    },
+    "dataset.data_quality.attrition_rate": {
+        "aggregation_base_level": "session",
+        "aggregation_behavior": "precomputed_only",
+        "aggregation_notes": "Requires the crashed-session flag, which is not available for dynamic recomputation.",
+    },
+    "dataset.data_quality.mean_calibration_error_dva": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.calibration_validation.avg_calibration_error_dva",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "dataset.data_quality.mean_validation_error_dva": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.calibration_validation.avg_validation_error_dva",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "dataset.data_quality.mean_rt_per_stim_ms": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.experiment_procedure.mean_rt_per_stim_ms",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "dataset.data_quality.mean_total_question_time_ms": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.experiment_procedure.total_question_time_ms",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "dataset.data_quality.mean_total_rating_time_ms": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.experiment_procedure.total_rating_time_ms",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "dataset.data_quality.mean_data_loss_ratio": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.data_quality.session_total_data_loss_ratio",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "dataset.data_quality.mean_blink_ratio": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.data_quality.session_blink_loss_ratio",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "dataset.data_quality.mean_total_reading_time_s": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.experiment_procedure.total_reading_time_s",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "dataset.data_quality.mean_total_session_duration_s": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.experiment_procedure.total_session_duration_s",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+    },
+    "dataset.data_quality.mean_wpm": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "ratio",
+        "aggregation_input": "item.num_words,session.experiment_procedure.total_reading_time_s",
+        "aggregation_denominator": "session.experiment_procedure.total_reading_time_s",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+        "aggregation_notes": "Words per minute: total words divided by total reading seconds multiplied by 60.",
+    },
+    "dataset.data_quality.mean_comprehension_score": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.comprehension.avg_comprehension_score",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+        "aggregation_notes": "Equal session weight.",
+    },
+    "dataset.data_quality.mean_comprehension_score_local": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.comprehension.avg_comprehension_score_local",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+        "aggregation_notes": "Equal session weight.",
+    },
+    "dataset.data_quality.mean_comprehension_score_global": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.comprehension.avg_comprehension_score_global",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+        "aggregation_notes": "Equal session weight.",
+    },
+    "dataset.data_quality.mean_comprehension_score_bridging": {
+        "aggregation_base_level": "session",
+        "aggregation_method": "mean",
+        "aggregation_input": "session.comprehension.avg_comprehension_score_bridging",
+        "aggregation_behavior": "recompute_from_filtered_rows",
+        "aggregation_notes": "Equal session weight.",
+    },
+}
+
+FIELDS = tuple(
+    replace(field, **(_AGGREGATION_OVERRIDES.get(field.variable_id, {})))
+    for field in FIELDS
 )

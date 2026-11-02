@@ -247,6 +247,19 @@ def validate_fields(
             issues.append(
                 f"{label}: unknown aggregation_behavior {field.aggregation_behavior!r}"
             )
+        if field.aggregation_behavior == "recompute_from_filtered_rows":
+            for column in (
+                "aggregation_base_level",
+                "aggregation_method",
+                "aggregation_input",
+            ):
+                if not getattr(field, column):
+                    issues.append(
+                        f"{label}: {column} is required for "
+                        "recompute_from_filtered_rows"
+                    )
+        if field.aggregation_method == "weighted_mean" and not field.aggregation_weight:
+            issues.append(f"{label}: aggregation_weight is required for weighted_mean")
         for column in (
             "aggregation_input",
             "aggregation_weight",
