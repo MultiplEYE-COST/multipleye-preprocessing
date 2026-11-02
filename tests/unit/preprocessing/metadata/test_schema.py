@@ -333,3 +333,15 @@ def test_unit_is_required_for_a_unit_suffix() -> None:
     issues = validate_fields([field], ["administrative"])
 
     assert "is required by the field name suffix" in "\n".join(issues)
+
+
+def test_display_groups_have_members_and_one_default() -> None:
+    groups = _read_csv(CODEBOOK_DIR / "display_groups.csv")
+    members = _read_csv(CODEBOOK_DIR / "display_group_members.csv")
+
+    group_ids = {group["group_id"] for group in groups}
+    member_ids = {member["group_id"] for member in members}
+    defaults = [group for group in groups if group["default"].lower() in {"true", "1"}]
+
+    assert group_ids == member_ids
+    assert len(defaults) == 1
