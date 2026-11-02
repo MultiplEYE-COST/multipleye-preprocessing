@@ -8,6 +8,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, fields
 from pathlib import Path
 
+from preprocessing.metadata.vocabulary import parse_value_labels, unit_for_name
+
 __all__ = [
     "AGGREGATION_BEHAVIORS",
     "AGGREGATION_METHODS",
@@ -174,6 +176,53 @@ def _split_references(value: str) -> list[str]:
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
+def _validate_value_metadata(field: CodebookField, label: str) -> list[str]:
+    """Return issues with the allowed values, labels and unit of a field."""
+    issues: list[str] = []
+    allowed = _split_references(field.allowed_values)
+
+    if field.allowed_values:
+        raw_values = field.allowed_values.split(",")
+        if any(value != value.strip() for value in raw_values):
+            issues.append(f"{label}: allowed_values must not contain extra whitespace")
+        if len(allowed) != len(set(allowed)):
+            issues.append(f"{label}: allowed_values contains duplicates")
+
+    if field.data_type == "boolean" and not field.allowed_values:
+        issues.append(f"{label}: boolean fields must declare allowed_values")
+
+    if field.value_labels:
+        if not field.allowed_values:
+            issues.append(f"{label}: value_labels requires allowed_values")
+        else:
+            labels = parse_value_labels(field.value_labels)
+            if labels is None:
+                issues.append(
+                    f"{label}: value_labels must use code=label pairs "
+                    "separated by ' | '"
+                )
+            elif set(labels) != set(allowed):
+                issues.append(f"{label}: value_labels do not match allowed_values")
+
+    suffix_unit = (
+        unit_for_name(field.variable_name)
+        if field.data_type in ("number", "integer")
+        else ""
+    )
+    if suffix_unit:
+        if not field.unit:
+            issues.append(
+                f"{label}: unit {suffix_unit!r} is required by the field name suffix"
+            )
+        elif field.unit != suffix_unit:
+            issues.append(
+                f"{label}: unit {field.unit!r} does not match the field name "
+                f"suffix ({suffix_unit!r})"
+            )
+
+    return issues
+
+
 def _validate_yaml_path(path: str) -> str | None:
     if not path:
         return None
@@ -225,6 +274,7 @@ def validate_fields(
         path_issue = _validate_yaml_path(field.yaml_path)
         if path_issue:
             issues.append(f"{label}: {path_issue}")
+        issues.extend(_validate_value_metadata(field, label))
         if (
             field.aggregation_base_level
             and field.aggregation_base_level not in VIEW_LEVELS

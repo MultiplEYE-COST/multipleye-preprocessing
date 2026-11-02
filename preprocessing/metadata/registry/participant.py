@@ -9,6 +9,9 @@ __all__ = ["FIELDS"]
 _PQ_NUMBER_FIELDS = {
     "pq_age",
     "pq_years_education",
+}
+
+_PQ_BOOLEAN_FIELDS = {
     "pq_years_education_open_ended",
 }
 
@@ -144,7 +147,12 @@ def _label(name: str) -> str:
 
 def _pq_field(name: str) -> CodebookField:
     description = f"Normalized participant questionnaire field {name}."
-    data_type = "number" if name in _PQ_NUMBER_FIELDS else "string"
+    if name in _PQ_BOOLEAN_FIELDS:
+        data_type = "boolean"
+    elif name in _PQ_NUMBER_FIELDS:
+        data_type = "number"
+    else:
+        data_type = "string"
     if name == "pq_bi_monolingualism":
         description = (
             "Language background derived from the distinct native languages: "

@@ -61,6 +61,26 @@ variable name is `eye_tracker_name` and the path is `technical_setup.eye_tracker
 
 `variable_id` is the stable reference used by display groups and relations. It must be unique.
 
+## Value metadata
+
+Three columns describe the values of a field:
+
+* `unit` holds the physical unit, for example `ms`, `cm`, `dva`, `year` or `day`. Units are
+  derived from the field-name suffix where the name carries one. Counts, ratios, scores and
+  identifiers have no unit.
+* `allowed_values` holds the canonical codes for categorical and boolean fields, separated by
+  commas. Boolean fields always use `true,false`.
+* `value_labels` holds the display labels as `code=label` pairs separated by ` | `, for example
+  `male=Male | female=Female`. Every code in `allowed_values` must have exactly one label.
+
+Participant questionnaire fields use the canonical codes from the questionnaire codebook, never
+the localised option text. Language fields have no fixed value list because the ISO 639-1
+inventory is open.
+
+Localised questionnaire labels stay in `documentation/questionnaire/pq_mapping_<lang>.yaml`.
+When the questionnaire workbook is missing, that file may record a fallback and keep raw answers
+in `pq_raw_*`. The codebook does not carry fallback values.
+
 ## Calculation availability
 
 The codebook describes fields. It does not track development progress.
@@ -127,8 +147,8 @@ Update `fields.csv` after adding or changing a registered field:
 uv run python -m preprocessing.scripts.build_codebook --write
 ```
 
-The validator checks field identifiers, view levels, YAML paths, semantic categories,
-display group members, relations and aggregation references.
+The validator checks field identifiers, view levels, YAML paths, semantic categories, units,
+allowed values, value labels, display group members, relations and aggregation references.
 
 ## Dynamic aggregation
 

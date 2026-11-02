@@ -5,18 +5,22 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 from preprocessing.metadata.schema import CodebookField
+from preprocessing.metadata.vocabulary import apply_vocabulary
 
 from . import dataset, item, language, participant, session, trial
 
 __all__ = ["REGISTRY_FIELDS", "iter_registry_fields"]
 
-REGISTRY_FIELDS = (
-    *dataset.FIELDS,
-    *language.FIELDS,
-    *session.FIELDS,
-    *trial.FIELDS,
-    *participant.FIELDS,
-    *item.FIELDS,
+REGISTRY_FIELDS = tuple(
+    apply_vocabulary(field)
+    for field in (
+        *dataset.FIELDS,
+        *language.FIELDS,
+        *session.FIELDS,
+        *trial.FIELDS,
+        *participant.FIELDS,
+        *item.FIELDS,
+    )
 )
 
 
