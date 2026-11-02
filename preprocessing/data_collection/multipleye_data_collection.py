@@ -1796,7 +1796,7 @@ class MultipleyeDataCollection:
             Parsed metadata form contents, or an empty dict if the file is
             missing or cannot be matched unambiguously.
         """
-        documentation_dir = self.stimulus_dir.parent / "documentation"
+        documentation_dir = self.data_root.parent / "documentation"
         metadata_path = find_metadata_form(
             documentation_dir,
             self.data_collection_name,
