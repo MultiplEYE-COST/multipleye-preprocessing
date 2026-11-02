@@ -106,7 +106,10 @@ preprocessed_data/{dcn}/
 ├── comp_answers/           # comprehension question answers
 ├── sanity_checks/          # quality reports and plots
 ├── psychometric_tests/     # PT results table (+ merged per-participant table)
+├── codebook/               # CSV codebook package, availability and generated bundles
+├── documentation/          # questionnaire assets and codebook mappings
 ├── participants.csv
+├── codebook.csv            # flat copy of the codebook field table
 ├── {dcn}_overview.yaml
 └── stimuli_{dcn}/          # copy of stimulus assets used
 ```
@@ -116,6 +119,12 @@ preprocessed_data/{dcn}/
 `psychometric_results_{dcn}.csv` (one row per session with all test metrics) and
 `psychometric_results_{dcn}_merged.csv` (sessions merged per participant when tests are
 disjoint). The merged table combines PT1 and PT2 data for the same subject.
+
+**Every run writes the codebook package.** `codebook/` contains `fields.csv`, `views.csv`,
+`relations.csv`, the display group tables, `semantic_categories.csv`, `availability.csv`,
+`environment.csv` and the generated JSON and zip bundles. The root `codebook.csv` is a flat copy
+of `fields.csv` for quick inspection. The display groups are column presets for EyeStore, not data
+filters.
 
 **The dataset overview records how the data was processed.** `{dcn}_overview.yaml` contains a
 `processing_config` section with the algorithm settings used for the run: event-detection

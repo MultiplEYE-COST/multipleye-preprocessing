@@ -1,6 +1,12 @@
 group_id,label,description,order,default
-default,Default view,Common fields shown across views,1,true
-data_quality,Data quality,Administrative fields plus quality metrics,2,false
-comprehension,Comprehension,Comprehension scores and answer fields,3,false
-annotations,Annotations,Annotation availability fields,4,false
-hardware,Hardware,Eye tracker and lab setup fields,5,false
+default,Default view,View keys and common identifiers,1,true
+collection,Collection,Collection identity language and coverage,2,false
+provenance,Provenance,Codebook pipeline and processing environment,3,false
+reading,Reading,Reading time and text size across views,4,false
+quality,Quality,Calibration validation and data loss across views,5,false
+comprehension,Comprehension,Scores questions and answers across views,6,false
+hardware,Hardware,Eye tracker display and tracking settings,7,false
+stimulus,Stimulus,Stimulus identity and text properties across views,8,false
+annotations,Annotations,Annotation availability and package fields,9,false
+participant_profile,Participant profile,Demographics and questionnaire answers,10,false
+participant_psychometrics,Participant psychometrics,Psychometric test availability and scores,11,false

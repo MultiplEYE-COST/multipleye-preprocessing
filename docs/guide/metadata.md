@@ -29,10 +29,11 @@ of this page.
 ## Conventions
 
 - Section and field names are lowercase `snake_case`.
-- Units are part of the field name when the value has a physical unit: `_ms` (milliseconds),
-  `_s` (seconds), `_hz` (hertz), `_px` (pixels), `_cm` (centimetres), `_dva` (degrees of visual
-  angle), `_year` and `_days`. The codebook `unit` column repeats that unit. Counts, ratios,
-  scores and identifiers have no unit.
+- Units are part of the field name when the value has a physical unit. Examples are `_ms`
+  (milliseconds), `_s` and `_sec` (seconds), `_hz` (hertz), `_px` (pixels), `_cm` (centimetres),
+  `_dva` (degrees of visual angle), `_wpm` (words per minute), `_year` and `_days`. The codebook
+  `unit` column repeats that unit. The canonical suffix list lives in
+  `preprocessing/metadata/vocabulary.py`. Counts, ratios, scores and identifiers have no unit.
 - Categorical and boolean fields declare canonical codes in `allowed_values` and display labels
   in `value_labels`. Labels use `code=label` pairs separated by ` | `. Boolean fields use
   `true,false`.
@@ -373,7 +374,7 @@ This is a convenience subset for quick inspection. The curated participant view 
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `gender` | str | Gender answer from the participant questionnaire. |
+| `gender` | str | Canonical gender code from the participant questionnaire, `unknown` when no canonical answer is available. |
 | `bi_monolingualism` | str | `monolingual`, `bilingual` or `multilingual`, derived from the distinct native languages. `unknown` when no native language is recorded. |
 | `psychometric_tests` | list | All psychometric tests with data for this participant. |
 | `tests_conducted_this_session` | list | Tests conducted together with this ET session. |

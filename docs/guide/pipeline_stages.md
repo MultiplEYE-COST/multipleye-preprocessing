@@ -228,7 +228,7 @@ See {ref}`sanity_check_report` for a complete description of every field in the 
 
 **Build the participant-level overview.** This step combines ET sessions, psychometric results
 and participant questionnaires into `participants.csv`, with one row per participant. It applies
-`participant_groups`, keeps the language fields raw, and adds the matched experimenter-sheet
+`participant_groups`, writes canonical ISO 639-1 language codes, and adds the matched experimenter-sheet
 excerpt, the preflight status and a free comment column. See {ref}`participants_table`.
 
 (preprocessing_step_13)=
