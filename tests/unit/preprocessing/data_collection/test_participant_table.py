@@ -9,11 +9,35 @@ import pandas as pd
 import polars as pl
 
 from preprocessing import settings
+from preprocessing.data_collection import participant_table
 from preprocessing.data_collection.experimenter_doc import ExperimenterDoc
 from preprocessing.data_collection.participant_table import (
     _pq_columns,
     build_participant_table,
 )
+
+PQ_MAPPING = {
+    "labels": {
+        "gender": {"female": "female", "male": "male"},
+        "reading_time_bin": {"1_to_3_hours": "1_to_3_hours"},
+    },
+    "ordinal_positions": {},
+    "languages": {"english": "en", "german": "de"},
+    "issues": [],
+}
+
+
+def _patch_pq_mapping(monkeypatch) -> None:
+    monkeypatch.setattr(
+        participant_table,
+        "find_questionnaire_files",
+        lambda *_args, **_kwargs: (Path("questions.xlsx"), Path("languages.xlsx")),
+    )
+    monkeypatch.setattr(
+        participant_table,
+        "build_mapping",
+        lambda *_args, **_kwargs: PQ_MAPPING,
+    )
 
 
 class FakeSession:
@@ -151,6 +175,7 @@ def test_participant_table_union_grouping_docs_and_unassigned(
     collection.experimenter_doc = experimenter_doc
     collection.sessions = sessions
 
+    _patch_pq_mapping(monkeypatch)
     monkeypatch.setitem(settings.__dict__, "_loaded", True)
     monkeypatch.setitem(settings.__dict__, "DATASET_DIR", dataset_dir)
     monkeypatch.setitem(settings.__dict__, "OUTPUT_DIR", output_dir)
@@ -183,7 +208,7 @@ def test_participant_table_union_grouping_docs_and_unassigned(
         "LWMC:partial(MU,OS,SentS); RAN:done; WikiVocab:done"
     )
     assert merged["pq_gender"] == "female"
-    assert merged["pq_native_language_1"] == "English"
+    assert merged["pq_native_language_1"] == "en"
     assert merged["pq_bi_monolingualism"] == "bilingual"
     assert merged["doc_comments"] == "looks good | PT ok"
     assert merged["doc_abortion"] == ""
@@ -194,7 +219,7 @@ def test_participant_table_union_grouping_docs_and_unassigned(
     pq_only = rows["003"]
     assert pq_only["et_session_ids"] == ""
     assert pq_only["pt_tests_status"] == ""
-    assert pq_only["pq_native_language_1"] == "English"
+    assert pq_only["pq_native_language_1"] == "en"
 
     unassigned = rows["6->7"]
     assert unassigned["manual_comments"].startswith("doc sheet PID not parseable")
@@ -211,6 +236,27 @@ def test_participant_table_union_grouping_docs_and_unassigned(
 
 def test_pq_columns_handle_missing_values():
     result = _pq_columns({"gender": pd.NA, "native_language_1": pd.NA})
+
+    assert result["pq_gender"] is None
+    assert result["pq_native_language_1"] is None
+
+
+def test_pq_columns_use_normalised_values_only():
+    result = _pq_columns(
+        {
+            "gender": "femmina",
+            "pq_gender": "female",
+            "native_language_1": "Italiano",
+            "pq_native_language_1": "it",
+        }
+    )
+
+    assert result["pq_gender"] == "female"
+    assert result["pq_native_language_1"] == "it"
+
+
+def test_pq_columns_do_not_fall_back_to_raw_values():
+    result = _pq_columns({"gender": "femmina", "native_language_1": "Italiano"})
 
     assert result["pq_gender"] is None
     assert result["pq_native_language_1"] is None

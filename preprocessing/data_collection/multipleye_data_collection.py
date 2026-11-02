@@ -1478,6 +1478,8 @@ class MultipleyeDataCollection:
                 metadata_form, ("Script_direction",), ("Script direction",)
             )
         )
+        if script_direction:
+            script_direction = script_direction.lower()
         estimated_end_year = _metadata_year(
             _first_present_value(
                 lab_config_form, ("Estimated_end_year_of_data_collection",)
@@ -2236,10 +2238,8 @@ class MultipleyeDataCollection:
                         gap_next = (next_date - et_date).days
 
                 self.sessions[sid_str].participant_info = {
-                    "gender": pq_values.get(
-                        "pq_gender", (pq or {}).get("gender", "unknown")
-                    ),
-                    "bi_monolingualism": _bi_monolingualism_from_pq(pq_values or pq),
+                    "gender": pq_values.get("pq_gender", "unknown"),
+                    "bi_monolingualism": _bi_monolingualism_from_pq(pq_values),
                     "psychometric_tests": sorted(all_pt_tests),
                     "tests_conducted_this_session": sorted(this_tests),
                     "tests_conducted_separate_session": sorted(

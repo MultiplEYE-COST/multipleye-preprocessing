@@ -131,6 +131,16 @@ def test_assign_participant_info(tmp_path: Path, monkeypatch):
 
     monkeypatch.setitem(settings.__dict__, "PSYCHOMETRIC_TESTS_DIR", pt_root)
     monkeypatch.setitem(settings.__dict__, "OUTPUT_DIR", out)
+    monkeypatch.setattr(
+        MultipleyeDataCollection,
+        "_pq_mapping",
+        lambda self: {
+            "labels": {"gender": {"female": "female"}},
+            "ordinal_positions": {},
+            "languages": {"english": "en"},
+            "issues": [],
+        },
+    )
 
     dc = object.__new__(MultipleyeDataCollection)
     dc.sessions = {"001_EN_UK_1_ET1": et1, "001_EN_UK_1_ET2": et2}
