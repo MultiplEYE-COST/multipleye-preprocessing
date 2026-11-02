@@ -382,6 +382,15 @@ class Settings:
         #: a preflight error. True: it becomes a warning and raw values are kept.
         self.ALLOW_PQ_FALLBACK: bool = False
 
+        #: Per collection codebook availability overrides keyed by ``variable_id``.
+        #: A value is an availability state, a two item list of state and reason,
+        #: or a mapping with ``available`` and ``reason`` keys. The v1 annotation
+        #: fields stay unavailable until a collection overrides them.
+        self.AVAILABILITY_OVERRIDES: dict[str, Any] = {
+            "item.annotation_layers": ("false", "annotation_pending"),
+            "item.annotation_package": ("false", "annotation_pending"),
+        }
+
         #: Selected EyeStore language tree node for this data collection. This is
         #: metadata only and does not replace the ISO language code in the name.
         self.LANGUAGE_NODE_ID: str | None = None
@@ -973,6 +982,7 @@ class Settings:
         self.validate_stimulus_versions()
         self.validate_participant_groups()
         self.validate_language_node()
+        self.validate_availability_overrides()
         self._loaded = True
 
     def update(self, config_dict: dict[str, Any]) -> None:
@@ -989,6 +999,17 @@ class Settings:
             # Unpack the nested language_tree block into its flat settings.
             if upper_key == "LANGUAGE_TREE":
                 self._update_language_tree(value)
+                continue
+
+            # Unpack the nested availability block into the override mapping.
+            if upper_key == "AVAILABILITY" and isinstance(value, dict):
+                overrides = value.get("overrides") or {}
+                if not isinstance(overrides, dict):
+                    raise TypeError("availability.overrides must be a mapping")
+                self.AVAILABILITY_OVERRIDES = {
+                    **(self.__dict__.get("AVAILABILITY_OVERRIDES") or {}),
+                    **self._normalize_availability_overrides(overrides),
+                }
                 continue
 
             if upper_key in self.__dict__:
@@ -1148,6 +1169,53 @@ class Settings:
                 "will not be validated. Configure language_tree.snapshot to "
                 "validate the node against the authoritative tree."
             )
+
+    def _normalize_availability_overrides(
+        self, overrides: dict[str, Any]
+    ) -> dict[str, tuple[str, str]]:
+        """Normalize availability overrides into state and reason tuples."""
+        from .metadata.availability import (
+            normalize_availability_entry,
+            validate_availability,
+        )
+
+        normalized: dict[str, tuple[str, str]] = {}
+        issues: list[str] = []
+
+        for variable_id, value in overrides.items():
+            row = normalize_availability_entry(str(variable_id), value)
+            row_issues = validate_availability([row], [row.variable_id])
+            if row_issues:
+                issues.extend(row_issues)
+                continue
+            normalized[row.variable_id] = (row.available, row.reason)
+
+        if issues:
+            raise ValueError(
+                "Invalid availability overrides:\n"
+                + "\n".join(f"* {issue}" for issue in issues)
+            )
+        return normalized
+
+    def validate_availability_overrides(self) -> None:
+        """Normalize and validate ``availability.overrides``.
+
+        The state must be ``true``, ``false`` or ``not_applicable``. A field
+        that is not available needs a known reason. Unknown field identifiers are
+        checked when the codebook package is written, because source form rows
+        are valid override targets.
+
+        Raises
+        ------
+        ValueError
+            If an override uses an invalid state or reason, or omits the reason
+            for an unavailable field.
+        TypeError
+            If the ``availability`` block has an unsupported shape.
+        """
+        self.AVAILABILITY_OVERRIDES = self._normalize_availability_overrides(
+            self.AVAILABILITY_OVERRIDES or {}
+        )
 
     def setup_logging(self, log_file: str | Path | None = None) -> None:
         """Configure logging with separate levels for console and file.

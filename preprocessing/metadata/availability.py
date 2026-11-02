@@ -17,6 +17,7 @@ __all__ = [
     "AvailabilityRow",
     "AvailabilityValue",
     "build_availability_rows",
+    "normalize_availability_entry",
     "read_availability",
     "validate_availability",
     "write_availability",
@@ -33,7 +34,7 @@ AVAILABILITY_REASONS = (
     "external",
 )
 
-AvailabilityValue = str | tuple[str, str] | Mapping[str, str]
+AvailabilityValue = str | bool | tuple[str, str] | list[str] | Mapping[str, str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,30 +63,88 @@ class AvailabilityRow:
         }
 
 
-def _normalize_entry(variable_id: str, value: AvailabilityValue) -> AvailabilityRow:
-    """Normalize a caller supplied availability value into a row."""
+def _state_text(variable_id: str, value: object) -> str:
+    """Normalize an availability state from YAML or Python input."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return value
+    raise TypeError(
+        f"{variable_id}: availability state must be a string or boolean, "
+        f"not {type(value).__name__}"
+    )
+
+
+def _reason_text(variable_id: str, value: object) -> str:
+    """Normalize an availability reason from YAML or Python input."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    raise TypeError(
+        f"{variable_id}: availability reason must be a string, "
+        f"not {type(value).__name__}"
+    )
+
+
+def normalize_availability_entry(
+    variable_id: str,
+    value: AvailabilityValue,
+) -> AvailabilityRow:
+    """Normalize an availability value into a row.
+
+    Parameters
+    ----------
+    variable_id : str
+        Codebook field identifier the value applies to.
+    value : AvailabilityValue
+        Availability state as a string or boolean, a two item list or tuple of
+        state and reason, or a mapping with ``available`` and ``reason`` keys.
+
+    Returns
+    -------
+    AvailabilityRow
+        Normalized availability row.
+
+    Raises
+    ------
+    ValueError
+        If a two item list or tuple does not contain exactly two values.
+    TypeError
+        If the value has an unsupported type.
+    """
+    if isinstance(value, bool):
+        return AvailabilityRow(
+            variable_id=variable_id, available=_state_text(variable_id, value)
+        )
     if isinstance(value, str):
         return AvailabilityRow(variable_id=variable_id, available=value)
-    if isinstance(value, tuple):
+    if isinstance(value, (tuple, list)):
         if len(value) != 2:
             raise ValueError(
                 f"{variable_id}: availability tuple must contain state and reason"
             )
         available, reason = value
         return AvailabilityRow(
-            variable_id=variable_id, available=available, reason=reason
+            variable_id=variable_id,
+            available=_state_text(variable_id, available),
+            reason=_reason_text(variable_id, reason),
         )
     if isinstance(value, Mapping):
-        available = value.get("available", "true")
         return AvailabilityRow(
             variable_id=variable_id,
-            available=available,
-            reason=value.get("reason", ""),
+            available=_state_text(variable_id, value.get("available", "true")),
+            reason=_reason_text(variable_id, value.get("reason", "")),
         )
     raise TypeError(
-        f"{variable_id}: availability value must be a state, a (state, reason) "
-        f"tuple or a mapping, not {type(value).__name__}"
+        f"{variable_id}: availability value must be a state, a two item list, "
+        f"a (state, reason) tuple or a mapping, not {type(value).__name__}"
     )
+
+
+def _normalize_entry(variable_id: str, value: AvailabilityValue) -> AvailabilityRow:
+    """Normalize a caller supplied availability value into a row."""
+    return normalize_availability_entry(variable_id, value)
 
 
 def validate_availability(

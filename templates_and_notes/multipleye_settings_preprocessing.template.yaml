@@ -104,6 +104,25 @@ stimulus_versions:
 #     pids: ["010"]
 #     sessions: ["010_EN_UK_1_ET1"]
 
+# ----------------------- Codebook Availability -----------------------
+# Optional per collection overrides for the codebook availability overlay.
+# The block maps a codebook variable_id to an availability state. A state is
+# "true", "false" or "not_applicable".
+#
+# Use a two item list or a mapping with available and reason when a field is
+# unavailable. A false or not_applicable field needs one of the reasons
+# missing_source, optional_test_not_collected, annotation_pending or external.
+#
+# The v1 annotation fields item.annotation_layers and item.annotation_package
+# are unavailable by default. Override them here when a collection ships
+# annotations.
+availability:
+  overrides:
+    # item.annotation_layers: ["false", annotation_pending]
+    # item.annotation_package:
+    #   available: false
+    #   reason: annotation_pending
+
 # ----------------------- Participant Questionnaire -----------------------
 # The questionnaire question workbook and the language-code workbook are expected
 # in the data collection folder, for example

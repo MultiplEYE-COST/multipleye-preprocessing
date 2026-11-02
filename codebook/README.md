@@ -92,6 +92,23 @@ external
 This keeps the codebook stable across data collections while still showing what was calculated
 and what was not.
 
+The overlay is driven by the `availability` block in the preprocessing configuration for each
+collection. The block maps a `variable_id` to an availability state, or to a state and reason:
+
+```yaml
+availability:
+  overrides:
+    item.annotation_layers: ["false", annotation_pending]
+    trial.trial_id: true
+    participant.pq_age:
+      available: not_applicable
+      reason: optional_test_not_collected
+```
+
+The v1 annotation fields `item.annotation_layers` and `item.annotation_package` default to
+`false` with reason `annotation_pending`. A collection that ships annotations overrides them in
+the same block. Unknown field IDs are rejected when the package is written.
+
 ## Field registry
 
 Output fields are registered in `preprocessing/metadata/registry/`, with one module per view.

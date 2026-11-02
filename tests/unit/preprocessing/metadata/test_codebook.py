@@ -169,6 +169,34 @@ def test_availability_records_explicit_unavailable_fields(
     )
 
 
+@pytest.mark.parametrize(
+    "variable_id",
+    ["item.annotation_layers", "item.annotation_package"],
+)
+def test_availability_writes_annotation_defaults(
+    tmp_path: Path,
+    field_ids: list[str],
+    variable_id: str,
+) -> None:
+    destination = write_codebook_outputs(
+        tmp_path,
+        {},
+        codebook_dir=CODEBOOK_DIR,
+        availability={variable_id: ("false", "annotation_pending")},
+    )
+    assert destination is not None
+
+    rows = read_availability(destination / "availability.csv")
+
+    assert [row.variable_id for row in rows] == field_ids
+    override = next(row for row in rows if row.variable_id == variable_id)
+    assert override.available == "false"
+    assert override.reason == "annotation_pending"
+    assert all(
+        row.available == "true" for row in rows if row.variable_id != variable_id
+    )
+
+
 def test_availability_is_included_in_bundle_archive(written_codebook: Path) -> None:
     archive_path = written_codebook / "generated" / "codebook_bundle.zip"
 

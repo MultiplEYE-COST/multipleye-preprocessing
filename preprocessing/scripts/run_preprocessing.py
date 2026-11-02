@@ -540,7 +540,10 @@ def run_preprocessing(config_path: str | None = None):
             sess.answers = True
 
     data_collection.create_dataset_overview(path=settings.OUTPUT_DIR)
-    data_collection.write_codebook_outputs(settings.OUTPUT_DIR)
+    data_collection.write_codebook_outputs(
+        settings.OUTPUT_DIR,
+        availability=settings.AVAILABILITY_OVERRIDES,
+    )
     participant_table = build_participant_table(data_collection)
     write_participants_table(
         data_collection,
