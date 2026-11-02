@@ -268,3 +268,68 @@ def test_weighted_mean_requires_weight() -> None:
     issues = validate_fields([field], ["administrative"])
 
     assert "aggregation_weight is required for weighted_mean" in "\n".join(issues)
+
+
+def _value_field(**overrides: object) -> CodebookField:
+    values = {
+        "variable_id": "session.example_value",
+        "view_level": "session",
+        "variable_name": "example_value",
+        "feature_label": "Example value",
+        "description": "Example value",
+        "data_type": "string",
+        "semantic_category": "administrative",
+    }
+    values.update(overrides)
+    return CodebookField(**values)
+
+
+def test_boolean_field_requires_allowed_values() -> None:
+    issues = validate_fields([_value_field(data_type="boolean")], ["administrative"])
+
+    assert "boolean fields must declare allowed_values" in "\n".join(issues)
+
+
+def test_value_labels_must_match_allowed_values() -> None:
+    field = _value_field(
+        allowed_values="a,b",
+        value_labels="a=Alpha",
+    )
+
+    issues = validate_fields([field], ["administrative"])
+
+    assert "value_labels do not match allowed_values" in "\n".join(issues)
+
+
+def test_value_labels_must_use_code_label_pairs() -> None:
+    field = _value_field(
+        allowed_values="a,b",
+        value_labels="a=Alpha | broken",
+    )
+
+    issues = validate_fields([field], ["administrative"])
+
+    assert "value_labels must use code=label pairs" in "\n".join(issues)
+
+
+def test_unit_must_match_the_name_suffix() -> None:
+    field = _value_field(
+        variable_name="example_duration_ms",
+        data_type="number",
+        unit="s",
+    )
+
+    issues = validate_fields([field], ["administrative"])
+
+    assert "does not match the field name suffix" in "\n".join(issues)
+
+
+def test_unit_is_required_for_a_unit_suffix() -> None:
+    field = _value_field(
+        variable_name="example_duration_ms",
+        data_type="number",
+    )
+
+    issues = validate_fields([field], ["administrative"])
+
+    assert "is required by the field name suffix" in "\n".join(issues)

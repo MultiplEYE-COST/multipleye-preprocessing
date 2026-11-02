@@ -30,8 +30,15 @@ of this page.
 
 - Section and field names are lowercase `snake_case`.
 - Units are part of the field name when the value has a physical unit: `_ms` (milliseconds),
-  `_s` (seconds), `_hz` (hertz), `_px` (pixels), `_cm` (centimetres) and `_dva` (degrees of visual
-  angle). Counts and scores have no unit suffix.
+  `_s` (seconds), `_hz` (hertz), `_px` (pixels), `_cm` (centimetres), `_dva` (degrees of visual
+  angle), `_year` and `_days`. The codebook `unit` column repeats that unit. Counts, ratios,
+  scores and identifiers have no unit.
+- Categorical and boolean fields declare canonical codes in `allowed_values` and display labels
+  in `value_labels`. Labels use `code=label` pairs separated by ` | `. Boolean fields use
+  `true,false`.
+- Participant questionnaire values are always written as canonical codes. Localised option text
+  stays in `documentation/questionnaire/pq_mapping_<lang>.yaml` and is never copied into the
+  codebook or the participant view. A raw fallback is recorded only in that mapping file.
 - Ratios are fractions between 0 and 1, not percentages. This applies to data loss, blink loss
   and comprehension scores.
 - Dates use `YYYY-MM-DD`. The month of data collection uses the abbreviation from the ASC header,
@@ -615,7 +622,7 @@ participants:
     psychometric_session_ids: ['001_EN_UK_1_PT1', '002_EN_UK_1_PT1']
     pq_gender: female
     pq_age: 24
-    pq_native_language_1: English
+    pq_native_language_1: en
     pq_bi_monolingualism: monolingual
     pq_language_reading_times:
       native_language_1:
@@ -648,9 +655,13 @@ only questionnaire data has an empty `session_ids` and `psychometric_session_ids
 
 Normalized questionnaire fields are flat keys on the participant entry, using the same `pq_*`
 names as `participants.csv`. The fields cover the base questions
-(`pq_gender` to `pq_alcohol_today`), the raw language names per slot
+(`pq_gender` to `pq_alcohol_today`), the ISO 639-1 codes per language slot
 (`pq_native_language_1` to `pq_additional_read_language_4`) and the derived
 `pq_bi_monolingualism`. Missing answers are omitted.
+
+Only canonical codes are written. Localised option text and unresolved answers stay in
+`documentation/questionnaire/pq_mapping_<lang>.yaml` and in the source questionnaire JSON files.
+They are never copied into `participants.yaml` or `participants.csv`.
 
 `pq_language_reading_times` is a mapping keyed by language slot and question, not a JSON string:
 
