@@ -374,7 +374,7 @@ This is a convenience subset for quick inspection. The curated participant view 
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `gender` | str | Gender answer from the participant questionnaire. |
+| `gender` | str | Canonical gender code from the participant questionnaire, `unknown` when no canonical answer is available. |
 | `bi_monolingualism` | str | `monolingual`, `bilingual` or `multilingual`, derived from the distinct native languages. `unknown` when no native language is recorded. |
 | `psychometric_tests` | list | All psychometric tests with data for this participant. |
 | `tests_conducted_this_session` | list | Tests conducted together with this ET session. |

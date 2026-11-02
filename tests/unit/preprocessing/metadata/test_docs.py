@@ -11,10 +11,17 @@ from preprocessing.metadata.schema import VIEW_LEVELS, read_fields
 from preprocessing.metadata.vocabulary import BOOLEAN_ALLOWED_VALUES, unit_for_name
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
+_GUIDE_DOCS = (
+    "metadata.md",
+    "participant_questionnaire.md",
+    "participants.md",
+    "pipeline_stages.md",
+    "technical_architecture.md",
+    "configuration.md",
+)
 DOC_PATHS = (
     CODEBOOK_DIR / "README.md",
-    REPO_ROOT / "docs" / "guide" / "metadata.md",
-    REPO_ROOT / "docs" / "guide" / "participant_questionnaire.md",
+    *(REPO_ROOT / "docs" / "guide" / name for name in _GUIDE_DOCS),
 )
 
 _VARIABLE_ID = re.compile(r"`([a-z_]+\.[A-Za-z0-9_.\[\]]+)`")
@@ -138,3 +145,26 @@ def test_documented_boolean_values_match_the_vocabulary() -> None:
     assert BOOLEAN_ALLOWED_VALUES == "true,false"
     assert "true,false" in readme
     assert "true,false" in guide
+
+
+def test_guides_state_canonical_language_codes() -> None:
+    guide = (REPO_ROOT / "docs" / "guide" / "participants.md").read_text(
+        encoding="utf-8"
+    )
+    stages = (REPO_ROOT / "docs" / "guide" / "pipeline_stages.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "ISO 639-1 codes" in guide
+    assert "kept **raw**" not in guide
+    assert "keeps the language fields raw" not in stages
+
+
+def test_technical_architecture_lists_the_codebook_outputs() -> None:
+    text = (REPO_ROOT / "docs" / "guide" / "technical_architecture.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "codebook/" in text
+    assert "codebook.csv" in text
+    assert "display groups" in text
