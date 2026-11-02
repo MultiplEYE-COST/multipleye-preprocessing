@@ -152,7 +152,11 @@ versions used for that processed data collection. The same information is kept i
 collection YAML.
 
 The `availability.csv` file records which fields were calculated for that collection and why a
-field is unavailable. The data collection YAML records the codebook version and hash.
+field is unavailable. It is written automatically during processing. It contains one row for
+every field in `fields.csv`, so the overlay always covers the full package. Fields default to
+`true`. A collection marks an unavailable field explicitly with `false` or `not_applicable` and a
+reason. The file is included in `codebook_bundle.zip`. The data collection YAML records the
+codebook version and hash.
 
 `codebook_bundle.json` is the single flat codebook file for EyeStore and for FAIR reuse. It
 contains the resolved fields, views, relations, display groups and categories.

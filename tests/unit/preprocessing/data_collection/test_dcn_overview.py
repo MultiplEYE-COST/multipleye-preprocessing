@@ -15,6 +15,7 @@ from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
 )
 from preprocessing.data_collection.session import Session
+from preprocessing.metadata.availability import read_availability
 from preprocessing.metadata.language_tree import LanguageTreeError
 
 
@@ -590,8 +591,28 @@ class TestCodebookOutputs:
         assert (tmp_path / "codebook.csv").exists()
         assert (tmp_path / "codebook" / "codebook_info.csv").exists()
         assert (tmp_path / "codebook" / "environment.csv").exists()
+        assert (tmp_path / "codebook" / "availability.csv").exists()
         assert (tmp_path / "codebook" / "generated" / "codebook_bundle.json").exists()
         assert (tmp_path / "codebook" / "generated" / "codebook_bundle.zip").exists()
+
+    def test_dcn_passes_availability_overrides(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version, tmp_path
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+
+        destination = dc.write_codebook_outputs(
+            tmp_path,
+            availability={"trial.trial_id": ("false", "missing_source")},
+        )
+        assert destination is not None
+
+        rows = {
+            row.variable_id: row
+            for row in read_availability(destination / "availability.csv")
+        }
+
+        assert rows["trial.trial_id"].available == "false"
+        assert rows["trial.trial_id"].reason == "missing_source"
 
 
 class TestYAMLOutput:

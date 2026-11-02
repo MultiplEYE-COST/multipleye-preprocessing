@@ -5,11 +5,31 @@ from pathlib import Path
 
 import pytest
 
+from preprocessing.metadata.availability import (
+    AVAILABILITY_COLUMNS,
+    AvailabilityRow,
+    read_availability,
+)
 from preprocessing.metadata.codebook import (
     CODEBOOK_DIR,
     load_codebook_info,
     write_codebook_outputs,
 )
+from preprocessing.metadata.schema import read_fields
+
+
+@pytest.fixture
+def field_ids() -> list[str]:
+    """Return the field IDs of the canonical codebook package."""
+    return [field.variable_id for field in read_fields(CODEBOOK_DIR / "fields.csv")]
+
+
+@pytest.fixture
+def written_codebook(tmp_path: Path) -> Path:
+    """Write codebook outputs and return the destination codebook folder."""
+    destination = write_codebook_outputs(tmp_path, {}, codebook_dir=CODEBOOK_DIR)
+    assert destination is not None
+    return destination
 
 
 @pytest.mark.parametrize(
@@ -81,7 +101,83 @@ def test_write_codebook_outputs(tmp_path: Path) -> None:
     assert "codebook/environment.csv" in names
     assert "codebook/codebook_info.csv" in names
     assert "codebook/README.md" in names
+    assert "codebook/availability.csv" in names
     assert "codebook/generated/codebook_bundle.json" in names
+
+
+def test_write_codebook_outputs_writes_availability(written_codebook: Path) -> None:
+    assert (written_codebook / "availability.csv").exists()
+
+
+def test_availability_columns(written_codebook: Path) -> None:
+    with (written_codebook / "availability.csv").open(
+        newline="", encoding="utf-8"
+    ) as handle:
+        reader = csv.DictReader(handle)
+
+        assert reader.fieldnames == list(AVAILABILITY_COLUMNS)
+
+
+def test_availability_covers_every_field(
+    written_codebook: Path, field_ids: list[str]
+) -> None:
+    rows = read_availability(written_codebook / "availability.csv")
+
+    assert [row.variable_id for row in rows] == field_ids
+    assert {row.available for row in rows} == {"true"}
+    assert {row.reason for row in rows} == {""}
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (
+            ("false", "missing_source"),
+            AvailabilityRow("trial.trial_id", "false", "missing_source"),
+        ),
+        (
+            {"available": "not_applicable", "reason": "optional_test_not_collected"},
+            AvailabilityRow(
+                "trial.trial_id", "not_applicable", "optional_test_not_collected"
+            ),
+        ),
+    ],
+)
+def test_availability_records_explicit_unavailable_fields(
+    tmp_path: Path,
+    value: str | tuple[str, str] | dict[str, str],
+    expected: AvailabilityRow,
+) -> None:
+    destination = write_codebook_outputs(
+        tmp_path,
+        {},
+        codebook_dir=CODEBOOK_DIR,
+        availability={"trial.trial_id": value},
+    )
+    assert destination is not None
+
+    rows = {
+        row.variable_id: row
+        for row in read_availability(destination / "availability.csv")
+    }
+
+    assert rows["trial.trial_id"] == expected
+    assert all(
+        row.available == "true"
+        for variable_id, row in rows.items()
+        if variable_id != "trial.trial_id"
+    )
+
+
+def test_availability_is_included_in_bundle_archive(written_codebook: Path) -> None:
+    archive_path = written_codebook / "generated" / "codebook_bundle.zip"
+
+    with zipfile.ZipFile(archive_path) as archive:
+        assert "codebook/availability.csv" in archive.namelist()
+        assert (
+            archive.read("codebook/availability.csv")
+            == (written_codebook / "availability.csv").read_bytes()
+        )
 
 
 def test_bundle_matches_csv_package(tmp_path: Path) -> None:
