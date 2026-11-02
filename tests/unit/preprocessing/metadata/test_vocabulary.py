@@ -100,6 +100,14 @@ def test_participant_questionnaire_fields_use_canonical_codes() -> None:
         assert fields[variable_id].allowed_values == ",".join(codes), variable_id
 
 
+def test_script_direction_covers_vertical_scripts() -> None:
+    fields = {field.variable_id: field for field in iter_registry_fields()}
+    field = fields["dataset.administrative.script_direction"]
+
+    assert "ttb" in field.allowed_values
+    assert "ttb=Top to bottom" in field.value_labels
+
+
 def test_language_fields_have_no_fixed_value_list() -> None:
     fields = {field.variable_id: field for field in iter_registry_fields()}
 

@@ -71,6 +71,8 @@ _CATEGORIES: dict[str, dict[str, str]] = {
     "dataset.administrative.script_direction": {
         "ltr": "Left to right",
         "rtl": "Right to left",
+        "ttb": "Top to bottom",
+        "btt": "Bottom to top",
     },
     "participant.pq_bi_monolingualism": {
         "monolingual": "Monolingual",
