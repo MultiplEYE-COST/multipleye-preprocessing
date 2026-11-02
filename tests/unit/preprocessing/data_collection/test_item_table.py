@@ -157,7 +157,9 @@ def no_language_node(monkeypatch) -> None:
     for name in (
         "LANGUAGE_NODE_ID",
         "LANGUAGE_TREE_PATH",
+        "LANGUAGE_NODE_LABEL",
         "LANGUAGE_TREE_VERSION",
+        "LANGUAGE_TREE_HASH",
         "LANGUAGE_TREE_SNAPSHOT",
     ):
         monkeypatch.setattr(settings, name, None, raising=False)
@@ -450,6 +452,32 @@ def test_language_node_fields_when_configured(
     assert item["language_node_label"] is None
     assert item["language_tree_version"] == "v1"
     assert item["language_tree_hash"] is None
+
+
+def test_language_node_fields_without_snapshot(
+    collection: FakeCollection, monkeypatch
+) -> None:
+    monkeypatch.setattr(settings, "LANGUAGE_NODE_ID", "german", raising=False)
+    monkeypatch.setattr(
+        settings,
+        "LANGUAGE_TREE_PATH",
+        "indo_european/germanic/german",
+        raising=False,
+    )
+    monkeypatch.setattr(settings, "LANGUAGE_NODE_LABEL", "German", raising=False)
+    monkeypatch.setattr(settings, "LANGUAGE_TREE_VERSION", "2026.10", raising=False)
+    monkeypatch.setattr(
+        settings, "LANGUAGE_TREE_HASH", "sha256:configured", raising=False
+    )
+    monkeypatch.setattr(settings, "LANGUAGE_TREE_SNAPSHOT", None, raising=False)
+
+    item = build_items_yaml(collection)["items"][0]
+
+    assert item["language_node_id"] == "german"
+    assert item["language_node_path"] == "indo_european/germanic/german"
+    assert item["language_node_label"] == "German"
+    assert item["language_tree_version"] == "2026.10"
+    assert item["language_tree_hash"] == "sha256:configured"
 
 
 def test_item_records_are_sorted_by_text_id(collection: FakeCollection) -> None:

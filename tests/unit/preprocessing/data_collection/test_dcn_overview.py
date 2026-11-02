@@ -123,6 +123,16 @@ def _write_metadata_form(dcn_dir: Path, filename: str, payload: dict) -> Path:
     return path
 
 
+def _write_lab_config(dcn_dir: Path, payload: dict) -> Path:
+    """Write a lab configuration JSON into the stimuli config folder."""
+    config_dir = dcn_dir / f"stimuli_{dcn_dir.name}" / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    path = config_dir / f"{dcn_dir.name}_lab_configuration.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f)
+    return path
+
+
 def _write_raw_metadata_form(dcn_dir: Path, filename: str, content: str) -> Path:
     """Write a metadata form verbatim (for non-strict JSON fixtures)."""
     doc_dir = dcn_dir / "documentation"
@@ -252,6 +262,66 @@ class TestAdministrative:
         assert sc["complete_participants"] == 3
         assert "incomplete_participants" not in sc
         assert "extra_sessions_participants" not in sc
+
+    def test_admin_fields_missing_source_are_none(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        a = _admin(overview)
+
+        assert a["institution"] is None
+        assert a["contact_name"] is None
+        assert a["contact_email"] is None
+        assert a["script_direction"] is None
+        assert a["estimated_end_year"] is None
+
+    def test_admin_fields_from_structured_metadata_form(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            {
+                "Creators_collection_site": {
+                    "Name_corresponding_contributor": "Ada Lovelace",
+                    "Contact_corresponding_contributor": "ada@example.org",
+                },
+                "Location": {"Institution": "Analytical Engine Lab"},
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        a = _admin(overview)
+
+        assert a["institution"] == "Analytical Engine Lab"
+        assert a["contact_name"] == "Ada Lovelace"
+        assert a["contact_email"] == "ada@example.org"
+
+    def test_admin_fields_from_flat_metadata_form(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            {
+                "Contact_information": {
+                    "First_name": "Ada",
+                    "Last_name": "Lovelace",
+                    "Affiliation": "Analytical Engine Lab",
+                    "Email": "ada@example.org",
+                }
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        a = _admin(overview)
+
+        assert a["institution"] == "Analytical Engine Lab"
+        assert a["contact_name"] == "Ada Lovelace"
+        assert a["contact_email"] == "ada@example.org"
 
 
 class TestProcessing:
@@ -554,6 +624,79 @@ class TestTechnicalSetup:
         assert t["image_resolution_height_px"] == 980
         assert t["image_size_width_cm"] == 38.0
         assert t["image_size_height_cm"] == 28.3
+
+    def test_lab_config_technical_and_admin_fields(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_lab_config(
+            dummy_dcn_dir,
+            {
+                "Name_eye-tracker_manufacturer": "SR Research",
+                "Specification_camera_system": "Desktop mount",
+                "Name_computer_operation_system": "Windows 11",
+                "Monitor_resolution_in_px": "(1920,1080)",
+                "Script_direction": "ltr",
+                "Estimated_end_year_of_data_collection": "2026",
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        a = _admin(overview)
+        t = _tech(overview)
+
+        assert a["script_direction"] == "ltr"
+        assert a["estimated_end_year"] == 2026
+        assert t["eye_tracker_manufacturer"] == "SR Research"
+        assert t["camera_system"] == "Desktop mount"
+        assert t["operating_system"] == "Windows 11"
+        assert t["monitor_resolution"] == "(1920,1080)"
+
+    def test_metadata_form_fallback_for_lab_fields(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            {
+                "Script_direction": "rtl",
+                "Estimated_end_year_of_data_collection": "2027",
+                "Name_eye-tracker_manufacturer": "SR Research Ltd.",
+                "Apparatus_lab_equipment": {
+                    "Specification_camera_system": ["Tower mount"],
+                    "Name_computer_operation_system": "Windows 10",
+                    "Monitor": {
+                        "Name_monitor": ["ThinkVision", "Lenovo"],
+                        "Monitor_resolution_in_px": "2560 x 1440",
+                    },
+                },
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        a = _admin(overview)
+        t = _tech(overview)
+
+        assert a["script_direction"] == "rtl"
+        assert a["estimated_end_year"] == 2027
+        assert t["eye_tracker_manufacturer"] == "SR Research Ltd."
+        assert t["camera_system"] == "Tower mount"
+        assert t["operating_system"] == "Windows 10"
+        assert t["monitor_name"] == "ThinkVision; Lenovo"
+        assert t["monitor_resolution"] == "2560 x 1440"
+
+    def test_technical_lab_fields_missing_source_are_none(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        t = _tech(overview)
+
+        assert t["eye_tracker_manufacturer"] is None
+        assert t["camera_system"] is None
+        assert t["operating_system"] is None
+        assert t["monitor_resolution"] is None
 
     def test_psychometric_tests(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -1180,10 +1323,27 @@ class TestLanguageNode:
         monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "leaf")
         monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_PATH", "root/branch/leaf")
         monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_VERSION", "2026.10")
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_LABEL", None)
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_HASH", None)
         monkeypatch.setattr(
             pipeline_settings, "LANGUAGE_TREE_SNAPSHOT", language_snapshot
         )
         return language_snapshot
+
+    @pytest.fixture
+    def configured_language_node_without_snapshot(self, monkeypatch):
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "german")
+        monkeypatch.setattr(
+            pipeline_settings,
+            "LANGUAGE_TREE_PATH",
+            "indo_european/germanic/german",
+        )
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_LABEL", "German")
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_VERSION", "2026.10")
+        monkeypatch.setattr(
+            pipeline_settings, "LANGUAGE_TREE_HASH", "sha256:configured"
+        )
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_SNAPSHOT", None)
 
     def test_no_language_node_configured(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -1215,6 +1375,28 @@ class TestLanguageNode:
         assert data["language_node"] == node
         assert data["administrative"]["tested_language"] == "EN"
         assert data["administrative"]["country"] == "UK"
+
+    def test_language_node_written_without_snapshot(
+        self,
+        dummy_dcn_dir,
+        mock_load_lab_config,
+        mock_pipeline_version,
+        configured_language_node_without_snapshot,
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+
+        assert overview["language_node"] == {
+            "language_node_id": "german",
+            "language_node_path": "indo_european/germanic/german",
+            "language_node_label": "German",
+            "language_tree_version": "2026.10",
+            "language_tree_hash": "sha256:configured",
+        }
+
+        yaml_path = dummy_dcn_dir / "MultiplEYE_EN_UK_London_1_2025_overview.yaml"
+        data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        assert data["language_node"] == overview["language_node"]
 
     def test_invalid_language_node_raises(
         self,

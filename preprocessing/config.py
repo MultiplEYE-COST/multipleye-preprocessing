@@ -398,8 +398,14 @@ class Settings:
         #: Optional full path from the language tree root to the selected node.
         self.LANGUAGE_TREE_PATH: str | None = None
 
+        #: Optional human readable label of the selected language node.
+        self.LANGUAGE_NODE_LABEL: str | None = None
+
         #: Optional pinned language tree version.
         self.LANGUAGE_TREE_VERSION: str | None = None
+
+        #: Optional hash of the pinned language tree snapshot.
+        self.LANGUAGE_TREE_HASH: str | None = None
 
         #: Optional path to a pinned language tree snapshot. Validation only runs
         #: when a snapshot path is set, because the pipeline does not ship a tree.
@@ -990,6 +996,11 @@ class Settings:
                 self.STIMULUS_VERSIONS_PID_MAP = value.get("versions", {}) or {}
                 continue
 
+            # Unpack the nested language_tree block into its flat settings.
+            if upper_key == "LANGUAGE_TREE":
+                self._update_language_tree(value)
+                continue
+
             # Unpack the nested availability block into the override mapping.
             if upper_key == "AVAILABILITY" and isinstance(value, dict):
                 overrides = value.get("overrides") or {}
@@ -1006,6 +1017,37 @@ class Settings:
             else:
                 # Allow setting new attributes or lowercase if they exist
                 setattr(self, key, value)
+
+    def _update_language_tree(self, value: Any) -> None:
+        """Map the nested ``language_tree`` config block onto flat settings.
+
+        Parameters
+        ----------
+        value : Any
+            Nested mapping from the config file. ``None`` leaves the current
+            settings unchanged.
+
+        Raises
+        ------
+        TypeError
+            If the block is neither a mapping nor ``None``.
+        """
+        if value is None:
+            return
+        if not isinstance(value, dict):
+            raise TypeError("The language_tree config block must be a mapping.")
+
+        mapping = {
+            "node_id": "LANGUAGE_NODE_ID",
+            "node_path": "LANGUAGE_TREE_PATH",
+            "node_label": "LANGUAGE_NODE_LABEL",
+            "version": "LANGUAGE_TREE_VERSION",
+            "hash": "LANGUAGE_TREE_HASH",
+            "snapshot": "LANGUAGE_TREE_SNAPSHOT",
+        }
+        for key, setting_name in mapping.items():
+            if key in value:
+                setattr(self, setting_name, value[key])
 
     def _validate(self) -> None:
         """Validate required settings."""
@@ -1118,7 +1160,15 @@ class Settings:
             self.LANGUAGE_TREE_PATH,
             self.LANGUAGE_TREE_VERSION,
             self.LANGUAGE_TREE_SNAPSHOT,
+            self.LANGUAGE_NODE_LABEL,
+            self.LANGUAGE_TREE_HASH,
         )
+        if self.LANGUAGE_NODE_ID and not self.LANGUAGE_TREE_SNAPSHOT:
+            logger.warning(
+                "No language tree snapshot configured. Language node metadata "
+                "will not be validated. Configure language_tree.snapshot to "
+                "validate the node against the authoritative tree."
+            )
 
     def _normalize_availability_overrides(
         self, overrides: dict[str, Any]

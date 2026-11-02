@@ -94,6 +94,11 @@ data_quality:
 | `lab_number` | int | Lab number within the collection. |
 | `country` | str | Country code. |
 | `tested_language` | str | Tested-language code. |
+| `institution` | str, null | Institution at which the data collection was conducted, from the metadata form. |
+| `contact_name` | str, null | Name of the corresponding contact person, from the metadata form. |
+| `contact_email` | str, null | Email address of the corresponding contact person, from the metadata form. |
+| `script_direction` | str, null | Script direction of the tested language, for example `ltr` or `rtl`, from the lab configuration or metadata form. |
+| `estimated_end_year` | int, null | Estimated year in which the data collection ends, from the lab configuration. |
 
 `session_completeness` contains:
 
@@ -118,7 +123,7 @@ The content fields are `null` when the metadata form is missing or does not cont
 ### `language_node`
 
 The `language_node` section records the selected node of the EyeStore language tree. It is only
-written when `language_node_id` is configured. The section is independent of the ISO language
+written when `language_tree.node_id` is configured. The section is independent of the ISO language
 code, the country code and the language fragment in session identifiers. Do not derive one from
 another.
 
@@ -127,23 +132,47 @@ another.
 | `language_node_id` | str | Stable identifier of the selected node. |
 | `language_node_path` | str, null | Full path from the tree root to the node, for example `indo_european/germanic/german`. |
 | `language_node_label` | str, null | Human readable label of the node. |
-| `language_tree_version` | str, null | Version recorded in the pinned tree snapshot, or the configured version when the snapshot has none. |
-| `language_tree_hash` | str, null | `sha256:` hash of the pinned snapshot file. |
+| `language_tree_version` | str, null | Configured tree version, or the version recorded in the pinned tree snapshot. |
+| `language_tree_hash` | str, null | Configured tree hash, or the `sha256:` hash of the pinned snapshot file. |
 
-The pipeline does not ship a language tree. Configure `language_node_id`, optionally
-`language_tree_path` and `language_tree_version`, and optionally `language_tree_snapshot` in the
-settings file. When a snapshot path is set, the node is validated before the metadata is written:
+The pipeline does not ship a language tree. Configure the nested `language_tree` block in the
+settings file:
+
+```yaml
+language_tree:
+  node_id: german
+  node_path: indo_european/germanic/german
+  node_label: German
+  version: "2026.10"
+  hash: "sha256:8d1a..."
+  snapshot: null
+```
+
+`node_id` selects the node. All other keys are optional. When no `node_id` is configured, the
+`language_node` section is omitted from the dataset overview and the language node fields stay
+empty in the item view.
+
+When `snapshot` is `null` or absent, the pipeline writes the configured `node_path`,
+`node_label`, `version` and `hash` directly and does not require a tree file. The pipeline still
+works when the configured label or hash is `null`. It logs a warning when a node is configured
+without a snapshot, because the node cannot be checked against the authoritative tree.
+
+When `snapshot` points to a pinned YAML or JSON snapshot, the node is validated before the
+metadata is written:
 
 - the snapshot file must exist and contain a non-empty node list,
 - the selected node id must exist,
 - a configured path must match the path derived from the snapshot,
-- a configured version must match the snapshot version when the snapshot records one.
+- a configured version must match the snapshot version when the snapshot records one,
+- node IDs, labels and path segments must not have leading, trailing or repeated spaces.
+  Single spaces inside a segment are allowed.
 
-Without a snapshot the configured id, path and version are written, while
-`language_node_label` and `language_tree_hash` stay `null`. The exact snapshot format is owned by
-EyeStore. The pipeline currently assumes a YAML or JSON mapping with `version` and `nodes`; each
-node has an `id`, a `label`, and optionally a `parent` and an explicit `path`. The full node path
-is taken from `path` when present and otherwise built from the node ids along the parent chain.
+Missing path, label or hash values are filled from the snapshot. Configured label and hash values
+are kept when they are set. A missing or malformed snapshot raises a clear error instead of
+silently writing unvalidated metadata. The exact snapshot format is owned by EyeStore. The
+pipeline currently assumes a YAML or JSON mapping with `version` and `nodes`; each node has an
+`id`, a `label`, and optionally a `parent` and an explicit `path`. The full node path is taken
+from `path` when present and otherwise built from the node ids along the parent chain.
 
 ### `data_availability`
 
@@ -168,8 +197,12 @@ The MultiplEYE pipeline sets all four flags to `true`.
 | --- | --- | --- |
 | `eye_tracker_name_raw` | str | Eye-tracker name exactly as read from the lab configuration. |
 | `eye_tracker_name` | str | Canonical eye-tracker model: `EyeLink 1000`, `EyeLink 1000 Plus`, `EyeLink II` or `EyeLink Portable Duo`. |
+| `eye_tracker_manufacturer` | str, null | Eye-tracker manufacturer from the lab configuration. |
 | `sampling_frequency_hz` | float | Nominal sampling frequency in hertz. |
-| `monitor_name` | str, null | Monitor name from the metadata form. |
+| `camera_system` | str, null | Eye-tracker camera system from the lab configuration. |
+| `operating_system` | str, null | Operating system of the presentation computer from the lab configuration. |
+| `monitor_name` | str, null | Monitor name from the metadata form or lab configuration. |
+| `monitor_resolution` | str, null | Monitor resolution exactly as reported in the lab configuration. |
 | `screen_resolution_width_px` | int | Screen width in pixels. |
 | `screen_resolution_height_px` | int | Screen height in pixels. |
 | `screen_size_width_cm` | float | Physical screen width in centimetres. |
@@ -181,7 +214,11 @@ The MultiplEYE pipeline sets all four flags to `true`.
 | `image_size_height_cm` | float | Physical height of the stimulus image area in centimetres. |
 
 The dataset level records the lab-level setup. Mount, head-stabilization and pupil details
-remain session-level because they can vary by session.
+remain session-level because they can vary by session. `monitor_resolution` preserves the raw
+lab configuration string; the normalized pixel values are in
+`screen_resolution_width_px` and `screen_resolution_height_px`. The administrative and
+technical fields are `null` when the metadata form or lab configuration is missing or does not
+contain the value.
 
 ### `processing`
 
@@ -664,6 +701,9 @@ items:
     tested_language: DE
     language_node_id: german
     language_node_path: indo_european/germanic/german
+    language_node_label: German
+    language_tree_version: "2026.10"
+    language_tree_hash: "sha256:8d1a..."
     language_script: [Latin]
     stimulus_role: experiment
     stimulus_genre: unknown
