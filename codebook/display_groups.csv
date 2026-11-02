@@ -1,17 +1,12 @@
 group_id,label,description,order,default
-default,Default view,Common fields shown across views,1,true
-dataset_overview,Dataset overview,Collection identity and language assignment,2,false
-dataset_coverage,Dataset coverage,Sessions participants and data availability,3,false
-data_quality,Data quality,Data loss blink loss and quality metrics across views,4,false
-session_reading,Session reading,Reading time trial counts and comprehension,5,false
-session_quality,Session quality,Calibration validation and loss for one session,6,false
-session_setup,Session setup,Eye tracker display and tracking settings,7,false
-comprehension,Comprehension,Comprehension scores and answer fields,8,false
-trial_reading,Trial reading,Reading timing and loss for one trial,9,false
-trial_comprehension,Trial comprehension,Scores questions and answers for one trial,10,false
-participant_profile,Participant profile,Demographics and questionnaire answers,11,false
-participant_psychometrics,Participant psychometrics,Psychometric test availability and scores,12,false
-item_stimulus,Item stimulus,Text metadata and size counts,13,false
-item_comprehension,Item comprehension,Aggregated comprehension and rating values,14,false
-hardware,Hardware,Eye tracker and lab setup fields,15,false
-annotations,Annotations,Annotation availability and package fields,16,false
+default,Default view,View keys and common identifiers,1,true
+collection,Collection,Collection identity language and coverage,2,false
+provenance,Provenance,Codebook pipeline and processing environment,3,false
+reading,Reading,Reading time and text size across views,4,false
+quality,Quality,Calibration validation and data loss across views,5,false
+comprehension,Comprehension,Scores questions and answers across views,6,false
+hardware,Hardware,Eye tracker display and tracking settings,7,false
+stimulus,Stimulus,Stimulus identity and text properties across views,8,false
+annotations,Annotations,Annotation availability and package fields,9,false
+participant_profile,Participant profile,Demographics and questionnaire answers,10,false
+participant_psychometrics,Participant psychometrics,Psychometric test availability and scores,11,false

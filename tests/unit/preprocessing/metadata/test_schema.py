@@ -345,3 +345,27 @@ def test_display_groups_have_members_and_one_default() -> None:
 
     assert group_ids == member_ids
     assert len(defaults) == 1
+
+
+def test_each_display_group_contains_the_key_of_every_covered_view() -> None:
+    fields = {
+        field.variable_id: field for field in read_fields(CODEBOOK_DIR / "fields.csv")
+    }
+    keys = {
+        view["view_id"]: view["key"] for view in _read_csv(CODEBOOK_DIR / "views.csv")
+    }
+    members = _read_csv(CODEBOOK_DIR / "display_group_members.csv")
+
+    by_group: dict[str, set[str]] = {}
+    for member in members:
+        view = fields[member["variable_id"]].view_level
+        by_group.setdefault(member["group_id"], set()).add(view)
+
+    for group_id, views in by_group.items():
+        member_ids = {
+            member["variable_id"]
+            for member in members
+            if member["group_id"] == group_id
+        }
+        for view_id in views:
+            assert f"{view_id}.{keys[view_id]}" in member_ids, (group_id, view_id)
