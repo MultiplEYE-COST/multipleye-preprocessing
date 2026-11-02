@@ -70,8 +70,13 @@ def test_build_for_registry_uses_all_registered_fields() -> None:
     ("value", "expected"),
     [
         ("true", AvailabilityRow("session.session_id")),
+        (True, AvailabilityRow("session.session_id")),
         (
             ("false", "missing_source"),
+            AvailabilityRow("session.session_id", "false", "missing_source"),
+        ),
+        (
+            [False, "missing_source"],
             AvailabilityRow("session.session_id", "false", "missing_source"),
         ),
         (
@@ -84,7 +89,7 @@ def test_build_for_registry_uses_all_registered_fields() -> None:
 )
 def test_build_normalizes_override_values(
     fields: list[CodebookField],
-    value: str | tuple[str, str] | dict[str, str],
+    value: str | bool | list[str] | tuple[str, str] | dict[str, str],
     expected: AvailabilityRow,
 ) -> None:
     rows = build_availability_rows({"session.session_id": value}, fields=fields)

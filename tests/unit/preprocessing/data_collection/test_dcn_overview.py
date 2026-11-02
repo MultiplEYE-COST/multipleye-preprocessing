@@ -614,6 +614,33 @@ class TestCodebookOutputs:
         assert rows["trial.trial_id"].available == "false"
         assert rows["trial.trial_id"].reason == "missing_source"
 
+    def test_dcn_writes_annotation_availability_overrides(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version, tmp_path
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+
+        destination = dc.write_codebook_outputs(
+            tmp_path,
+            availability={
+                "item.annotation_layers": ["false", "annotation_pending"],
+                "item.annotation_package": {
+                    "available": False,
+                    "reason": "annotation_pending",
+                },
+            },
+        )
+        assert destination is not None
+
+        rows = {
+            row.variable_id: row
+            for row in read_availability(destination / "availability.csv")
+        }
+
+        assert rows["item.annotation_layers"].available == "false"
+        assert rows["item.annotation_layers"].reason == "annotation_pending"
+        assert rows["item.annotation_package"].available == "false"
+        assert rows["item.annotation_package"].reason == "annotation_pending"
+
 
 class TestYAMLOutput:
     def test_yaml_output_is_valid(
