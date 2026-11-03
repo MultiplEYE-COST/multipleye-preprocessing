@@ -15,6 +15,7 @@ import io
 import logging
 import os
 import shutil
+import urllib.error
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -173,7 +174,7 @@ def _sha256(path: Path) -> str:
 
 
 def _download(url: str, target: Path, expected_sha256: str, timeout: float) -> None:
-    target.parent.mkdir(parents=True, exist_ok=True)
+    cache_dir = target.parent
     temporary = target.with_suffix(target.suffix + ".part")
     logger.info("Downloading Glottolog languoid table from %s", url)
     request = urllib.request.Request(
@@ -181,21 +182,37 @@ def _download(url: str, target: Path, expected_sha256: str, timeout: float) -> N
         headers={"User-Agent": "MultiplEYE-preprocessing"},
     )
     try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
         with (
             urllib.request.urlopen(request, timeout=timeout) as response,
             temporary.open("wb") as handle,
         ):
             shutil.copyfileobj(response, handle)
-        actual = _sha256(temporary)
-        if actual != expected_sha256:
-            raise GlottologError(
-                "Downloaded Glottolog table checksum mismatch: "
-                f"expected {expected_sha256}, got {actual}."
-            )
-        temporary.replace(target)
-    except Exception:
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
         temporary.unlink(missing_ok=True)
-        raise
+        raise GlottologError(
+            f"Could not download the Glottolog languoid table to {target} "
+            f"(cache directory {cache_dir}): {exc}. Check the network connection, "
+            "or set language_tree.glottolog_check: false to skip validation."
+        ) from exc
+
+    actual = _sha256(temporary)
+    if actual != expected_sha256:
+        temporary.unlink(missing_ok=True)
+        raise GlottologError(
+            "Downloaded Glottolog table checksum mismatch: "
+            f"expected {expected_sha256}, got {actual}."
+        )
+    try:
+        temporary.replace(target)
+    except OSError as exc:
+        temporary.unlink(missing_ok=True)
+        raise GlottologError(
+            f"Could not store the Glottolog languoid table at {target} "
+            f"(cache directory {cache_dir}): {exc}. Check the cache directory "
+            "permissions, or set language_tree.glottolog_check: false to skip "
+            "validation."
+        ) from exc
 
 
 def _read_table(path: Path) -> dict[str, GlottologLanguoid]:

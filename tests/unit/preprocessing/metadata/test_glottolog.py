@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import urllib.error
+import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -108,6 +110,25 @@ def test_download_from_file_url(tmp_path, glottolog_zip) -> None:
 
     assert len(table) == 4
     assert (cache_dir / "glottolog_languoid.csv.zip").is_file()
+
+
+def test_network_error_is_wrapped(monkeypatch, tmp_path) -> None:
+    def _fail(*args, **kwargs):
+        raise urllib.error.URLError("network down")
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fail)
+    cache_dir = tmp_path / "cache"
+
+    with pytest.raises(GlottologError) as excinfo:
+        load_glottolog_table(cache_dir=cache_dir, allow_download=True)
+
+    message = str(excinfo.value)
+    assert not isinstance(excinfo.value, urllib.error.URLError)
+    assert "network down" in message
+    assert str(cache_dir / "glottolog_languoid.csv.zip") in message
+    assert str(cache_dir) in message
+    assert "language_tree.glottolog_check: false" in message
+    assert not (cache_dir / "glottolog_languoid.csv.zip.part").exists()
 
 
 def test_checksum_mismatch_removes_partial_download(tmp_path, glottolog_zip) -> None:
