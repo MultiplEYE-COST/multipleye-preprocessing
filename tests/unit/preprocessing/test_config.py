@@ -150,7 +150,12 @@ def test_settings_update(settings_obj, update_dict, attr, expected):
         ({"node_label": "German"}, "LANGUAGE_NODE_LABEL", "German"),
         ({"version": "2026.10"}, "LANGUAGE_TREE_VERSION", "2026.10"),
         ({"hash": "sha256:abc"}, "LANGUAGE_TREE_HASH", "sha256:abc"),
-        ({"snapshot": "tree.yaml"}, "LANGUAGE_TREE_SNAPSHOT", "tree.yaml"),
+        ({"glottolog_check": False}, "LANGUAGE_TREE_GLOTTOG_CHECK", False),
+        (
+            {"glottolog_cache": "/tmp/glottolog"},
+            "LANGUAGE_TREE_GLOTTOG_CACHE",
+            "/tmp/glottolog",
+        ),
     ],
 )
 def test_settings_nested_language_tree_mapping(settings_obj, block, attr, expected):
@@ -159,6 +164,13 @@ def test_settings_nested_language_tree_mapping(settings_obj, block, attr, expect
     settings_obj.update({"language_tree": block})
 
     assert getattr(settings_obj, attr) == expected
+
+
+def test_settings_nested_language_tree_rejects_removed_snapshot(settings_obj):
+    settings_obj._loaded = True
+
+    with pytest.raises(TypeError, match="snapshot was removed"):
+        settings_obj.update({"language_tree": {"snapshot": "tree.yaml"}})
 
 
 def test_settings_nested_language_tree_rejects_non_mapping(settings_obj):

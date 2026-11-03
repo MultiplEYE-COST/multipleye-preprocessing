@@ -391,25 +391,28 @@ class Settings:
             "item.annotation_package": ("false", "annotation_pending"),
         }
 
-        #: Selected EyeStore language tree node for this data collection. This is
+        #: Selected Glottolog language node for this data collection. This is
         #: metadata only and does not replace the ISO language code in the name.
         self.LANGUAGE_NODE_ID: str | None = None
 
-        #: Optional full path from the language tree root to the selected node.
+        #: Optional display path from the EyeStore language tree root to the node.
         self.LANGUAGE_TREE_PATH: str | None = None
 
-        #: Optional human readable label of the selected language node.
+        #: Optional human readable label of the selected language node. When it
+        #: is empty the Glottolog name is used.
         self.LANGUAGE_NODE_LABEL: str | None = None
 
-        #: Optional pinned language tree version.
+        #: Optional EyeStore language tree version.
         self.LANGUAGE_TREE_VERSION: str | None = None
 
-        #: Optional hash of the pinned language tree snapshot.
+        #: Optional hash of the EyeStore language tree.
         self.LANGUAGE_TREE_HASH: str | None = None
 
-        #: Optional path to a pinned language tree snapshot. Validation only runs
-        #: when a snapshot path is set, because the pipeline does not ship a tree.
-        self.LANGUAGE_TREE_SNAPSHOT: Path | None = None
+        #: Validate the selected node against the pinned Glottolog table.
+        self.LANGUAGE_TREE_GLOTTOG_CHECK: bool = True
+
+        #: Optional directory holding the pinned Glottolog languoid archive.
+        self.LANGUAGE_TREE_GLOTTOG_CACHE: Path | None = None
 
         #: Default log level for the package/Python.
         self.LOG_LEVEL: str = "INFO"
@@ -1037,13 +1040,22 @@ class Settings:
         if not isinstance(value, dict):
             raise TypeError("The language_tree config block must be a mapping.")
 
+        removed = value.get("snapshot")
+        if removed not in (None, ""):
+            raise TypeError(
+                "language_tree.snapshot was removed. Language nodes are validated "
+                "against Glottolog. Remove the snapshot key and set "
+                "language_tree.glottolog_check if you need to change validation."
+            )
+
         mapping = {
             "node_id": "LANGUAGE_NODE_ID",
             "node_path": "LANGUAGE_TREE_PATH",
             "node_label": "LANGUAGE_NODE_LABEL",
             "version": "LANGUAGE_TREE_VERSION",
             "hash": "LANGUAGE_TREE_HASH",
-            "snapshot": "LANGUAGE_TREE_SNAPSHOT",
+            "glottolog_check": "LANGUAGE_TREE_GLOTTOG_CHECK",
+            "glottolog_cache": "LANGUAGE_TREE_GLOTTOG_CACHE",
         }
         for key, setting_name in mapping.items():
             if key in value:
@@ -1141,34 +1153,56 @@ class Settings:
                     )
 
     def validate_language_node(self) -> None:
-        """Validate the selected language node against the pinned tree snapshot.
+        """Validate the selected Glottocode against the pinned Glottolog table.
 
-        The node is only checked when ``LANGUAGE_NODE_ID`` and
-        ``LANGUAGE_TREE_SNAPSHOT`` are both set. Without a snapshot the
-        configuration is kept as provided.
+        The node text shape is always checked. When ``LANGUAGE_TREE_GLOTTOG_CHECK``
+        is true, the Glottocode must exist in Glottolog 5.3 and must be a
+        language or dialect row. The Glottolog name fills ``LANGUAGE_NODE_LABEL``
+        when no display label is configured.
 
         Raises
         ------
         LanguageTreeError
-            If the snapshot is missing or malformed, the node is unknown, or the
-            configured path or version does not match the snapshot.
+            If the configured node ID, path or label has invalid spacing.
+        GlottologError
+            If the Glottolog table is unavailable or the node is unknown, a
+            family or another non-assignable row.
         """
+        from .metadata.glottolog import GLOTTOLOG_VERSION, resolve_glottolog_node
         from .metadata.language_tree import language_node_overview
 
         language_node_overview(
             self.LANGUAGE_NODE_ID,
             self.LANGUAGE_TREE_PATH,
             self.LANGUAGE_TREE_VERSION,
-            self.LANGUAGE_TREE_SNAPSHOT,
             self.LANGUAGE_NODE_LABEL,
             self.LANGUAGE_TREE_HASH,
         )
-        if self.LANGUAGE_NODE_ID and not self.LANGUAGE_TREE_SNAPSHOT:
+        if not self.LANGUAGE_NODE_ID:
+            return
+        if not self.LANGUAGE_TREE_GLOTTOG_CHECK:
             logger.warning(
-                "No language tree snapshot configured. Language node metadata "
-                "will not be validated. Configure language_tree.snapshot to "
-                "validate the node against the authoritative tree."
+                "Glottolog language node check is disabled. The configured node "
+                "%r will not be validated.",
+                self.LANGUAGE_NODE_ID,
             )
+            return
+
+        cache = (
+            Path(self.LANGUAGE_TREE_GLOTTOG_CACHE)
+            if self.LANGUAGE_TREE_GLOTTOG_CACHE
+            else None
+        )
+        node = resolve_glottolog_node(self.LANGUAGE_NODE_ID, cache)
+        if not self.LANGUAGE_NODE_LABEL:
+            self.LANGUAGE_NODE_LABEL = node.name
+        logger.info(
+            "Language node %s validated against Glottolog %s: %s (%s).",
+            node.id,
+            GLOTTOLOG_VERSION,
+            node.name,
+            node.level,
+        )
 
     def _normalize_availability_overrides(
         self, overrides: dict[str, Any]

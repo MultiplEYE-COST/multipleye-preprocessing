@@ -439,7 +439,6 @@ def _language_node() -> dict[str, str | None] | None:
         getattr(settings, "LANGUAGE_NODE_ID", None),
         getattr(settings, "LANGUAGE_TREE_PATH", None),
         getattr(settings, "LANGUAGE_TREE_VERSION", None),
-        getattr(settings, "LANGUAGE_TREE_SNAPSHOT", None),
         getattr(settings, "LANGUAGE_NODE_LABEL", None),
         getattr(settings, "LANGUAGE_TREE_HASH", None),
     )
