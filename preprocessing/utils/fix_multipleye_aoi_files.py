@@ -20,7 +20,7 @@ def _remap_space(df: pl.DataFrame) -> pl.DataFrame:
     """
     is_space = pl.col("unit_of_analysis").is_null() & (pl.col("char") == " ")
     next_word_idx = pl.col("unit_of_analysis_idx").shift(-1)
-    next_word_idx_in_line = pl.col("unit_of_analysis_in_line").shift(-1)
+    next_word_idx_in_line = pl.col("unit_of_analysis_idx_in_line").shift(-1)
     has_next = next_word_idx.is_not_null()
     return df.with_columns(
         pl.when(is_space & has_next)
@@ -79,7 +79,7 @@ def fix_aoi_file(aoi_file_path: str | Path) -> None:
     """
     df = pl.read_csv(aoi_file_path)
     df = _repair_word_labels(_remap_space(df))
-    aoi_data = aoi_data.rename(
+    df = df.rename(
                 {
                     "word_idx": "unit_of_analysis_idx",
                     "word": "unit_of_analysis",

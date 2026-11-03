@@ -8,12 +8,19 @@ from preprocessing.data_collection.stimulus import Stimulus
 
 
 def _combined_aois(stimuli: list[Stimulus]) -> pl.DataFrame:
-    """Stack the AOIs of all stimuli and tag them with their trial id."""
+    """Stack the AOIs of all stimuli and tag them with their trial id. 
+    Secondary units of analysis are dropped, as their availability might not be constant across a session."""
     all_aois = pl.DataFrame()
     for stimulus in stimuli:
         aoi = stimulus.text_stimulus.aois.with_columns(
             pl.lit(stimulus.trial_id).cast(pl.Utf8).alias(settings.TRIAL_COL)
         )
+        if "secondary_unit_of_analysis" in aoi:
+            aoi = aoi.drop([
+                "secondary_unit_of_analysis",
+                "secondary_unit_of_analysis_idx",
+                "secondary_unit_of_analysis_idx_in_line",
+            ])
         all_aois = all_aois.vstack(aoi)
     return all_aois
 

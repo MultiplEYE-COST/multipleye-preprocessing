@@ -5,6 +5,7 @@ import pymovements as pm
 import difflib
 from pathlib import Path
 from preprocessing import settings
+from preprocessing.utils.logging import get_logger
 
 
 def map_fixations_to_aois(
@@ -38,6 +39,13 @@ def map_fixations_to_aois(
         aoi = stimulus.text_stimulus.aois
         trial = stimulus.trial_id
         aoi = aoi.with_columns(pl.lit(trial).alias(settings.TRIAL_COL))
+        # TODO: what if we want to retain the secondary unit of analysis information
+        if "secondary_unit_of_analysis" in aoi:
+            aoi = aoi.drop([
+                "secondary_unit_of_analysis",
+                "secondary_unit_of_analysis_idx",
+                "secondary_unit_of_analysis_idx_in_line",
+            ])
         all_aois = all_aois.vstack(aoi)
 
     all_aois = pm.stimulus.TextStimulus(
@@ -166,9 +174,10 @@ def _add_custom_uoa(
     - for the questions add the segments to all question images versions and make sure the characters match. Only the coordinates should be different for the options
 
     Output:
-    The original aoi files should be exactly the same as before also the file name, but they should contain two additional columns:
+    The original aoi files should be exactly the same as before also the file name, but they should contain three additional columns:
         - unit_of_analysis
         - unit_of_analysis_idx
+        - unit_of_analysis_line_idx
 
     If there is a word column already in there: rename to secondary_unit_of_analysis and word_idx to secondary_unit_of_analysis_idx.
     The characters and character indices should stay exactly the same.
@@ -176,20 +185,28 @@ def _add_custom_uoa(
     If any of the characters and segment characters do not match, it will be reported.
 
     """
+    logger = get_logger()
 
     aoi_data = pl.read_csv(aoi_file)
+
+    if "secondary_unit_of_analysis" in aoi_data:
+        # If this file was already merged
+        # If the costum units of analysis change, the stimulus folder is automatically copied again and merged
+        return
+    
     aoi_data = aoi_data.sort(by=["page", "line_idx", "char_idx"])
     
     
     uoa_file = stimuli_folder / "custom_units_of_analysis" / aoi_file.name
 
     if not uoa_file.exists():
-        #TODO What about files that are just missing e.g. the question files for Greenlandic
-        raise FileNotFoundError(
+        logger.warning(
             f"We could not find a matching uoa file for {aoi_file.name}. Please make "
             f"sure that the uoa file is named exactly as the corresponding aoi file and "
             f"that it is in your data folder in a folder called 'custom_units_of_analysis'."
+            f"Using default white-spaced units of analysis for {aoi_file.name}."
         )
+        return
 
     if "questions" in uoa_file.name:
         uoa_data = pl.read_csv(uoa_file)[
@@ -225,20 +242,13 @@ def _add_custom_uoa(
     else:
         aoi_chars = list(aoi_data["char"])
 
-    if len(uoa_data) != len(aoi_data):
-        # TODO: Raise proper error
-        print("Character lists are not identical")
-        for line in difflib.unified_diff(aoi_chars, uoa_chars, lineterm=""):
-            print(line)
 
-    # check that the char and char_idx column match
-    try:
-        assert aoi_chars == uoa_chars
-    except AssertionError:
-        raise AssertionError(
-            f"There is a mismatch in the character columns of {uoa_file.name} and it original aoi file. "
-            f"They do not contain the same characters."
-        )
+    # check that the char columns match exactly
+    if not aoi_chars == uoa_chars:
+        logger.error(f"The custom units of analysis file for the corresponding aoi file {aoi_file.name}, contain different characters.",
+                        f"Please verify that the stimuli in both files match exactly."
+                        )
+        return
 
     aoi_data = aoi_data.rename(
         {
@@ -260,7 +270,7 @@ def _add_custom_uoa(
     new_aois = aoi_data.join(uoa_data, on=["page", "char_idx", "char"])
 
 
-    # get the line index of the segments
+    # get the line index of the new units of analysis
     new_aois = new_aois.with_columns(
         pl.col("unit_of_analysis_idx")
         .rank(method="dense")
@@ -279,9 +289,9 @@ def _add_custom_uoa(
         "char_idx_in_line",
         "line_idx",
         "page",
-        "unit_of_analysis",
         "unit_of_analysis_idx",
         "unit_of_analysis_idx_in_line",
+        "unit_of_analysis",
         "secondary_unit_of_analysis_idx",
         "secondary_unit_of_analysis_idx_in_line",
         "secondary_unit_of_analysis",
