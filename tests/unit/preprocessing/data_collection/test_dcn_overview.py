@@ -16,7 +16,6 @@ from preprocessing.data_collection.multipleye_data_collection import (
 )
 from preprocessing.data_collection.session import Session
 from preprocessing.metadata.availability import read_availability
-from preprocessing.metadata.language_tree import LanguageTreeError
 
 
 def _mock_lab_config():
@@ -1301,49 +1300,18 @@ class TestWPM:
 
 class TestLanguageNode:
     @pytest.fixture
-    def language_snapshot(self, tmp_path):
-        path = tmp_path / "language_tree.yaml"
-        path.write_text(
-            yaml.safe_dump(
-                {
-                    "version": "2026.10",
-                    "nodes": [
-                        {"id": "root", "label": "Root"},
-                        {"id": "branch", "label": "Branch", "parent": "root"},
-                        {"id": "leaf", "label": "Leaf", "parent": "branch"},
-                    ],
-                }
-            ),
-            encoding="utf-8",
-        )
-        return path
-
-    @pytest.fixture
-    def configured_language_node(self, monkeypatch, language_snapshot):
-        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "leaf")
-        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_PATH", "root/branch/leaf")
-        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_VERSION", "2026.10")
-        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_LABEL", None)
-        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_HASH", None)
-        monkeypatch.setattr(
-            pipeline_settings, "LANGUAGE_TREE_SNAPSHOT", language_snapshot
-        )
-        return language_snapshot
-
-    @pytest.fixture
-    def configured_language_node_without_snapshot(self, monkeypatch):
-        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "german")
+    def configured_language_node(self, monkeypatch):
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "stan1295")
         monkeypatch.setattr(
             pipeline_settings,
             "LANGUAGE_TREE_PATH",
-            "indo_european/germanic/german",
+            "Indo-European/Germanic/German",
         )
         monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_LABEL", "German")
         monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_VERSION", "2026.10")
         monkeypatch.setattr(
             pipeline_settings, "LANGUAGE_TREE_HASH", "sha256:configured"
         )
-        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_SNAPSHOT", None)
 
     def test_no_language_node_configured(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -1362,33 +1330,10 @@ class TestLanguageNode:
     ) -> None:
         dc = _create_dc(dummy_dcn_dir)
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
-        node = overview["language_node"]
-
-        assert node["language_node_id"] == "leaf"
-        assert node["language_node_path"] == "root/branch/leaf"
-        assert node["language_node_label"] == "Leaf"
-        assert node["language_tree_version"] == "2026.10"
-        assert node["language_tree_hash"].startswith("sha256:")
-
-        yaml_path = dummy_dcn_dir / "MultiplEYE_EN_UK_London_1_2025_overview.yaml"
-        data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-        assert data["language_node"] == node
-        assert data["administrative"]["tested_language"] == "EN"
-        assert data["administrative"]["country"] == "UK"
-
-    def test_language_node_written_without_snapshot(
-        self,
-        dummy_dcn_dir,
-        mock_load_lab_config,
-        mock_pipeline_version,
-        configured_language_node_without_snapshot,
-    ) -> None:
-        dc = _create_dc(dummy_dcn_dir)
-        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
 
         assert overview["language_node"] == {
-            "language_node_id": "german",
-            "language_node_path": "indo_european/germanic/german",
+            "language_node_id": "stan1295",
+            "language_node_path": "Indo-European/Germanic/German",
             "language_node_label": "German",
             "language_tree_version": "2026.10",
             "language_tree_hash": "sha256:configured",
@@ -1397,40 +1342,8 @@ class TestLanguageNode:
         yaml_path = dummy_dcn_dir / "MultiplEYE_EN_UK_London_1_2025_overview.yaml"
         data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
         assert data["language_node"] == overview["language_node"]
-
-    def test_invalid_language_node_raises(
-        self,
-        dummy_dcn_dir,
-        mock_load_lab_config,
-        mock_pipeline_version,
-        monkeypatch,
-        language_snapshot,
-    ) -> None:
-        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "unknown")
-        monkeypatch.setattr(
-            pipeline_settings, "LANGUAGE_TREE_SNAPSHOT", language_snapshot
-        )
-
-        with pytest.raises(LanguageTreeError, match="not in the pinned"):
-            _create_dc(dummy_dcn_dir)
-
-    def test_missing_language_snapshot_raises(
-        self,
-        dummy_dcn_dir,
-        mock_load_lab_config,
-        mock_pipeline_version,
-        monkeypatch,
-        tmp_path,
-    ) -> None:
-        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "leaf")
-        monkeypatch.setattr(
-            pipeline_settings,
-            "LANGUAGE_TREE_SNAPSHOT",
-            tmp_path / "missing.yaml",
-        )
-
-        with pytest.raises(LanguageTreeError, match="snapshot not found"):
-            _create_dc(dummy_dcn_dir)
+        assert data["administrative"]["tested_language"] == "EN"
+        assert data["administrative"]["country"] == "UK"
 
 
 class TestLabConfigAttributeSafety:

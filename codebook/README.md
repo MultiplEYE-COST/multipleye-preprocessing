@@ -284,8 +284,10 @@ back into preprocessing.
 
 ## Language tree
 
-The canonical language tree is owned by EyeStore. The pipeline stores the selected language node
-ID, the full path to the node and the tree version or hash in the data collection YAML. A pinned
-tree snapshot can be copied for offline use.
+The canonical language tree is owned by EyeStore. A dataset selects one node by Glottocode. The
+pipeline stores the node ID, the display path, the label, and the tree version or hash when they
+are configured. It validates the Glottocode against the pinned Glottolog 5.3 languoid table and
+rejects unknown codes and family rows. The Glottolog table is downloaded once and cached. The
+pipeline does not ship or vendor the tree.
 
 Do not parse session identifiers to derive language, country or city. Those are separate fields.

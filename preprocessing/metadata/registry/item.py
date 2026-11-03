@@ -102,7 +102,7 @@ FIELDS = (
     _field(
         "language_node_id",
         "Language node ID",
-        "Selected node of the configured language tree.",
+        "Glottocode of the selected node in the configured language tree.",
         "string",
         "language_node",
         "language",
@@ -111,7 +111,7 @@ FIELDS = (
     _field(
         "language_node_path",
         "Language node path",
-        "Full path from the language tree root to the selected node.",
+        "Display path from the language tree root to the selected node.",
         "string",
         "language_node",
         "language",
@@ -129,7 +129,7 @@ FIELDS = (
     _field(
         "language_tree_version",
         "Language tree version",
-        "Version of the pinned language tree snapshot.",
+        "Version of the configured language tree.",
         "string",
         "language_node",
         "language",
@@ -138,7 +138,7 @@ FIELDS = (
     _field(
         "language_tree_hash",
         "Language tree hash",
-        "SHA256 hash of the pinned language tree snapshot.",
+        "SHA256 hash of the configured language tree.",
         "string",
         "language_node",
         "language",

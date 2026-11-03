@@ -160,7 +160,6 @@ def no_language_node(monkeypatch) -> None:
         "LANGUAGE_NODE_LABEL",
         "LANGUAGE_TREE_VERSION",
         "LANGUAGE_TREE_HASH",
-        "LANGUAGE_TREE_SNAPSHOT",
     ):
         monkeypatch.setattr(settings, name, None, raising=False)
 
@@ -454,7 +453,7 @@ def test_language_node_fields_when_configured(
     assert item["language_tree_hash"] is None
 
 
-def test_language_node_fields_without_snapshot(
+def test_language_node_fields_with_configured_label(
     collection: FakeCollection, monkeypatch
 ) -> None:
     monkeypatch.setattr(settings, "LANGUAGE_NODE_ID", "german", raising=False)
@@ -469,7 +468,6 @@ def test_language_node_fields_without_snapshot(
     monkeypatch.setattr(
         settings, "LANGUAGE_TREE_HASH", "sha256:configured", raising=False
     )
-    monkeypatch.setattr(settings, "LANGUAGE_TREE_SNAPSHOT", None, raising=False)
 
     item = build_items_yaml(collection)["items"][0]
 

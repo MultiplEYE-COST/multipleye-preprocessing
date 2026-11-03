@@ -131,56 +131,53 @@ The content fields are `null` when the metadata form is missing or does not cont
 ### `language_node`
 
 The `language_node` section records the selected node of the EyeStore language tree. It is only
-written when `language_tree.node_id` is configured. The section is independent of the ISO language
-code, the country code and the language fragment in session identifiers. Do not derive one from
-another.
+written when `language_tree.node_id` is configured. The node ID is a Glottocode. The section is
+independent of the ISO language code, the country code and the language fragment in session
+identifiers. Do not derive one from another.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `language_node_id` | str | Stable identifier of the selected node. |
-| `language_node_path` | str, null | Full path from the tree root to the node, for example `indo_european/germanic/german`. |
-| `language_node_label` | str, null | Human readable label of the node. |
-| `language_tree_version` | str, null | Configured tree version, or the version recorded in the pinned tree snapshot. |
-| `language_tree_hash` | str, null | Configured tree hash, or the `sha256:` hash of the pinned snapshot file. |
+| `language_node_id` | str | Glottocode of the selected node, for example `stan1295`. |
+| `language_node_path` | str, null | Display path from the tree root to the node, for example `Indo-European/Germanic/German`. The path may prune Glottolog levels. |
+| `language_node_label` | str, null | Human readable label of the node. Defaults to the Glottolog name. |
+| `language_tree_version` | str, null | Version of the EyeStore language tree. |
+| `language_tree_hash` | str, null | Hash of the EyeStore language tree. |
 
-The pipeline does not ship a language tree. Configure the nested `language_tree` block in the
-settings file:
+The pipeline does not vendor a language tree. It validates the Glottocode against the pinned
+Glottolog 5.3 languoid table. Configure the nested `language_tree` block in the settings file:
 
 ```yaml
 language_tree:
-  node_id: german
-  node_path: indo_european/germanic/german
+  node_id: stan1295
+  node_path: Indo-European/Germanic/German
   node_label: German
-  version: "2026.10"
-  hash: "sha256:8d1a..."
-  snapshot: null
+  version: "2026.11"
+  hash: null
+  glottolog_check: true
+  glottolog_cache: null
 ```
 
 `node_id` selects the node. All other keys are optional. When no `node_id` is configured, the
 `language_node` section is omitted from the dataset overview and the language node fields stay
 empty in the item view.
 
-When `snapshot` is `null` or absent, the pipeline writes the configured `node_path`,
-`node_label`, `version` and `hash` directly and does not require a tree file. The pipeline still
-works when the configured label or hash is `null`. It logs a warning when a node is configured
-without a snapshot, because the node cannot be checked against the authoritative tree.
+The Glottolog check runs when the settings are loaded:
 
-When `snapshot` points to a pinned YAML or JSON snapshot, the node is validated before the
-metadata is written:
+- the pinned `glottolog_languoid.csv.zip` archive is downloaded on first use,
+- the archive SHA256 is verified before it is used,
+- the cache defaults to `$MULTIPLEYE_GLOTTOLOG_CACHE`, then `language_tree.glottolog_cache`,
+  then `~/.cache/multipleye/glottolog/5.3`,
+- unknown Glottocodes are rejected,
+- family rows are rejected, only language and dialect rows can be assigned,
+- `language_node_label` is filled from the Glottolog name when no display label is configured.
 
-- the snapshot file must exist and contain a non-empty node list,
-- the selected node id must exist,
-- a configured path must match the path derived from the snapshot,
-- a configured version must match the snapshot version when the snapshot records one,
-- node IDs, labels and path segments must not have leading, trailing or repeated spaces.
-  Single spaces inside a segment are allowed.
+Set `glottolog_check: false` for offline processing when the cache is not available. The node
+metadata is then written without a Glottolog check. The `snapshot` key was removed. The pipeline
+no longer parses a local tree file.
 
-Missing path, label or hash values are filled from the snapshot. Configured label and hash values
-are kept when they are set. A missing or malformed snapshot raises a clear error instead of
-silently writing unvalidated metadata. The exact snapshot format is owned by EyeStore. The
-pipeline currently assumes a YAML or JSON mapping with `version` and `nodes`; each node has an
-`id`, a `label`, and optionally a `parent` and an explicit `path`. The full node path is taken
-from `path` when present and otherwise built from the node ids along the parent chain.
+`language_node_path`, `version` and `hash` are display and provenance data for the EyeStore tree.
+The pipeline does not derive or validate them against Glottolog. Node IDs, labels and path
+segments may contain single spaces. They must not have leading, trailing or repeated spaces.
 
 ### `data_availability`
 
@@ -711,8 +708,8 @@ items:
     stimulus_id: 6
     stimulus_name: Lit_MagicMountain
     tested_language: DE
-    language_node_id: german
-    language_node_path: indo_european/germanic/german
+    language_node_id: stan1295
+    language_node_path: Indo-European/Germanic/German
     language_node_label: German
     language_tree_version: "2026.10"
     language_tree_hash: "sha256:8d1a..."
