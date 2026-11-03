@@ -420,6 +420,11 @@ class Settings:
         #: The expected sampling rate of the eye tracker in Hertz.
         self.EXPECTED_SAMPLING_RATE_HZ: int = 1000
 
+        #: custom uoa settings
+        self.CUSTOM_UOAS: bool = False
+        self.UOA_COLUMN: str | None = None
+        self.UOA_IDX_COLUMN: str | None = None
+
         # --- CONSTANTS FOR EXPERIMENT ---
 
         #: Expected number of practice trials.

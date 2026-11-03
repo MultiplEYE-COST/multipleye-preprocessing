@@ -23,6 +23,8 @@ from ..utils.stimulus_versions import (
     version_suffix_for_pid,
 )
 
+from ..mapping.aoi import add_custom_uoa
+
 logger = get_logger()
 
 _ARCHIVE_SUFFIXES = (".zip", ".tar", ".tar.gz", ".tgz", ".7z", ".rar")
@@ -319,6 +321,15 @@ def prepare_language_folder(data_collection_name: str | None = None):
 
             # Create a marker file to indicate that these files have been fixed
             (destination_aoi_path / ".fixed").touch()
+
+            if settings.CUSTOM_UOAS:
+                for aoi_file in aoi_files:
+                    add_custom_uoa(
+                        stimuli_folder=stimulus_folder_path,
+                        aoi_file=aoi_file,
+                        uoa_column_name=settings.UOA)
+
+
         elif len(aoi_files) == 0:
             logger.warning(f"No AOI files found in '{destination_aoi_path}'.")
         else:

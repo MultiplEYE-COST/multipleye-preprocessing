@@ -131,7 +131,7 @@ def enlarge_aois(
 
 
 
-def add_custom_aois(aoi_file: Path, language: str) -> None:
+def _add_custom_aois(aoi_file: Path, language: str) -> None:
     """
     Will call a language specific function which adds the custom aois for this language, if they are available and
     supported.
@@ -154,7 +154,7 @@ def add_custom_aois(aoi_file: Path, language: str) -> None:
         )
 
 
-def _add_custom_uoa(
+def add_custom_uoa(
     stimuli_folder: Path, aoi_file: Path, uoa_column_name, uoa_idx_colum_name, custom_file_name: str = ""
 ) -> None:
     """
