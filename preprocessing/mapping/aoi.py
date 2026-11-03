@@ -232,6 +232,7 @@ def add_custom_uoa(
             [uoa_column_name, uoa_idx_colum_name, "char", "char_idx", "page"]
         ]
 
+
     uoa_data = uoa_data.sort(by=["page", "char_idx"])
     uoa_chars = list(uoa_data["char"])
 
@@ -244,11 +245,15 @@ def add_custom_uoa(
 
 
     # check that the char columns match exactly
-    if not aoi_chars == uoa_chars:
-        logger.error(f"The custom units of analysis file for the corresponding aoi file {aoi_file.name}, contain different characters.",
-                        f"Please verify that the stimuli in both files match exactly."
-                        )
-        return
+    try:
+        assert aoi_chars == uoa_chars
+    except AssertionError:
+        msg = (
+                        f"The custom units of analysis file for the corresponding aoi file {aoi_file.name}, contains different characters. "
+                        f"Please verify that the charactters of the stimuli in both files match exactly."
+                )
+        logger.exception(msg)
+        raise
 
     aoi_data = aoi_data.rename(
         {

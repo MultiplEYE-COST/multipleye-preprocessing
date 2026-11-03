@@ -319,16 +319,19 @@ def prepare_language_folder(data_collection_name: str | None = None):
             for aoi_file in aoi_files:
                 fix_aoi_file(aoi_file)
 
-            # Create a marker file to indicate that these files have been fixed
-            (destination_aoi_path / ".fixed").touch()
-
             if settings.CUSTOM_UOAS:
+                logger.info("Adding custom unit of analysis info to AOI files")
+                #merge uoa information into aoi files if uoa is enabled in the settings
                 for aoi_file in aoi_files:
                     add_custom_uoa(
-                        stimuli_folder=stimulus_folder_path,
+                        stimuli_folder=preprocessed_stimulus_path,
                         aoi_file=aoi_file,
-                        uoa_column_name=settings.UOA)
+                        uoa_column_name=settings.UOA_COLUMN,
+                        uoa_idx_colum_name=settings.UOA_IDX_COLUMN,
+                        )
 
+            # Create a marker file to indicate that these files have been fixed
+            (destination_aoi_path / ".fixed").touch()
 
         elif len(aoi_files) == 0:
             logger.warning(f"No AOI files found in '{destination_aoi_path}'.")
@@ -337,6 +340,9 @@ def prepare_language_folder(data_collection_name: str | None = None):
                 f"Unexpected number of AOI files ({len(aoi_files)}) found in '{destination_aoi_path}'. "
                 "Expected 12 (not split) or 24 (already split into texts and questions)."
             )
+
+
+
 
 
 def _copy_stimulus_assets(

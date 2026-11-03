@@ -78,15 +78,15 @@ def fix_aoi_file(aoi_file_path: str | Path) -> None:
         Character-level AOI table.
     """
     df = pl.read_csv(aoi_file_path)
-    df = _repair_word_labels(_remap_space(df))
     df = df.rename(
-                {
-                    "word_idx": "unit_of_analysis_idx",
-                    "word": "unit_of_analysis",
-                    "word_idx_in_line": "unit_of_analysis_idx_in_line",
-                },
-                strict=False
-            )
+            {
+                "word_idx": "unit_of_analysis_idx",
+                "word": "unit_of_analysis",
+                "word_idx_in_line": "unit_of_analysis_idx_in_line",
+            },
+            strict=False
+        )
+    df = _repair_word_labels(_remap_space(df))
     df.write_csv(aoi_file_path)
     logger.debug(f"Applied AOI fixes to: {aoi_file_path}")
 
