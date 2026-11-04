@@ -110,9 +110,9 @@ overview `processing_config` section. See {ref}`fixation_correction` for the out
 - `FIXATIONS_UNCORRECTED_FOLDER`: name of the raw-fixation subfolder inside the processed data
   collection. Default: `fixations_uncorrected/`.
 
-The final-dot position is not a pipeline setting. It comes from the stimulus config through
-`FINAL_FIX_DOT_X`, `FINAL_FIX_DOT_Y` and `FINAL_FIX_DOT_RADIUS`. These keys are required when
-correction is active. See {ref}`fixation_correction`.
+The final-dot position is not a pipeline setting. It is derived from the stimulus config. Newer
+configs can provide `POS_BOTTOM_DOT_X_PX`, `POS_BOTTOM_DOT_Y_PX` and `FIX_DOT_RADIUS`. Older
+configs fall back to the image generator geometry. See {ref}`fixation_correction`.
 
 ### Quality Check Thresholds
 

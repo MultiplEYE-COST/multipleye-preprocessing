@@ -69,23 +69,47 @@ fixations_uncorrected_folder: "fixations_uncorrected/"
 ## Final fixation dot
 
 Each stimulus page ends with a fixation dot. Dot positions can differ by language and collection, so
-the pipeline reads them from the stimulus config and does not hardcode a position.
+the pipeline reads the geometry from the stimulus config and does not hardcode a position.
 
-The stimulus config must define:
+Newer stimulus configs write the final-dot geometry directly:
 
 ```python
-FINAL_FIX_DOT_X = 1214.0
-FINAL_FIX_DOT_Y = 1028.0
-FINAL_FIX_DOT_RADIUS = 7.0
+POS_BOTTOM_DOT_X_PX = 1236
+POS_BOTTOM_DOT_Y_PX = 920
+FIX_DOT_RADIUS = 8
 ```
 
-`LabConfig` loads these values into `final_fix_dot_x`, `final_fix_dot_y` and
-`final_fix_dot_radius`. When correction is active, all three keys are required. Missing or invalid
-dot metadata raises an error before correction starts. There is no AOI fallback for the final dot.
+When those keys are absent, `LabConfig` derives the same values from the existing config with the
+image generator geometry:
 
-Dot fixations are removed from the correction input before pymovements runs. Correction therefore
-uses only the real text lines. Dot fixations are reinserted unchanged afterwards. This avoids a fake
-dot line and prevents text fixations near the bottom of the page from snapping to the dot.
+```python
+is_ltr = FIX_DOT_X < IMAGE_WIDTH_PX / 2
+
+POS_BOTTOM_DOT_X_PX = (
+    IMAGE_WIDTH_PX - MIN_MARGIN_RIGHT_PX
+    if is_ltr
+    else MIN_MARGIN_LEFT_PX
+)
+
+POS_BOTTOM_DOT_Y_PX = int(
+    IMAGE_HEIGHT_PX - 2 * RESOLUTION[1] / SCREEN_SIZE_CM[1]
+)
+
+FIX_DOT_RADIUS = max(int(0.1 * MIN_MARGIN_LEFT_PX), 7)
+```
+
+The radius therefore depends on the horizontal screen DPI. It ranges from 7 to 9 pixels in the
+current collections. It is not a fixed constant.
+
+`LabConfig` stores the result in `final_fix_dot_x`, `final_fix_dot_y` and
+`final_fix_dot_radius`. If correction is active and the geometry cannot be derived, the run stops
+with an error. There is no AOI fallback for the final dot.
+
+A fixation counts as a dot fixation only when it is both inside the dot radius and outside the text
+AOI bounds, with one line height of tolerance. Dot fixations are removed from the correction input
+before pymovements runs. Correction therefore uses only the real text lines. The dot fixations are
+reinserted unchanged afterwards. This avoids a fake dot line and prevents text fixations near the
+bottom of the page from snapping to the dot.
 
 ## Dataset overview and codebook
 

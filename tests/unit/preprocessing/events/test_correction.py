@@ -98,16 +98,65 @@ def test_correct_fixations_keeps_final_dot_fixation_unchanged() -> None:
     assert text["location_y"].to_list() == [100.0, 200.0]
 
 
-def test_correct_fixations_requires_final_dot_metadata() -> None:
+def test_correct_fixations_requires_final_dot_geometry() -> None:
     gaze = _gaze()
 
-    with pytest.raises(ValueError, match="FINAL_FIX_DOT_X"):
+    with pytest.raises(ValueError, match="could not derive"):
         correct_fixations(
             gaze,
             [_stimulus()],
             SimpleNamespace(
                 final_fix_dot_x=None,
-                final_fix_dot_y=900.0,
-                final_fix_dot_radius=20.0,
+                final_fix_dot_y=None,
+                final_fix_dot_radius=None,
             ),
         )
+
+
+def test_text_fixation_near_dot_inside_text_bounds_is_corrected() -> None:
+    aois = pl.DataFrame(
+        {
+            "char_idx": [1, 2],
+            "char": ["a", "b"],
+            "word": ["ab", "ab"],
+            "top_left_x": [90.0, 100.0],
+            "top_left_y": [80.0, 80.0],
+            "width": [10.0, 10.0],
+            "height": [10.0, 10.0],
+            "page": ["p1", "p1"],
+        }
+    )
+    stimulus = SimpleNamespace(
+        text_stimulus=SimpleNamespace(aois=aois),
+        trial_id="t1",
+    )
+    events = pm.Events(
+        pl.DataFrame(
+            {
+                "name": ["fixation", "fixation"],
+                "onset": [0, 200],
+                "duration": [100, 100],
+                "location_x": [110.0, 130.0],
+                "location_y": [100.0, 105.0],
+                "trial": ["t1", "t1"],
+                "page": ["p1", "p1"],
+            }
+        ),
+        trial_columns=["trial", "page"],
+    )
+    gaze = SimpleNamespace(events=events)
+    lab_config = SimpleNamespace(
+        final_fix_dot_x=130.0,
+        final_fix_dot_y=105.0,
+        final_fix_dot_radius=30.0,
+    )
+
+    correct_fixations(gaze, [stimulus], lab_config, algorithm="attach")
+
+    frame = gaze.events.frame
+    text = frame.filter(pl.col("location_x") == 110.0)
+    dot = frame.filter(pl.col("location_x") == 130.0)
+    assert text["location_y"].to_list() == [85.0]
+    assert text["correction_algorithm"].to_list() == ["attach"]
+    assert dot["location_y"].to_list() == [105.0]
+    assert dot["correction_algorithm"].to_list() == [None]

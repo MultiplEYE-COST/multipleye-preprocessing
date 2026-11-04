@@ -10,12 +10,6 @@ from ..mapping.aoi import build_combined_text_stimulus
 
 __all__ = ["correct_fixations", "validate_final_fix_dot"]
 
-_FINAL_DOT_KEYS = (
-    ("final_fix_dot_x", "FINAL_FIX_DOT_X"),
-    ("final_fix_dot_y", "FINAL_FIX_DOT_Y"),
-    ("final_fix_dot_radius", "FINAL_FIX_DOT_RADIUS"),
-)
-
 
 def validate_final_fix_dot(lab_config: object) -> tuple[float, float, float]:
     """Return the final fixation dot geometry from the stimulus config.
@@ -33,46 +27,75 @@ def validate_final_fix_dot(lab_config: object) -> tuple[float, float, float]:
     Raises
     ------
     ValueError
-        If any final-dot key is missing or the radius is not positive.
+        If the geometry cannot be derived or the radius is not positive.
     """
-    missing = [
-        config_key
-        for attribute, config_key in _FINAL_DOT_KEYS
-        if getattr(lab_config, attribute, None) is None
-    ]
-    if missing:
+    values = (
+        getattr(lab_config, "final_fix_dot_x", None),
+        getattr(lab_config, "final_fix_dot_y", None),
+        getattr(lab_config, "final_fix_dot_radius", None),
+    )
+    if any(value is None for value in values):
         raise ValueError(
-            "Fixation correction requires final-dot metadata in the stimulus config. "
-            f"Missing: {', '.join(missing)}. Add these keys to config_*.py. "
-            "The final dot is not read from the AOI files."
+            "Fixation correction could not derive the final fixation dot from the "
+            "stimulus config. The config needs IMAGE_WIDTH_PX, IMAGE_HEIGHT_PX, "
+            "MIN_MARGIN_LEFT_PX, MIN_MARGIN_RIGHT_PX, FIX_DOT_X, RESOLUTION and "
+            "SCREEN_SIZE_CM, or explicit POS_BOTTOM_DOT_X_PX, POS_BOTTOM_DOT_Y_PX "
+            "and FIX_DOT_RADIUS."
         )
 
-    x = float(lab_config.final_fix_dot_x)
-    y = float(lab_config.final_fix_dot_y)
-    radius = float(lab_config.final_fix_dot_radius)
+    x, y, radius = (float(value) for value in values)
     if radius <= 0:
-        raise ValueError(
-            "FINAL_FIX_DOT_RADIUS must be positive, "
-            f"got {radius} in the stimulus config."
-        )
+        raise ValueError(f"Final fixation dot radius must be positive, got {radius}.")
     return x, y, radius
 
 
-def _dot_mask(frame: pl.DataFrame, x: float, y: float, radius: float) -> pl.Expr:
+def _location_expressions(frame: pl.DataFrame) -> tuple[pl.Expr, pl.Expr]:
     if {"location_x", "location_y"}.issubset(frame.columns):
-        dx = pl.col("location_x") - x
-        dy = pl.col("location_y") - y
-    elif "location" in frame.columns:
-        dx = pl.col("location").list.get(0) - x
-        dy = pl.col("location").list.get(1) - y
-    else:
-        raise ValueError(
-            "Fixation events need location_x/location_y columns or a location column "
-            "to exclude final-dot fixations."
+        return pl.col("location_x"), pl.col("location_y")
+    if "location" in frame.columns:
+        return (
+            pl.col("location").list.get(0),
+            pl.col("location").list.get(1),
         )
-    return (pl.col("name") == settings.FIXATION) & (
-        (dx * dx + dy * dy) <= radius * radius
+    raise ValueError(
+        "Fixation events need location_x/location_y columns or a location column "
+        "to exclude final-dot fixations."
     )
+
+
+def _text_bounds(
+    stimulus: pm.stimulus.TextStimulus,
+) -> tuple[float, float, float, float, float]:
+    aois = stimulus.aois
+    x_min = float(aois["top_left_x"].min())
+    y_min = float(aois["top_left_y"].min())
+    x_max = float((aois["top_left_x"] + aois["width"]).max())
+    y_max = float((aois["top_left_y"] + aois["height"]).max())
+    line_height = float(aois["height"].max())
+    return x_min, y_min, x_max, y_max, line_height
+
+
+def _dot_mask(
+    frame: pl.DataFrame,
+    x: float,
+    y: float,
+    radius: float,
+    text_bounds: tuple[float, float, float, float, float],
+) -> pl.Expr:
+    location_x, location_y = _location_expressions(frame)
+    x_min, y_min, x_max, y_max, line_height = text_bounds
+
+    inside_text = (
+        (location_x >= x_min - line_height)
+        & (location_x <= x_max + line_height)
+        & (location_y >= y_min - line_height)
+        & (location_y <= y_max + line_height)
+    )
+    within_dot = (
+        (location_x - x) * (location_x - x) + (location_y - y) * (location_y - y)
+    ) <= radius * radius
+
+    return (pl.col("name") == settings.FIXATION) & within_dot & ~inside_text
 
 
 def _separate_dot_fixations(
@@ -80,13 +103,14 @@ def _separate_dot_fixations(
     x: float,
     y: float,
     radius: float,
+    stimulus: pm.stimulus.TextStimulus,
 ) -> pl.DataFrame | None:
     frame = gaze.events.frame
     if frame.is_empty():
         return None
 
     indexed = frame.with_row_index("__fixation_correction_row")
-    dot_mask = _dot_mask(indexed, x, y, radius)
+    dot_mask = _dot_mask(indexed, x, y, radius, _text_bounds(stimulus))
     dot_rows = indexed.filter(dot_mask)
     if dot_rows.is_empty():
         return None
@@ -127,9 +151,9 @@ def correct_fixations(
 
     Fixations on the final fixation dot are removed before correction and reinserted
     unchanged afterwards. Correction therefore sees only the real text lines. The dot
-    must be declared in the stimulus config with ``FINAL_FIX_DOT_X``,
-    ``FINAL_FIX_DOT_Y`` and ``FINAL_FIX_DOT_RADIUS``. Missing dot metadata is an error
-    when correction is active.
+    geometry is derived from the stimulus config. A fixation counts as a dot fixation
+    only when it is both inside the dot radius and outside the text AOI bounds. Missing
+    geometry is an error when correction is active.
 
     Parameters
     ----------
@@ -162,7 +186,13 @@ def correct_fixations(
     stimulus = build_combined_text_stimulus(stimuli)
     character_level = settings.CHAR_IDX_COL in stimulus.aois.columns
 
-    dot_rows = _separate_dot_fixations(gaze, dot_x, dot_y, dot_radius)
+    dot_rows = _separate_dot_fixations(
+        gaze,
+        dot_x,
+        dot_y,
+        dot_radius,
+        stimulus,
+    )
     try:
         gaze.events.correct_fixations(
             stimulus,
