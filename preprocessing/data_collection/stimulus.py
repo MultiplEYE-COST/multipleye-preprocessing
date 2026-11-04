@@ -331,6 +331,9 @@ class LabConfig:
     name_eye_tracker: str
     sampling_frequency_hz: float = None
     psychometric_tests: list[str] = None
+    final_fix_dot_x: float | None = None
+    final_fix_dot_y: float | None = None
+    final_fix_dot_radius: float | None = None
 
     @classmethod
     def load(
@@ -405,6 +408,9 @@ class LabConfig:
             name_eye_tracker=json_config["Name_eye-tracker"],
             sampling_frequency_hz=sampling_frequency_hz,
             psychometric_tests=tests if tests else None,
+            final_fix_dot_x=getattr(config, "FINAL_FIX_DOT_X", None),
+            final_fix_dot_y=getattr(config, "FINAL_FIX_DOT_Y", None),
+            final_fix_dot_radius=getattr(config, "FINAL_FIX_DOT_RADIUS", None),
         )
 
 

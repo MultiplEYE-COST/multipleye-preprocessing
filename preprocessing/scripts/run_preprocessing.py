@@ -149,6 +149,9 @@ def run_preprocessing(config_path: str | None = None):
             f"Invalid experiment type: {settings.EXPERIMENT_TYPE}. Supported types: [MultiplEYE, MeRID]"
         )
 
+    if settings.RUN_FIXATION_CORRECTION:
+        preprocessing.validate_final_fix_dot(data_collection.lab_configuration)
+
     write_quality_thresholds(settings.OUTPUT_DIR)
 
     if settings.RUN_PREFLIGHT_CHECK:
@@ -345,7 +348,11 @@ def run_preprocessing(config_path: str | None = None):
                         )
 
                         pbar.set_description(f"Correcting fixations {sess.sid}:")
-                        preprocessing.correct_fixations(gaze, sess.stimuli)
+                        preprocessing.correct_fixations(
+                            gaze,
+                            sess.stimuli,
+                            sess.lab_config,
+                        )
                         correction_columns = FIXATION_CORRECTION_COLUMNS
 
                     preprocessing.save_events_data(

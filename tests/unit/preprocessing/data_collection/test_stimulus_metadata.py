@@ -22,6 +22,9 @@ DISTANCE_CM = 60.0
 IMAGE_WIDTH_PX = 1322
 IMAGE_HEIGHT_PX = 980
 IMAGE_SIZE_CM = (38.0, 28.3)
+FINAL_FIX_DOT_X = 1248.0
+FINAL_FIX_DOT_Y = 900.0
+FINAL_FIX_DOT_RADIUS = 12.0
 """
 
 
@@ -107,3 +110,42 @@ def test_lab_config_raises_for_unparseable_metadata_form(tmp_path: Path):
 
     with pytest.raises(ValueError, match="Could not parse metadata form"):
         _load(stimulus_dir)
+
+
+def test_lab_config_reads_final_fix_dot_geometry(tmp_path: Path):
+    stimulus_dir = _make_stimulus_dir(tmp_path)
+
+    lab_config = _load(stimulus_dir)
+
+    assert lab_config.final_fix_dot_x == 1248.0
+    assert lab_config.final_fix_dot_y == 900.0
+    assert lab_config.final_fix_dot_radius == 12.0
+
+
+def test_lab_config_leaves_final_fix_dot_unset_when_keys_are_missing(
+    tmp_path: Path,
+):
+    stimulus_dir = tmp_path / "stimuli"
+    config_dir = stimulus_dir / "config"
+    config_dir.mkdir(parents=True)
+    (
+        config_dir
+        / f"config_{_LANG.lower()}_{_COUNTRY.lower()}_city_{_LABNUM}_{_YEAR}.py"
+    ).write_text(
+        "\n".join(
+            line
+            for line in _CONFIG_PY.splitlines()
+            if not line.startswith("FINAL_FIX_DOT")
+        ),
+        encoding="utf-8",
+    )
+    (
+        config_dir
+        / f"MultiplEYE_{_LANG}_{_COUNTRY}_{_CITY}_{_LABNUM}_{_YEAR}_lab_configuration.json"
+    ).write_text('{"Name_eye-tracker": "EyeLink 1000 Plus"}', encoding="utf-8")
+
+    lab_config = _load(stimulus_dir)
+
+    assert lab_config.final_fix_dot_x is None
+    assert lab_config.final_fix_dot_y is None
+    assert lab_config.final_fix_dot_radius is None

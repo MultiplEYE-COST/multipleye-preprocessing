@@ -66,6 +66,27 @@ fixations_uncorrected_folder: "fixations_uncorrected/"
 - `fixation_correction_kwargs` passes extra tuning parameters to the algorithms.
 - `fixations_uncorrected_folder` is the subfolder name inside the processed data collection.
 
+## Final fixation dot
+
+Each stimulus page ends with a fixation dot. Dot positions can differ by language and collection, so
+the pipeline reads them from the stimulus config and does not hardcode a position.
+
+The stimulus config must define:
+
+```python
+FINAL_FIX_DOT_X = 1214.0
+FINAL_FIX_DOT_Y = 1028.0
+FINAL_FIX_DOT_RADIUS = 7.0
+```
+
+`LabConfig` loads these values into `final_fix_dot_x`, `final_fix_dot_y` and
+`final_fix_dot_radius`. When correction is active, all three keys are required. Missing or invalid
+dot metadata raises an error before correction starts. There is no AOI fallback for the final dot.
+
+Dot fixations are removed from the correction input before pymovements runs. Correction therefore
+uses only the real text lines. Dot fixations are reinserted unchanged afterwards. This avoids a fake
+dot line and prevents text fixations near the bottom of the page from snapping to the dot.
+
 ## Dataset overview and codebook
 
 The dataset overview records the resolved settings in `processing_config`:
@@ -96,8 +117,6 @@ downstream outputs.
 
 ## Current limitations
 
-- The final fixation dot at the end of a stimulus is not handled specially yet. It can still be
-  attracted to the last text line.
 - Horizontal correction for vertical writing systems is not implemented yet.
 - The pipeline temporarily pins pymovements to the commit that contains the correction API. The pin
   is removed when a pymovements release includes it.

@@ -4,7 +4,7 @@ from .answers.collect import collect_session_answers
 from .answers.experiment_log_parser import parse_answers_from_logfile
 from .answers.msg_parser import parse_answers_from_messages
 from .checks.preflight import run_preflight_check
-from .events.correction import correct_fixations
+from .events.correction import correct_fixations, validate_final_fix_dot
 from .events.detect import detect_fixations, detect_saccades
 from .events.properties import compute_event_properties
 from .io.load import (
@@ -53,4 +53,5 @@ __all__ = [
     "save_reading_measures",
     "save_scanpaths",
     "save_session_metadata",
+    "validate_final_fix_dot",
 ]
