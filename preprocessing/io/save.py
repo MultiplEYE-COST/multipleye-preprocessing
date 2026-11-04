@@ -10,6 +10,21 @@ import pymovements as pm
 from ..models.sid import Sid
 
 
+def _duration_columns_to_ms(frame: pl.DataFrame) -> pl.DataFrame:
+    """Convert pymovements duration columns to milliseconds for CSV output."""
+    duration_columns = [
+        column
+        for column in ("onset", "offset", "duration")
+        if column in frame.columns and frame.schema[column] == pl.Duration
+    ]
+    if not duration_columns:
+        return frame
+    return frame.with_columns(
+        pl.col(column).dt.total_milliseconds().alias(column)
+        for column in duration_columns
+    )
+
+
 def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
     """
     Saves raw gaze data with calculated position and velocity in separate csv files per trial.
@@ -100,7 +115,9 @@ def save_events_data(
     with contextlib.suppress(Warning):
         data_copy.events.unnest()
 
-    events = data_copy.events.frame.filter(pl.col("name") == event_type)
+    events = _duration_columns_to_ms(
+        data_copy.events.frame.filter(pl.col("name") == event_type)
+    )
 
     for group in events.partition_by(split_column):
         name = f"{sid!s}"
@@ -170,6 +187,7 @@ def save_scanpaths(sid: Sid, data: pm.Gaze) -> None:
             "word_idx_in_line",
             "word",
         ]
+        df = _duration_columns_to_ms(df)
         df.write_csv(directory / name)
 
 

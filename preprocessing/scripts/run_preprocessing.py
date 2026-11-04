@@ -55,28 +55,32 @@ def _fixation_correction_is_current(fixation_dir) -> bool:
     if not files:
         return False
 
-    header = pl.read_csv(files[0], n_rows=0).columns
-    has_correction_column = "correction_algorithm" in header
+    expected_label = _fixation_correction_label(settings.FIXATION_CORRECTION_ALGORITHM)
 
-    if not settings.RUN_FIXATION_CORRECTION:
-        return not has_correction_column
+    for path in files:
+        header = pl.read_csv(path, n_rows=0).columns
+        has_correction_column = "correction_algorithm" in header
 
-    if not has_correction_column:
-        return False
+        if not settings.RUN_FIXATION_CORRECTION:
+            if has_correction_column:
+                return False
+            continue
 
-    saved_labels = (
-        pl.read_csv(files[0], columns=["correction_algorithm"])["correction_algorithm"]
-        .drop_nulls()
-        .unique()
-        .to_list()
-    )
-    # An all-null column still indicates corrected output (e.g. every trial was skipped).
-    if not saved_labels:
-        return True
+        if not has_correction_column:
+            return False
 
-    return set(saved_labels) == {
-        _fixation_correction_label(settings.FIXATION_CORRECTION_ALGORITHM)
-    }
+        saved_labels = (
+            pl.read_csv(path, columns=["correction_algorithm"])["correction_algorithm"]
+            .drop_nulls()
+            .unique()
+            .to_list()
+        )
+        # An all-null column still indicates corrected output, e.g. when every trial was
+        # skipped because it had too few fixations.
+        if saved_labels and set(saved_labels) != {expected_label}:
+            return False
+
+    return True
 
 
 def run_preprocessing(config_path: str | None = None):

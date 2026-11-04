@@ -546,7 +546,7 @@ class Settings:
         #: Whether to perform fixation detection.
         self.RUN_FIXATION_DETECTION = True
         #: Whether to correct fixation locations for line drift.
-        self.RUN_FIXATION_CORRECTION = True
+        self.RUN_FIXATION_CORRECTION = False
         #: Whether to perform saccade detection.
         self.RUN_SACCADE_DETECTION = True
         #: Whether to perform reading measures calculation.

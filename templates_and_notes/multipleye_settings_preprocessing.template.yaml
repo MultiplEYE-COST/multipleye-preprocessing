@@ -219,7 +219,7 @@ velocity_polynomial_degree: 2
 # When enabled, AOI enlargement is disabled and all downstream outputs (scanpaths, reading
 # measures, sanity plots) use the corrected fixations. The raw detected fixations are kept
 # in a separate "fixations_uncorrected" folder.
-RUN_FIXATION_CORRECTION: true
+RUN_FIXATION_CORRECTION: false
 # Drift correction algorithm passed to pymovements. Either a single algorithm or a list.
 # Single algorithms: attach, chain, cluster, compare, merge, regress, segment, slice,
 # split, stretch, warp. "wisdom_of_the_crowd" (alias "woc") is the ensemble default and

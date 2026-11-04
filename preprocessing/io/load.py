@@ -476,6 +476,16 @@ def load_scanpaths(
         # return gaze untouched if no scanpaths files were found
         return gaze
 
+    # Scanpath files store onset in milliseconds. Match the event dtype before joining,
+    # because pymovements releases after 0.28 use a Duration dtype for event times.
+    onset_dtype = gaze.events.frame.schema.get("onset")
+    if onset_dtype == pl.Duration:
+        unit = onset_dtype.time_unit
+        factor = {"ns": 1_000_000, "us": 1_000, "ms": 1}[unit]
+        all_scanpaths = all_scanpaths.with_columns(
+            (pl.col("onset") * factor).cast(pl.Duration(unit)).alias("onset")
+        )
+
     # join loaded scanpaths into existing events frame
     key_cols = ["onset", "trial", "stimulus", "page", "name"]
     imported_cols = [

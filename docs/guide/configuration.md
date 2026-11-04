@@ -91,12 +91,12 @@ values are used are recorded in the dataset overview `processing_config` section
 
 ### Fixation Correction Settings
 
-These control the vertical drift correction of fixation locations. The defaults match the
-published MultiplEYE pipeline; **only change them if you are a core developer**. Whatever
-values are used are recorded in the dataset overview `processing_config` section.
+These control the vertical drift correction of fixation locations. The correction is off by
+default so existing outputs stay unchanged. Whatever values are used are recorded in the dataset
+overview `processing_config` section.
 
 - `RUN_FIXATION_CORRECTION`: whether to correct fixation locations for line drift
-  (default: `true`). When enabled, AOI enlargement is disabled and all downstream outputs
+  (default: `false`). When enabled, AOI enlargement is disabled and all downstream outputs
   (scanpaths, reading measures, sanity plots) use the corrected fixations. A raw copy is
   kept in the `fixations_uncorrected` output folder.
 - `FIXATION_CORRECTION_ALGORITHM`: drift correction algorithm passed to pymovements. Either
