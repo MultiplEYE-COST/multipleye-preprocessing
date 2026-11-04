@@ -26,9 +26,9 @@ dependencies = [
 
 [tool.uv.sources]
 # TEMPORARY: fixation drift correction (pymovements/pymovements#1625) is merged to main but not
-# yet released on PyPI. Pin the merge commit until the next release ships, then drop this
+# yet released on PyPI. Pin current main until the next release ships, then drop this
 # override and require the released version instead.
-pymovements = { git = "https://github.com/pymovements/pymovements.git", rev = "45663a7e5ba43f8a3ab8c7f06e562e0b7f241e71" }
+pymovements = { git = "https://github.com/pymovements/pymovements.git", rev = "d4b75d42f5d683b503243e3bb6d51e6bb14eade6" }
 
 [project.optional-dependencies]
 review = [
