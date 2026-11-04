@@ -93,12 +93,13 @@ values are used are recorded in the dataset overview `processing_config` section
 
 These control the vertical drift correction of fixation locations. The correction is off by
 default so existing outputs stay unchanged. Whatever values are used are recorded in the dataset
-overview `processing_config` section.
+overview `processing_config` section. See {ref}`fixation_correction` for the output contract.
 
 - `RUN_FIXATION_CORRECTION`: whether to correct fixation locations for line drift
   (default: `false`). When enabled, AOI enlargement is disabled and all downstream outputs
-  (scanpaths, reading measures, sanity plots) use the corrected fixations. A raw copy is
-  kept in the `fixations_uncorrected` output folder.
+  (scanpaths, reading measures, sanity plots) use the corrected fixations. The raw detected
+  fixations are written to `fixations_uncorrected/`, a subfolder of the processed data
+  collection.
 - `FIXATION_CORRECTION_ALGORITHM`: drift correction algorithm passed to pymovements. Either
   a single algorithm (`attach`, `chain`, `cluster`, `compare`, `merge`, `regress`, `segment`,
   `slice`, `split`, `stretch`, `warp`) or `wisdom_of_the_crowd` (alias `woc`), the ensemble
@@ -106,6 +107,8 @@ overview `processing_config` section.
 - `FIXATION_CORRECTION_KWARGS`: additional tuning parameters for the drift algorithms, e.g.
   `{"x_thresh": 250.0}`. An entry is routed only to algorithms whose signature accepts it,
   but it fans out to all of them, so use with care.
+- `FIXATIONS_UNCORRECTED_FOLDER`: name of the raw-fixation subfolder inside the processed data
+  collection. Default: `fixations_uncorrected/`.
 
 ### Quality Check Thresholds
 

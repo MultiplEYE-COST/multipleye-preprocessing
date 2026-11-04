@@ -627,6 +627,11 @@ FIELDS = (
         "boolean",
         "processing_config",
         "provenance",
+        notes=(
+            "False means fixations, scanpaths and reading measures stay uncorrected. "
+            "True means they use corrected fixations and fixations_uncorrected/ keeps "
+            "the raw detected copy."
+        ),
     ),
     _field(
         "processing_config.fixation_correction_algorithm",
@@ -635,6 +640,7 @@ FIELDS = (
         "string",
         "processing_config",
         "provenance",
+        notes="Recorded for reproducibility. Applied only when fixation_correction is true.",
     ),
     _field(
         "processing_config.fixation_correction_kwargs",
@@ -643,6 +649,7 @@ FIELDS = (
         "object",
         "processing_config",
         "provenance",
+        notes="Recorded for reproducibility. Applied only when fixation_correction is true.",
     ),
     _field(
         "processing_config.fixation_method",

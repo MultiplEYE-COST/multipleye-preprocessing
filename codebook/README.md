@@ -282,6 +282,39 @@ offline archival.
 Both generated files are produced automatically during processing or build. They are not read
 back into preprocessing.
 
+## Fixation correction output contract
+
+The codebook records fixation drift correction through three dataset fields:
+
+```text
+processing_config.fixation_correction
+processing_config.fixation_correction_algorithm
+processing_config.fixation_correction_kwargs
+```
+
+When `fixation_correction` is `false`, the pipeline does not apply drift correction. The
+`fixations/`, `scanpaths/`, `reading_measures/` and sanity-check outputs all use the detected,
+uncorrected fixations. `fixations_uncorrected/` is not written. The algorithm and kwargs are still
+recorded so the resolved configuration is reproducible, but they were not applied.
+
+When `fixation_correction` is `true`, correction runs after fixation detection and before
+scanpaths and reading measures. `fixations/` contains the corrected fixations.
+`fixations_uncorrected/` contains the raw detected fixations. Scanpaths, reading measures and
+sanity plots use the corrected fixations. `processing_config.aoi_enlargement` is `none` in that
+case, because corrected fixations already land on the AOIs.
+
+All affected folders are subfolders of the processed data collection:
+
+```text
+preprocessed_data/<dcn>/fixations/
+preprocessed_data/<dcn>/fixations_uncorrected/
+preprocessed_data/<dcn>/scanpaths/
+preprocessed_data/<dcn>/reading_measures/
+preprocessed_data/<dcn>/sanity_checks/
+```
+
+The detailed guide page is `docs/guide/fixation_correction.md`.
+
 ## Language tree
 
 The canonical language tree is owned by EyeStore. A dataset selects one node by Glottocode. The

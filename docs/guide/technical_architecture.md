@@ -140,8 +140,12 @@ column mappings (`tracked_eye`, `trial_cols`, `trial_col`, `page_col`, `stimulus
 `data_loss_missingness_column`, `per_trial_loss_weighting`). These values are read from the
 resolved configuration, so the overview always reflects what was actually applied.
 `aoi_enlargement` is `none` when fixation correction is active (corrected fixations land on the
-AOIs) and `half_line_spacing` otherwise. The separate `processing_environment` block records the
-pipeline git revision plus the pymovements, edf2asc and Python versions.
+AOIs) and `half_line_spacing` otherwise. When correction is active, `fixations/` contains the
+corrected fixations, `fixations_uncorrected/` keeps the raw detections and scanpaths, reading
+measures and sanity plots use the corrected data. When correction is off, `fixations/` and all
+downstream outputs stay uncorrected and `fixations_uncorrected/` is not written. See
+{ref}`fixation_correction` for the full output contract. The separate `processing_environment`
+block records the pipeline git revision plus the pymovements, edf2asc and Python versions.
 
 **Reading times are recorded in seconds.** The session overview stores `total_reading_time_s`, the
 dataset overview averages it as `mean_total_reading_time_s`, and `mean_wpm` is computed as

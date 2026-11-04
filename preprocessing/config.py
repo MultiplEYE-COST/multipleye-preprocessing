@@ -483,8 +483,9 @@ class Settings:
         #: Subfolder name for fixation data.
         self.FIXATIONS_FOLDER = Path("fixations/")
 
-        #: Subfolder name for the uncorrected copy of fixation data (written when fixation
-        #: correction is active, so the raw detected fixations remain available).
+        #: Subfolder of each processed data collection for the uncorrected copy of fixation
+        #: data. It is written only when fixation correction is active, so the raw detected
+        #: fixations remain available next to the corrected ``fixations/`` folder.
         self.FIXATIONS_UNCORRECTED_FOLDER = Path("fixations_uncorrected/")
 
         #: Subfolder name for saccade data.

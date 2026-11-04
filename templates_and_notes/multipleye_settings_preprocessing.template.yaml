@@ -218,7 +218,9 @@ velocity_polynomial_degree: 2
 # Whether to correct fixation locations for vertical line drift.
 # When enabled, AOI enlargement is disabled and all downstream outputs (scanpaths, reading
 # measures, sanity plots) use the corrected fixations. The raw detected fixations are kept
-# in a separate "fixations_uncorrected" folder.
+# in "fixations_uncorrected/", a subfolder of the processed data collection. When disabled,
+# "fixations/", scanpaths and reading measures stay uncorrected and no uncorrected copy is
+# written.
 RUN_FIXATION_CORRECTION: false
 # Drift correction algorithm passed to pymovements. Either a single algorithm or a list.
 # Single algorithms: attach, chain, cluster, compare, merge, regress, segment, slice,
@@ -256,6 +258,9 @@ force_reconvert_asc: false
 edf2asc_workers: 4
 raw_data_folder: "raw_data/"
 fixations_folder: "fixations/"
+# Subfolder of each processed data collection for the raw detected fixations. Written only
+# when RUN_FIXATION_CORRECTION is true. Example:
+# preprocessed_data/<dcn>/fixations_uncorrected/<session>_<trial>_<stimulus>_fixation.csv
 fixations_uncorrected_folder: "fixations_uncorrected/"
 saccades_folder: "saccades/"
 scanpaths_folder: "scanpaths/"
