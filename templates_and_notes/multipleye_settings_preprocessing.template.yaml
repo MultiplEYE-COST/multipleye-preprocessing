@@ -214,6 +214,24 @@ velocity_smoothing_window_ms: 50
 # Polynomial degree used in the Savitzky-Golay velocity filter.
 velocity_polynomial_degree: 2
 
+# --- FIXATION CORRECTION ---
+# Whether to correct fixation locations for vertical line drift.
+# When enabled, AOI enlargement is disabled and all downstream outputs (scanpaths, reading
+# measures, sanity plots) use the corrected fixations. The raw detected fixations are kept
+# in "fixations_uncorrected/", a subfolder of the processed data collection. When disabled,
+# "fixations/", scanpaths and reading measures stay uncorrected and no uncorrected copy is
+# written.
+RUN_FIXATION_CORRECTION: false
+# Drift correction algorithm passed to pymovements. Either a single algorithm or a list.
+# Single algorithms: attach, chain, cluster, compare, merge, regress, segment, slice,
+# split, stretch, warp. "wisdom_of_the_crowd" (alias "woc") is the ensemble default and
+# combines all algorithms via majority voting.
+fixation_correction_algorithm: "wisdom_of_the_crowd"
+# Additional tuning parameters for the drift algorithms, e.g. {"x_thresh": 250.0}.
+# An entry is routed only to algorithms whose signature accepts it, but it fans out to all
+# of them, so use with care.
+fixation_correction_kwargs: {}
+
 # --- PIPELINE STAGES ---
 # Whether to run the preflight input file check before processing.
 RUN_PREFLIGHT_CHECK: true
@@ -240,6 +258,10 @@ force_reconvert_asc: false
 edf2asc_workers: 4
 raw_data_folder: "raw_data/"
 fixations_folder: "fixations/"
+# Subfolder of each processed data collection for the raw detected fixations. Written only
+# when RUN_FIXATION_CORRECTION is true. Example:
+# preprocessed_data/<dcn>/fixations_uncorrected/<session>_<trial>_<stimulus>_fixation.csv
+fixations_uncorrected_folder: "fixations_uncorrected/"
 saccades_folder: "saccades/"
 scanpaths_folder: "scanpaths/"
 reading_measures_folder: "reading_measures/"

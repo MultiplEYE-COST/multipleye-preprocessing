@@ -1,11 +1,28 @@
 """Functions for saving data."""
 
+import contextlib
 import json
+from pathlib import Path
 
 import polars as pl
 import pymovements as pm
 
 from ..models.sid import Sid
+
+
+def _duration_columns_to_ms(frame: pl.DataFrame) -> pl.DataFrame:
+    """Convert pymovements duration columns to milliseconds for CSV output."""
+    duration_columns = [
+        column
+        for column in ("onset", "offset", "duration")
+        if column in frame.columns and frame.schema[column] == pl.Duration
+    ]
+    if not duration_columns:
+        return frame
+    return frame.with_columns(
+        pl.col(column).dt.total_milliseconds().alias(column)
+        for column in duration_columns
+    )
 
 
 def save_raw_data(sid: Sid, data: pm.Gaze) -> None:
@@ -57,6 +74,7 @@ def save_events_data(
     name_columns: list[str],
     file_columns: list[str],
     data: pm.Gaze,
+    directory: Path | None = None,
 ) -> None:
     """
     Saves events data (fixations or saccades) in separate csv files. The input is expected to be
@@ -77,6 +95,9 @@ def save_events_data(
         Columns that should be included in the saved csv file.
     data : pm.Gaze
         The events data as a pymovements Gaze object.
+    directory : Path | None, optional
+        Target directory. If None, the default directory of the event type is used. This
+        allows keeping an additional copy of the raw events, e.g. uncorrected fixations.
     """
 
     if event_type not in ["fixation", "saccade"]:
@@ -84,13 +105,19 @@ def save_events_data(
             "Only fixations and saccades are currently supported as events."
         )
 
-    directory = sid.fixations_dir if event_type == "fixation" else sid.saccades_dir
+    if directory is None:
+        directory = sid.fixations_dir if event_type == "fixation" else sid.saccades_dir
     directory.mkdir(parents=True, exist_ok=True)
 
     data_copy = data.clone()
-    data_copy.events.unnest()
+    # The location column may already be unnested (e.g. when fixation correction ran before
+    # saving), which makes unnest a no-op that only emits a warning.
+    with contextlib.suppress(Warning):
+        data_copy.events.unnest()
 
-    events = data_copy.events.frame.filter(pl.col("name") == event_type)
+    events = _duration_columns_to_ms(
+        data_copy.events.frame.filter(pl.col("name") == event_type)
+    )
 
     for group in events.partition_by(split_column):
         name = f"{sid!s}"
@@ -160,6 +187,7 @@ def save_scanpaths(sid: Sid, data: pm.Gaze) -> None:
             "word_idx_in_line",
             "word",
         ]
+        df = _duration_columns_to_ms(df)
         df.write_csv(directory / name)
 
 

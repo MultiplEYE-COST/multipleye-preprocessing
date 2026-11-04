@@ -621,6 +621,37 @@ FIELDS = (
         "provenance",
     ),
     _field(
+        "processing_config.fixation_correction",
+        "Fixation correction",
+        "Whether fixation locations were corrected for line drift.",
+        "boolean",
+        "processing_config",
+        "provenance",
+        notes=(
+            "False means fixations, scanpaths and reading measures stay uncorrected. "
+            "True means they use corrected fixations and fixations_uncorrected/ keeps "
+            "the raw detected copy."
+        ),
+    ),
+    _field(
+        "processing_config.fixation_correction_algorithm",
+        "Drift correction algorithm",
+        "Drift correction algorithm or ensemble passed to pymovements.",
+        "string",
+        "processing_config",
+        "provenance",
+        notes="Recorded for reproducibility. Applied only when fixation_correction is true.",
+    ),
+    _field(
+        "processing_config.fixation_correction_kwargs",
+        "Drift correction parameters",
+        "Tuning parameters passed to the drift correction algorithm.",
+        "object",
+        "processing_config",
+        "provenance",
+        notes="Recorded for reproducibility. Applied only when fixation_correction is true.",
+    ),
+    _field(
         "processing_config.fixation_method",
         "Fixation detection method",
         "Fixation detection method passed to pymovements.",

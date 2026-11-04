@@ -89,6 +89,31 @@ values are used are recorded in the dataset overview `processing_config` section
 - `VELOCITY_SMOOTHING_WINDOW_MS`: velocity window length in milliseconds (default: `50`).
 - `VELOCITY_POLYNOMIAL_DEGREE`: Savitzky-Golay polynomial degree (default: `2`).
 
+### Fixation Correction Settings
+
+These control the vertical drift correction of fixation locations. The correction is off by
+default so existing outputs stay unchanged. Whatever values are used are recorded in the dataset
+overview `processing_config` section. See {ref}`fixation_correction` for the output contract.
+
+- `RUN_FIXATION_CORRECTION`: whether to correct fixation locations for line drift
+  (default: `false`). When enabled, AOI enlargement is disabled and all downstream outputs
+  (scanpaths, reading measures, sanity plots) use the corrected fixations. The raw detected
+  fixations are written to `fixations_uncorrected/`, a subfolder of the processed data
+  collection.
+- `FIXATION_CORRECTION_ALGORITHM`: drift correction algorithm passed to pymovements. Either
+  a single algorithm (`attach`, `chain`, `cluster`, `compare`, `merge`, `regress`, `segment`,
+  `slice`, `split`, `stretch`, `warp`) or `wisdom_of_the_crowd` (alias `woc`), the ensemble
+  default that combines all algorithms via majority voting.
+- `FIXATION_CORRECTION_KWARGS`: additional tuning parameters for the drift algorithms, e.g.
+  `{"x_thresh": 250.0}`. An entry is routed only to algorithms whose signature accepts it,
+  but it fans out to all of them, so use with care.
+- `FIXATIONS_UNCORRECTED_FOLDER`: name of the raw-fixation subfolder inside the processed data
+  collection. Default: `fixations_uncorrected/`.
+
+The final-dot position is not a pipeline setting. It comes from the stimulus config through
+`FINAL_FIX_DOT_X`, `FINAL_FIX_DOT_Y` and `FINAL_FIX_DOT_RADIUS`. These keys are required when
+correction is active. See {ref}`fixation_correction`.
+
 ### Quality Check Thresholds
 
 These settings define the criteria for "GOOD" data quality. **Do not change these** unless you are a

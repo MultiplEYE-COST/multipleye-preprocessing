@@ -23,6 +23,7 @@ def settings_obj():
         ("SACCADE", "saccade"),
         ("ASC_FOLDER", Path("asc/")),
         ("FORCE_RECONVERT_ASC", False),
+        ("RUN_FIXATION_CORRECTION", False),
         ("SANITY_CHECKS_FOLDER", Path("sanity_checks/")),
         ("METADATA_FOLDER", Path("metadata/")),
         ("FIXATION_METHOD", "ivt"),

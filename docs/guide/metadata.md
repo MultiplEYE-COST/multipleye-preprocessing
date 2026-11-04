@@ -289,12 +289,22 @@ This section records the resolved settings used for the run. It covers:
   `saccade_threshold_factor`;
 - velocity estimation: `velocity_estimation_method`, `velocity_smoothing_window_ms`,
   `velocity_polynomial_degree`;
+- fixation drift correction: `fixation_correction`, `fixation_correction_algorithm`,
+  `fixation_correction_kwargs`;
 - psychometric scoring windows: `psym_wikivocab_min_rt`, `psym_wikivocab_max_rt`,
   `psym_stroop_min_rt`, `psym_stroop_max_rt`, `psym_flanker_min_rt`, `psym_flanker_max_rt`;
 - column mappings: `trial_cols`, `trial_col`, `page_col`, `stimulus_col`, `word_idx_col`,
   `char_idx_col`;
 - fixed design decisions: `aoi_enlargement`, `reading_measures_null_fill`,
   `scanpath_drop_unmapped`, `data_loss_missingness_column`, `per_trial_loss_weighting`.
+
+`aoi_enlargement` is `none` when fixation correction is active, because corrected fixations land
+on the AOIs. It is `half_line_spacing` when correction is off.
+
+`fixation_correction: false` means fixations, scanpaths and reading measures stay uncorrected.
+`fixation_correction: true` means they use corrected fixations and `fixations_uncorrected/` keeps
+the raw detected copy. The algorithm and kwargs are recorded in both cases for reproducibility.
+See {ref}`fixation_correction` for the folder layout.
 
 `tracked_eye` in this section is the list of accepted eye labels from the configuration, not the
 eye tracked in a particular session. The session-level `tracking.tracked_eye` holds the actual

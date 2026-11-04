@@ -125,6 +125,12 @@ class Sid:
         return _settings.OUTPUT_DIR / _settings.FIXATIONS_FOLDER / str(self)
 
     @property
+    def fixations_uncorrected_dir(self) -> Path:
+        from ..config import settings as _settings
+
+        return _settings.OUTPUT_DIR / _settings.FIXATIONS_UNCORRECTED_FOLDER / str(self)
+
+    @property
     def saccades_dir(self) -> Path:
         from ..config import settings as _settings
 
