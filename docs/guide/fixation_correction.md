@@ -34,6 +34,17 @@ This is the default and matches the previous pipeline behaviour:
   `location_y_original`.
 - The applied algorithm is stored in `correction_algorithm`.
 
+```{figure} ../_static/fixation_correction_before_after.png
+---
+name: fixation-correction-before-after
+alt: Fixation positions on a stimulus page before and after drift correction
+width: 100%
+---
+Fixation positions on one stimulus page. Red points are before correction. Blue points are after
+correction. Grey lines connect the original and corrected positions. Fixations on the final dot
+overlap before and after correction and stay at the dot.
+```
+
 All output folders are subfolders of the processed data collection folder:
 
 ```text
@@ -105,11 +116,13 @@ current collections. It is not a fixed constant.
 `final_fix_dot_radius`. If correction is active and the geometry cannot be derived, the run stops
 with an error. There is no AOI fallback for the final dot.
 
-A fixation counts as a dot fixation only when it is both inside the dot radius and outside the text
-AOI bounds, with one line height of tolerance. Dot fixations are removed from the correction input
-before pymovements runs. Correction therefore uses only the real text lines. The dot fixations are
-reinserted unchanged afterwards. This avoids a fake dot line and prevents text fixations near the
-bottom of the page from snapping to the dot.
+A fixation counts as a dot fixation only when it is outside the text AOI bounds, with one line
+height of tolerance, and within a tolerance around the dot centre. The tolerance is the larger of
+four dot radii and the distance from the dot to the last text line, because gaze positions on the
+dot can be several dot radii away from its centre. Dot fixations are removed from the correction
+input before pymovements runs. Correction therefore uses only the real text lines. The dot fixations
+are reinserted unchanged afterwards. This avoids a fake dot line and prevents text fixations near
+the bottom of the page from snapping to the dot.
 
 ## Dataset overview and codebook
 

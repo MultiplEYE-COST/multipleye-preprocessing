@@ -98,6 +98,29 @@ def test_correct_fixations_keeps_final_dot_fixation_unchanged() -> None:
     assert text["location_y"].to_list() == [100.0, 200.0]
 
 
+def test_offset_dot_fixation_is_excluded_from_correction() -> None:
+    gaze = _gaze(include_dot=True)
+    extra = pl.DataFrame(
+        {
+            "name": ["fixation"],
+            "onset": [600],
+            "duration": [100],
+            "location_x": [1025.0],
+            "location_y": [900.0],
+            "trial": ["t1"],
+            "page": ["p1"],
+        }
+    )
+    gaze.events.frame = pl.concat([gaze.events.frame, extra], how="diagonal_relaxed")
+
+    correct_fixations(gaze, [_stimulus()], _lab_config(), algorithm="attach")
+
+    frame = gaze.events.frame
+    dot = frame.filter(pl.col("location_x") >= 1000.0)
+    assert dot["location_y"].to_list() == [900.0, 900.0]
+    assert dot["correction_algorithm"].to_list() == [None, None]
+
+
 def test_events_without_text_aois_are_not_corrected() -> None:
     events = pm.Events(
         pl.DataFrame(

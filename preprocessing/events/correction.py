@@ -63,16 +63,18 @@ def _location_expressions(frame: pl.DataFrame) -> tuple[pl.Expr, pl.Expr]:
     )
 
 
-def _text_bounds(
+def _text_bounds_table(
     stimulus: pm.stimulus.TextStimulus,
-) -> tuple[float, float, float, float, float]:
+    key_columns: list[str],
+) -> pl.DataFrame:
     aois = stimulus.aois
-    x_min = float(aois["top_left_x"].min())
-    y_min = float(aois["top_left_y"].min())
-    x_max = float((aois["top_left_x"] + aois["width"]).max())
-    y_max = float((aois["top_left_y"] + aois["height"]).max())
-    line_height = float(aois["height"].max())
-    return x_min, y_min, x_max, y_max, line_height
+    return aois.group_by(key_columns).agg(
+        pl.col("top_left_x").min().alias("__text_x_min"),
+        pl.col("top_left_y").min().alias("__text_y_min"),
+        (pl.col("top_left_x") + pl.col("width")).max().alias("__text_x_max"),
+        (pl.col("top_left_y") + pl.col("height")).max().alias("__text_y_max"),
+        pl.col("height").max().alias("__text_line_height"),
+    )
 
 
 def _dot_mask(
@@ -80,20 +82,27 @@ def _dot_mask(
     x: float,
     y: float,
     radius: float,
-    text_bounds: tuple[float, float, float, float, float],
 ) -> pl.Expr:
     location_x, location_y = _location_expressions(frame)
-    x_min, y_min, x_max, y_max, line_height = text_bounds
+    line_height = pl.col("__text_line_height")
 
     inside_text = (
-        (location_x >= x_min - line_height)
-        & (location_x <= x_max + line_height)
-        & (location_y >= y_min - line_height)
-        & (location_y <= y_max + line_height)
+        (location_x >= pl.col("__text_x_min") - line_height)
+        & (location_x <= pl.col("__text_x_max") + line_height)
+        & (location_y >= pl.col("__text_y_min") - line_height)
+        & (location_y <= pl.col("__text_y_max") + line_height)
+    )
+    # Gaze positions on the dot can be several dot radii away from its centre.
+    # Use the distance from the dot to the last text line as a tolerance, while
+    # the text bounds guard above prevents real text fixations from being excluded.
+    dot_to_text = (y - pl.col("__text_y_max")).clip(lower_bound=0.0)
+    dot_reach = pl.max_horizontal(
+        pl.lit(radius * 4.0),
+        dot_to_text,
     )
     within_dot = (
         (location_x - x) * (location_x - x) + (location_y - y) * (location_y - y)
-    ) <= radius * radius
+    ) <= dot_reach * dot_reach
 
     return (pl.col("name") == settings.FIXATION) & within_dot & ~inside_text
 
@@ -119,25 +128,24 @@ def _separate_excluded_events(
             "Fixation events and stimulus AOIs need a shared trial or page column."
         )
 
-    text_trials = (
-        stimulus.aois.select(key_columns)
-        .unique()
-        .with_columns(pl.lit(True).alias("__has_text"))
-    )
+    text_bounds = _text_bounds_table(stimulus, key_columns)
     indexed = frame.with_row_index("__fixation_correction_row").join(
-        text_trials,
+        text_bounds,
         on=key_columns,
         how="left",
     )
-    has_text = pl.col("__has_text").fill_null(False)
-    dot_mask = _dot_mask(indexed, x, y, radius, _text_bounds(stimulus))
+    has_text = pl.col("__text_y_max").is_not_null()
+    dot_mask = _dot_mask(indexed, x, y, radius)
     excluded_rows = indexed.filter(~has_text | dot_mask)
     if excluded_rows.is_empty():
         gaze.events.frame = frame
         return None
 
-    gaze.events.frame = indexed.filter(has_text & ~dot_mask).drop("__has_text")
-    return excluded_rows.drop("__has_text")
+    text_columns = [
+        column for column in text_bounds.columns if column not in key_columns
+    ]
+    gaze.events.frame = indexed.filter(has_text & ~dot_mask).drop(*text_columns)
+    return excluded_rows.drop(*text_columns)
 
 
 def _restore_excluded_events(gaze: pm.Gaze, excluded_rows: pl.DataFrame | None) -> None:
@@ -173,9 +181,10 @@ def correct_fixations(
     Events on trials without text AOIs, and fixations on the final fixation dot, are
     removed before correction and reinserted unchanged afterwards. Correction therefore
     sees only the real text lines on text trials. The dot geometry is derived from the
-    stimulus config. A fixation counts as a dot fixation only when it is both inside the
-    dot radius and outside the text AOI bounds. Missing geometry is an error when
-    correction is active.
+    stimulus config. A fixation counts as a dot fixation only when it is outside the
+    text AOI bounds and within a tolerance around the dot centre derived from the dot
+    radius and the text line height. Missing geometry is an error when correction is
+    active.
 
     Parameters
     ----------
