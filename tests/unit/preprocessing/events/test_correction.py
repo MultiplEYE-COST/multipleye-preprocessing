@@ -98,6 +98,33 @@ def test_correct_fixations_keeps_final_dot_fixation_unchanged() -> None:
     assert text["location_y"].to_list() == [100.0, 200.0]
 
 
+def test_events_without_text_aois_are_not_corrected() -> None:
+    events = pm.Events(
+        pl.DataFrame(
+            {
+                "name": ["fixation", "fixation"],
+                "onset": [0, 200],
+                "duration": [100, 100],
+                "location_x": [100.0, 500.0],
+                "location_y": [105.0, 500.0],
+                "trial": ["t1", "PRACTICE_trial_1"],
+                "page": ["p1", "familiarity_rating_screen_1"],
+            }
+        ),
+        trial_columns=["trial", "page"],
+    )
+    gaze = SimpleNamespace(events=events)
+
+    correct_fixations(gaze, [_stimulus()], _lab_config(), algorithm="attach")
+
+    frame = gaze.events.frame
+    text = frame.filter(pl.col("trial") == "t1")
+    practice = frame.filter(pl.col("trial") == "PRACTICE_trial_1")
+    assert text["location_y"].to_list() == [100.0]
+    assert practice["location_y"].to_list() == [500.0]
+    assert practice["correction_algorithm"].to_list() == [None]
+
+
 def test_correct_fixations_requires_final_dot_geometry() -> None:
     gaze = _gaze()
 

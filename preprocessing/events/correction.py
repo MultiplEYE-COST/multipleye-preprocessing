@@ -98,7 +98,7 @@ def _dot_mask(
     return (pl.col("name") == settings.FIXATION) & within_dot & ~inside_text
 
 
-def _separate_dot_fixations(
+def _separate_excluded_events(
     gaze: pm.Gaze,
     x: float,
     y: float,
@@ -109,31 +109,52 @@ def _separate_dot_fixations(
     if frame.is_empty():
         return None
 
-    indexed = frame.with_row_index("__fixation_correction_row")
+    key_columns = [
+        column
+        for column in (settings.TRIAL_COL, settings.PAGE_COL)
+        if column in stimulus.aois.columns and column in frame.columns
+    ]
+    if not key_columns:
+        raise ValueError(
+            "Fixation events and stimulus AOIs need a shared trial or page column."
+        )
+
+    text_trials = (
+        stimulus.aois.select(key_columns)
+        .unique()
+        .with_columns(pl.lit(True).alias("__has_text"))
+    )
+    indexed = frame.with_row_index("__fixation_correction_row").join(
+        text_trials,
+        on=key_columns,
+        how="left",
+    )
+    has_text = pl.col("__has_text").fill_null(False)
     dot_mask = _dot_mask(indexed, x, y, radius, _text_bounds(stimulus))
-    dot_rows = indexed.filter(dot_mask)
-    if dot_rows.is_empty():
+    excluded_rows = indexed.filter(~has_text | dot_mask)
+    if excluded_rows.is_empty():
+        gaze.events.frame = frame
         return None
 
-    gaze.events.frame = indexed.filter(~dot_mask)
-    return dot_rows
+    gaze.events.frame = indexed.filter(has_text & ~dot_mask).drop("__has_text")
+    return excluded_rows.drop("__has_text")
 
 
-def _restore_dot_fixations(gaze: pm.Gaze, dot_rows: pl.DataFrame | None) -> None:
-    if dot_rows is None:
+def _restore_excluded_events(gaze: pm.Gaze, excluded_rows: pl.DataFrame | None) -> None:
+    if excluded_rows is None:
         return
 
     corrected = gaze.events.frame
     missing_columns = [
-        column for column in corrected.columns if column not in dot_rows.columns
+        column for column in corrected.columns if column not in excluded_rows.columns
     ]
     if missing_columns:
-        dot_rows = dot_rows.with_columns(
+        excluded_rows = excluded_rows.with_columns(
             pl.lit(None).cast(corrected.schema[column]).alias(column)
             for column in missing_columns
         )
 
-    combined = pl.concat([corrected, dot_rows.select(corrected.columns)])
+    combined = pl.concat([corrected, excluded_rows.select(corrected.columns)])
     gaze.events.frame = combined.sort("__fixation_correction_row").drop(
         "__fixation_correction_row"
     )
@@ -149,11 +170,12 @@ def correct_fixations(
     """
     Correct the vertical drift of fixation locations for all trials of a session.
 
-    Fixations on the final fixation dot are removed before correction and reinserted
-    unchanged afterwards. Correction therefore sees only the real text lines. The dot
-    geometry is derived from the stimulus config. A fixation counts as a dot fixation
-    only when it is both inside the dot radius and outside the text AOI bounds. Missing
-    geometry is an error when correction is active.
+    Events on trials without text AOIs, and fixations on the final fixation dot, are
+    removed before correction and reinserted unchanged afterwards. Correction therefore
+    sees only the real text lines on text trials. The dot geometry is derived from the
+    stimulus config. A fixation counts as a dot fixation only when it is both inside the
+    dot radius and outside the text AOI bounds. Missing geometry is an error when
+    correction is active.
 
     Parameters
     ----------
@@ -186,7 +208,7 @@ def correct_fixations(
     stimulus = build_combined_text_stimulus(stimuli)
     character_level = settings.CHAR_IDX_COL in stimulus.aois.columns
 
-    dot_rows = _separate_dot_fixations(
+    excluded_rows = _separate_excluded_events(
         gaze,
         dot_x,
         dot_y,
@@ -202,4 +224,4 @@ def correct_fixations(
             character_level=character_level,
         )
     finally:
-        _restore_dot_fixations(gaze, dot_rows)
+        _restore_excluded_events(gaze, excluded_rows)

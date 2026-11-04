@@ -13,9 +13,7 @@ from ..models.sid import Sid
 def _duration_columns_to_ms(frame: pl.DataFrame) -> pl.DataFrame:
     """Convert pymovements duration columns to milliseconds for CSV output."""
     duration_columns = [
-        column
-        for column in ("onset", "offset", "duration")
-        if column in frame.columns and frame.schema[column] == pl.Duration
+        column for column, dtype in frame.schema.items() if dtype == pl.Duration
     ]
     if not duration_columns:
         return frame
@@ -248,8 +246,8 @@ def save_session_metadata(sid: Sid, gaze: pm.Gaze) -> None:
     )
 
     # both are dfs
-    validations = gaze.validations
-    calibrations = gaze.calibrations
+    validations = _duration_columns_to_ms(gaze.validations)
+    calibrations = _duration_columns_to_ms(gaze.calibrations)
 
     validations.write_csv(metadata_directory / "validations.tsv", separator="\t")
     gaze.save_validations(metadata_directory / "validations.feather")
@@ -258,7 +256,8 @@ def save_session_metadata(sid: Sid, gaze: pm.Gaze) -> None:
     gaze.save_calibrations(metadata_directory / "calibrations.feather")
 
     if gaze.messages is not None and not gaze.messages.is_empty():
-        gaze.messages.write_csv(
+        messages = _duration_columns_to_ms(gaze.messages)
+        messages.write_csv(
             metadata_directory / "messages.csv",
             include_header=True,
         )

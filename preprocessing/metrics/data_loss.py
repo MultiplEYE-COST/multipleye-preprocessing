@@ -28,6 +28,15 @@ import polars as pl
 import pymovements as pm
 
 
+def _time_to_ms(samples: pl.DataFrame, time_column: str) -> pl.DataFrame:
+    """Convert a pymovements ``Duration`` time column to milliseconds."""
+    if samples.schema[time_column] == pl.Duration:
+        return samples.with_columns(
+            pl.col(time_column).dt.total_milliseconds().alias(time_column)
+        )
+    return samples
+
+
 def compute_data_loss(
     samples: pl.DataFrame,
     *,
@@ -65,6 +74,7 @@ def compute_data_loss(
         Session ratio, per-page table (``page_columns`` + ``data_loss_ratio``)
         and per-trial table (``trial_columns`` + ``data_loss_ratio``).
     """
+    samples = _time_to_ms(samples, time_column)
     dtype = samples.schema[pixel_column]
     if not _supports_fast_path(dtype):
         return _pymovements_data_loss(

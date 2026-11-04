@@ -17,6 +17,13 @@ from ..models.sid import Sid
 from .validation import validate_asc_parsing
 
 
+def _duration_to_ms(frame: pl.DataFrame, column: str = "duration") -> pl.Expr:
+    """Return an expression for an event duration in milliseconds."""
+    if frame.schema[column] == pl.Duration:
+        return pl.col(column).dt.total_milliseconds()
+    return pl.col(column)
+
+
 def _blink_loss_table(
     per_group_blink: pl.DataFrame,
     per_group_sample_count: pl.DataFrame,
@@ -167,7 +174,7 @@ def load_gaze_data(
         if not blink_events.is_empty():
             # Per-page blink loss: one row per page, time-weighted within the page.
             per_page_blink = blink_events.group_by(trial_cols).agg(
-                pl.col("duration").sum().alias("blink_duration_ms")
+                _duration_to_ms(blink_events).sum().alias("blink_duration_ms")
             )
             per_page_sample_count = gaze.samples.group_by(trial_cols).agg(
                 pl.len().alias("sample_count")
@@ -185,7 +192,7 @@ def load_gaze_data(
             # sanity report takes a plain, equal-weighted mean over trial rows.
             per_trial_cols = ["trial", "stimulus"]
             per_trial_blink = blink_events.group_by(per_trial_cols).agg(
-                pl.col("duration").sum().alias("blink_duration_ms")
+                _duration_to_ms(blink_events).sum().alias("blink_duration_ms")
             )
             per_trial_sample_count = gaze.samples.group_by(per_trial_cols).agg(
                 pl.len().alias("sample_count")

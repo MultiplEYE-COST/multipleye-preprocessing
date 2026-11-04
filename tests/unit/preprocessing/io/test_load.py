@@ -6,7 +6,7 @@ import pytest
 
 from preprocessing.config import settings
 from preprocessing.data_collection.stimulus import LabConfig
-from preprocessing.io.load import load_gaze_data
+from preprocessing.io.load import _duration_to_ms, load_gaze_data
 from preprocessing.models.sid import Sid
 
 
@@ -238,6 +238,30 @@ def test_load_gaze_data_stores_session_id_as_metadata(synthetic_asc, lab_config)
 
     assert gaze.metadata["session"] == str(sid)
     assert "session" not in gaze.samples.columns
+
+
+def test_duration_to_ms_handles_duration_dtype():
+    frame = pl.DataFrame(
+        {
+            "duration": pl.Series(
+                "duration",
+                [1000, 2000],
+                dtype=pl.Duration("us"),
+            )
+        }
+    )
+
+    result = frame.select(_duration_to_ms(frame).alias("duration_ms"))
+
+    assert result["duration_ms"].to_list() == [1, 2]
+
+
+def test_duration_to_ms_leaves_numeric_duration_unchanged():
+    frame = pl.DataFrame({"duration": [100, 200]})
+
+    result = frame.select(_duration_to_ms(frame).alias("duration_ms"))
+
+    assert result["duration_ms"].to_list() == [100, 200]
 
 
 def test_blink_loss_ratio_is_scalar_with_trial_columns():
