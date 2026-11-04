@@ -166,14 +166,27 @@ def test_default_cache_dir_env(monkeypatch, tmp_path) -> None:
     assert default_cache_dir() == tmp_path
 
 
-# The real table is downloaded once and cached. If the network is unavailable the
-# test is skipped, so the unit suite stays offline-friendly.
+def test_default_cache_dir_is_repo_local(monkeypatch) -> None:
+    monkeypatch.delenv("MULTIPLEYE_GLOTTOLOG_CACHE", raising=False)
+    repo_root = Path(__file__).resolve().parents[4]
+
+    assert default_cache_dir() == repo_root / ".cache" / "glottolog" / "5.3"
+
+
+def test_official_glottolog_url_is_downloadable(tmp_path) -> None:
+    cache_dir = tmp_path / "cache"
+
+    table = load_glottolog_table(cache_dir=cache_dir)
+
+    assert table.require_assignable("zuri1239").name == "Zürich German"
+    assert (cache_dir / "glottolog_languoid.csv.zip").is_file()
+
+
+# The real table is downloaded once and cached. A download failure is a test
+# failure, so a broken official URL is caught immediately.
 @pytest.fixture(scope="module")
 def real_glottolog_table() -> GlottologTable:
-    try:
-        return load_glottolog_table()
-    except GlottologError as exc:
-        pytest.skip(f"Glottolog download unavailable: {exc}")
+    return load_glottolog_table()
 
 
 def test_real_glottolog_contains_known_nodes(real_glottolog_table) -> None:

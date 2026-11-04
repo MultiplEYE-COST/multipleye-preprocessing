@@ -165,8 +165,8 @@ The Glottolog check runs when the settings are loaded:
 
 - the pinned `glottolog_languoid.csv.zip` archive is downloaded on first use,
 - the archive SHA256 is verified before it is used,
-- the cache defaults to `$MULTIPLEYE_GLOTTOLOG_CACHE`, then `language_tree.glottolog_cache`,
-  then `~/.cache/multipleye/glottolog/5.3`,
+- the cache is `language_tree.glottolog_cache` when set, then
+  `$MULTIPLEYE_GLOTTOLOG_CACHE`, then `<repo_root>/.cache/glottolog/5.3`,
 - unknown Glottocodes are rejected,
 - family rows are rejected, only language and dialect rows can be assigned,
 - `language_node_label` is filled from the Glottolog name when no display label is configured.

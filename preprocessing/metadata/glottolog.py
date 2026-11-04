@@ -38,10 +38,13 @@ logger = logging.getLogger(__name__)
 
 GLOTTOLOG_VERSION = "5.3"
 GLOTTOLOG_DOI = "10.5281/zenodo.18840935"
+# Official Glottolog 5.3 download page link:
+# https://glottolog.org/meta/downloads
 GLOTTOLOG_URL = (
     "https://cdstar.eva.mpg.de//bitstreams/EAEA0-608B-9919-A962-0/"
     "glottolog_languoid.csv.zip"
 )
+REPO_ROOT = Path(__file__).resolve().parents[2]
 GLOTTOLOG_SHA256 = "47fcc04c18f3f6bff43198b5be14f1f6954600c90573373df9ecf6fc12622bfb"
 _ARCHIVE_NAME = "glottolog_languoid.csv.zip"
 _TABLE_NAME = "languoid.csv"
@@ -152,17 +155,15 @@ class GlottologTable:
 
 
 def default_cache_dir() -> Path:
-    """Return the default Glottolog cache directory.
+    """Return the repo-local Glottolog cache directory.
 
     The ``MULTIPLEYE_GLOTTOLOG_CACHE`` environment variable overrides the
-    location. Otherwise the XDG cache directory, or ``~/.cache``, is used.
+    location. Otherwise ``<repo_root>/.cache/glottolog/5.3`` is used.
     """
     override = os.environ.get("MULTIPLEYE_GLOTTOLOG_CACHE")
     if override:
         return Path(override).expanduser()
-    xdg_cache = os.environ.get("XDG_CACHE_HOME")
-    base = Path(xdg_cache).expanduser() if xdg_cache else Path.home() / ".cache"
-    return base / "multipleye" / "glottolog" / GLOTTOLOG_VERSION
+    return REPO_ROOT / ".cache" / "glottolog" / GLOTTOLOG_VERSION
 
 
 def _sha256(path: Path) -> str:
