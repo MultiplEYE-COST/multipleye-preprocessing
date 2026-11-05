@@ -301,10 +301,11 @@ This section records the resolved settings used for the run. It covers:
 `aoi_enlargement` is `none` when fixation correction is active, because corrected fixations land
 on the AOIs. It is `half_line_spacing` when correction is off.
 
-`fixation_correction: false` means fixations, scanpaths and reading measures stay uncorrected.
-`fixation_correction: true` means they use corrected fixations and `fixations_uncorrected/` keeps
-the raw detected copy. The algorithm and kwargs are recorded in both cases for reproducibility.
-See {ref}`fixation_correction` for the folder layout.
+`fixation_correction: true` is the default. It means fixations, scanpaths and reading measures use
+corrected fixations and `fixations_uncorrected/` keeps the raw detected copy.
+`fixation_correction: false` disables correction and keeps everything uncorrected. The algorithm
+and kwargs are recorded in both cases for reproducibility. See {ref}`fixation_correction` for the
+folder layout.
 
 `tracked_eye` in this section is the list of accepted eye labels from the configuration, not the
 eye tracked in a particular session. The session-level `tracking.tracked_eye` holds the actual

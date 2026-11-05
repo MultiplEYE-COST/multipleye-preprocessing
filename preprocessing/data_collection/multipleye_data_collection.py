@@ -587,7 +587,14 @@ class MultipleyeDataCollection:
         self.include_pilots = kwargs.get("include_pilots", False)
         self.output_dir = kwargs.get("output_dir", "")
         self.pilot_folder = kwargs.get("pilot_folder", "")
-        self.enlarge_aois = kwargs.get("enlarge_aois", True)
+        # Corrected fixations land on the original AOIs, so enlargement is only needed
+        # when correction is off.
+        enlarge_aois = kwargs.get("enlarge_aois")
+        self.enlarge_aois = (
+            not settings.RUN_FIXATION_CORRECTION
+            if enlarge_aois is None
+            else enlarge_aois
+        )
         self.reports_folder = "reports"
 
         canonical_eye_tracker = normalize_eye_tracker_name(eye_tracker)
@@ -1054,7 +1061,7 @@ class MultipleyeDataCollection:
         excluded_sessions: list[str] | None = None,
         included_sessions: list[str] | None = None,
         output_dir: Path | None = None,
-        enlarge_aois: bool = True,
+        enlarge_aois: bool | None = None,
     ) -> "MultipleyeDataCollection":
         """
         :param data_dir: str  path to the data folder
@@ -1067,8 +1074,8 @@ class MultipleyeDataCollection:
         :param included_sessions: If not None, the sessions included in the data collection.
         :param output_dir: The output directory for the preprocessed data.
         :param enlarge_aois: If True, the character AOIs are vertically enlarged to half the
-        line spacing. Set to False when fixation correction is active, since corrected
-        fixations already land on the AOIs.
+        line spacing. Defaults to the inverse of ``RUN_FIXATION_CORRECTION``, because corrected
+        fixations already land on the AOIs. Pass True explicitly when correction is off.
         :return:
         MultipleyeDataCollection object
         """
