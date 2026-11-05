@@ -179,6 +179,54 @@ no longer parses a local tree file.
 The pipeline does not derive or validate them against Glottolog. Node IDs, labels and path
 segments may contain single spaces. They must not have leading, trailing or repeated spaces.
 
+### Per-test psychometric language nodes
+
+A data collection can use a different language for the eye-tracking stimuli and for psychometric
+tests. Test instructions and test items can also differ. Optional overrides are configured under
+`language_tree.psychometric_tests`:
+
+```yaml
+language_tree:
+  node_id: ita1282
+  psychometric_tests:
+    wiki_vocab:
+      instructions_node_id: ita1282
+      items_node_id: deu1234
+    lwmc:
+      instructions_node_id: ita1282
+      items_node_id: ita1282
+```
+
+Every override is optional. A missing `instructions_node_id` or `items_node_id` falls back to the
+dataset `language_tree.node_id`. The `wmc` key is accepted as an alias for `lwmc`.
+
+The dataset overview records one list entry per available test:
+
+```yaml
+language_node:
+  language_node_id: ita1282
+  psychometric_tests:
+    - test_id: lwmc
+      instructions_node_id: ita1282
+      instructions_source: dataset
+      items_node_id: ita1282
+      items_source: dataset
+    - test_id: wiki_vocab
+      instructions_node_id: ita1282
+      instructions_source: dataset
+      items_node_id: deu1234
+      items_source: override
+```
+
+`instructions_source` and `items_source` are `dataset` for the fallback and `override` for a
+configured test-specific node. The codebook structure is generic, so another pipeline can describe
+tests that are not in the current supported set. The preprocessing config itself only accepts the
+supported test IDs: `plab`, `ran`, `stroop`, `flanker`, `lwmc` and `wiki_vocab`.
+
+Flanker and PLAB do not expose an items node in the config. Flanker items are arrows and PLAB items
+use a foreign aptitude language, so neither uses the collection language as item language. The
+choice is recorded in the PR description and should be confirmed by the language team.
+
 ### `data_availability`
 
 | Field | Type | Description |

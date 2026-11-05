@@ -14,6 +14,7 @@ from preprocessing.metadata.glottolog import (
 from preprocessing.metadata.language_tree import (
     LanguageTreeError,
     language_node_overview,
+    psychometric_language_node_overview,
 )
 
 
@@ -169,3 +170,105 @@ def test_settings_without_nested_language_tree() -> None:
     settings = Settings()
 
     assert settings.validate_language_node() is None
+
+
+def test_settings_normalizes_psychometric_test_overrides(
+    tmp_path, glottolog_table
+) -> None:
+    settings = _config(
+        tmp_path,
+        {
+            "node_id": "stan1295",
+            "psychometric_tests": {
+                "wmc": {
+                    "instructions_node_id": "stan1295",
+                    "items_node_id": "zuri1239",
+                },
+                "ran": {"instructions_node_id": "stan1295"},
+            },
+        },
+    )
+
+    assert settings.LANGUAGE_TREE_PSYCHOMETRIC_TESTS == {
+        "lwmc": {
+            "instructions_node_id": "stan1295",
+            "items_node_id": "zuri1239",
+        },
+        "ran": {"instructions_node_id": "stan1295"},
+    }
+
+
+def test_settings_rejects_unknown_psychometric_test(tmp_path, glottolog_table) -> None:
+    with pytest.raises(LanguageTreeError, match="Unknown psychometric test"):
+        _config(
+            tmp_path,
+            {
+                "node_id": "stan1295",
+                "psychometric_tests": {
+                    "new_test": {"instructions_node_id": "stan1295"}
+                },
+            },
+        )
+
+
+@pytest.mark.parametrize("test_id", ["flanker", "plab"])
+def test_settings_rejects_items_for_tests_without_item_language(
+    tmp_path, glottolog_table, test_id
+) -> None:
+    with pytest.raises(TypeError, match="Unsupported key"):
+        _config(
+            tmp_path,
+            {
+                "node_id": "stan1295",
+                "psychometric_tests": {
+                    test_id: {"items_node_id": "stan1295"},
+                },
+            },
+        )
+
+
+def test_settings_requires_dataset_node_for_test_overrides(
+    tmp_path, glottolog_table
+) -> None:
+    with pytest.raises(LanguageTreeError, match="requires"):
+        _config(
+            tmp_path,
+            {
+                "psychometric_tests": {
+                    "wiki_vocab": {"instructions_node_id": "stan1295"},
+                },
+            },
+        )
+
+
+def test_psychometric_overview_uses_dataset_fallback_and_override() -> None:
+    result = psychometric_language_node_overview(
+        "stan1295",
+        {
+            "lwmc": {"items_node_id": "zuri1239"},
+            "wiki_vocab": {"instructions_node_id": "swis1247"},
+        },
+        ("lwmc", "flanker", "wiki_vocab"),
+    )
+
+    assert result == [
+        {
+            "test_id": "flanker",
+            "instructions_node_id": "stan1295",
+            "instructions_source": "dataset",
+        },
+        {
+            "test_id": "lwmc",
+            "instructions_node_id": "stan1295",
+            "instructions_source": "dataset",
+            "items_node_id": "zuri1239",
+            "items_source": "override",
+        },
+        {
+            "test_id": "wiki_vocab",
+            "instructions_node_id": "swis1247",
+            "instructions_source": "override",
+            "items_node_id": "stan1295",
+            "items_source": "dataset",
+        },
+    ]

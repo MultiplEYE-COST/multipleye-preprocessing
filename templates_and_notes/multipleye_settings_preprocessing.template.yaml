@@ -72,6 +72,28 @@ language_tree:
   # MULTIPLEYE_GLOTTOLOG_CACHE, then <repo_root>/.cache/glottolog/5.3.
   glottolog_cache: null
 
+  # Optional per-test language node overrides. Every value is optional. A
+  # missing instructions or items node falls back to node_id above. The wmc
+  # key is accepted as an alias for lwmc. Flanker and PLAB do not offer items
+  # because their item material is not the collection language.
+  # psychometric_tests:
+  #   plab:
+  #     instructions_node_id: null
+  #   ran:
+  #     instructions_node_id: null
+  #     items_node_id: null
+  #   stroop:
+  #     instructions_node_id: null
+  #     items_node_id: null
+  #   flanker:
+  #     instructions_node_id: null
+  #   lwmc:
+  #     instructions_node_id: null
+  #     items_node_id: null
+  #   wiki_vocab:
+  #     instructions_node_id: null
+  #     items_node_id: null
+
 # ----------------------- Stimulus Content Versions -----------------------
 # Only needed if your lab used MULTIPLE stimulus folders, e.g. after
 # correcting spelling/grammar errors in the stimuli mid-collection.

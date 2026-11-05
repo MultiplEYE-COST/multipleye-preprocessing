@@ -414,6 +414,10 @@ class Settings:
         #: Optional directory holding the pinned Glottolog languoid archive.
         self.LANGUAGE_TREE_GLOTTOG_CACHE: Path | None = None
 
+        #: Optional per-test Glottocode overrides for psychometric test
+        #: instructions and items. Missing values fall back to LANGUAGE_NODE_ID.
+        self.LANGUAGE_TREE_PSYCHOMETRIC_TESTS: dict[str, dict[str, str | None]] = {}
+
         #: Default log level for the package/Python.
         self.LOG_LEVEL: str = "INFO"
 
@@ -1081,6 +1085,51 @@ class Settings:
         for key, setting_name in mapping.items():
             if key in value:
                 setattr(self, setting_name, value[key])
+        if "psychometric_tests" in value:
+            self._update_psychometric_test_language_nodes(value["psychometric_tests"])
+
+    def _update_psychometric_test_language_nodes(self, value: Any) -> None:
+        """Normalize per-test language node overrides."""
+        from .metadata.language_tree import (
+            PSYCHOMETRIC_TESTS_WITH_ITEMS,
+            normalize_psychometric_test_id,
+        )
+
+        if value is None:
+            self.LANGUAGE_TREE_PSYCHOMETRIC_TESTS = {}
+            return
+        if not isinstance(value, dict):
+            raise TypeError(
+                "language_tree.psychometric_tests must be a mapping keyed by test."
+            )
+
+        normalized: dict[str, dict[str, str | None]] = {}
+        for raw_test_id, raw_parts in value.items():
+            test_id = normalize_psychometric_test_id(raw_test_id)
+            if raw_parts is None:
+                raw_parts = {}
+            if not isinstance(raw_parts, dict):
+                raise TypeError(
+                    f"language_tree.psychometric_tests.{test_id} must be a mapping."
+                )
+            allowed = {"instructions_node_id"}
+            if test_id in PSYCHOMETRIC_TESTS_WITH_ITEMS:
+                allowed.add("items_node_id")
+            unknown = set(raw_parts) - allowed
+            if unknown:
+                keys = ", ".join(sorted(str(key) for key in unknown))
+                raise TypeError(
+                    f"Unsupported key(s) for psychometric test {test_id!r}: {keys}. "
+                    f"Allowed keys: {', '.join(sorted(allowed))}."
+                )
+            entry: dict[str, str | None] = {}
+            for part in allowed:
+                raw = raw_parts.get(part)
+                if raw in (None, ""):
+                    continue
+                entry[part] = str(raw).strip()
+            normalized[test_id] = entry
+        self.LANGUAGE_TREE_PSYCHOMETRIC_TESTS = normalized
 
     def _validate(self) -> None:
         """Validate required settings."""
@@ -1190,7 +1239,10 @@ class Settings:
             family or another non-assignable row.
         """
         from .metadata.glottolog import GLOTTOLOG_VERSION, resolve_glottolog_node
-        from .metadata.language_tree import language_node_overview
+        from .metadata.language_tree import (
+            LanguageTreeError,
+            language_node_overview,
+        )
 
         language_node_overview(
             self.LANGUAGE_NODE_ID,
@@ -1199,12 +1251,17 @@ class Settings:
             self.LANGUAGE_NODE_LABEL,
             self.LANGUAGE_TREE_HASH,
         )
+        if self.LANGUAGE_TREE_PSYCHOMETRIC_TESTS and not self.LANGUAGE_NODE_ID:
+            raise LanguageTreeError(
+                "language_tree.psychometric_tests requires "
+                "language_tree.node_id as the fallback language node."
+            )
         if not self.LANGUAGE_NODE_ID:
             return
         if not self.LANGUAGE_TREE_GLOTTOG_CHECK:
             logger.warning(
                 "Glottolog language node check is disabled. The configured node "
-                "%r will not be validated.",
+                "%r and its psychometric test overrides will not be validated.",
                 self.LANGUAGE_NODE_ID,
             )
             return
@@ -1224,6 +1281,22 @@ class Settings:
             node.name,
             node.level,
         )
+
+        for test_id, parts in self.LANGUAGE_TREE_PSYCHOMETRIC_TESTS.items():
+            for part, glottocode in parts.items():
+                if not glottocode:
+                    continue
+                resolved = resolve_glottolog_node(glottocode, cache)
+                logger.info(
+                    "Psychometric test %s %s node %s validated against Glottolog %s: "
+                    "%s (%s).",
+                    test_id,
+                    part.replace("_node_id", ""),
+                    resolved.id,
+                    GLOTTOLOG_VERSION,
+                    resolved.name,
+                    resolved.level,
+                )
 
     def _normalize_availability_overrides(
         self, overrides: dict[str, Any]
