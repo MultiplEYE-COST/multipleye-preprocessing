@@ -187,16 +187,13 @@ def add_custom_uoa(
     """
     logger = get_logger()
 
+    # Import aoi data
     aoi_data = pl.read_csv(aoi_file)
-
-    if "secondary_unit_of_analysis" in aoi_data:
-        # If this file was already merged
-        # If the costum units of analysis change, the stimulus folder is automatically copied again and merged
-        return
-    
-    aoi_data = aoi_data.sort(by=["page", "line_idx", "char_idx"])
+    aoi_data = aoi_data.drop("secondary_unit_of_analysis", "secondary_unit_of_analysis_idx", "secondary_unit_of_analysis_idx_in_line")    
+    aoi_data = aoi_data.sort(by=["page", "char_idx"])
     
     
+    # Import uoa data
     uoa_file = stimuli_folder / "custom_units_of_analysis" / aoi_file.name
 
     if not uoa_file.exists():
@@ -234,17 +231,15 @@ def add_custom_uoa(
 
 
     uoa_data = uoa_data.sort(by=["page", "char_idx"])
+
+    #Ensure that list of characters matches exactly between files
     uoa_chars = list(uoa_data["char"])
-
-
     if "questions" in uoa_file.name:
         aoi_chars = list(aoi_data["char"].filter(
             aoi_data["question_image_version"] == "question_images_version_1"))
     else:
         aoi_chars = list(aoi_data["char"])
 
-
-    # check that the char columns match exactly
     try:
         assert aoi_chars == uoa_chars
     except AssertionError:
@@ -255,6 +250,8 @@ def add_custom_uoa(
         logger.exception(msg)
         raise
 
+    
+    #Merge the data files. Previous units of analysis become secondary units of analysis
     aoi_data = aoi_data.rename(
         {
             "unit_of_analysis_idx": "secondary_unit_of_analysis_idx",
@@ -270,8 +267,6 @@ def add_custom_uoa(
         }
     )
     
-    
-    # join the segment and segment idx on page and char idx
     new_aois = aoi_data.join(uoa_data, on=["page", "char_idx", "char"])
 
 
@@ -301,6 +296,9 @@ def add_custom_uoa(
         "secondary_unit_of_analysis_idx_in_line",
         "secondary_unit_of_analysis",
     ]
+
+    if "questions" in aoi_file.name:
+        col_order.append("question_image_version")
 
     new_aois = new_aois[col_order]
     new_aois = new_aois.sort(by=["page", "line_idx", "char_idx"])

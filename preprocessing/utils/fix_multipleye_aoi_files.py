@@ -86,7 +86,38 @@ def fix_aoi_file(aoi_file_path: str | Path) -> None:
             },
             strict=False
         )
+    df = df.with_columns([
+        pl.lit(None).alias("secondary_unit_of_analysis"),
+        pl.lit(None).alias("secondary_unit_of_analysis_idx"),
+        pl.lit(None).alias("secondary_unit_of_analysis_idx_in_line"),
+        ])
+    
     df = _repair_word_labels(_remap_space(df))
+
+    #Ensure consistent column order to enable stacking
+    col_order = [
+        "char_idx",
+        "char",
+        "top_left_x",
+        "top_left_y",
+        "width",
+        "height",
+        "char_idx_in_line",
+        "line_idx",
+        "page",
+        "unit_of_analysis_idx",
+        "unit_of_analysis_idx_in_line",
+        "unit_of_analysis",
+        "secondary_unit_of_analysis_idx",
+        "secondary_unit_of_analysis_idx_in_line",
+        "secondary_unit_of_analysis",
+    ]
+
+    if "questions" in aoi_file_path.name:
+        col_order.append("question_image_version")
+
+    df = df[col_order]
+
     df.write_csv(aoi_file_path)
     logger.debug(f"Applied AOI fixes to: {aoi_file_path}")
 
