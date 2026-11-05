@@ -223,9 +223,9 @@ configured test-specific node. The codebook structure is generic, so another pip
 tests that are not in the current supported set. The preprocessing config itself only accepts the
 supported test IDs: `plab`, `ran`, `stroop`, `flanker`, `lwmc` and `wiki_vocab`.
 
-Flanker and PLAB do not expose an items node in the config. Flanker items are arrows and PLAB items
-use a foreign aptitude language, so neither uses the collection language as item language. The
-choice is recorded in the PR description and should be confirmed by the language team.
+Flanker does not expose an items node in the config because its items are arrows. PLAB exposes an
+items node because its item material can have its own language node. The selection is recorded in
+the PR description and should be confirmed by the language team.
 
 ### `data_availability`
 

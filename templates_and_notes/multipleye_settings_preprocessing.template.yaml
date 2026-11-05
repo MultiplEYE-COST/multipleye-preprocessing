@@ -74,11 +74,12 @@ language_tree:
 
   # Optional per-test language node overrides. Every value is optional. A
   # missing instructions or items node falls back to node_id above. The wmc
-  # key is accepted as an alias for lwmc. Flanker and PLAB do not offer items
-  # because their item material is not the collection language.
+  # key is accepted as an alias for lwmc. Flanker does not offer an items node
+  # because its item material is not the collection language.
   # psychometric_tests:
   #   plab:
   #     instructions_node_id: null
+  #     items_node_id: null
   #   ran:
   #     instructions_node_id: null
   #     items_node_id: null

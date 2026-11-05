@@ -337,6 +337,7 @@ dataset.language_node.psychometric_tests[].items_source
 The fields are generic so the structure can describe tests that are not in the current supported
 set. Missing test overrides fall back to the dataset language node. The preprocessing config accepts
 `plab`, `ran`, `stroop`, `flanker`, `lwmc` and `wiki_vocab`. `wmc` is an alias for `lwmc`. Flanker
-and PLAB do not expose an items node because their item material is not in the collection language.
+does not expose an items node because its item material is not in the collection language. PLAB does
+expose an items node.
 
 Do not parse session identifiers to derive language, country or city. Those are separate fields.

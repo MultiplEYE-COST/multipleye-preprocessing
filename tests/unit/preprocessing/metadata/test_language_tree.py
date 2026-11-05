@@ -185,6 +185,7 @@ def test_settings_normalizes_psychometric_test_overrides(
                     "items_node_id": "zuri1239",
                 },
                 "ran": {"instructions_node_id": "stan1295"},
+                "plab": {"items_node_id": "stan1295"},
             },
         },
     )
@@ -195,6 +196,7 @@ def test_settings_normalizes_psychometric_test_overrides(
             "items_node_id": "zuri1239",
         },
         "ran": {"instructions_node_id": "stan1295"},
+        "plab": {"items_node_id": "stan1295"},
     }
 
 
@@ -211,7 +213,7 @@ def test_settings_rejects_unknown_psychometric_test(tmp_path, glottolog_table) -
         )
 
 
-@pytest.mark.parametrize("test_id", ["flanker", "plab"])
+@pytest.mark.parametrize("test_id", ["flanker"])
 def test_settings_rejects_items_for_tests_without_item_language(
     tmp_path, glottolog_table, test_id
 ) -> None:
