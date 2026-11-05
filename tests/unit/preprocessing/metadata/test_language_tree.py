@@ -213,7 +213,7 @@ def test_settings_rejects_unknown_psychometric_test(tmp_path, glottolog_table) -
         )
 
 
-@pytest.mark.parametrize("test_id", ["flanker"])
+@pytest.mark.parametrize("test_id", ["ran", "flanker"])
 def test_settings_rejects_items_for_tests_without_item_language(
     tmp_path, glottolog_table, test_id
 ) -> None:

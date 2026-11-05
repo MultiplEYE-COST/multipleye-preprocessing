@@ -32,9 +32,7 @@ PSYCHOMETRIC_TEST_IDS = (
 
 #: Tests whose item material has its own language node. Flanker uses arrows and
 #: only exposes instructions.
-PSYCHOMETRIC_TESTS_WITH_ITEMS = frozenset(
-    {"plab", "ran", "stroop", "lwmc", "wiki_vocab"}
-)
+PSYCHOMETRIC_TESTS_WITH_ITEMS = frozenset({"plab", "stroop", "lwmc", "wiki_vocab"})
 
 #: Accepted aliases for config keys.
 PSYCHOMETRIC_TEST_ALIASES = {"wmc": "lwmc"}

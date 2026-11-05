@@ -223,9 +223,10 @@ configured test-specific node. The codebook structure is generic, so another pip
 tests that are not in the current supported set. The preprocessing config itself only accepts the
 supported test IDs: `plab`, `ran`, `stroop`, `flanker`, `lwmc` and `wiki_vocab`.
 
-Flanker does not expose an items node in the config because its items are arrows. PLAB exposes an
-items node because its item material can have its own language node. The selection is recorded in
-the PR description and should be confirmed by the language team.
+Items nodes are offered for `plab`, `stroop`, `lwmc` and `wiki_vocab`. RAN and Flanker expose
+instructions only. PLAB items are the stimulus language used for the translation task. LWMC items
+are the Sentence span task items. The selection is recorded in the PR description and should be
+confirmed by the language team.
 
 ### `data_availability`
 
