@@ -12,21 +12,21 @@ from preprocessing.utils.fix_multipleye_aoi_files import (
 COLUMNS = [
     "page",
     "line_idx",
-    "word_idx",
-    "word_idx_in_line",
+    "unit_of_analysis_idx",
+    "unit_of_analysis_idx_in_line",
     "char_idx_in_line",
     "char",
-    "word",
+    "unit_of_analysis",
 ]
 
 SCHEMA = {
     "page": pl.String,
     "line_idx": pl.Int64,
-    "word_idx": pl.Int64,
-    "word_idx_in_line": pl.Int64,
+    "unit_of_analysis_idx": pl.Int64,
+    "unit_of_analysis_idx_in_line": pl.Int64,
     "char_idx_in_line": pl.Int64,
     "char": pl.String,
-    "word": pl.String,
+    "unit_of_analysis": pl.String,
 }
 
 
@@ -39,65 +39,65 @@ def _space_and_words():
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 0,
-            "word_idx_in_line": 0,
+            "unit_of_analysis_idx": 0,
+            "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 0,
             "char": "c",
-            "word": "cat",
+            "unit_of_analysis": "cat",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 0,
-            "word_idx_in_line": 0,
+            "unit_of_analysis_idx": 0,
+            "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 1,
             "char": "a",
-            "word": "cat",
+            "unit_of_analysis": "cat",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 0,
-            "word_idx_in_line": 0,
+            "unit_of_analysis_idx": 0,
+            "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 2,
             "char": "t",
-            "word": "cat",
+            "unit_of_analysis": "cat",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 0,
-            "word_idx_in_line": 0,
+            "unit_of_analysis_idx": 0,
+            "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 3,
             "char": " ",
-            "word": None,
+            "unit_of_analysis": None,
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 1,
-            "word_idx_in_line": 1,
+            "unit_of_analysis_idx": 1,
+            "unit_of_analysis_idx_in_line": 1,
             "char_idx_in_line": 4,
             "char": "d",
-            "word": "dog",
+            "unit_of_analysis": "dog",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 1,
-            "word_idx_in_line": 1,
+            "unit_of_analysis_idx": 1,
+            "unit_of_analysis_idx_in_line": 1,
             "char_idx_in_line": 5,
             "char": "o",
-            "word": "dog",
+            "unit_of_analysis": "dog",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 1,
-            "word_idx_in_line": 1,
+            "unit_of_analysis_idx": 1,
+            "unit_of_analysis_idx_in_line": 1,
             "char_idx_in_line": 6,
             "char": "g",
-            "word": "dog",
+            "unit_of_analysis": "dog",
         },
     ]
 
@@ -114,13 +114,13 @@ def test_fix_aoi_file_remaps_space_and_repairs_labels(tmp_path):
 
     df = _read(path)
     space = df.filter(pl.col("char") == " ")
-    assert space["word_idx"].to_list() == [1]
-    assert space["word_idx_in_line"].to_list() == [1]
+    assert space["unit_of_analysis_idx"].to_list() == [1]
+    assert space["unit_of_analysis_idx_in_line"].to_list() == [1]
     # the repaired label is propagated from the following word group
-    assert space["word"].to_list() == ["dog"]
-    # rows and word_idx for the real words are untouched
+    assert space["unit_of_analysis"].to_list() == ["dog"]
+    # rows and unit_of_analysis_idx for the real words are untouched
     assert df.height == 7
-    assert df.filter(pl.col("char") == "c")["word_idx"].to_list() == [0]
+    assert df.filter(pl.col("char") == "c")["unit_of_analysis_idx"].to_list() == [0]
 
 
 def test_fix_aoi_file_is_idempotent(tmp_path):
@@ -142,11 +142,11 @@ def test_fix_aoi_file_does_not_touch_last_row_space(tmp_path):
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 1,
-            "word_idx_in_line": 1,
+            "unit_of_analysis_idx": 1,
+            "unit_of_analysis_idx_in_line": 1,
             "char_idx_in_line": 7,
             "char": " ",
-            "word": None,
+            "unit_of_analysis": None,
         }
     )
     path = tmp_path / "aoi.csv"
@@ -156,7 +156,7 @@ def test_fix_aoi_file_does_not_touch_last_row_space(tmp_path):
 
     df = _read(path)
     last = df.filter(pl.col("char_idx_in_line") == 7)
-    assert last["word_idx"].to_list() == [1]  # unchanged, no next row
+    assert last["unit_of_analysis_idx"].to_list() == [1]  # unchanged, no next row
 
 
 def test_repair_word_labels_fills_within_group_not_across(tmp_path):
@@ -164,38 +164,38 @@ def test_repair_word_labels_fills_within_group_not_across(tmp_path):
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 0,
-            "word_idx_in_line": 0,
+            "unit_of_analysis_idx": 0,
+            "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 0,
             "char": "a",
-            "word": "alpha",
+            "unit_of_analysis": "alpha",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 0,
-            "word_idx_in_line": 0,
+            "unit_of_analysis_idx": 0,
+            "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 1,
             "char": " ",
-            "word": None,
+            "unit_of_analysis": None,
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 1,
-            "word_idx_in_line": 1,
+            "unit_of_analysis_idx": 1,
+            "unit_of_analysis_idx_in_line": 1,
             "char_idx_in_line": 2,
             "char": "b",
-            "word": "beta",
+            "unit_of_analysis": "beta",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 1,
-            "word_idx_in_line": 1,
+            "unit_of_analysis_idx": 1,
+            "unit_of_analysis_idx_in_line": 1,
             "char_idx_in_line": 3,
             "char": " ",
-            "word": None,
+            "unit_of_analysis": None,
         },
     ]
     path = tmp_path / "aoi.csv"
@@ -205,7 +205,7 @@ def test_repair_word_labels_fills_within_group_not_across(tmp_path):
 
     df = _read(path)
     labels = {
-        row["word_idx"]: row["word"]
+        row["unit_of_analysis_idx"]: row["word"]
         for row in df.filter(pl.col("char") == " ").to_dicts()
     }
     assert labels == {0: "alpha", 1: "beta"}
@@ -216,20 +216,20 @@ def test_repair_word_labels_treats_whitespace_only_as_missing(tmp_path):
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 0,
-            "word_idx_in_line": 0,
+            "unit_of_analysis_idx": 0,
+            "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 0,
             "char": "x",
-            "word": "gamma",
+            "unit_of_analysis": "gamma",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "word_idx": 0,
-            "word_idx_in_line": 0,
+            "unit_of_analysis_idx": 0,
+            "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 1,
             "char": " ",
-            "word": "   ",
+            "unit_of_analysis": "   ",
         },
     ]
     path = tmp_path / "aoi.csv"
@@ -238,7 +238,7 @@ def test_repair_word_labels_treats_whitespace_only_as_missing(tmp_path):
     repair_word_labels(path)
 
     df = _read(path)
-    assert df.filter(pl.col("char") == " ")["word"].to_list() == ["gamma"]
+    assert df.filter(pl.col("char") == " ")["unit_of_analysis"].to_list() == ["gamma"]
 
 
 def test_remap_space_standalone(tmp_path):
@@ -249,9 +249,9 @@ def test_remap_space_standalone(tmp_path):
 
     df = _read(path)
     space = df.filter(pl.col("char") == " ")
-    assert space["word_idx"].to_list() == [1]
+    assert space["unit_of_analysis_idx"].to_list() == [1]
     # remap alone does not fill the word label
-    assert space["word"].to_list() == [None]
+    assert space["unit_of_analysis"].to_list() == [None]
 
 
 def test_remap_preserves_row_order_and_columns(tmp_path):

@@ -654,7 +654,7 @@ class TestProcessingConfig:
         assert pc["trial_col"] == settings.TRIAL_COL
         assert pc["page_col"] == settings.PAGE_COL
         assert pc["stimulus_col"] == settings.STIMULUS_COL
-        assert pc["word_idx_col"] == settings.WORD_IDX_COL
+        assert pc["unit_of_analysis_idx_col"] == settings.WORD_IDX_COL
         assert pc["char_idx_col"] == settings.CHAR_IDX_COL
 
     def test_processing_config_inf_round_trips_through_yaml(

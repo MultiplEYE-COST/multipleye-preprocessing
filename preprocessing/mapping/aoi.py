@@ -128,34 +128,22 @@ def add_custom_uoa(
     aoi_file: Path,
     uoa_column_name,
     uoa_idx_colum_name,
-    custom_file_name: str = "",
 ) -> None:
     """
-    The custom units of analysis can be added as follows for ZH:
-    - They are in a directory called "custom_units_of_analysis" in the data folder
-    - The aoi files for the questions are named and structured the same as the original question aoi files.
-        - They contain an additional segment and segment_idx column
-        - As the text on all pages is for all question versions is the same, only question_images_version_1 is annotated
-    - The stimuli text aoi files are name like this: Lit_Alchemist_zh_seg_pages.csv. The first part can be replaced
-    by the respective stimulus name
-        - They contain an additional word and word_idx column
+    Add custom units of analysis to the aoi file and rewrite the file. The units of analysis file should be in the respective stimulus folder.
+    
+    
 
     How to add it:
     - Merge the custom and the original aoi files on the char and char index as well as the page column!
     - check that all chars listed in both files exactly align. Index and char should be exactly the same.
-    - ensure the segment contains the actual characters that it annotates, and that the running segment index is correct
     - for the questions add the segments to all question images versions and make sure the characters match. Only the coordinates should be different for the options
 
     Output:
-    The original aoi files should be exactly the same as before also the file name, but they should contain three additional columns:
-        - unit_of_analysis
-        - unit_of_analysis_idx
-        - unit_of_analysis_line_idx
+    The original aoi files should be exactly the same as before also the file name. The contents of the original "units_of_analysis" columns will be written
+    into the "secondary units of analysis" columns
 
-    If there is a word column already in there: rename to secondary_unit_of_analysis and word_idx to secondary_unit_of_analysis_idx.
-    The characters and character indices should stay exactly the same.
-
-    If any of the characters and segment characters do not match, it will be reported.
+    If any of the characters do not match, the pipeline will fail. If the uoa file is missing, the pipeline will warn and the aoi file remains unchanged.
 
     """
     logger = get_logger()
