@@ -48,6 +48,7 @@ def mock_data_collection_factory(tmp_path, monkeypatch):
                     "unit_of_analysis_idx": [0, 0, 0],
                     "unit_of_analysis_idx_in_line": [0, 0, 0],
                     "line_idx": [0, 0, 0],
+                    "char_idx": [0, 0, 0],
                     "char_idx_in_line": [0, 1, 0],
                     "top_left_x": [0, 10, 0],
                     "top_left_y": [0, 0, 100],
@@ -148,8 +149,14 @@ def test_prepare_language_folder_copies_and_modifies_in_preprocessed(
     tmp_path, data_collection_name, aoi_dir = mock_data_collection_factory(
         data_collection_name
     )
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print(list(aoi_dir.glob("*.csv")))
+    print([aoi_file.name for aoi_file in list(aoi_dir.glob("*.csv")) if "question" in aoi_file.name])
     suffix, lang = setup_stimulus_assets(tmp_path, data_collection_name, aoi_dir)
     dcn = Dcn(data_collection_name)
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print(list(aoi_dir.glob("*.csv")))
+    print([aoi_file.name for aoi_file in list(aoi_dir.glob("*.csv")) if "question" in aoi_file.name])
 
     # Run preparation
     prepare_language_folder(data_collection_name)
