@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..mapping.aoi import add_custom_uoa
 from ..models.dcn import Dcn
 from ..scripts.restructure_psychometric_tests import fix_psychometric_tests_structure
 from ..utils.data_path_utils import check_data_collection_exists
@@ -22,8 +23,6 @@ from ..utils.stimulus_versions import (
     stimulus_folder_name,
     version_suffix_for_pid,
 )
-
-from ..mapping.aoi import add_custom_uoa
 
 logger = get_logger()
 
@@ -321,14 +320,14 @@ def prepare_language_folder(data_collection_name: str | None = None):
 
             if settings.CUSTOM_UOAS:
                 logger.info("Adding custom unit of analysis info to AOI files")
-                #merge uoa information into aoi files if uoa is enabled in the settings
+                # merge uoa information into aoi files if uoa is enabled in the settings
                 for aoi_file in aoi_files:
                     add_custom_uoa(
                         stimuli_folder=preprocessed_stimulus_path,
                         aoi_file=aoi_file,
                         uoa_column_name=settings.UOA_COLUMN,
                         uoa_idx_colum_name=settings.UOA_IDX_COLUMN,
-                        )
+                    )
 
             # Create a marker file to indicate that these files have been fixed
             (destination_aoi_path / ".fixed").touch()
@@ -340,9 +339,6 @@ def prepare_language_folder(data_collection_name: str | None = None):
                 f"Unexpected number of AOI files ({len(aoi_files)}) found in '{destination_aoi_path}'. "
                 "Expected 12 (not split) or 24 (already split into texts and questions)."
             )
-
-
-
 
 
 def _copy_stimulus_assets(
@@ -415,9 +411,6 @@ def _copy_stimulus_assets(
                     _to_win_long_path(file) if os.name == "nt" else file,
                     _to_win_long_path(dest_file) if os.name == "nt" else dest_file,
                 )
-
-
-
 
 
 def _copy_used_question_images(

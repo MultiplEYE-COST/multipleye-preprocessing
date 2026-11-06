@@ -47,7 +47,10 @@ def _repair_word_labels(df: pl.DataFrame) -> pl.DataFrame:
     return (
         df.sort(group_cols + ["char_idx_in_line"])
         .with_columns(
-            pl.when(pl.col("unit_of_analysis").is_null() | (pl.col("unit_of_analysis").str.strip_chars() == ""))
+            pl.when(
+                pl.col("unit_of_analysis").is_null()
+                | (pl.col("unit_of_analysis").str.strip_chars() == "")
+            )
             .then(None)
             .otherwise(pl.col("unit_of_analysis"))
             .alias("_unit_of_analysis_tmp")
@@ -79,22 +82,24 @@ def fix_aoi_file(aoi_file_path: str | Path) -> None:
     """
     df = pl.read_csv(aoi_file_path)
     df = df.rename(
-            {
-                "word_idx": "unit_of_analysis_idx",
-                "word": "unit_of_analysis",
-                "word_idx_in_line": "unit_of_analysis_idx_in_line",
-            },
-            strict=False
-        )
-    df = df.with_columns([
-        pl.lit(None).alias("secondary_unit_of_analysis"),
-        pl.lit(None).alias("secondary_unit_of_analysis_idx"),
-        pl.lit(None).alias("secondary_unit_of_analysis_idx_in_line"),
-        ])
-    
+        {
+            "word_idx": "unit_of_analysis_idx",
+            "word": "unit_of_analysis",
+            "word_idx_in_line": "unit_of_analysis_idx_in_line",
+        },
+        strict=False,
+    )
+    df = df.with_columns(
+        [
+            pl.lit(None).alias("secondary_unit_of_analysis"),
+            pl.lit(None).alias("secondary_unit_of_analysis_idx"),
+            pl.lit(None).alias("secondary_unit_of_analysis_idx_in_line"),
+        ]
+    )
+
     df = _repair_word_labels(_remap_space(df))
 
-    #Ensure consistent column order to enable stacking
+    # Ensure consistent column order to enable stacking
     col_order = [
         "char_idx",
         "char",

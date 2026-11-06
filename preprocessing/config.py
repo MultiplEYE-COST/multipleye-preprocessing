@@ -426,7 +426,6 @@ class Settings:
         self.UOA_IDX_COLUMN: str | None = None
         self.UOA_LEVEL: str
 
-
         # --- CONSTANTS FOR EXPERIMENT ---
 
         #: Expected number of practice trials.

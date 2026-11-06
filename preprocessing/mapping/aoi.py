@@ -1,10 +1,10 @@
 """UOA importing and mapping of fixations to AOIs."""
 
+from pathlib import Path
+
 import polars as pl
 import pymovements as pm
-import difflib
-from pathlib import Path
-from preprocessing import settings
+
 from preprocessing.utils.logging import get_logger
 
 
@@ -124,7 +124,11 @@ def enlarge_aois(
 
 
 def add_custom_uoa(
-    stimuli_folder: Path, aoi_file: Path, uoa_column_name, uoa_idx_colum_name, custom_file_name: str = ""
+    stimuli_folder: Path,
+    aoi_file: Path,
+    uoa_column_name,
+    uoa_idx_colum_name,
+    custom_file_name: str = "",
 ) -> None:
     """
     The custom units of analysis can be added as follows for ZH:
@@ -158,10 +162,13 @@ def add_custom_uoa(
 
     # Import aoi data
     aoi_data = pl.read_csv(aoi_file)
-    aoi_data = aoi_data.drop("secondary_unit_of_analysis", "secondary_unit_of_analysis_idx", "secondary_unit_of_analysis_idx_in_line")    
+    aoi_data = aoi_data.drop(
+        "secondary_unit_of_analysis",
+        "secondary_unit_of_analysis_idx",
+        "secondary_unit_of_analysis_idx_in_line",
+    )
     aoi_data = aoi_data.sort(by=["page", "char_idx"])
-    
-    
+
     # Import uoa data
     uoa_file = stimuli_folder / "custom_units_of_analysis" / aoi_file.name
 
@@ -198,14 +205,16 @@ def add_custom_uoa(
             [uoa_column_name, uoa_idx_colum_name, "char", "char_idx", "page"]
         ]
 
-
     uoa_data = uoa_data.sort(by=["page", "char_idx"])
 
-    #Ensure that list of characters matches exactly between files
+    # Ensure that list of characters matches exactly between files
     uoa_chars = list(uoa_data["char"])
     if "questions" in uoa_file.name:
-        aoi_chars = list(aoi_data["char"].filter(
-            aoi_data["question_image_version"] == "question_images_version_1"))
+        aoi_chars = list(
+            aoi_data["char"].filter(
+                aoi_data["question_image_version"] == "question_images_version_1"
+            )
+        )
     else:
         aoi_chars = list(aoi_data["char"])
 
@@ -213,19 +222,18 @@ def add_custom_uoa(
         assert aoi_chars == uoa_chars
     except AssertionError:
         msg = (
-                        f"The custom units of analysis file for the corresponding aoi file {aoi_file.name}, contains different characters. "
-                        f"Please verify that the charactters of the stimuli in both files match exactly."
-                )
+            f"The custom units of analysis file for the corresponding aoi file {aoi_file.name}, contains different characters. "
+            f"Please verify that the charactters of the stimuli in both files match exactly."
+        )
         logger.exception(msg)
         raise
 
-    
-    #Merge the data files. Previous units of analysis become secondary units of analysis
+    # Merge the data files. Previous units of analysis become secondary units of analysis
     aoi_data = aoi_data.rename(
         {
             "unit_of_analysis_idx": "secondary_unit_of_analysis_idx",
             "unit_of_analysis": "secondary_unit_of_analysis",
-            "unit_of_analysis_idx_in_line": "secondary_unit_of_analysis_idx_in_line",            
+            "unit_of_analysis_idx_in_line": "secondary_unit_of_analysis_idx_in_line",
         }
     )
 
@@ -235,9 +243,8 @@ def add_custom_uoa(
             uoa_idx_colum_name: "unit_of_analysis_idx",
         }
     )
-    
-    new_aois = aoi_data.join(uoa_data, on=["page", "char_idx", "char"])
 
+    new_aois = aoi_data.join(uoa_data, on=["page", "char_idx", "char"])
 
     # get the line index of the new units of analysis
     new_aois = new_aois.with_columns(
