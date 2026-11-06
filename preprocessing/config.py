@@ -424,6 +424,8 @@ class Settings:
         self.CUSTOM_UOAS: bool = False
         self.UOA_COLUMN: str | None = None
         self.UOA_IDX_COLUMN: str | None = None
+        self.UOA_LEVEL: str
+
 
         # --- CONSTANTS FOR EXPERIMENT ---
 

@@ -45,9 +45,12 @@ plot_aoi_overlay: true
 copy_aoi_images_overlay: false
 
 # Whether this language uses custom units of analysis (aois) instead of the default MultiplEYE aois (white space delimited)
+# If custom uoas are provided, these will be used for calculations like reading measures.
+# The uoa level (e.g. words, morphemes) will be passed on as metadata
 custom_uoas: false
 uoa_column: "unit_of_analysis"
 uoa_idx_column: "unit_of_analysis_idx"
+uoa_level: "white-space delimited"
 
 # ----------------------- Stimulus Content Versions -----------------------
 # Only needed if your lab used MULTIPLE stimulus folders, e.g. after
