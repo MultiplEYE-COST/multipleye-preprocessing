@@ -39,13 +39,6 @@ def map_fixations_to_aois(
         aoi = stimulus.text_stimulus.aois
         trial = stimulus.trial_id
         aoi = aoi.with_columns(pl.lit(trial).alias(settings.TRIAL_COL))
-        # TODO: what if we want to retain the secondary unit of analysis information
-        if "secondary_unit_of_analysis" in aoi:
-            aoi = aoi.drop([
-                "secondary_unit_of_analysis",
-                "secondary_unit_of_analysis_idx",
-                "secondary_unit_of_analysis_idx_in_line",
-            ])
         all_aois = all_aois.vstack(aoi)
 
     all_aois = pm.stimulus.TextStimulus(
@@ -128,30 +121,6 @@ def enlarge_aois(
     )
 
     return aois
-
-
-
-def _add_custom_aois(aoi_file: Path, language: str) -> None:
-    """
-    Will call a language specific function which adds the custom aois for this language, if they are available and
-    supported.
-    :param aoi_file: Path to the AOI file
-    :param language: The language of the data collection.
-    :return:
-    """
-
-    if language == "ZH":
-        _add_custom_uoa(aoi_file, "segment", "segment_idx")
-    elif language == "KL":
-        # for KL currently, the questions are not supported
-        if not "question" in aoi_file.name:
-            custom_name = aoi_file.stem + "_morph.csv"
-            _add_custom_uoa(aoi_file, "morph_token", "morph_idx", custom_name)
-    else:
-        raise Warning(
-            f"You requested adding custom units of analysis to the aoi files. Currently, your language {language} "
-            "is not supported. Please contact the maintainers to add your language."
-        )
 
 
 def add_custom_uoa(

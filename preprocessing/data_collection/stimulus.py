@@ -175,6 +175,11 @@ class Stimulus:
         )
 
         aois_df = pl.read_csv(aoi_path)
+        #Missing values are automatically read as string, casting dtype
+        aois_df = aois_df.with_columns(
+            pl.col("secondary_unit_of_analysis_idx").cast(pl.Int64),
+            pl.col("secondary_unit_of_analysis_idx_in_line").cast(pl.Int64),
+            )
         aois_df = enlarge_aois(aois_df)
 
         text_stimulus = TextStimulus(

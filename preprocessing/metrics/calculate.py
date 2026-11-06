@@ -15,12 +15,6 @@ def _combined_aois(stimuli: list[Stimulus]) -> pl.DataFrame:
         aoi = stimulus.text_stimulus.aois.with_columns(
             pl.lit(stimulus.trial_id).cast(pl.Utf8).alias(settings.TRIAL_COL)
         )
-        if "secondary_unit_of_analysis" in aoi:
-            aoi = aoi.drop([
-                "secondary_unit_of_analysis",
-                "secondary_unit_of_analysis_idx",
-                "secondary_unit_of_analysis_idx_in_line",
-            ])
         all_aois = all_aois.vstack(aoi)
     return all_aois
 
