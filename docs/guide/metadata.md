@@ -3,13 +3,15 @@
 # Metadata YAML Files
 
 The pipeline writes structured metadata alongside the preprocessed data. The metadata is split
-into three levels:
+into dataset, session, trial, participant and item views:
 
 | Level | File | Scope |
 | --- | --- | --- |
 | Dataset (DCN) | `preprocessed_data/<dcn>/<dcn>_overview.yaml` | One data collection: sessions, setup, processing settings and dataset-wide quality averages |
 | Session | `preprocessed_data/<dcn>/metadata/<sid>/<sid>_overview.yaml` | One eye-tracking session: participant context, technical setup, calibration, procedure and quality |
 | Trial | `trials` key inside the session overview | One entry per presented trial, including practice trials |
+| Participant | `preprocessed_data/<dcn>/metadata/participants.yaml` | One entry per participant group: source PIDs, session IDs, questionnaire fields and curated psychometric scores |
+| Item | `preprocessed_data/<dcn>/metadata/items.yaml` and `items.csv` | One entry per language specific stimulus text: stimulus metadata, questions and basic trial aggregates |
 
 `<dcn>` is the data-collection name, for example `MultiplEYE_KL_DK_Copenhagen_1_2026`. `<sid>` is
 the session identifier, for example `048_KL_DK_1_ET1`.
@@ -17,7 +19,8 @@ the session identifier, for example `048_KL_DK_1_ET1`.
 The trial level is a list inside the session file, not a separate YAML file. All files are
 rewritten at the end of a preprocessing run, so they always describe the most recent run. For the
 output layout, see {ref}`technical_architecture`. For where the files are written in the pipeline,
-see {ref}`pipeline_stages`. Participant-level metadata is centralised in `participants.csv`, see
+see {ref}`pipeline_stages`. Participant-level metadata is available as the curated
+`participants.yaml` view and as the full `participants.csv` download table, see
 {ref}`participants_table`.
 
 The schema covers all fields emitted by the current pipeline. Known gaps are listed at the end
@@ -26,9 +29,17 @@ of this page.
 ## Conventions
 
 - Section and field names are lowercase `snake_case`.
-- Units are part of the field name when the value has a physical unit: `_ms` (milliseconds),
-  `_s` (seconds), `_hz` (hertz), `_px` (pixels), `_cm` (centimetres) and `_dva` (degrees of visual
-  angle). Counts and scores have no unit suffix.
+- Units are part of the field name when the value has a physical unit. Examples are `_ms`
+  (milliseconds), `_s` and `_sec` (seconds), `_hz` (hertz), `_px` (pixels), `_cm` (centimetres),
+  `_dva` (degrees of visual angle), `_wpm` (words per minute), `_year` and `_days`. The codebook
+  `unit` column repeats that unit. The canonical suffix list lives in
+  `preprocessing/metadata/vocabulary.py`. Counts, ratios, scores and identifiers have no unit.
+- Categorical and boolean fields declare canonical codes in `allowed_values` and display labels
+  in `value_labels`. Labels use `code=label` pairs separated by ` | `. Boolean fields use
+  `true,false`.
+- Participant questionnaire values are always written as canonical codes. Localised option text
+  stays in `documentation/questionnaire/pq_mapping_<lang>.yaml` and is never copied into the
+  codebook or the participant view. A raw fallback is recorded only in that mapping file.
 - Ratios are fractions between 0 and 1, not percentages. This applies to data loss, blink loss
   and comprehension scores.
 - Dates use `YYYY-MM-DD`. The month of data collection uses the abbreviation from the ASC header,
@@ -72,8 +83,8 @@ data_quality:
   attrition_rate: 0.0
   mean_validation_error_dva: 0.3
   mean_comprehension_score: 0.4
-# further sections: language_details, data_availability, psychometric_tests,
-# technical_setup, processing_config, warnings
+# further sections: language_details, language_node, data_availability,
+# psychometric_tests, technical_setup, processing_config, warnings
 ```
 
 ### Dataset `administrative`
@@ -91,6 +102,11 @@ data_quality:
 | `lab_number` | int | Lab number within the collection. |
 | `country` | str | Country code. |
 | `tested_language` | str | Tested-language code. |
+| `institution` | str, null | Institution at which the data collection was conducted, from the metadata form. |
+| `contact_name` | str, null | Name of the corresponding contact person, from the metadata form. |
+| `contact_email` | str, null | Email address of the corresponding contact person, from the metadata form. |
+| `script_direction` | str, null | Script direction of the tested language, for example `ltr` or `rtl`, from the lab configuration or metadata form. |
+| `estimated_end_year` | int, null | Estimated year in which the data collection ends, from the lab configuration. |
 
 `session_completeness` contains:
 
@@ -111,6 +127,106 @@ data_quality:
 | `end_date_of_data_collection` | str, null | End date as recorded in the metadata form, normally `YYYY-MM-DD`. |
 
 The content fields are `null` when the metadata form is missing or does not contain the value.
+
+### `language_node`
+
+The `language_node` section records the selected node of the EyeStore language tree. It is only
+written when `language_tree.node_id` is configured. The node ID is a Glottocode. The section is
+independent of the ISO language code, the country code and the language fragment in session
+identifiers. Do not derive one from another.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `language_node_id` | str | Glottocode of the selected node, for example `stan1295`. |
+| `language_node_path` | str, null | Display path from the tree root to the node, for example `Indo-European/Germanic/German`. The path may prune Glottolog levels. |
+| `language_node_label` | str, null | Human readable label of the node. Defaults to the Glottolog name. |
+| `language_tree_version` | str, null | Version of the EyeStore language tree. |
+| `language_tree_hash` | str, null | Hash of the EyeStore language tree. |
+
+The pipeline does not vendor a language tree. It validates the Glottocode against the pinned
+Glottolog 5.3 languoid table. Configure the nested `language_tree` block in the settings file:
+
+```yaml
+language_tree:
+  node_id: stan1295
+  node_path: Indo-European/Germanic/German
+  node_label: German
+  version: "2026.11"
+  hash: null
+  glottolog_check: true
+  glottolog_cache: null
+```
+
+`node_id` selects the node. All other keys are optional. When no `node_id` is configured, the
+`language_node` section is omitted from the dataset overview and the language node fields stay
+empty in the item view.
+
+The Glottolog check runs when the settings are loaded:
+
+- the pinned `glottolog_languoid.csv.zip` archive is downloaded on first use,
+- the archive SHA256 is verified before it is used,
+- the cache is `language_tree.glottolog_cache` when set, then
+  `$MULTIPLEYE_GLOTTOLOG_CACHE`, then `<repo_root>/.cache/glottolog/5.3`,
+- unknown Glottocodes are rejected,
+- family rows are rejected, only language and dialect rows can be assigned,
+- `language_node_label` is filled from the Glottolog name when no display label is configured.
+
+Set `glottolog_check: false` for offline processing when the cache is not available. The node
+metadata is then written without a Glottolog check. The `snapshot` key was removed. The pipeline
+no longer parses a local tree file.
+
+`language_node_path`, `version` and `hash` are display and provenance data for the EyeStore tree.
+The pipeline does not derive or validate them against Glottolog. Node IDs, labels and path
+segments may contain single spaces. They must not have leading, trailing or repeated spaces.
+
+### Per-test psychometric language nodes
+
+A data collection can use a different language for the eye-tracking stimuli and for psychometric
+tests. Test instructions and test items can also differ. Optional overrides are configured under
+`language_tree.psychometric_tests`:
+
+```yaml
+language_tree:
+  node_id: ita1282
+  psychometric_tests:
+    wiki_vocab:
+      instructions_node_id: ita1282
+      items_node_id: deu1234
+    lwmc:
+      instructions_node_id: ita1282
+      items_node_id: ita1282
+```
+
+Every override is optional. A missing `instructions_node_id` or `items_node_id` falls back to the
+dataset `language_tree.node_id`. The `wmc` key is accepted as an alias for `lwmc`.
+
+The dataset overview records one list entry per available test:
+
+```yaml
+language_node:
+  language_node_id: ita1282
+  psychometric_tests:
+    - test_id: lwmc
+      instructions_node_id: ita1282
+      instructions_source: dataset
+      items_node_id: ita1282
+      items_source: dataset
+    - test_id: wiki_vocab
+      instructions_node_id: ita1282
+      instructions_source: dataset
+      items_node_id: deu1234
+      items_source: override
+```
+
+`instructions_source` and `items_source` are `dataset` for the fallback and `override` for a
+configured test-specific node. The codebook structure is generic, so another pipeline can describe
+tests that are not in the current supported set. The preprocessing config itself only accepts the
+supported test IDs: `plab`, `ran`, `stroop`, `flanker`, `lwmc` and `wiki_vocab`.
+
+Items nodes are offered for `plab`, `stroop`, `lwmc` and `wiki_vocab`. RAN and Flanker expose
+instructions only. PLAB items are the stimulus language used for the translation task. LWMC items
+are the Sentence span task items. The selection is recorded in the PR description and should be
+confirmed by the language team.
 
 ### `data_availability`
 
@@ -135,8 +251,12 @@ The MultiplEYE pipeline sets all four flags to `true`.
 | --- | --- | --- |
 | `eye_tracker_name_raw` | str | Eye-tracker name exactly as read from the lab configuration. |
 | `eye_tracker_name` | str | Canonical eye-tracker model: `EyeLink 1000`, `EyeLink 1000 Plus`, `EyeLink II` or `EyeLink Portable Duo`. |
+| `eye_tracker_manufacturer` | str, null | Eye-tracker manufacturer from the lab configuration. |
 | `sampling_frequency_hz` | float | Nominal sampling frequency in hertz. |
-| `monitor_name` | str, null | Monitor name from the metadata form. |
+| `camera_system` | str, null | Eye-tracker camera system from the lab configuration. |
+| `operating_system` | str, null | Operating system of the presentation computer from the lab configuration. |
+| `monitor_name` | str, null | Monitor name from the metadata form or lab configuration. |
+| `monitor_resolution` | str, null | Monitor resolution exactly as reported in the lab configuration. |
 | `screen_resolution_width_px` | int | Screen width in pixels. |
 | `screen_resolution_height_px` | int | Screen height in pixels. |
 | `screen_size_width_cm` | float | Physical screen width in centimetres. |
@@ -148,7 +268,11 @@ The MultiplEYE pipeline sets all four flags to `true`.
 | `image_size_height_cm` | float | Physical height of the stimulus image area in centimetres. |
 
 The dataset level records the lab-level setup. Mount, head-stabilization and pupil details
-remain session-level because they can vary by session.
+remain session-level because they can vary by session. `monitor_resolution` preserves the raw
+lab configuration string; the normalized pixel values are in
+`screen_resolution_width_px` and `screen_resolution_height_px`. The administrative and
+technical fields are `null` when the metadata form or lab configuration is missing or does not
+contain the value.
 
 ### `processing`
 
@@ -214,12 +338,22 @@ This section records the resolved settings used for the run. It covers:
   `saccade_threshold_factor`;
 - velocity estimation: `velocity_estimation_method`, `velocity_smoothing_window_ms`,
   `velocity_polynomial_degree`;
+- fixation drift correction: `fixation_correction`, `fixation_correction_algorithm`,
+  `fixation_correction_kwargs`;
 - psychometric scoring windows: `psym_wikivocab_min_rt`, `psym_wikivocab_max_rt`,
   `psym_stroop_min_rt`, `psym_stroop_max_rt`, `psym_flanker_min_rt`, `psym_flanker_max_rt`;
 - column mappings: `trial_cols`, `trial_col`, `page_col`, `stimulus_col`, `unit_of_analysis_idx_col`,
   `char_idx_col`;
 - fixed design decisions: `aoi_enlargement`, `reading_measures_null_fill`,
   `scanpath_drop_unmapped`, `data_loss_missingness_column`, `per_trial_loss_weighting`.
+
+`aoi_enlargement` is `none` when fixation correction is active, because corrected fixations land
+on the AOIs. It is `half_line_spacing` when correction is off.
+
+`fixation_correction: false` means fixations, scanpaths and reading measures stay uncorrected.
+`fixation_correction: true` means they use corrected fixations and `fixations_uncorrected/` keeps
+the raw detected copy. The algorithm and kwargs are recorded in both cases for reproducibility.
+See {ref}`fixation_correction` for the folder layout.
 
 `tracked_eye` in this section is the list of accepted eye labels from the configuration, not the
 eye tracked in a particular session. The session-level `tracking.tracked_eye` holds the actual
@@ -290,12 +424,13 @@ experiment_procedure:
 
 ### `participant`
 
-This is a convenience subset for quick inspection. The complete participant view is
-`participants.csv`, see {ref}`participants_table`.
+This is a convenience subset for quick inspection. The curated participant view is
+`metadata/participants.yaml`, and the complete download table is `participants.csv`, see
+{ref}`participants_table`.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `gender` | str | Gender answer from the participant questionnaire. |
+| `gender` | str | Canonical gender code from the participant questionnaire, `unknown` when no canonical answer is available. |
 | `bi_monolingualism` | str | `monolingual`, `bilingual` or `multilingual`, derived from the distinct native languages. `unknown` when no native language is recorded. |
 | `psychometric_tests` | list | All psychometric tests with data for this participant. |
 | `tests_conducted_this_session` | list | Tests conducted together with this ET session. |
@@ -427,38 +562,315 @@ Each entry in `trials` has the following fields:
 
 | Field | Type | Description |
 | --- | --- | --- |
+| `trial_id` | str | Trial identifier inside the session, for example `trial_1` or `PRACTICE_trial_1`. |
 | `trial_number` | int | Trial number, 1-based. Numbering restarts for practice trials, so pair it with `is_practice`. |
 | `stimulus_id` | int | Numeric stimulus ID. |
 | `stimulus_name` | str | Stimulus name, for example `Lit_MagicMountain`. |
+| `text_id` | str | Language-specific stimulus text identifier, built as `<stimulus_name>_<language>`, for example `Lit_MagicMountain_de`. It joins the trial view to the item view. |
 | `is_practice` | bool | `true` for practice trials. |
 | `num_questions` | int | Number of comprehension questions answered for the trial. |
+| `num_questions_local` | int | Number of local comprehension questions, from `condition_number` 1. |
+| `num_questions_global` | int | Number of global comprehension questions, from `condition_number` 3. |
+| `num_questions_bridging` | int | Number of bridging comprehension questions, from `condition_number` 2. |
 | `comprehension_score` | float | Proportion of correct answers for the trial, `0` to `1`. |
+| `comprehension_score_local` | float, str | Proportion of correct local answers, `"unknown"` when the trial has no local questions. |
+| `comprehension_score_global` | float, str | Proportion of correct global answers, `"unknown"` when the trial has no global questions. |
+| `comprehension_score_bridging` | float, str | Proportion of correct bridging answers, `"unknown"` when the trial has no bridging questions. |
 | `comprehension_question_time_ms` | float | Total comprehension-question time for the trial, in milliseconds. |
 | `reading_time_ms` | float | Total reading time for the trial's pages, in milliseconds. |
+| `familiarity_1` | float, str | Selected option number on the first familiarity rating screen, `"unknown"` when no rating was logged for the trial. |
+| `familiarity_2` | float, str | Selected option number on the second familiarity rating screen. |
+| `subjective_difficulty` | float, str | Selected option number on the subjective-difficulty rating screen. |
+| `rating_time_ms` | float, str | Summed duration of the trial's rating screens, in milliseconds. `"unknown"` when no rating was logged for the trial. |
 | `trial_duration_ms` | float, str | Total trial recording duration in milliseconds, from the earliest trial start to the latest trial stop. `"unknown"` when no timestamps are stored. |
 | `data_loss_ratio` | float, str | Fraction of missing or invalid samples in the trial, `0` to `1`, from the per-trial data-loss table. Falls back to the sanity-check TSV. `"unknown"` when no source exists. |
 | `blink_ratio` | float, str | Fraction of the trial recording spent in blinks, `0` to `1`, from the per-trial blink-loss table. Falls back to the sanity-check TSV. `"unknown"` when no source exists. |
 | `validation_before_start_dva` | float, str | Mean validation accuracy in degrees of visual angle immediately before the trial starts, averaged across binocular rows at the same timestamp. `"unknown"` when no trial timestamp or validation is available. |
 | `question_order_version` | int, null | Question-order version for this trial from the session CSV. `null` when no matching order record exists. |
 | `question_order` | dict, null | Explicit local, bridging and global order codes for this trial. `null` when no matching order record exists; the trial itself is still included. |
+| `answers` | list | Nested comprehension answers for this trial. See the answer fields below. |
+
+The condition scores and counts use the same `condition_number` mapping as the session
+comprehension fields: 1 is local, 2 is bridging and 3 is global. A score is `"unknown"` when the
+trial has no question of that condition, while the count is `0`.
 
 A real entry looks like this:
 
 ```yaml
-- trial_number: 5
+- trial_id: trial_5
+  trial_number: 5
   stimulus_id: 6
   stimulus_name: Lit_MagicMountain
+  text_id: Lit_MagicMountain_de
   is_practice: false
   num_questions: 6
+  num_questions_local: 2
+  num_questions_global: 2
+  num_questions_bridging: 2
   comprehension_score: 0.5
+  comprehension_score_local: 1.0
+  comprehension_score_global: 0.5
+  comprehension_score_bridging: 0.0
   comprehension_question_time_ms: 146035.0
   reading_time_ms: 204963.0
+  familiarity_1: 2.0
+  familiarity_2: 1.0
+  subjective_difficulty: 3.0
+  rating_time_ms: 12000.0
   question_order_version: 6
   question_order:
     local: [12, 11]
     bridging: [21, 22]
     global: [32, 31]
+  answers:
+    - question_id: "6111"
+      condition: local
+      slot: local_question_1
+      selected_option_key: target
+      selected_option_text: The mountain was quiet
+      is_correct: true
+      correct_answer_key: target
+      correct_answer_text: The mountain was quiet
+      preliminary_answer_keys: [distractor_b, target]
+      preliminary_answer_onsets_ms: [1200.0, 2400.0]
+      confirmation_rt_ms: 2600.0
+      answer_source: logfile
 ```
+
+### Trial answer fields
+
+Each entry in `trials[].answers` has the following fields. Columns that are missing from partial
+answer data stay `null`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `question_id` | str, null | Question identifier. Together with the trial it identifies the answer. |
+| `condition` | str, null | Question condition, `local`, `bridging` or `global`, from `condition_number` or the slot prefix. |
+| `slot` | str, null | Question slot from the question-order CSV, for example `local_question_1`. |
+| `selected_option_key` | str, null | Key of the option the participant confirmed. |
+| `selected_option_text` | str, null | Text of the confirmed option. |
+| `is_correct` | bool, null | Whether the confirmed option is the target option. |
+| `correct_answer_key` | str, null | Key of the target option. |
+| `correct_answer_text` | str, null | Text of the target option. |
+| `preliminary_answer_keys` | list, null | Preliminary key presses in order. |
+| `preliminary_answer_onsets_ms` | list, null | Question-onset-relative timestamps of the preliminary key presses, in milliseconds. |
+| `confirmation_rt_ms` | float, null | Time from question onset to the confirmation key press, in milliseconds. |
+| `answer_source` | str, null | Source the answer was parsed from, for example `logfile`. |
+
+The raw answer CSV remains in `comp_answers` for download and backwards compatibility. The nested
+list is the view used by EyeStore.
+
+## Participant view
+
+`metadata/participants.yaml` contains one entry per participant group. The groups are the same
+groups used for `participants.csv`: the union of eye-tracking sessions, psychometric tests and
+questionnaire sources, with `participant_groups` configuration applied. The file is written at the
+end of preprocessing, after `participants.csv`.
+
+The YAML is a curated nested view. The full tabular output remains `participants.csv` in the data
+collection root and is the file to use for download and manual inspection. The CSV keeps the
+eye-tracking, experimenter-sheet, completeness and preflight columns that the YAML does not repeat.
+
+```yaml
+participants:
+  - participant_id: '020'
+    source_pids: ['001', '002']
+    session_ids: ['001_EN_UK_1_ET1', '001_EN_UK_1_ET2', '002_EN_UK_1_ET1']
+    psychometric_session_ids: ['001_EN_UK_1_PT1', '002_EN_UK_1_PT1']
+    pq_gender: female
+    pq_age: 24
+    pq_native_language_1: en
+    pq_bi_monolingualism: monolingual
+    pq_language_reading_times:
+      native_language_1:
+        academic: 1_to_3_hours
+    psychometric_tests:
+      LWMC:
+        LWMC_Done: true
+        LWMC_Total_score_mean: 0.62
+      PLAB:
+        PLAB_Done: true
+        PLAB_accuracy: 0.71
+    documentation:
+      participant_csv: participants.csv
+      note: Full tabular participant output for download and manual inspection
+```
+
+### Participant identity
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `participant_id` | str | Participant group label, normally the 3-digit PID. |
+| `source_pids` | list | All source PIDs combined into the group. A group can contain more than one PID. |
+| `session_ids` | list | All eye-tracking session IDs attributed to the group. A group can contain multiple sessions. |
+| `psychometric_session_ids` | list | All psychometric-test session IDs attributed to the group. A group can contain multiple PT sessions. |
+
+Lists are empty when the participant has no data for that source. For example, a participant with
+only questionnaire data has an empty `session_ids` and `psychometric_session_ids`.
+
+### Participant questionnaire fields
+
+Normalized questionnaire fields are flat keys on the participant entry, using the same `pq_*`
+names as `participants.csv`. The fields cover the base questions
+(`pq_gender` to `pq_alcohol_today`), the ISO 639-1 codes per language slot
+(`pq_native_language_1` to `pq_additional_read_language_4`) and the derived
+`pq_bi_monolingualism`. Missing answers are omitted.
+
+Only canonical codes are written. Localised option text and unresolved answers stay in
+`documentation/questionnaire/pq_mapping_<lang>.yaml` and in the source questionnaire JSON files.
+They are never copied into `participants.yaml` or `participants.csv`.
+
+`pq_language_reading_times` is a mapping keyed by language slot and question, not a JSON string:
+
+```yaml
+pq_language_reading_times:
+  native_language_1:
+    academic: 1_to_3_hours
+```
+
+The CSV stores the same value as a JSON string. See {ref}`participants_table` for the full
+questionnaire column list and normalization rules.
+
+### `psychometric_tests`
+
+The curated psychometric score subset is nested under `psychometric_tests`, keyed by test name:
+`LWMC`, `RAN`, `Stroop`, `Flanker`, `WikiVocab` and `PLAB`. Only tests with at least one available
+value are present. `*_Done` flags are booleans. Score columns keep their result-table names, so
+they can be traced to `psychometric_results_<dcn>.csv` and
+`psychometric_results_<dcn>_merged.csv`.
+
+The complete psychometric result tables stay in their CSV files. The participant YAML embeds only
+the curated subset used by the participant view.
+
+### `documentation`
+
+The `documentation` block appears on every participant entry and points to the full download table.
+`participant_csv` is the relative path `participants.csv`. The note explains that the YAML is a
+curated view and the CSV is the full tabular output.
+
+## Item view
+
+`metadata/items.yaml` contains one entry per language specific stimulus text. The key is
+`text_id`, built with the same convention as the trial view:
+`<stimulus_name>_<lowercase tested language>`, for example `Lit_MagicMountain_de`. The trial
+`text_id` joins the trial view to the item view. The cross-language text concept remains
+`stimulus_id`.
+
+`metadata/items.csv` contains the same item rows in tabular form. List and object fields are
+stored as JSON strings in the CSV. Both files are written at the end of preprocessing, after the
+session overviews and participant outputs.
+
+```yaml
+items:
+  - data_collection_name: MultiplEYE_KL_DK_Copenhagen_1_2026
+    text_id: Lit_MagicMountain_de
+    stimulus_id: 6
+    stimulus_name: Lit_MagicMountain
+    tested_language: DE
+    language_node_id: stan1295
+    language_node_path: Indo-European/Germanic/German
+    language_node_label: German
+    language_tree_version: "2026.10"
+    language_tree_hash: "sha256:8d1a..."
+    language_script: [Latin]
+    stimulus_role: experiment
+    stimulus_genre: unknown
+    stimulus_structure: unknown
+    num_words: 1012
+    num_chars: 6120
+    num_screens: 7
+    annotation_layers: []
+    annotation_package: unknown
+    familiarity_mean: 1.8
+    familiarity_mode: 2
+    difficulty_mean: 2.4
+    difficulty_mode: 2
+    comprehension_accuracy_mean: 0.78
+    num_participants: 45
+    num_trials: 46
+    questions:
+      - question_id: "6111"
+        item_id: Lit_MagicMountain_6_6111
+        condition: local
+        condition_number: 1
+        question_type: local
+        question_text: What did the mountain do?
+        options:
+          target: The mountain was quiet
+          distractor_a: The mountain was loud
+          distractor_b: The mountain was cold
+          distractor_c: The mountain was green
+```
+
+### Item identity and stimulus fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `data_collection_name` | str | Data collection the item belongs to. Matches `dataset.data_collection_name`. |
+| `text_id` | str | Item key: `<stimulus_name>_<lowercase tested language>`. |
+| `stimulus_id` | int | Numeric stimulus identifier from the stimulus workbook. |
+| `stimulus_name` | str | Stimulus name, for example `Lit_MagicMountain`. |
+| `tested_language` | str | Tested-language code recorded for the session. |
+| `language_script` | list, str | Script or scripts of the tested language from the metadata form. `unknown` when the form or value is absent. |
+| `stimulus_role` | str | Role mapped from the source `stimulus_type`: `experiment`, `practice` or `test`. |
+| `stimulus_genre` | str | Source text genre. The current stimulus workbook does not carry it, so it is `unknown`. |
+| `stimulus_structure` | str | Source text structure. The current stimulus workbook does not carry it, so it is `unknown`. |
+| `num_words` | int | Whitespace-separated words across all stimulus pages. |
+| `num_chars` | int | Characters across all stimulus pages, including spaces. |
+| `num_screens` | int | Number of stimulus pages. |
+
+The `language_node_id`, `language_node_path`, `language_node_label`,
+`language_tree_version` and `language_tree_hash` fields are added to every item only when a
+language node is configured. They follow the same configuration and validation rules as the
+dataset `language_node` section.
+
+### Item annotation availability
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `annotation_layers` | list | Linguistic annotation layers available for the item. Empty in v1 because the annotation layers are not delivered yet. |
+| `annotation_package` | str | Identifier of the annotation package. `unknown` in v1. |
+
+Filtering by an annotation layer selects items that have it. The annotation files themselves are a
+separate download; the item metadata only records availability and the package pointer.
+
+### Item aggregates
+
+Aggregates use all processed trials that match the item `text_id`. Practice items use their own
+practice trials. A value is `null` when no matching trial or no source value exists. The CSV
+stores it as an empty cell.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `familiarity_mean` | float, null | Mean of `familiarity_1` and `familiarity_2` over the matching trials. |
+| `familiarity_mode` | int, float, null | Most frequent familiarity rating over the matching trials. |
+| `difficulty_mean` | float, null | Mean `subjective_difficulty` over the matching trials. |
+| `difficulty_mode` | int, float, null | Most frequent `subjective_difficulty` over the matching trials. |
+| `comprehension_accuracy_mean` | float, null | Mean trial `comprehension_score` over the matching trials. |
+| `num_participants` | int, null | Distinct participants with at least one matching trial. |
+| `num_trials` | int, null | Number of trials that use the item. |
+
+`num_participants` and `num_trials` are `null` when no session provides a trial list. When trial
+data exists, an item without matching trials has `0`.
+
+### Item questions
+
+`questions` is a list of the comprehension questions that belong to the item. It is empty when no
+question source is available. `question_id` is the canonical identifier used by the trial
+`answers` list, so it can join the two views.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `question_id` | str | Canonical question identifier, for example `6111`. |
+| `item_id` | str | Full source item identifier from the question workbook. |
+| `condition` | str | `local`, `bridging`, `global` or `unknown`. |
+| `condition_number` | int | Numeric condition: 1 local, 2 bridging, 3 global. |
+| `question_type` | str | Question type from the question workbook. |
+| `question_text` | str | Question text. |
+| `options` | dict | Answer option texts keyed by `target`, `distractor_a`, `distractor_b` and `distractor_c`. |
+
+The raw question workbook stays in the stimulus folder. The item view carries the question text
+and options so EyeStore can display them without reading the stimulus folder.
 
 ## Known gaps
 
@@ -469,10 +881,14 @@ The emitted schema is complete for the current pipeline. The remaining gaps are 
 - DCN data-quality metrics such as `mean_pupil_loss_ratio` and
   `mean_missing_values_ratio` remain blocked on definitions and a data source; see #169
   and #168.
-- The DCN schema does not yet emit linguistic annotations: part-of-speech tags, word
-  length, morphology, dependency relations, surprisal, and reading-measure availability.
-  These depend on the external annotation team; the field list, file format and
-  per-language availability are still open.
+- The item view marks `annotation_layers` as empty and `annotation_package` as `unknown` in v1.
+  It does not yet emit linguistic annotations: part-of-speech tags, word length, morphology,
+  dependency relations, surprisal, or annotation availability beyond the empty layer list. These
+  depend on the external annotation team; the field list, file format and per-language
+  availability are still open.
+- The item view emits `stimulus_genre` and `stimulus_structure` as `unknown` because the current
+  stimulus workbook does not carry either value. The item aggregate definitions may need to be
+  aligned with the final EyeStore definitions.
 - The DCN schema does not yet emit text-summary features such as
   `mean_num_words_per_participant` and per-stimulus word counts. The required field list
   and definitions are still being agreed.
@@ -481,5 +897,5 @@ The emitted schema is complete for the current pipeline. The remaining gaps are 
 
 - {ref}`technical_architecture`: output layout and processing-config settings.
 - {ref}`pipeline_stages`: when the overview files are written.
-- {ref}`participants_table`: the participant-level table derived from the session metadata.
+- {ref}`participants_table`: the participant-level table and its companion full download CSV.
 - {ref}`sanity_check_report`: per-session quality report, including per-trial data loss tables.

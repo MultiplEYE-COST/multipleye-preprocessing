@@ -10,10 +10,12 @@ import pytest
 import yaml
 
 import preprocessing.data_collection.multipleye_data_collection as dcn_module
+from preprocessing import settings as pipeline_settings
 from preprocessing.data_collection.multipleye_data_collection import (
     MultipleyeDataCollection,
 )
 from preprocessing.data_collection.session import Session
+from preprocessing.metadata.availability import read_availability
 
 
 def _mock_lab_config():
@@ -115,6 +117,16 @@ def _write_metadata_form(dcn_dir: Path, filename: str, payload: dict) -> Path:
     doc_dir = dcn_dir / "documentation"
     doc_dir.mkdir(parents=True, exist_ok=True)
     path = doc_dir / filename
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f)
+    return path
+
+
+def _write_lab_config(dcn_dir: Path, payload: dict) -> Path:
+    """Write a lab configuration JSON into the stimuli config folder."""
+    config_dir = dcn_dir / f"stimuli_{dcn_dir.name}" / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    path = config_dir / f"{dcn_dir.name}_lab_configuration.json"
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f)
     return path
@@ -249,6 +261,66 @@ class TestAdministrative:
         assert sc["complete_participants"] == 3
         assert "incomplete_participants" not in sc
         assert "extra_sessions_participants" not in sc
+
+    def test_admin_fields_missing_source_are_none(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        a = _admin(overview)
+
+        assert a["institution"] is None
+        assert a["contact_name"] is None
+        assert a["contact_email"] is None
+        assert a["script_direction"] is None
+        assert a["estimated_end_year"] is None
+
+    def test_admin_fields_from_structured_metadata_form(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            {
+                "Creators_collection_site": {
+                    "Name_corresponding_contributor": "Ada Lovelace",
+                    "Contact_corresponding_contributor": "ada@example.org",
+                },
+                "Location": {"Institution": "Analytical Engine Lab"},
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        a = _admin(overview)
+
+        assert a["institution"] == "Analytical Engine Lab"
+        assert a["contact_name"] == "Ada Lovelace"
+        assert a["contact_email"] == "ada@example.org"
+
+    def test_admin_fields_from_flat_metadata_form(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            {
+                "Contact_information": {
+                    "First_name": "Ada",
+                    "Last_name": "Lovelace",
+                    "Affiliation": "Analytical Engine Lab",
+                    "Email": "ada@example.org",
+                }
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        a = _admin(overview)
+
+        assert a["institution"] == "Analytical Engine Lab"
+        assert a["contact_name"] == "Ada Lovelace"
+        assert a["contact_email"] == "ada@example.org"
 
 
 class TestProcessing:
@@ -552,6 +624,79 @@ class TestTechnicalSetup:
         assert t["image_size_width_cm"] == 38.0
         assert t["image_size_height_cm"] == 28.3
 
+    def test_lab_config_technical_and_admin_fields(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_lab_config(
+            dummy_dcn_dir,
+            {
+                "Name_eye-tracker_manufacturer": "SR Research",
+                "Specification_camera_system": "Desktop mount",
+                "Name_computer_operation_system": "Windows 11",
+                "Monitor_resolution_in_px": "(1920,1080)",
+                "Script_direction": "ltr",
+                "Estimated_end_year_of_data_collection": "2026",
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        a = _admin(overview)
+        t = _tech(overview)
+
+        assert a["script_direction"] == "ltr"
+        assert a["estimated_end_year"] == 2026
+        assert t["eye_tracker_manufacturer"] == "SR Research"
+        assert t["camera_system"] == "Desktop mount"
+        assert t["operating_system"] == "Windows 11"
+        assert t["monitor_resolution"] == "(1920,1080)"
+
+    def test_metadata_form_fallback_for_lab_fields(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        _write_metadata_form(
+            dummy_dcn_dir,
+            "metadataform_MultiplEYE_EN_UK_London_1_2025.json",
+            {
+                "Script_direction": "rtl",
+                "Estimated_end_year_of_data_collection": "2027",
+                "Name_eye-tracker_manufacturer": "SR Research Ltd.",
+                "Apparatus_lab_equipment": {
+                    "Specification_camera_system": ["Tower mount"],
+                    "Name_computer_operation_system": "Windows 10",
+                    "Monitor": {
+                        "Name_monitor": ["ThinkVision", "Lenovo"],
+                        "Monitor_resolution_in_px": "2560 x 1440",
+                    },
+                },
+            },
+        )
+
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        a = _admin(overview)
+        t = _tech(overview)
+
+        assert a["script_direction"] == "rtl"
+        assert a["estimated_end_year"] == 2027
+        assert t["eye_tracker_manufacturer"] == "SR Research Ltd."
+        assert t["camera_system"] == "Tower mount"
+        assert t["operating_system"] == "Windows 10"
+        assert t["monitor_name"] == "ThinkVision; Lenovo"
+        assert t["monitor_resolution"] == "2560 x 1440"
+
+    def test_technical_lab_fields_missing_source_are_none(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        t = _tech(overview)
+
+        assert t["eye_tracker_manufacturer"] is None
+        assert t["camera_system"] is None
+        assert t["operating_system"] is None
+        assert t["monitor_resolution"] is None
+
     def test_psychometric_tests(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
     ) -> None:
@@ -560,6 +705,83 @@ class TestTechnicalSetup:
         p = _psych(overview)
 
         assert p["tests_available"] == ["TestA", "TestB"]
+
+
+class TestCodebookMetadata:
+    def test_codebook_version_and_credit(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        codebook = overview["codebook"]
+
+        assert codebook["version"] == "2.0-dev0"
+        assert "Marie-Luise Müller" in codebook["credit"]
+        assert "Carlson Moses Büth" in codebook["credit"]
+        assert codebook["hash"].startswith("sha256:")
+
+
+class TestCodebookOutputs:
+    def test_dcn_writes_codebook_outputs(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version, tmp_path
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+
+        destination = dc.write_codebook_outputs(tmp_path)
+
+        assert destination == tmp_path / "codebook"
+        assert (tmp_path / "codebook.csv").exists()
+        assert (tmp_path / "codebook" / "codebook_info.csv").exists()
+        assert (tmp_path / "codebook" / "environment.csv").exists()
+        assert (tmp_path / "codebook" / "availability.csv").exists()
+        assert (tmp_path / "codebook" / "generated" / "codebook_bundle.json").exists()
+        assert (tmp_path / "codebook" / "generated" / "codebook_bundle.zip").exists()
+
+    def test_dcn_passes_availability_overrides(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version, tmp_path
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+
+        destination = dc.write_codebook_outputs(
+            tmp_path,
+            availability={"trial.trial_id": ("false", "missing_source")},
+        )
+        assert destination is not None
+
+        rows = {
+            row.variable_id: row
+            for row in read_availability(destination / "availability.csv")
+        }
+
+        assert rows["trial.trial_id"].available == "false"
+        assert rows["trial.trial_id"].reason == "missing_source"
+
+    def test_dcn_writes_annotation_availability_overrides(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version, tmp_path
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+
+        destination = dc.write_codebook_outputs(
+            tmp_path,
+            availability={
+                "item.annotation_layers": ["false", "annotation_pending"],
+                "item.annotation_package": {
+                    "available": False,
+                    "reason": "annotation_pending",
+                },
+            },
+        )
+        assert destination is not None
+
+        rows = {
+            row.variable_id: row
+            for row in read_availability(destination / "availability.csv")
+        }
+
+        assert rows["item.annotation_layers"].available == "false"
+        assert rows["item.annotation_layers"].reason == "annotation_pending"
+        assert rows["item.annotation_package"].available == "false"
+        assert rows["item.annotation_package"].reason == "annotation_pending"
 
 
 class TestYAMLOutput:
@@ -618,11 +840,23 @@ class TestProcessingConfig:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         pc = overview["processing_config"]
 
+        assert pc["fixation_correction"] is False
+        assert pc["fixation_correction_algorithm"] == "wisdom_of_the_crowd"
+        assert pc["fixation_correction_kwargs"] == {}
         assert pc["aoi_enlargement"] == "half_line_spacing"
         assert pc["reading_measures_null_fill"] == 0
         assert pc["scanpath_drop_unmapped"] is True
         assert pc["data_loss_missingness_column"] == "pixel"
         assert pc["per_trial_loss_weighting"] == "equal"
+
+    def test_processing_config_disables_aoi_enlargement_for_corrected_fixations(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir, enlarge_aois=False)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+        pc = overview["processing_config"]
+
+        assert pc["aoi_enlargement"] == "none"
 
     def test_processing_config_records_psychometric_thresholds(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
@@ -1074,6 +1308,123 @@ class TestWPM:
 
         assert q["mean_total_reading_time_s"] == 60.0
         assert q["mean_wpm"] == pytest.approx(18.0, abs=0.5)
+
+
+class TestLanguageNode:
+    @pytest.fixture
+    def configured_language_node(self, monkeypatch):
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "stan1295")
+        monkeypatch.setattr(
+            pipeline_settings,
+            "LANGUAGE_TREE_PATH",
+            "Indo-European/Germanic/German",
+        )
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_LABEL", "German")
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_VERSION", "2026.10")
+        monkeypatch.setattr(
+            pipeline_settings, "LANGUAGE_TREE_HASH", "sha256:configured"
+        )
+
+    def test_no_language_node_configured(
+        self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+
+        assert "language_node" not in overview
+
+    def test_language_node_written_to_dcn_yaml(
+        self,
+        dummy_dcn_dir,
+        mock_load_lab_config,
+        mock_pipeline_version,
+        configured_language_node,
+    ) -> None:
+        dc = _create_dc(dummy_dcn_dir)
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+
+        assert overview["language_node"] == {
+            "language_node_id": "stan1295",
+            "language_node_path": "Indo-European/Germanic/German",
+            "language_node_label": "German",
+            "language_tree_version": "2026.10",
+            "language_tree_hash": "sha256:configured",
+        }
+
+        yaml_path = dummy_dcn_dir / "MultiplEYE_EN_UK_London_1_2025_overview.yaml"
+        data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        assert data["language_node"] == overview["language_node"]
+        assert data["administrative"]["tested_language"] == "EN"
+        assert data["administrative"]["country"] == "UK"
+
+
+class TestPsychometricLanguageNodes:
+    @pytest.fixture
+    def configured_language_node(self, monkeypatch):
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "stan1295")
+        monkeypatch.setattr(
+            pipeline_settings,
+            "LANGUAGE_TREE_PATH",
+            "Indo-European/Germanic/German",
+        )
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_LABEL", "German")
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_VERSION", "2026.10")
+        monkeypatch.setattr(
+            pipeline_settings, "LANGUAGE_TREE_HASH", "sha256:configured"
+        )
+
+    def test_per_test_nodes_use_fallback_and_override(
+        self,
+        dummy_dcn_dir,
+        mock_load_lab_config,
+        mock_pipeline_version,
+        configured_language_node,
+        monkeypatch,
+    ) -> None:
+        monkeypatch.setattr(
+            pipeline_settings,
+            "LANGUAGE_TREE_PSYCHOMETRIC_TESTS",
+            {
+                "lwmc": {"items_node_id": "zuri1239"},
+                "wiki_vocab": {"instructions_node_id": "swis1247"},
+            },
+        )
+        dc = _create_dc(dummy_dcn_dir)
+        dc.lab_configuration.psychometric_tests = [
+            "WMC",
+            "WikiVocab",
+            "Stroop_Flanker",
+        ]
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+
+        assert overview["language_node"]["psychometric_tests"] == [
+            {
+                "test_id": "stroop",
+                "instructions_node_id": "stan1295",
+                "instructions_source": "dataset",
+                "items_node_id": "stan1295",
+                "items_source": "dataset",
+            },
+            {
+                "test_id": "flanker",
+                "instructions_node_id": "stan1295",
+                "instructions_source": "dataset",
+            },
+            {
+                "test_id": "lwmc",
+                "instructions_node_id": "stan1295",
+                "instructions_source": "dataset",
+                "items_node_id": "zuri1239",
+                "items_source": "override",
+            },
+            {
+                "test_id": "wiki_vocab",
+                "instructions_node_id": "swis1247",
+                "instructions_source": "override",
+                "items_node_id": "stan1295",
+                "items_source": "dataset",
+            },
+        ]
 
 
 class TestLabConfigAttributeSafety:

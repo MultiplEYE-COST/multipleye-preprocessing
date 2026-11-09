@@ -52,6 +52,56 @@ uoa_column: "unit_of_analysis"
 uoa_idx_column: "unit_of_analysis_idx"
 uoa_level: "white-space delimited"
 
+# ----------------------- Language Tree -----------------------
+# Optional EyeStore language tree node for this data collection. The node is
+# metadata only. It does not replace the ISO language code in the data
+# collection name, the country code or the language fragment of session IDs.
+# Leave the block empty or set node_id to null when no language node is
+# configured.
+language_tree:
+  # Stable identifier of the selected node.
+  node_id: null
+  # Optional full path from the tree root to the node, for example
+  # "indo_european/germanic/german". Single spaces are allowed inside a
+  # segment, but no leading, trailing or repeated spaces. This is display and
+  # provenance data. The pipeline does not derive or validate it.
+  node_path: null
+  # Optional human readable label of the selected node.
+  node_label: null
+  # Optional EyeStore tree version. Display and provenance data only.
+  version: null
+  # Optional EyeStore tree hash, for example "sha256:...". Display and
+  # provenance data only.
+  hash: null
+  # Whether to validate node_id as a Glottocode against the pinned Glottolog
+  # 5.3 languoid table. Set to false for offline processing without a cache.
+  glottolog_check: true
+  # Optional Glottolog cache directory. Defaults to the environment variable
+  # MULTIPLEYE_GLOTTOLOG_CACHE, then <repo_root>/.cache/glottolog/5.3.
+  glottolog_cache: null
+
+  # Optional per-test language node overrides. Every value is optional. A
+  # missing instructions or items node falls back to node_id above. The wmc
+  # key is accepted as an alias for lwmc. RAN and Flanker do not offer an items
+  # node because their item material is not the collection language.
+  # psychometric_tests:
+  #   plab:
+  #     instructions_node_id: null
+  #     items_node_id: null
+  #   ran:
+  #     instructions_node_id: null
+  #   stroop:
+  #     instructions_node_id: null
+  #     items_node_id: null
+  #   flanker:
+  #     instructions_node_id: null
+  #   lwmc:
+  #     instructions_node_id: null
+  #     items_node_id: null
+  #   wiki_vocab:
+  #     instructions_node_id: null
+  #     items_node_id: null
+
 # ----------------------- Stimulus Content Versions -----------------------
 # Only needed if your lab used MULTIPLE stimulus folders, e.g. after
 # correcting spelling/grammar errors in the stimuli mid-collection.
@@ -86,6 +136,25 @@ stimulus_versions:
 #   - label: "010"
 #     pids: ["010"]
 #     sessions: ["010_EN_UK_1_ET1"]
+
+# ----------------------- Codebook Availability -----------------------
+# Optional per collection overrides for the codebook availability overlay.
+# The block maps a codebook variable_id to an availability state. A state is
+# "true", "false" or "not_applicable".
+#
+# Use a two item list or a mapping with available and reason when a field is
+# unavailable. A false or not_applicable field needs one of the reasons
+# missing_source, optional_test_not_collected, annotation_pending or external.
+#
+# The v1 annotation fields item.annotation_layers and item.annotation_package
+# are unavailable by default. Override them here when a collection ships
+# annotations.
+availability:
+  overrides:
+    # item.annotation_layers: ["false", annotation_pending]
+    # item.annotation_package:
+    #   available: false
+    #   reason: annotation_pending
 
 # ----------------------- Participant Questionnaire -----------------------
 # The questionnaire question workbook and the language-code workbook are expected
@@ -175,6 +244,24 @@ velocity_smoothing_window_ms: 50
 # Polynomial degree used in the Savitzky-Golay velocity filter.
 velocity_polynomial_degree: 2
 
+# --- FIXATION CORRECTION ---
+# Whether to correct fixation locations for vertical line drift.
+# When enabled, AOI enlargement is disabled and all downstream outputs (scanpaths, reading
+# measures, sanity plots) use the corrected fixations. The raw detected fixations are kept
+# in "fixations_uncorrected/", a subfolder of the processed data collection. When disabled,
+# "fixations/", scanpaths and reading measures stay uncorrected and no uncorrected copy is
+# written.
+RUN_FIXATION_CORRECTION: false
+# Drift correction algorithm passed to pymovements. Either a single algorithm or a list.
+# Single algorithms: attach, chain, cluster, compare, merge, regress, segment, slice,
+# split, stretch, warp. "wisdom_of_the_crowd" (alias "woc") is the ensemble default and
+# combines all algorithms via majority voting.
+fixation_correction_algorithm: "wisdom_of_the_crowd"
+# Additional tuning parameters for the drift algorithms, e.g. {"x_thresh": 250.0}.
+# An entry is routed only to algorithms whose signature accepts it, but it fans out to all
+# of them, so use with care.
+fixation_correction_kwargs: {}
+
 # --- PIPELINE STAGES ---
 # Whether to run the preflight input file check before processing.
 RUN_PREFLIGHT_CHECK: true
@@ -201,6 +288,10 @@ force_reconvert_asc: false
 edf2asc_workers: 4
 raw_data_folder: "raw_data/"
 fixations_folder: "fixations/"
+# Subfolder of each processed data collection for the raw detected fixations. Written only
+# when RUN_FIXATION_CORRECTION is true. Example:
+# preprocessed_data/<dcn>/fixations_uncorrected/<session>_<trial>_<stimulus>_fixation.csv
+fixations_uncorrected_folder: "fixations_uncorrected/"
 saccades_folder: "saccades/"
 scanpaths_folder: "scanpaths/"
 reading_measures_folder: "reading_measures/"

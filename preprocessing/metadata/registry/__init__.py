@@ -1,0 +1,29 @@
+"""Field registrations for the codebook views."""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+
+from preprocessing.metadata.schema import CodebookField
+from preprocessing.metadata.vocabulary import apply_vocabulary
+
+from . import dataset, item, language, participant, session, trial
+
+__all__ = ["REGISTRY_FIELDS", "iter_registry_fields"]
+
+REGISTRY_FIELDS = tuple(
+    apply_vocabulary(field)
+    for field in (
+        *dataset.FIELDS,
+        *language.FIELDS,
+        *session.FIELDS,
+        *trial.FIELDS,
+        *participant.FIELDS,
+        *item.FIELDS,
+    )
+)
+
+
+def iter_registry_fields() -> Iterator[CodebookField]:
+    """Yield all registered output fields."""
+    yield from REGISTRY_FIELDS

@@ -103,7 +103,8 @@ every data collection has the same output files; the labels are mapped to the ca
 
 ## Normalised columns
 
-Normalised values use `pq_*`; every raw key is kept as `pq_raw_*` during the transition.
+Normalised values use `pq_*`. The normaliser also returns `pq_raw_*` for diagnostics, but the
+participant view writes only the canonical `pq_*` values.
 
 | raw value | normalised column | value |
 |---|---|---|
@@ -119,8 +120,9 @@ Normalised values use `pq_*`; every raw key is kept as `pq_raw_*` during the tra
 Interval fields are stored as numbers: `pq_age` and `pq_years_education` are integers. The
 open-ended `>20` option sets `pq_years_education_open_ended` instead of a numeric value.
 Reading-time bins use self-descriptive codes; their bounds are documented in `pq_codebook.yaml`.
-`pq_raw_*` is kept even when it equals the normalised value (common for English) so the original
-labels remain available during the transition.
+The participant view collects the reading-time answers into `pq_language_reading_times`, keyed by
+language slot and question. Raw answers stay in the source `*_pq_data.json` file and are not
+copied into `participants.yaml` or `participants.csv`.
 
 ## Language fields
 
@@ -131,8 +133,9 @@ Language values are mapped to ISO 639-1 through the language list. The lookup or
    `language_iso639_1_en.xlsx`).
 3. Any `language_iso639_1_*.xlsx` found next to the questionnaire.
 
-If no language list is available and fallback is enabled, the localised name is kept in the
-language of the processed data collection instead of an ISO code.
+If no language list is available and fallback is enabled, processing continues but the language
+fields stay empty in the participant view. The localised name remains in the source JSON and in
+the mapping file.
 
 ## Missing files and fallback
 
@@ -144,8 +147,9 @@ them:
 allow_pq_fallback: true
 ```
 
-The missing file then becomes a warning, raw values are kept in `pq_raw_*`, and a mapping stub with
-a `# FALLBACK` header is written to the output folder.
+The missing file then becomes a warning. A mapping stub with a `# FALLBACK` header and
+`fallback: true` is written to the output folder. Questionnaire fields that cannot be mapped stay
+empty in the participant view. Raw answers remain in the source JSON.
 
 ## Participants without eye tracking
 

@@ -1,0 +1,6 @@
+view_id,key,parent_view,parent_key,description
+dataset,data_collection_name,,,One row per data collection
+session,session_identifier,dataset,data_collection_name,One row per eye tracking session
+trial,trial_id,session,session_identifier,One row per trial inside a session
+participant,participant_id,dataset,data_collection_name,One row per participant group
+item,text_id,dataset,data_collection_name,One row per language specific stimulus

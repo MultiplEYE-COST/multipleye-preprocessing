@@ -154,6 +154,32 @@ def test_save_load_events_structure(tmp_path, dummy_gaze, event_type, sid_str):
 
 
 @pytest.mark.parametrize("sid_str", SID_STRINGS)
+def test_save_events_data_writes_duration_dtype_as_milliseconds(
+    dummy_gaze, sid_str
+) -> None:
+    sid = Sid(sid_str)
+    dummy_gaze.events.frame = dummy_gaze.events.frame.with_columns(
+        pl.col("onset").cast(pl.Duration("ms")),
+        pl.col("duration").cast(pl.Duration("ms")),
+    )
+
+    save_events_data(
+        "fixation",
+        sid,
+        "trial",
+        ["trial", "stimulus"],
+        ["onset", "duration"],
+        dummy_gaze,
+    )
+
+    saved = next(sid.fixations_dir.glob("*_fixation.csv"))
+    frame = pl.read_csv(saved)
+    assert frame["onset"].dtype == pl.Int64
+    assert frame["duration"].dtype == pl.Int64
+    assert frame["duration"].to_list() == [1]
+
+
+@pytest.mark.parametrize("sid_str", SID_STRINGS)
 def test_save_load_scanpaths_structure(tmp_path, dummy_gaze, sid_str):
     sid = Sid(sid_str)
     save_scanpaths(sid, dummy_gaze)

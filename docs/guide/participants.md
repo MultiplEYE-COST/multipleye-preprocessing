@@ -6,7 +6,9 @@
 sessions, psychometric tests and the participant questionnaire, and is intended for publishing,
 processing and lab feedback.
 
-The file is written to `preprocessed_data/<data_collection_id>/participants.csv`.
+The file is written to `preprocessed_data/<data_collection_id>/participants.csv`. A curated nested
+participant view is written to `preprocessed_data/<data_collection_id>/metadata/participants.yaml`;
+this page describes the full CSV download table.
 
 ## Participant set
 
@@ -72,11 +74,14 @@ Base fields use the canonical codes:
   `pq_eyewear`, `pq_alcohol_yesterday`, `pq_alcohol_today`.
 - `pq_bi_monolingualism`: derived from the distinct native languages.
 
-Language names are kept **raw** in one column per slot:
+Language slots hold **ISO 639-1 codes** in one column per slot:
 
 - `pq_native_language_1`, `pq_native_language_2`, `pq_native_language_3`
 - `pq_use_language`, `pq_dominant_language`
 - `pq_additional_read_language_1` to `pq_additional_read_language_4`
+
+When the questionnaire workbook or the language list is missing, the slot stays empty. The raw
+answer remains in the source `*_pq_data.json` file and in `pq_mapping_<lang>.yaml`.
 
 The per-language reading-time answers are stored in `pq_language_reading_times` as a JSON object
 keyed by language slot and question (for example `{"native_language_1": {"academic":

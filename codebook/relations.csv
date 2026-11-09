@@ -1,0 +1,8 @@
+relation_id,from_view,from_key,to_view,to_key,description
+session_dataset,session,data_collection_name,dataset,data_collection_name,Session belongs to a data collection
+trial_session,trial,session_identifier,session,session_identifier,Trial belongs to a session
+participant_dataset,participant,data_collection_name,dataset,data_collection_name,Participant belongs to a data collection
+session_participant,session,participant_id,participant,participant_id,Session belongs to a participant group
+item_dataset,item,data_collection_name,dataset,data_collection_name,Item belongs to a data collection
+trial_item,trial,text_id,item,text_id,Trial uses an item
+trial_participant,trial,participant_id,participant,participant_id,Trial belongs to a participant group

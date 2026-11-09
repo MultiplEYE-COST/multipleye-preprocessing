@@ -9,7 +9,7 @@ import sys
 import tempfile
 import warnings
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, date, datetime
 from functools import partial
@@ -40,6 +40,14 @@ from ..checks.formal_experiment_checks import (
     sanity_check_gaze_frame,
 )
 from ..config import settings
+from ..metadata.availability import AvailabilityValue
+from ..metadata.codebook import load_codebook_identity
+from ..metadata.codebook import write_codebook_outputs as write_codebook_package
+from ..metadata.language_tree import (
+    language_node_overview,
+    psychometric_language_node_overview,
+    psychometric_test_ids_from_lab_config,
+)
 from ..models.dcn import Dcn
 from ..models.sid import Sid
 from ..plotting.plot import build_page_frames, plot_gaze, plot_main_sequence
@@ -120,6 +128,53 @@ def _metadata_form_value(
         if value is not None:
             return value
     return metadata_form.get(legacy_key)
+
+
+def _first_present_value(metadata_form: dict, *paths: tuple[str, ...]) -> object:
+    """Return the first non-empty value for a list of nested metadata paths.
+
+    Parameters
+    ----------
+    metadata_form : dict
+        Parsed metadata form or lab configuration.
+    *paths : tuple[str, ...]
+        Key paths to try in order.
+
+    Returns
+    -------
+    object
+        The first non-empty value, or None when no path provides one.
+    """
+    for path in paths:
+        value: object = metadata_form
+        for key in path:
+            if not isinstance(value, dict):
+                value = None
+                break
+            value = value.get(key)
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _metadata_text(value: object) -> str | None:
+    """Return a scalar or list metadata value as text, or None when empty."""
+    if isinstance(value, dict) or value is None:
+        return None
+    if isinstance(value, (list, tuple, set)):
+        parts = [str(item).strip() for item in value if item not in (None, "")]
+        text = "; ".join(part for part in parts if part)
+        return text or None
+    text = str(value).strip()
+    return text or None
+
+
+def _metadata_year(value: object) -> int | None:
+    """Return a four-digit year from a metadata value, or None."""
+    text = _metadata_text(value)
+    if text is None or not re.fullmatch(r"\d{4}", text):
+        return None
+    return int(text)
 
 
 def _known_version(value: object) -> str | None:
@@ -536,6 +591,7 @@ class MultipleyeDataCollection:
         self.include_pilots = kwargs.get("include_pilots", False)
         self.output_dir = kwargs.get("output_dir", "")
         self.pilot_folder = kwargs.get("pilot_folder", "")
+        self.enlarge_aois = kwargs.get("enlarge_aois", True)
         self.reports_folder = "reports"
 
         canonical_eye_tracker = normalize_eye_tracker_name(eye_tracker)
@@ -785,6 +841,8 @@ class MultipleyeDataCollection:
                                     session_file_path="unknown",
                                     session_file_name="unknown",
                                     is_pilot=is_pilot,
+                                    tested_language=getattr(self, "language", None)
+                                    or "unknown",
                                 )
                                 continue
 
@@ -813,6 +871,8 @@ class MultipleyeDataCollection:
                                 session_file_path=session_file,
                                 session_file_name=session_file.name,
                                 is_pilot=is_pilot,
+                                tested_language=getattr(self, "language", None)
+                                or "unknown",
                             )
 
                             self.sessions[item.name] = ses
@@ -998,6 +1058,7 @@ class MultipleyeDataCollection:
         excluded_sessions: list[str] | None = None,
         included_sessions: list[str] | None = None,
         output_dir: Path | None = None,
+        enlarge_aois: bool = True,
     ) -> "MultipleyeDataCollection":
         """
         :param data_dir: str  path to the data folder
@@ -1008,6 +1069,10 @@ class MultipleyeDataCollection:
         :param include_pilots: If True, the pilot sessions are included in the data collection.
         :param excluded_sessions: If not None, the sessions excluded from the data collection.
         :param included_sessions: If not None, the sessions included in the data collection.
+        :param output_dir: The output directory for the preprocessed data.
+        :param enlarge_aois: If True, the character AOIs are vertically enlarged to half the
+        line spacing. Set to False when fixation correction is active, since corrected
+        fixations already land on the AOIs.
         :return:
         MultipleyeDataCollection object
         """
@@ -1120,6 +1185,7 @@ class MultipleyeDataCollection:
             excluded_sessions=excluded_sessions,
             output_dir=output_dir,
             pid_stimulus_dirs=pid_stimulus_dirs,
+            enlarge_aois=enlarge_aois,
         )
 
     @classmethod
@@ -1374,6 +1440,107 @@ class MultipleyeDataCollection:
 
         metadata_form = self._load_metadata_form()
         metadata_form_exists = bool(metadata_form)
+        lab_config_form = self._load_lab_config_form()
+
+        contact_information = _first_present_value(
+            metadata_form, ("Contact_information",), ("Contact information",)
+        )
+        if not isinstance(contact_information, dict):
+            contact_information = {}
+        contact_name = _metadata_text(
+            _first_present_value(
+                metadata_form,
+                ("Creators_collection_site", "Name_corresponding_contributor"),
+            )
+        )
+        if contact_name is None:
+            contact_first_name = _metadata_text(contact_information.get("First_name"))
+            contact_last_name = _metadata_text(
+                contact_information.get("Last_name")
+                or contact_information.get("Last name")
+            )
+            contact_name = (
+                " ".join(
+                    part for part in (contact_first_name, contact_last_name) if part
+                )
+                or None
+            )
+        contact_email = _metadata_text(
+            _first_present_value(
+                metadata_form,
+                ("Creators_collection_site", "Contact_corresponding_contributor"),
+                ("Contact_information", "Email"),
+                ("Contact information", "Email"),
+            )
+        )
+        institution = _metadata_text(
+            _first_present_value(
+                metadata_form,
+                ("Location", "Institution"),
+                ("Contact_information", "Affiliation"),
+                ("Contact information", "Affiliation"),
+            )
+        )
+        script_direction = _metadata_text(
+            _first_present_value(
+                lab_config_form, ("Script_direction",), ("Script direction",)
+            )
+            or _first_present_value(
+                metadata_form, ("Script_direction",), ("Script direction",)
+            )
+        )
+        if script_direction:
+            script_direction = script_direction.lower()
+        estimated_end_year = _metadata_year(
+            _first_present_value(
+                lab_config_form, ("Estimated_end_year_of_data_collection",)
+            )
+            or _first_present_value(
+                metadata_form, ("Estimated_end_year_of_data_collection",)
+            )
+        )
+        eye_tracker_manufacturer = _metadata_text(
+            _first_present_value(lab_config_form, ("Name_eye-tracker_manufacturer",))
+            or _first_present_value(metadata_form, ("Name_eye-tracker_manufacturer",))
+        )
+        camera_system = _metadata_text(
+            _first_present_value(
+                lab_config_form,
+                ("Specification_camera_system",),
+                ("SpeciÉcation_camera_system",),
+            )
+            or _first_present_value(
+                metadata_form,
+                ("Apparatus_lab_equipment", "Specification_camera_system"),
+                ("Specification_camera_system",),
+                ("SpeciÉcation_camera_system",),
+            )
+        )
+        operating_system = _metadata_text(
+            _first_present_value(lab_config_form, ("Name_computer_operation_system",))
+            or _first_present_value(
+                metadata_form,
+                ("Apparatus_lab_equipment", "Name_computer_operation_system"),
+                ("Name_computer_operation_system",),
+            )
+        )
+        monitor_resolution = _metadata_text(
+            _first_present_value(lab_config_form, ("Monitor_resolution_in_px",))
+            or _first_present_value(
+                metadata_form,
+                ("Apparatus_lab_equipment", "Monitor", "Monitor_resolution_in_px"),
+                ("Monitor_resolution_in_px",),
+            )
+        )
+        monitor_name = _metadata_text(
+            _first_present_value(
+                metadata_form,
+                ("Apparatus_lab_equipment", "Monitor", "Name_monitor"),
+                ("Name_monitor",),
+                ("Monitor_name",),
+            )
+            or _first_present_value(lab_config_form, ("Name_monitor",))
+        )
 
         language_script = _metadata_form_value(
             metadata_form, "Tested_language", "Language_script", "Script"
@@ -1412,6 +1579,7 @@ class MultipleyeDataCollection:
         image_res_w, image_res_h = _lab_pair("image_resolution")
         image_size_w, image_size_h = _lab_pair("image_size_cm")
         screen_distance_cm = getattr(self.lab_configuration, "screen_distance_cm", None)
+        codebook_info = load_codebook_identity()
 
         overview = {
             "administrative": {
@@ -1426,6 +1594,11 @@ class MultipleyeDataCollection:
                 "lab_number": self.lab_number,
                 "country": self.country,
                 "tested_language": self.language,
+                "institution": institution,
+                "contact_name": contact_name,
+                "contact_email": contact_email,
+                "script_direction": script_direction,
+                "estimated_end_year": estimated_end_year,
             },
             "language_details": {
                 "metadata_form_exists": metadata_form_exists,
@@ -1448,10 +1621,14 @@ class MultipleyeDataCollection:
             "technical_setup": {
                 "eye_tracker_name_raw": self.eye_tracker_name_raw,
                 "eye_tracker_name": self.eye_tracker_name,
+                "eye_tracker_manufacturer": eye_tracker_manufacturer,
                 "sampling_frequency_hz": getattr(
                     self.lab_configuration, "sampling_frequency_hz", None
                 ),
-                "monitor_name": metadata_form.get("Monitor_name"),
+                "camera_system": camera_system,
+                "operating_system": operating_system,
+                "monitor_name": monitor_name,
+                "monitor_resolution": monitor_resolution,
                 "screen_resolution_width_px": screen_res_w,
                 "screen_resolution_height_px": screen_res_h,
                 "screen_size_width_cm": screen_size_w,
@@ -1505,7 +1682,10 @@ class MultipleyeDataCollection:
                 "stimulus_col": settings.STIMULUS_COL,
                 "word_idx_col": settings.WORD_IDX_COL,
                 "char_idx_col": settings.CHAR_IDX_COL,
-                "aoi_enlargement": "half_line_spacing",
+                "fixation_correction": settings.RUN_FIXATION_CORRECTION,
+                "fixation_correction_algorithm": settings.FIXATION_CORRECTION_ALGORITHM,
+                "fixation_correction_kwargs": settings.FIXATION_CORRECTION_KWARGS,
+                "aoi_enlargement": "half_line_spacing" if self.enlarge_aois else "none",
                 "reading_measures_null_fill": 0,
                 "scanpath_drop_unmapped": True,
                 "data_loss_missingness_column": "pixel",
@@ -1515,7 +1695,43 @@ class MultipleyeDataCollection:
                 "attrition_rate": self._compute_attrition_rate(),
                 **self._compute_dcn_averages(),
             },
+            "codebook": {
+                "version": codebook_info.get("codebook_version"),
+                "credit": codebook_info.get("credit"),
+                "hash": codebook_info.get("hash"),
+            },
         }
+
+        # Add the configured language node. Kept separate from the ISO language,
+        # country and session identifier fields.
+        language_node = language_node_overview(
+            settings.LANGUAGE_NODE_ID,
+            settings.LANGUAGE_TREE_PATH,
+            settings.LANGUAGE_TREE_VERSION,
+            settings.LANGUAGE_NODE_LABEL,
+            settings.LANGUAGE_TREE_HASH,
+        )
+        if language_node:
+            available_tests = psychometric_test_ids_from_lab_config(
+                getattr(self.lab_configuration, "psychometric_tests", None)
+            )
+            psychometric_nodes = psychometric_language_node_overview(
+                settings.LANGUAGE_NODE_ID,
+                settings.LANGUAGE_TREE_PSYCHOMETRIC_TESTS,
+                available_tests,
+            )
+            if psychometric_nodes:
+                language_node["psychometric_tests"] = psychometric_nodes
+            configured_tests = set(settings.LANGUAGE_TREE_PSYCHOMETRIC_TESTS)
+            if available_tests:
+                ignored = sorted(configured_tests - set(available_tests))
+                if ignored:
+                    self.logger.warning(
+                        "Psychometric language nodes configured for tests not "
+                        "present in the collection: %s",
+                        ", ".join(ignored),
+                    )
+            overview["language_node"] = language_node
 
         # Add warnings to overview
         if hasattr(logging, "_captured_warnings") and logging._captured_warnings:
@@ -1525,6 +1741,31 @@ class MultipleyeDataCollection:
             yaml.dump(overview, f, sort_keys=False)
 
         return overview
+
+    def write_codebook_outputs(
+        self,
+        path: str | Path,
+        availability: Mapping[str, AvailabilityValue] | None = None,
+    ) -> Path | None:
+        """Write the codebook package, environment and generated bundle.
+
+        Parameters
+        ----------
+        path : str or Path
+            Processed data collection directory.
+        availability : Mapping[str, AvailabilityValue], optional
+            Per collection availability overrides keyed by ``variable_id``. Fields
+            without an entry default to available.
+
+        Returns
+        -------
+        Path or None
+            Destination codebook directory, or None when the source package is
+            absent.
+        """
+        environment = self._get_processing_environment()
+        environment["pipeline_version"] = self._get_pipeline_version()
+        return write_codebook_package(path, environment, availability=availability)
 
     @staticmethod
     def _get_pipeline_version() -> str | None:
@@ -1547,8 +1788,8 @@ class MultipleyeDataCollection:
         """
         Return the tool versions and git revision used for this run.
 
-        Unavailable values are reported as ``None``. ``pipeline_version`` is
-        not repeated here; it stays in ``processing``.
+        Unavailable values are reported as ``None``. ``pipeline_version`` stays in
+        ``processing``.
 
         Returns
         -------
@@ -1589,7 +1830,7 @@ class MultipleyeDataCollection:
             Parsed metadata form contents, or an empty dict if the file is
             missing or cannot be matched unambiguously.
         """
-        documentation_dir = self.stimulus_dir.parent / "documentation"
+        documentation_dir = self.data_root.parent / "documentation"
         metadata_path = find_metadata_form(
             documentation_dir,
             self.data_collection_name,
@@ -1602,6 +1843,28 @@ class MultipleyeDataCollection:
         if metadata_path is None:
             return {}
         return load_metadata_form(metadata_path)
+
+    def _load_lab_config_form(self) -> dict:
+        """
+        Load the lab configuration JSON for this data collection, if present.
+
+        The lab configuration is stored next to the stimulus configuration. An
+        empty mapping is returned when no single file can be matched or when the
+        file cannot be parsed.
+
+        Returns
+        -------
+        dict
+            Parsed lab configuration, or an empty dict.
+        """
+        config_dir = self.stimulus_dir / "config"
+        candidates = sorted(config_dir.glob("*_lab_configuration.json"))
+        if len(candidates) != 1:
+            return {}
+        try:
+            return load_metadata_form(candidates[0])
+        except (OSError, ValueError):
+            return {}
 
     def _compute_attrition_rate(self) -> float | None:
         """
@@ -2007,10 +2270,8 @@ class MultipleyeDataCollection:
                         gap_next = (next_date - et_date).days
 
                 self.sessions[sid_str].participant_info = {
-                    "gender": pq_values.get(
-                        "pq_gender", (pq or {}).get("gender", "unknown")
-                    ),
-                    "bi_monolingualism": _bi_monolingualism_from_pq(pq_values or pq),
+                    "gender": pq_values.get("pq_gender", "unknown"),
+                    "bi_monolingualism": _bi_monolingualism_from_pq(pq_values),
                     "psychometric_tests": sorted(all_pt_tests),
                     "tests_conducted_this_session": sorted(this_tests),
                     "tests_conducted_separate_session": sorted(
@@ -2171,6 +2432,7 @@ class MultipleyeDataCollection:
                 stimulus_name,
                 stimulus_order_version,
                 trial_id[0],
+                enlarge_aois=self.enlarge_aois,
             )
             stimuli.append(stimulus)
 

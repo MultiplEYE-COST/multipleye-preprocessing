@@ -8,6 +8,48 @@ import pymovements as pm
 from preprocessing.utils.logging import get_logger
 
 
+def build_combined_text_stimulus(
+    stimuli: list,
+) -> pm.stimulus.TextStimulus:
+    """
+    Consolidate the AOIs of all stimuli into a single text stimulus.
+
+    Each stimulus contributes its character-level AOIs with the corresponding trial
+    identifier added, so that the resulting stimulus can be used to process all trials
+    of a session at once.
+
+    Parameters
+    ----------
+    stimuli : list of Stimulus
+        A list of Stimulus objects, each containing ``text_stimulus`` data with defined
+        AOIs and trial IDs.
+
+    Returns
+    -------
+    pm.stimulus.TextStimulus
+        A text stimulus holding the stacked AOIs of all stimuli.
+    """
+    from ..config import settings
+
+    all_aois = pl.DataFrame()
+    for stimulus in stimuli:
+        aoi = stimulus.text_stimulus.aois
+        trial = stimulus.trial_id
+        aoi = aoi.with_columns(pl.lit(trial).alias(settings.TRIAL_COL))
+        all_aois = all_aois.vstack(aoi)
+
+    return pm.stimulus.TextStimulus(
+        all_aois,
+        aoi_column=settings.CHAR_IDX_COL,
+        start_x_column="top_left_x",
+        start_y_column="top_left_y",
+        width_column="width",
+        height_column="height",
+        page_column=settings.PAGE_COL,
+        trial_column=settings.TRIAL_COL,
+    )
+
+
 def map_fixations_to_aois(
     gaze: pm.Gaze,
     stimuli: list,
@@ -32,27 +74,7 @@ def map_fixations_to_aois(
     None
         The function performs mapping in place and does not return any value.
     """
-    from ..config import settings
-
-    all_aois = pl.DataFrame()
-    for stimulus in stimuli:
-        aoi = stimulus.text_stimulus.aois
-        trial = stimulus.trial_id
-        aoi = aoi.with_columns(pl.lit(trial).alias(settings.TRIAL_COL))
-        all_aois = all_aois.vstack(aoi)
-
-    all_aois = pm.stimulus.TextStimulus(
-        all_aois,
-        aoi_column=settings.CHAR_IDX_COL,
-        start_x_column="top_left_x",
-        start_y_column="top_left_y",
-        width_column="width",
-        height_column="height",
-        page_column=settings.PAGE_COL,
-        trial_column=settings.TRIAL_COL,
-    )
-
-    gaze.events.map_to_aois(all_aois, verbose=False)
+    gaze.events.map_to_aois(build_combined_text_stimulus(stimuli), verbose=False)
 
 
 def enlarge_aois(

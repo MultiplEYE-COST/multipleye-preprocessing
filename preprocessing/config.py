@@ -382,6 +382,42 @@ class Settings:
         #: a preflight error. True: it becomes a warning and raw values are kept.
         self.ALLOW_PQ_FALLBACK: bool = False
 
+        #: Per collection codebook availability overrides keyed by ``variable_id``.
+        #: A value is an availability state, a two item list of state and reason,
+        #: or a mapping with ``available`` and ``reason`` keys. The v1 annotation
+        #: fields stay unavailable until a collection overrides them.
+        self.AVAILABILITY_OVERRIDES: dict[str, Any] = {
+            "item.annotation_layers": ("false", "annotation_pending"),
+            "item.annotation_package": ("false", "annotation_pending"),
+        }
+
+        #: Selected Glottolog language node for this data collection. This is
+        #: metadata only and does not replace the ISO language code in the name.
+        self.LANGUAGE_NODE_ID: str | None = None
+
+        #: Optional display path from the EyeStore language tree root to the node.
+        self.LANGUAGE_TREE_PATH: str | None = None
+
+        #: Optional human readable label of the selected language node. When it
+        #: is empty the Glottolog name is used.
+        self.LANGUAGE_NODE_LABEL: str | None = None
+
+        #: Optional EyeStore language tree version.
+        self.LANGUAGE_TREE_VERSION: str | None = None
+
+        #: Optional hash of the EyeStore language tree.
+        self.LANGUAGE_TREE_HASH: str | None = None
+
+        #: Validate the selected node against the pinned Glottolog table.
+        self.LANGUAGE_TREE_GLOTTOG_CHECK: bool = True
+
+        #: Optional directory holding the pinned Glottolog languoid archive.
+        self.LANGUAGE_TREE_GLOTTOG_CACHE: Path | None = None
+
+        #: Optional per-test Glottocode overrides for psychometric test
+        #: instructions and items. Missing values fall back to LANGUAGE_NODE_ID.
+        self.LANGUAGE_TREE_PSYCHOMETRIC_TESTS: dict[str, dict[str, str | None]] = {}
+
         #: Default log level for the package/Python.
         self.LOG_LEVEL: str = "INFO"
 
@@ -457,6 +493,11 @@ class Settings:
         #: Subfolder name for fixation data.
         self.FIXATIONS_FOLDER = Path("fixations/")
 
+        #: Subfolder of each processed data collection for the uncorrected copy of fixation
+        #: data. It is written only when fixation correction is active, so the raw detected
+        #: fixations remain available next to the corrected ``fixations/`` folder.
+        self.FIXATIONS_UNCORRECTED_FOLDER = Path("fixations_uncorrected/")
+
         #: Subfolder name for saccade data.
         self.SACCADES_FOLDER = Path("saccades/")
 
@@ -515,6 +556,8 @@ class Settings:
         self.RUN_PREFLIGHT_CHECK = True
         #: Whether to perform fixation detection.
         self.RUN_FIXATION_DETECTION = True
+        #: Whether to correct fixation locations for line drift.
+        self.RUN_FIXATION_CORRECTION = False
         #: Whether to perform saccade detection.
         self.RUN_SACCADE_DETECTION = True
         #: Whether to perform reading measures calculation.
@@ -649,6 +692,20 @@ class Settings:
 
         #: Polynomial degree used in the Savitzky-Golay velocity filter.
         self.VELOCITY_POLYNOMIAL_DEGREE = 2
+
+        # --- FIXATION CORRECTION ---
+
+        #: Drift correction algorithm (or list of algorithms) passed to
+        #: ``pymovements.events.correction``. ``"wisdom_of_the_crowd"`` (alias ``"woc"``)
+        #: combines all algorithms via majority voting. Single algorithms are "attach",
+        #: "chain", "cluster", "compare", "merge", "regress", "segment", "slice", "split",
+        #: "stretch" and "warp".
+        self.FIXATION_CORRECTION_ALGORITHM = "wisdom_of_the_crowd"
+
+        #: Additional tuning parameters passed to the drift correction algorithms, e.g.
+        #: ``{"x_thresh": 250.0}``. In ensemble mode an entry is routed only to the candidate
+        #: algorithms whose signature accepts it, but it fans out to all of them.
+        self.FIXATION_CORRECTION_KWARGS = {}
 
         # --- PSYCHOMETRIC TEST THRESHOLDS ---
 
@@ -958,6 +1015,8 @@ class Settings:
         self._validate()
         self.validate_stimulus_versions()
         self.validate_participant_groups()
+        self.validate_language_node()
+        self.validate_availability_overrides()
         self._loaded = True
 
     def update(self, config_dict: dict[str, Any]) -> None:
@@ -971,11 +1030,112 @@ class Settings:
                 self.STIMULUS_VERSIONS_PID_MAP = value.get("versions", {}) or {}
                 continue
 
+            # Unpack the nested language_tree block into its flat settings.
+            if upper_key == "LANGUAGE_TREE":
+                self._update_language_tree(value)
+                continue
+
+            # Unpack the nested availability block into the override mapping.
+            if upper_key == "AVAILABILITY" and isinstance(value, dict):
+                overrides = value.get("overrides") or {}
+                if not isinstance(overrides, dict):
+                    raise TypeError("availability.overrides must be a mapping")
+                self.AVAILABILITY_OVERRIDES = {
+                    **(self.__dict__.get("AVAILABILITY_OVERRIDES") or {}),
+                    **self._normalize_availability_overrides(overrides),
+                }
+                continue
+
             if upper_key in self.__dict__:
                 setattr(self, upper_key, value)
             else:
                 # Allow setting new attributes or lowercase if they exist
                 setattr(self, key, value)
+
+    def _update_language_tree(self, value: Any) -> None:
+        """Map the nested ``language_tree`` config block onto flat settings.
+
+        Parameters
+        ----------
+        value : Any
+            Nested mapping from the config file. ``None`` leaves the current
+            settings unchanged.
+
+        Raises
+        ------
+        TypeError
+            If the block is neither a mapping nor ``None``.
+        """
+        if value is None:
+            return
+        if not isinstance(value, dict):
+            raise TypeError("The language_tree config block must be a mapping.")
+
+        removed = value.get("snapshot")
+        if removed not in (None, ""):
+            raise TypeError(
+                "language_tree.snapshot was removed. Language nodes are validated "
+                "against Glottolog. Remove the snapshot key and set "
+                "language_tree.glottolog_check if you need to change validation."
+            )
+
+        mapping = {
+            "node_id": "LANGUAGE_NODE_ID",
+            "node_path": "LANGUAGE_TREE_PATH",
+            "node_label": "LANGUAGE_NODE_LABEL",
+            "version": "LANGUAGE_TREE_VERSION",
+            "hash": "LANGUAGE_TREE_HASH",
+            "glottolog_check": "LANGUAGE_TREE_GLOTTOG_CHECK",
+            "glottolog_cache": "LANGUAGE_TREE_GLOTTOG_CACHE",
+        }
+        for key, setting_name in mapping.items():
+            if key in value:
+                setattr(self, setting_name, value[key])
+        if "psychometric_tests" in value:
+            self._update_psychometric_test_language_nodes(value["psychometric_tests"])
+
+    def _update_psychometric_test_language_nodes(self, value: Any) -> None:
+        """Normalize per-test language node overrides."""
+        from .metadata.language_tree import (
+            PSYCHOMETRIC_TESTS_WITH_ITEMS,
+            normalize_psychometric_test_id,
+        )
+
+        if value is None:
+            self.LANGUAGE_TREE_PSYCHOMETRIC_TESTS = {}
+            return
+        if not isinstance(value, dict):
+            raise TypeError(
+                "language_tree.psychometric_tests must be a mapping keyed by test."
+            )
+
+        normalized: dict[str, dict[str, str | None]] = {}
+        for raw_test_id, raw_parts in value.items():
+            test_id = normalize_psychometric_test_id(raw_test_id)
+            if raw_parts is None:
+                raw_parts = {}
+            if not isinstance(raw_parts, dict):
+                raise TypeError(
+                    f"language_tree.psychometric_tests.{test_id} must be a mapping."
+                )
+            allowed = {"instructions_node_id"}
+            if test_id in PSYCHOMETRIC_TESTS_WITH_ITEMS:
+                allowed.add("items_node_id")
+            unknown = set(raw_parts) - allowed
+            if unknown:
+                keys = ", ".join(sorted(str(key) for key in unknown))
+                raise TypeError(
+                    f"Unsupported key(s) for psychometric test {test_id!r}: {keys}. "
+                    f"Allowed keys: {', '.join(sorted(allowed))}."
+                )
+            entry: dict[str, str | None] = {}
+            for part in allowed:
+                raw = raw_parts.get(part)
+                if raw in (None, ""):
+                    continue
+                entry[part] = str(raw).strip()
+            normalized[test_id] = entry
+        self.LANGUAGE_TREE_PSYCHOMETRIC_TESTS = normalized
 
     def _validate(self) -> None:
         """Validate required settings."""
@@ -1067,6 +1227,129 @@ class Settings:
                         f"Session '{sid}' in participant group '{label}' has PID "
                         f"'{parsed.pid}', which is not in the group's pids."
                     )
+
+    def validate_language_node(self) -> None:
+        """Validate the selected Glottocode against the pinned Glottolog table.
+
+        The node text shape is always checked. When ``LANGUAGE_TREE_GLOTTOG_CHECK``
+        is true, the Glottocode must exist in Glottolog 5.3 and must be a
+        language or dialect row. The Glottolog name fills ``LANGUAGE_NODE_LABEL``
+        when no display label is configured.
+
+        Raises
+        ------
+        LanguageTreeError
+            If the configured node ID, path or label has invalid spacing.
+        GlottologError
+            If the Glottolog table is unavailable or the node is unknown, a
+            family or another non-assignable row.
+        """
+        from .metadata.glottolog import GLOTTOLOG_VERSION, resolve_glottolog_node
+        from .metadata.language_tree import (
+            LanguageTreeError,
+            language_node_overview,
+        )
+
+        language_node_overview(
+            self.LANGUAGE_NODE_ID,
+            self.LANGUAGE_TREE_PATH,
+            self.LANGUAGE_TREE_VERSION,
+            self.LANGUAGE_NODE_LABEL,
+            self.LANGUAGE_TREE_HASH,
+        )
+        if self.LANGUAGE_TREE_PSYCHOMETRIC_TESTS and not self.LANGUAGE_NODE_ID:
+            raise LanguageTreeError(
+                "language_tree.psychometric_tests requires "
+                "language_tree.node_id as the fallback language node."
+            )
+        if not self.LANGUAGE_NODE_ID:
+            return
+        if not self.LANGUAGE_TREE_GLOTTOG_CHECK:
+            logger.warning(
+                "Glottolog language node check is disabled. The configured node "
+                "%r and its psychometric test overrides will not be validated.",
+                self.LANGUAGE_NODE_ID,
+            )
+            return
+
+        cache = (
+            Path(self.LANGUAGE_TREE_GLOTTOG_CACHE)
+            if self.LANGUAGE_TREE_GLOTTOG_CACHE
+            else None
+        )
+        node = resolve_glottolog_node(self.LANGUAGE_NODE_ID, cache)
+        if not self.LANGUAGE_NODE_LABEL:
+            self.LANGUAGE_NODE_LABEL = node.name
+        logger.info(
+            "Language node %s validated against Glottolog %s: %s (%s).",
+            node.id,
+            GLOTTOLOG_VERSION,
+            node.name,
+            node.level,
+        )
+
+        for test_id, parts in self.LANGUAGE_TREE_PSYCHOMETRIC_TESTS.items():
+            for part, glottocode in parts.items():
+                if not glottocode:
+                    continue
+                resolved = resolve_glottolog_node(glottocode, cache)
+                logger.info(
+                    "Psychometric test %s %s node %s validated against Glottolog %s: "
+                    "%s (%s).",
+                    test_id,
+                    part.replace("_node_id", ""),
+                    resolved.id,
+                    GLOTTOLOG_VERSION,
+                    resolved.name,
+                    resolved.level,
+                )
+
+    def _normalize_availability_overrides(
+        self, overrides: dict[str, Any]
+    ) -> dict[str, tuple[str, str]]:
+        """Normalize availability overrides into state and reason tuples."""
+        from .metadata.availability import (
+            normalize_availability_entry,
+            validate_availability,
+        )
+
+        normalized: dict[str, tuple[str, str]] = {}
+        issues: list[str] = []
+
+        for variable_id, value in overrides.items():
+            row = normalize_availability_entry(str(variable_id), value)
+            row_issues = validate_availability([row], [row.variable_id])
+            if row_issues:
+                issues.extend(row_issues)
+                continue
+            normalized[row.variable_id] = (row.available, row.reason)
+
+        if issues:
+            raise ValueError(
+                "Invalid availability overrides:\n"
+                + "\n".join(f"* {issue}" for issue in issues)
+            )
+        return normalized
+
+    def validate_availability_overrides(self) -> None:
+        """Normalize and validate ``availability.overrides``.
+
+        The state must be ``true``, ``false`` or ``not_applicable``. A field
+        that is not available needs a known reason. Unknown field identifiers are
+        checked when the codebook package is written, because source form rows
+        are valid override targets.
+
+        Raises
+        ------
+        ValueError
+            If an override uses an invalid state or reason, or omits the reason
+            for an unavailable field.
+        TypeError
+            If the ``availability`` block has an unsupported shape.
+        """
+        self.AVAILABILITY_OVERRIDES = self._normalize_availability_overrides(
+            self.AVAILABILITY_OVERRIDES or {}
+        )
 
     def setup_logging(self, log_file: str | Path | None = None) -> None:
         """Configure logging with separate levels for console and file.

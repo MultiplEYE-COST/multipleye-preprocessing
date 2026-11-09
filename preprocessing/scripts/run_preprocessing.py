@@ -12,9 +12,75 @@ from preprocessing.checks.quality_thresholds import write_quality_thresholds
 from preprocessing.metrics.data_loss import compute_data_loss
 from preprocessing.scripts.prepare_language_folder import prepare_language_folder
 
-from ..data_collection.participant_table import write_participants_table
+from ..data_collection.item_table import write_item_outputs
+from ..data_collection.participant_table import (
+    build_participant_table,
+    write_participants_table,
+    write_participants_yaml,
+)
 from ..utils.logging import get_logger
 from ..utils.pq_normalisation import write_pq_assets
+
+FIXATION_FILE_COLUMNS = ["onset", "duration", "location_x", "location_y", "page"]
+FIXATION_CORRECTION_COLUMNS = [
+    "location_x_original",
+    "location_y_original",
+    "correction_algorithm",
+]
+
+
+def _fixation_correction_label(algorithm: str | list[str]) -> str:
+    """
+    Return the label recorded by pymovements for a correction algorithm selection.
+
+    The ensemble selection (``"wisdom_of_the_crowd"``, alias ``"woc"``, or any list of
+    algorithms) is recorded as ``"wisdom_of_the_crowd"``; a single algorithm is recorded
+    under its own name.
+    """
+    if isinstance(algorithm, list):
+        return "wisdom_of_the_crowd"
+    if algorithm in ("woc", "wisdom_of_the_crowd"):
+        return "wisdom_of_the_crowd"
+    return algorithm
+
+
+def _fixation_correction_is_current(fixation_dir) -> bool:
+    """
+    Check whether cached fixation files match the configured correction settings.
+
+    Returns True if the cached fixations were written with the currently configured
+    correction state and algorithm, so they can be loaded without recalculating.
+    """
+    files = sorted(fixation_dir.glob("*.csv"))
+    if not files:
+        return False
+
+    expected_label = _fixation_correction_label(settings.FIXATION_CORRECTION_ALGORITHM)
+
+    for path in files:
+        header = pl.read_csv(path, n_rows=0).columns
+        has_correction_column = "correction_algorithm" in header
+
+        if not settings.RUN_FIXATION_CORRECTION:
+            if has_correction_column:
+                return False
+            continue
+
+        if not has_correction_column:
+            return False
+
+        saved_labels = (
+            pl.read_csv(path, columns=["correction_algorithm"])["correction_algorithm"]
+            .drop_nulls()
+            .unique()
+            .to_list()
+        )
+        # An all-null column still indicates corrected output, e.g. when every trial was
+        # skipped because it had too few fixations.
+        if saved_labels and set(saved_labels) != {expected_label}:
+            return False
+
+    return True
 
 
 def run_preprocessing(config_path: str | None = None):
@@ -53,6 +119,9 @@ def run_preprocessing(config_path: str | None = None):
             f"And check if you have filled in the correct data collection name in the settings."
         )
 
+    # Corrected fixations land on the AOIs, so AOI enlargement is unnecessary then.
+    enlarge_aois = not settings.RUN_FIXATION_CORRECTION
+
     if settings.EXPERIMENT_TYPE == "MultiplEYE":
         data_collection = preprocessing.data_collection.MultipleyeDataCollection.create_from_data_folder(
             data_folder_path,
@@ -60,6 +129,7 @@ def run_preprocessing(config_path: str | None = None):
             excluded_sessions=settings.EXCLUDE_SESSIONS,
             included_sessions=settings.INCLUDE_SESSIONS,
             output_dir=settings.OUTPUT_DIR,
+            enlarge_aois=enlarge_aois,
         )
 
     elif settings.EXPERIMENT_TYPE == "MeRID":
@@ -70,6 +140,7 @@ def run_preprocessing(config_path: str | None = None):
                 excluded_sessions=settings.EXCLUDE_SESSIONS,
                 included_sessions=settings.INCLUDE_SESSIONS,
                 output_dir=settings.OUTPUT_DIR,
+                enlarge_aois=enlarge_aois,
             )
         )
 
@@ -77,6 +148,9 @@ def run_preprocessing(config_path: str | None = None):
         raise ValueError(
             f"Invalid experiment type: {settings.EXPERIMENT_TYPE}. Supported types: [MultiplEYE, MeRID]"
         )
+
+    if settings.RUN_FIXATION_CORRECTION:
+        preprocessing.validate_final_fix_dot(data_collection.lab_configuration)
 
     write_quality_thresholds(settings.OUTPUT_DIR)
 
@@ -236,6 +310,7 @@ def run_preprocessing(config_path: str | None = None):
                     and fixation_data_folder.exists()
                     and not settings.RECALCULATE
                     and not recalculated_upstream
+                    and _fixation_correction_is_current(fixation_data_folder)
                 ):
                     # Loading events if all fixation files exist and the recalculate flag is not active
                     pbar.set_description(f"Loading fixations {sess.sid}:")
@@ -252,14 +327,6 @@ def run_preprocessing(config_path: str | None = None):
                     pbar.set_description(f"Detecting fixations {sess.sid}:")
 
                     preprocessing.detect_fixations(gaze)
-                    preprocessing.save_events_data(
-                        settings.FIXATION,
-                        sess.sid,
-                        "trial",
-                        ["trial", "stimulus"],
-                        ["onset", "duration", "location_x", "location_y", "page"],
-                        gaze,
-                    )
 
                     # Unnest event columns (e.g. location struct -> location_x/location_y)
                     # so downstream code doesn't need to handle struct columns.
@@ -267,9 +334,44 @@ def run_preprocessing(config_path: str | None = None):
                         with contextlib.suppress(Warning):
                             gaze.events.unnest()
 
+                    correction_columns = []
+                    if settings.RUN_FIXATION_CORRECTION:
+                        # Keep a raw copy of the detected fixations for reference.
+                        preprocessing.save_events_data(
+                            settings.FIXATION,
+                            sess.sid,
+                            "trial",
+                            ["trial", "stimulus"],
+                            FIXATION_FILE_COLUMNS,
+                            gaze,
+                            directory=sess.sid.fixations_uncorrected_dir,
+                        )
+
+                        pbar.set_description(f"Correcting fixations {sess.sid}:")
+                        preprocessing.correct_fixations(
+                            gaze,
+                            sess.stimuli,
+                            sess.lab_config,
+                        )
+                        correction_columns = FIXATION_CORRECTION_COLUMNS
+
+                    preprocessing.save_events_data(
+                        settings.FIXATION,
+                        sess.sid,
+                        "trial",
+                        ["trial", "stimulus"],
+                        FIXATION_FILE_COLUMNS + correction_columns,
+                        gaze,
+                    )
+
             else:
                 # Fixation detection is disabled
                 if num_expected_files == num_files:
+                    if not _fixation_correction_is_current(fixation_data_folder):
+                        logger.warning(
+                            f"Fixation correction setting does not match the cached fixations "
+                            f"for {sess.sid}. Enable fixation detection or recalculate to apply it."
+                        )
                     logger.info(f"Using existing fixation data for {sess.sid}")
                     gaze = preprocessing.load_trial_level_events_data(
                         gaze,
@@ -535,7 +637,22 @@ def run_preprocessing(config_path: str | None = None):
             sess.answers = True
 
     data_collection.create_dataset_overview(path=settings.OUTPUT_DIR)
-    write_participants_table(data_collection, settings.OUTPUT_DIR / "participants.csv")
+    data_collection.write_codebook_outputs(
+        settings.OUTPUT_DIR,
+        availability=settings.AVAILABILITY_OVERRIDES,
+    )
+    participant_table = build_participant_table(data_collection)
+    write_participants_table(
+        data_collection,
+        settings.OUTPUT_DIR / "participants.csv",
+        table=participant_table,
+    )
+    write_participants_yaml(
+        data_collection,
+        settings.OUTPUT_DIR / "metadata" / "participants.yaml",
+        table=participant_table,
+    )
+    write_item_outputs(data_collection, settings.OUTPUT_DIR / settings.METADATA_FOLDER)
 
 
 def main():

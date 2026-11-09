@@ -23,6 +23,7 @@ def settings_obj():
         ("SACCADE", "saccade"),
         ("ASC_FOLDER", Path("asc/")),
         ("FORCE_RECONVERT_ASC", False),
+        ("RUN_FIXATION_CORRECTION", False),
         ("SANITY_CHECKS_FOLDER", Path("sanity_checks/")),
         ("METADATA_FOLDER", Path("metadata/")),
         ("FIXATION_METHOD", "ivt"),
@@ -140,6 +141,44 @@ def test_settings_update(settings_obj, update_dict, attr, expected):
     """Test updating settings from a dictionary."""
     settings_obj.update(update_dict)
     assert getattr(settings_obj, attr) == expected
+
+
+@pytest.mark.parametrize(
+    "block, attr, expected",
+    [
+        ({"node_id": "german"}, "LANGUAGE_NODE_ID", "german"),
+        ({"node_path": "a/b/c"}, "LANGUAGE_TREE_PATH", "a/b/c"),
+        ({"node_label": "German"}, "LANGUAGE_NODE_LABEL", "German"),
+        ({"version": "2026.10"}, "LANGUAGE_TREE_VERSION", "2026.10"),
+        ({"hash": "sha256:abc"}, "LANGUAGE_TREE_HASH", "sha256:abc"),
+        ({"glottolog_check": False}, "LANGUAGE_TREE_GLOTTOG_CHECK", False),
+        (
+            {"glottolog_cache": "/tmp/glottolog"},
+            "LANGUAGE_TREE_GLOTTOG_CACHE",
+            "/tmp/glottolog",
+        ),
+    ],
+)
+def test_settings_nested_language_tree_mapping(settings_obj, block, attr, expected):
+    """The nested language_tree block maps onto flat settings."""
+    settings_obj._loaded = True
+    settings_obj.update({"language_tree": block})
+
+    assert getattr(settings_obj, attr) == expected
+
+
+def test_settings_nested_language_tree_rejects_removed_snapshot(settings_obj):
+    settings_obj._loaded = True
+
+    with pytest.raises(TypeError, match="snapshot was removed"):
+        settings_obj.update({"language_tree": {"snapshot": "tree.yaml"}})
+
+
+def test_settings_nested_language_tree_rejects_non_mapping(settings_obj):
+    settings_obj._loaded = True
+
+    with pytest.raises(TypeError, match="language_tree config block"):
+        settings_obj.update({"language_tree": "not a mapping"})
 
 
 def test_settings_load_from_yaml(settings_obj, tmp_path):
@@ -576,3 +615,111 @@ def test_validate_participant_groups_rejects_invalid(settings_obj, groups, match
 
     with pytest.raises(ValueError, match=match):
         settings_obj.validate_participant_groups()
+
+
+def test_availability_overrides_default_annotation_fields(settings_obj):
+    """The v1 annotation fields are unavailable by default."""
+    assert settings_obj.AVAILABILITY_OVERRIDES == {
+        "item.annotation_layers": ("false", "annotation_pending"),
+        "item.annotation_package": ("false", "annotation_pending"),
+    }
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({"trial.trial_id": "true"}, ("true", "")),
+        (
+            {"trial.trial_id": [False, "missing_source"]},
+            ("false", "missing_source"),
+        ),
+        (
+            {"trial.trial_id": {"available": False, "reason": "missing_source"}},
+            ("false", "missing_source"),
+        ),
+        (
+            {"trial.trial_id": {"available": "not_applicable", "reason": "external"}},
+            ("not_applicable", "external"),
+        ),
+    ],
+)
+def test_availability_overrides_load_from_yaml(
+    settings_obj, tmp_path, overrides, expected
+):
+    """Availability overrides accept state strings, two item lists and mappings."""
+    config_file = tmp_path / "test_config.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump(
+            {
+                "data_collection_name": "ME_EN_UK_LON_LAB1_2025",
+                "availability": {"overrides": overrides},
+            },
+            f,
+        )
+
+    settings_obj.load_from_yaml(config_file)
+
+    assert settings_obj.AVAILABILITY_OVERRIDES["trial.trial_id"] == expected
+
+
+def test_availability_overrides_override_annotation_defaults(settings_obj, tmp_path):
+    """A collection can override one default annotation entry."""
+    config_file = tmp_path / "test_config.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump(
+            {
+                "data_collection_name": "ME_EN_UK_LON_LAB1_2025",
+                "availability": {"overrides": {"item.annotation_layers": True}},
+            },
+            f,
+        )
+
+    settings_obj.load_from_yaml(config_file)
+
+    assert settings_obj.AVAILABILITY_OVERRIDES["item.annotation_layers"] == ("true", "")
+    assert settings_obj.AVAILABILITY_OVERRIDES["item.annotation_package"] == (
+        "false",
+        "annotation_pending",
+    )
+
+
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        ("yes", "invalid availability state"),
+        ("false", "reason is required"),
+        (["false"], "must contain state and reason"),
+        (["false", "unknown_reason"], "unknown availability reason"),
+        (["true", "missing_source"], "reason must be empty"),
+    ],
+)
+def test_availability_overrides_reject_invalid(settings_obj, tmp_path, value, match):
+    """Invalid availability overrides fail while loading the config."""
+    config_file = tmp_path / "test_config.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump(
+            {
+                "data_collection_name": "ME_EN_UK_LON_LAB1_2025",
+                "availability": {"overrides": {"trial.trial_id": value}},
+            },
+            f,
+        )
+
+    with pytest.raises(ValueError, match=match):
+        settings_obj.load_from_yaml(config_file)
+
+
+def test_availability_overrides_reject_unsupported_value(settings_obj, tmp_path):
+    """Availability overrides reject values that are not states, lists or mappings."""
+    config_file = tmp_path / "test_config.yaml"
+    with open(config_file, "w") as f:
+        yaml.dump(
+            {
+                "data_collection_name": "ME_EN_UK_LON_LAB1_2025",
+                "availability": {"overrides": {"trial.trial_id": 42}},
+            },
+            f,
+        )
+
+    with pytest.raises(TypeError, match="must be a state"):
+        settings_obj.load_from_yaml(config_file)

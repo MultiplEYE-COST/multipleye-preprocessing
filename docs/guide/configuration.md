@@ -62,8 +62,9 @@ Settings are divided into user-configurable parameters and internal constants.
   `data/[DATA_COLLECTION_NAME]/participant_questionnaire_*/` or under
   `documentation/questionnaire/` and are copied to
   `[OUTPUT_DIR]/documentation/questionnaire/` together with the generated
-  `pq_codebook.yaml` and `pq_mapping_<lang>.yaml`. With fallback enabled, language fields stay
-  in the data collection language instead of being mapped to ISO 639-1.
+  `pq_codebook.yaml` and `pq_mapping_<lang>.yaml`. With fallback enabled, processing continues with a
+  warning. Questionnaire fields that cannot be mapped to canonical codes stay empty in the
+  participant view, and raw answers remain in the source JSON.
 - `PARTICIPANT_GROUPS` (`participant_groups`): optional groups for merging different PIDs into
   one participant row or restricting a group to specific session IDs. Labels must be unique
   3-digit IDs. See {ref}`participants_table`.
@@ -87,6 +88,31 @@ values are used are recorded in the dataset overview `processing_config` section
 - `VELOCITY_ESTIMATION_METHOD`: velocity estimation method (default: `savitzky_golay`).
 - `VELOCITY_SMOOTHING_WINDOW_MS`: velocity window length in milliseconds (default: `50`).
 - `VELOCITY_POLYNOMIAL_DEGREE`: Savitzky-Golay polynomial degree (default: `2`).
+
+### Fixation Correction Settings
+
+These control the vertical drift correction of fixation locations. The correction is off by
+default so existing outputs stay unchanged. Whatever values are used are recorded in the dataset
+overview `processing_config` section. See {ref}`fixation_correction` for the output contract.
+
+- `RUN_FIXATION_CORRECTION`: whether to correct fixation locations for line drift
+  (default: `false`). When enabled, AOI enlargement is disabled and all downstream outputs
+  (scanpaths, reading measures, sanity plots) use the corrected fixations. The raw detected
+  fixations are written to `fixations_uncorrected/`, a subfolder of the processed data
+  collection.
+- `FIXATION_CORRECTION_ALGORITHM`: drift correction algorithm passed to pymovements. Either
+  a single algorithm (`attach`, `chain`, `cluster`, `compare`, `merge`, `regress`, `segment`,
+  `slice`, `split`, `stretch`, `warp`) or `wisdom_of_the_crowd` (alias `woc`), the ensemble
+  default that combines all algorithms via majority voting.
+- `FIXATION_CORRECTION_KWARGS`: additional tuning parameters for the drift algorithms, e.g.
+  `{"x_thresh": 250.0}`. An entry is routed only to algorithms whose signature accepts it,
+  but it fans out to all of them, so use with care.
+- `FIXATIONS_UNCORRECTED_FOLDER`: name of the raw-fixation subfolder inside the processed data
+  collection. Default: `fixations_uncorrected/`.
+
+The final-dot position is not a pipeline setting. It is derived from the stimulus config. Newer
+configs can provide `POS_BOTTOM_DOT_X_PX`, `POS_BOTTOM_DOT_Y_PX` and `FIX_DOT_RADIUS`. Older
+configs fall back to the image generator geometry. See {ref}`fixation_correction`.
 
 ### Quality Check Thresholds
 

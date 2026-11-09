@@ -11,7 +11,7 @@ import pymovements as pm
 from pymovements.stimulus import TextStimulus
 
 from ..config import settings
-from ..mapping.aoi import enlarge_aois
+from ..mapping.aoi import enlarge_aois as _enlarge_aois
 from ..utils.data_path_utils import (
     _ci_resolve,
     find_metadata_form,
@@ -88,6 +88,8 @@ class ComprehensionQuestion:
     distractor_c: str
     image_path: Path
     aoi_image_path: Path
+    condition_no: int | str | None = None
+    question_type: str | None = None
 
 
 @dataclass
@@ -117,6 +119,7 @@ class Stimulus:
         stimulus_name: str,
         question_version: int,
         trial: str,
+        enlarge_aois: bool = True,
     ) -> "Stimulus":
         # assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
         stimulus_df_path = _ci_resolve(
@@ -180,7 +183,8 @@ class Stimulus:
             pl.col("secondary_unit_of_analysis_idx").cast(pl.Int64),
             pl.col("secondary_unit_of_analysis_idx_in_line").cast(pl.Int64),
         )
-        aois_df = enlarge_aois(aois_df)
+        if enlarge_aois:
+          aois_df = enlarge_aois(aois_df)
 
         text_stimulus = TextStimulus(
             aois_df,
@@ -235,6 +239,8 @@ class Stimulus:
                 distractor_c=distractor_c,
                 image_path=question_image_path,
                 aoi_image_path=aoi_qeustion_img_path,
+                condition_no=question_row.get("condition_no"),
+                question_type=question_row.get("question_type"),
             )
             questions.append(question)
 
@@ -320,6 +326,52 @@ def _metadata_sampling_frequency(metadata_form: dict) -> object:
     return metadata_form.get("Default_frequency")
 
 
+def _final_fix_dot_geometry(config: object) -> tuple[float, float, float] | None:
+    """Derive the bottom fixation dot from the stimulus config.
+
+    Newer stimulus configs write ``POS_BOTTOM_DOT_X_PX``,
+    ``POS_BOTTOM_DOT_Y_PX`` and ``FIX_DOT_RADIUS`` directly. Older configs only
+    contain the margins and the top fixation dot. For those, the bottom dot is
+    derived with the same geometry as the image generator.
+    """
+    try:
+        image_width = float(config.IMAGE_WIDTH_PX)
+        image_height = float(config.IMAGE_HEIGHT_PX)
+        min_left = float(config.MIN_MARGIN_LEFT_PX)
+        min_right = float(config.MIN_MARGIN_RIGHT_PX)
+        top_dot_x = float(config.FIX_DOT_X)
+        resolution_y = float(config.RESOLUTION[1])
+        screen_height_cm = float(config.SCREEN_SIZE_CM[1])
+    except (AttributeError, IndexError, TypeError, ValueError, ZeroDivisionError):
+        return None
+
+    explicit_x = getattr(config, "POS_BOTTOM_DOT_X_PX", None)
+    explicit_y = getattr(config, "POS_BOTTOM_DOT_Y_PX", None)
+    explicit_radius = getattr(config, "FIX_DOT_RADIUS", None)
+    if explicit_radius is None:
+        explicit_radius = getattr(config, "FIX_DOT_RADIUS_PX", None)
+
+    is_ltr = top_dot_x < image_width / 2
+    dot_x = (
+        float(explicit_x)
+        if explicit_x is not None
+        else image_width - min_right
+        if is_ltr
+        else min_left
+    )
+    dot_y = (
+        float(explicit_y)
+        if explicit_y is not None
+        else int(image_height - 2 * resolution_y / screen_height_cm)
+    )
+    radius = (
+        float(explicit_radius)
+        if explicit_radius is not None
+        else float(max(int(0.1 * min_left), 7))
+    )
+    return dot_x, dot_y, radius
+
+
 @dataclass
 class LabConfig:
     screen_resolution: tuple[int, int]
@@ -330,6 +382,9 @@ class LabConfig:
     name_eye_tracker: str
     sampling_frequency_hz: float = None
     psychometric_tests: list[str] = None
+    final_fix_dot_x: float | None = None
+    final_fix_dot_y: float | None = None
+    final_fix_dot_radius: float | None = None
 
     @classmethod
     def load(
@@ -394,6 +449,7 @@ class LabConfig:
                 f"Check file: {json_config_path}"
             )
         tests = [k for k in psychometric_tests if k != "Are_tests_conducted"]
+        fix_dot = _final_fix_dot_geometry(config)
 
         return cls(
             screen_resolution=config.RESOLUTION,
@@ -404,6 +460,9 @@ class LabConfig:
             name_eye_tracker=json_config["Name_eye-tracker"],
             sampling_frequency_hz=sampling_frequency_hz,
             psychometric_tests=tests if tests else None,
+            final_fix_dot_x=fix_dot[0] if fix_dot else None,
+            final_fix_dot_y=fix_dot[1] if fix_dot else None,
+            final_fix_dot_radius=fix_dot[2] if fix_dot else None,
         )
 
 

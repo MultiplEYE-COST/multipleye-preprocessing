@@ -1,10 +1,12 @@
 import contextlib
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
 
 import polars as pl
 import pytest
 
+from preprocessing.answers.io import write_answers
 from preprocessing.data_collection.experimenter_doc import ExperimenterDoc
 from preprocessing.data_collection.session import Session
 from preprocessing.data_collection.stimulus import LabConfig
@@ -18,6 +20,7 @@ def _make_session(overrides: dict | None = None) -> Session:
         "session_folder_path": Path("/tmp"),
         "session_file_path": Path("/tmp/test.log"),
         "session_file_name": "test.log",
+        "tested_language": "EN",
         **(overrides or {}),
     }
     return Session(**fields)
@@ -348,32 +351,56 @@ def test_compute_total_question_time_excludes_practice() -> None:
     sess = _make_session()
     sess.trials = [
         Trial(
+            trial_id="trial_1",
             trial_number=1,
             stimulus_id=1,
             stimulus_name="a",
+            text_id="a_en",
             is_practice=False,
             num_questions=2,
+            num_questions_local=1,
+            num_questions_global=0,
+            num_questions_bridging=1,
             comprehension_score=0.5,
+            comprehension_score_local=1.0,
+            comprehension_score_global="unknown",
+            comprehension_score_bridging=0.0,
             comprehension_question_time_ms=1200.0,
             reading_time_ms=1000.0,
         ),
         Trial(
+            trial_id="PRACTICE_trial_1",
             trial_number=0,
             stimulus_id=0,
             stimulus_name="p",
+            text_id="p_en",
             is_practice=True,
             num_questions=1,
+            num_questions_local=1,
+            num_questions_global=0,
+            num_questions_bridging=0,
             comprehension_score=0.0,
+            comprehension_score_local=0.0,
+            comprehension_score_global="unknown",
+            comprehension_score_bridging="unknown",
             comprehension_question_time_ms=500.0,
             reading_time_ms=100.0,
         ),
         Trial(
+            trial_id="trial_2",
             trial_number=2,
             stimulus_id=2,
             stimulus_name="b",
+            text_id="b_en",
             is_practice=False,
             num_questions=2,
+            num_questions_local=0,
+            num_questions_global=1,
+            num_questions_bridging=1,
             comprehension_score=1.0,
+            comprehension_score_local="unknown",
+            comprehension_score_global=1.0,
+            comprehension_score_bridging=1.0,
             comprehension_question_time_ms=800.0,
             reading_time_ms=1000.0,
         ),
@@ -843,7 +870,7 @@ def _write_answers(
     """Write an answers CSV and return the comp_answers dir for the fake sid."""
     answers_dir = tmp_path / "comp_answers" / "001_EN_UK_1_ET1"
     answers_dir.mkdir(parents=True)
-    pl.DataFrame(rows).write_csv(answers_dir / "001_EN_UK_1_ET1_answers.csv")
+    write_answers(pl.DataFrame(rows), answers_dir / "001_EN_UK_1_ET1_answers.csv")
     return answers_dir
 
 
@@ -877,31 +904,163 @@ _ANSWERS_ROWS = [
         "trial": "trial_1",
         "stimulus": "Lit_MagicMountain",
         "stimulus_id": 3,
+        "question_id": "3111",
+        "condition_number": 1,
+        "slot": "local_question_1",
+        "final_answer_key": "target_key",
+        "answer_text": "The mountain was quiet",
         "is_correct": True,
+        "correct_answer_key": "target_key",
+        "correct_answer_text": "The mountain was quiet",
+        "preliminary_answer_keys": ["distractor_b", "target_key"],
+        "preliminary_answer_onsets_ms": [1200.0, 2400.0],
         "confirmation_rt_ms": 1000.0,
+        "answer_source": "logfile",
     },
     {
         "trial": "trial_1",
         "stimulus": "Lit_MagicMountain",
         "stimulus_id": 3,
+        "question_id": "3211",
+        "condition_number": 2,
+        "slot": "bridging_question_1",
+        "final_answer_key": "distractor_b",
+        "answer_text": "The mountain was loud",
         "is_correct": False,
+        "correct_answer_key": "target_key",
+        "correct_answer_text": "The mountain was quiet",
+        "preliminary_answer_keys": ["distractor_b"],
+        "preliminary_answer_onsets_ms": [1800.0],
         "confirmation_rt_ms": 2000.0,
+        "answer_source": "logfile",
     },
     {
         "trial": "trial_2",
         "stimulus": "Lit_Alchemist",
         "stimulus_id": 4,
+        "question_id": "4111",
+        "condition_number": 3,
+        "slot": "global_question_1",
+        "final_answer_key": "target_key",
+        "answer_text": "The alchemist was patient",
         "is_correct": True,
+        "correct_answer_key": "target_key",
+        "correct_answer_text": "The alchemist was patient",
+        "preliminary_answer_keys": ["target_key"],
+        "preliminary_answer_onsets_ms": [900.0],
         "confirmation_rt_ms": 1500.0,
+        "answer_source": "logfile",
     },
     {
         "trial": "PRACTICE_trial_1",
         "stimulus": "Enc_WikiMoon",
         "stimulus_id": 13,
+        "question_id": "1311",
+        "condition_number": 1,
+        "slot": "local_question_1",
+        "final_answer_key": "target_key",
+        "answer_text": "The moon is a satellite",
         "is_correct": True,
+        "correct_answer_key": "target_key",
+        "correct_answer_text": "The moon is a satellite",
+        "preliminary_answer_keys": ["target_key"],
+        "preliminary_answer_onsets_ms": [700.0],
         "confirmation_rt_ms": 500.0,
+        "answer_source": "logfile",
     },
 ]
+
+
+@pytest.fixture
+def trial_overview(tmp_path: Path) -> Callable[..., list[dict]]:
+    """Return a factory that builds trial dicts from the answers CSV."""
+
+    def _trials(
+        rows: list[dict] | None = None,
+        logfile: pl.DataFrame | None = None,
+        tested_language: str | None = None,
+    ) -> list[dict]:
+        answers_dir = _write_answers(tmp_path, _ANSWERS_ROWS if rows is None else rows)
+        sess = _trial_sess(answers_dir)
+        if logfile is not None:
+            sess.logfile = logfile
+        if tested_language is not None:
+            sess.tested_language = tested_language
+        with patch.object(
+            Session,
+            "sid",
+            property(lambda self: _FakeSid(answers_dir)),
+        ):
+            return sess.create_overview()["trials"]
+
+    return _trials
+
+
+@pytest.fixture
+def rating_logfile() -> pl.DataFrame:
+    """Return a logfile with rating screens for practice and experiment trials."""
+    return pl.DataFrame(
+        {
+            "trial_number": ["1", "1", "1", "1", "1", "1", "2", "2", "2"],
+            "stimulus_number": [13, None, None, 3, None, None, 4, None, None],
+            "page_number": [
+                "familiarity_rating_screen_1",
+                "familiarity_rating_screen_2",
+                "subject_difficulty_screen",
+                "familiarity_rating_screen_1",
+                "familiarity_rating_screen_2",
+                "subject_difficulty_screen",
+                "familiarity_rating_screen_1",
+                "familiarity_rating_screen_2",
+                "subject_difficulty_screen",
+            ],
+            "key_pressed": [
+                "option_2",
+                "option_1",
+                "option_3",
+                "option_4",
+                "option_5",
+                "option_2",
+                "option_1",
+                "option_1",
+                "option_4",
+            ],
+            "screen_onset_timestamp": [
+                100.0,
+                400.0,
+                600.0,
+                4000.0,
+                4300.0,
+                4500.0,
+                5000.0,
+                5200.0,
+                5400.0,
+            ],
+            "timestamp": [
+                300.0,
+                500.0,
+                800.0,
+                4200.0,
+                4400.0,
+                4800.0,
+                5100.0,
+                5300.0,
+                5600.0,
+            ],
+        }
+    )
+
+
+def _trial_by_key(
+    trials: list[dict],
+    trial_number: int,
+    is_practice: bool,
+) -> dict:
+    return next(
+        trial
+        for trial in trials
+        if trial["trial_number"] == trial_number and trial["is_practice"] == is_practice
+    )
 
 
 @pytest.mark.parametrize(
@@ -921,7 +1080,7 @@ _ANSWERS_ROWS = [
     ],
 )
 def test_trials_computed_from_answers_and_reading_times(
-    tmp_path: Path,
+    trial_overview: Callable[..., list[dict]],
     trial_number: int,
     is_practice: bool,
     stimulus_name: str,
@@ -930,26 +1089,200 @@ def test_trials_computed_from_answers_and_reading_times(
     question_time_ms: float,
     reading_time_ms: float,
 ) -> None:
-    answers_dir = _write_answers(tmp_path, _ANSWERS_ROWS)
-    sess = _trial_sess(answers_dir)
+    trial = _trial_by_key(trial_overview(), trial_number, is_practice)
 
-    with patch.object(
-        Session,
-        "sid",
-        property(lambda self: _FakeSid(answers_dir)),
-    ):
-        trials = sess.create_overview()["trials"]
-
-    trial = next(
-        t
-        for t in trials
-        if t["trial_number"] == trial_number and t["is_practice"] == is_practice
-    )
     assert trial["stimulus_name"] == stimulus_name
     assert trial["num_questions"] == num_questions
     assert trial["comprehension_score"] == comprehension_score
     assert trial["comprehension_question_time_ms"] == question_time_ms
     assert trial["reading_time_ms"] == reading_time_ms
+
+
+@pytest.mark.parametrize(
+    ("trial_number", "is_practice", "expected"),
+    [
+        (
+            1,
+            False,
+            {
+                "trial_id": "trial_1",
+                "text_id": "Lit_MagicMountain_en",
+                "num_questions": 2,
+                "num_questions_local": 1,
+                "num_questions_bridging": 1,
+                "num_questions_global": 0,
+                "comprehension_score_local": 1.0,
+                "comprehension_score_bridging": 0.0,
+                "comprehension_score_global": "unknown",
+            },
+        ),
+        (
+            2,
+            False,
+            {
+                "trial_id": "trial_2",
+                "text_id": "Lit_Alchemist_en",
+                "num_questions_global": 1,
+                "comprehension_score_global": 1.0,
+                "comprehension_score_local": "unknown",
+            },
+        ),
+    ],
+)
+def test_trials_include_text_id_and_condition_fields(
+    trial_overview: Callable[..., list[dict]],
+    trial_number: int,
+    is_practice: bool,
+    expected: dict,
+) -> None:
+    trial = _trial_by_key(trial_overview(), trial_number, is_practice)
+
+    for field, value in expected.items():
+        assert trial[field] == value
+
+
+def test_trial_text_id_keeps_stimulus_when_language_is_unknown(
+    trial_overview: Callable[..., list[dict]],
+) -> None:
+    trial = _trial_by_key(trial_overview(tested_language="unknown"), 1, False)
+
+    assert trial["text_id"] == "Lit_MagicMountain_unknown"
+
+
+def test_trials_include_nested_answers(
+    trial_overview: Callable[..., list[dict]],
+) -> None:
+    trial = _trial_by_key(trial_overview(), 1, False)
+
+    assert trial["answers"] == [
+        {
+            "question_id": "3111",
+            "condition": "local",
+            "slot": "local_question_1",
+            "selected_option_key": "target_key",
+            "selected_option_text": "The mountain was quiet",
+            "is_correct": True,
+            "correct_answer_key": "target_key",
+            "correct_answer_text": "The mountain was quiet",
+            "preliminary_answer_keys": ["distractor_b", "target_key"],
+            "preliminary_answer_onsets_ms": [1200.0, 2400.0],
+            "confirmation_rt_ms": 1000.0,
+            "answer_source": "logfile",
+        },
+        {
+            "question_id": "3211",
+            "condition": "bridging",
+            "slot": "bridging_question_1",
+            "selected_option_key": "distractor_b",
+            "selected_option_text": "The mountain was loud",
+            "is_correct": False,
+            "correct_answer_key": "target_key",
+            "correct_answer_text": "The mountain was quiet",
+            "preliminary_answer_keys": ["distractor_b"],
+            "preliminary_answer_onsets_ms": [1800.0],
+            "confirmation_rt_ms": 2000.0,
+            "answer_source": "logfile",
+        },
+    ]
+
+
+def test_trials_answers_tolerate_partial_answer_columns(
+    trial_overview: Callable[..., list[dict]],
+) -> None:
+    trials = trial_overview(
+        rows=[
+            {
+                "trial": "trial_1",
+                "stimulus": "Lit_MagicMountain",
+                "stimulus_id": 3,
+                "is_correct": True,
+            }
+        ]
+    )
+
+    expected_answer = {
+        "question_id": None,
+        "condition": None,
+        "slot": None,
+        "selected_option_key": None,
+        "selected_option_text": None,
+        "is_correct": True,
+        "correct_answer_key": None,
+        "correct_answer_text": None,
+        "preliminary_answer_keys": None,
+        "preliminary_answer_onsets_ms": None,
+        "confirmation_rt_ms": None,
+        "answer_source": None,
+    }
+    assert trials[0]["answers"] == [expected_answer]
+    assert trials[0]["num_questions_local"] == 0
+    assert trials[0]["comprehension_score_local"] == "unknown"
+
+
+@pytest.mark.parametrize(
+    ("trial_number", "is_practice", "expected"),
+    [
+        (
+            1,
+            True,
+            {
+                "familiarity_1": 2.0,
+                "familiarity_2": 1.0,
+                "subjective_difficulty": 3.0,
+                "rating_time_ms": 500.0,
+            },
+        ),
+        (
+            1,
+            False,
+            {
+                "familiarity_1": 4.0,
+                "familiarity_2": 5.0,
+                "subjective_difficulty": 2.0,
+                "rating_time_ms": 600.0,
+            },
+        ),
+        (
+            2,
+            False,
+            {
+                "familiarity_1": 1.0,
+                "familiarity_2": 1.0,
+                "subjective_difficulty": 4.0,
+                "rating_time_ms": 400.0,
+            },
+        ),
+    ],
+)
+def test_trial_ratings_from_logfile(
+    trial_overview: Callable[..., list[dict]],
+    rating_logfile: pl.DataFrame,
+    trial_number: int,
+    is_practice: bool,
+    expected: dict,
+) -> None:
+    trial = _trial_by_key(
+        trial_overview(logfile=rating_logfile), trial_number, is_practice
+    )
+
+    for field, value in expected.items():
+        assert trial[field] == value
+
+
+def test_trial_ratings_unknown_without_logfile(
+    trial_overview: Callable[..., list[dict]],
+) -> None:
+    rating_fields = {
+        "familiarity_1",
+        "familiarity_2",
+        "subjective_difficulty",
+        "rating_time_ms",
+    }
+
+    for trial in trial_overview():
+        assert {field: trial[field] for field in rating_fields} == {
+            field: "unknown" for field in rating_fields
+        }
 
 
 @pytest.mark.parametrize(
@@ -1068,18 +1401,31 @@ def test_trials_include_extended_fields(tmp_path: Path) -> None:
 
     assert isinstance(trials, list)
     expected_fields = {
+        "trial_id",
         "trial_number",
         "stimulus_id",
         "stimulus_name",
+        "text_id",
         "is_practice",
         "num_questions",
+        "num_questions_local",
+        "num_questions_global",
+        "num_questions_bridging",
         "comprehension_score",
+        "comprehension_score_local",
+        "comprehension_score_global",
+        "comprehension_score_bridging",
         "comprehension_question_time_ms",
         "reading_time_ms",
+        "familiarity_1",
+        "familiarity_2",
+        "subjective_difficulty",
+        "rating_time_ms",
         "trial_duration_ms",
         "data_loss_ratio",
         "blink_ratio",
         "validation_before_start_dva",
+        "answers",
     }
     for trial in trials:
         assert expected_fields.issubset(trial)

@@ -66,6 +66,30 @@ MULTI_CASE = pl.concat(
 )
 
 
+def test_duration_time_column_is_treated_as_milliseconds():
+    numeric = _frame([0, 1, 2, 3, 4, 5], [[1.0, 2.0]] * 6)
+    duration = _frame(
+        pl.Series("time", [0, 1, 2, 3, 4, 5], dtype=pl.Duration("ms")),
+        [[1.0, 2.0]] * 6,
+    )
+
+    numeric_result = compute_data_loss(
+        numeric,
+        sampling_rate=SR,
+        page_columns=PAGE_COLUMNS,
+        trial_columns=TRIAL_COLUMNS,
+    )
+    duration_result = compute_data_loss(
+        duration,
+        sampling_rate=SR,
+        page_columns=PAGE_COLUMNS,
+        trial_columns=TRIAL_COLUMNS,
+    )
+
+    assert duration_result[0] == numeric_result[0]
+    assert_frame_equal(duration_result[1], numeric_result[1])
+
+
 @pytest.mark.parametrize("name", list(CASES))
 def test_matches_pymovements(name):
     samples = CASES[name]
