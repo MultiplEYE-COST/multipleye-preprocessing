@@ -131,8 +131,8 @@ def add_custom_uoa(
 ) -> None:
     """
     Add custom units of analysis to the aoi file and rewrite the file. The units of analysis file should be in the respective stimulus folder.
-    
-    
+
+
 
     How to add it:
     - Merge the custom and the original aoi files on the char and char index as well as the page column!

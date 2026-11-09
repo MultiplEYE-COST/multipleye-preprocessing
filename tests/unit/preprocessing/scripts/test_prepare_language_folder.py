@@ -54,7 +54,7 @@ def mock_data_collection_factory(tmp_path, monkeypatch):
                     "top_left_y": [0, 0, 100],
                     "width": [10, 5, 10],
                     "height": [20, 20, 20],
-                    "question_image_version":[None, None, "question_image_version_1"]
+                    "question_image_version": [None, None, "question_image_version_1"],
                 }
             )
             df.to_csv(aoi_file, index=False)
@@ -448,7 +448,7 @@ def test_prepare_language_folder_multiple_versions(
                 "page": ["page_1", "question_1"],
                 "word": ["word1", "qword1"],
                 "char": ["w", "q"],
-                "char_idx": [0,1],
+                "char_idx": [0, 1],
                 "unit_of_analysis_idx": [0, 0],
                 "unit_of_analysis_idx_in_line": [0, 0],
                 "line_idx": [0, 0],

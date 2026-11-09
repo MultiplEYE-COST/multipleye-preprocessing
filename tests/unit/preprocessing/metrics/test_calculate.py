@@ -55,7 +55,12 @@ def test_calls_engine_with_trial_page_grouping(monkeypatch):
 
     assert captured["fixations"] is fixations
     assert captured["group_columns"] == ["trial", "page"]
-    assert set(captured["aois"].columns) >= {"unit_of_analysis_idx", "unit_of_analysis", "char_idx", "trial"}
+    assert set(captured["aois"].columns) >= {
+        "unit_of_analysis_idx",
+        "unit_of_analysis",
+        "char_idx",
+        "trial",
+    }
     assert captured["aois"]["trial"].to_list() == ["trial_1", "trial_2"]
 
 
