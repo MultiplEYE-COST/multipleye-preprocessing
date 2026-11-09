@@ -9,7 +9,39 @@ from preprocessing.utils.fix_multipleye_aoi_files import (
     repair_word_labels,
 )
 
-COLUMNS = [
+from preprocessing.mapping.aoi import add_custom_uoa
+
+PREFIX_COLUMNS = [
+    "page",
+    "line_idx",
+    "word_idx",
+    "word_idx_in_line",
+    "char_idx_in_line",
+    "char",
+    "char_idx",
+    "top_left_x",
+    "top_left_y",
+    "width",
+    "height",
+    "word",
+]
+
+PREFIX_SCHEMA = {
+    "page": pl.String,
+    "line_idx": pl.Int64,
+    "word_idx": pl.Int64,
+    "word_idx_in_line": pl.Int64,
+    "char_idx_in_line": pl.Int64,
+    "char": pl.String,
+    "char_idx": pl.Int64,
+    "top_left_x": pl.Int64,
+    "top_left_y": pl.Int64,
+    "width": pl.Int64,
+    "height": pl.Int64,
+    "word": pl.String,
+}
+
+POSTFIX_COLUMNS = [
     "page",
     "line_idx",
     "unit_of_analysis_idx",
@@ -24,7 +56,7 @@ COLUMNS = [
     "unit_of_analysis",
 ]
 
-SCHEMA = {
+POSTFIX_SCHEMA = {
     "page": pl.String,
     "line_idx": pl.Int64,
     "unit_of_analysis_idx": pl.Int64,
@@ -40,8 +72,12 @@ SCHEMA = {
 }
 
 
-def _write(path, rows):
-    pl.DataFrame(rows, schema=SCHEMA).write_csv(path)
+
+def _write(path, rows, postfix=False):
+    if postfix:
+        pl.DataFrame(rows, schema=POSTFIX_SCHEMA).write_csv(path)
+    else:
+            pl.DataFrame(rows, schema=PREFIX_SCHEMA).write_csv(path)
 
 
 def _space_and_words():
@@ -49,8 +85,8 @@ def _space_and_words():
         {
             "page": "page_1",
             "line_idx": 0,
-            "unit_of_analysis_idx": 0,
-            "unit_of_analysis_idx_in_line": 0,
+            "word_idx": 0,
+            "word_idx_in_line": 0,
             "char_idx_in_line": 0,
             "char": "c",
             "char_idx": 0,
@@ -58,13 +94,13 @@ def _space_and_words():
             "top_left_y": 0,
             "width": 20,
             "height": 20,
-            "unit_of_analysis": "cat",
+            "word": "cat",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "unit_of_analysis_idx": 0,
-            "unit_of_analysis_idx_in_line": 0,
+            "word_idx": 0,
+            "word_idx_in_line": 0,
             "char_idx_in_line": 1,
             "char": "a",
             "char_idx": 1,
@@ -72,13 +108,13 @@ def _space_and_words():
             "top_left_y": 0,
             "width": 20,
             "height": 20,
-            "unit_of_analysis": "cat",
+            "word": "cat",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "unit_of_analysis_idx": 0,
-            "unit_of_analysis_idx_in_line": 0,
+            "word_idx": 0,
+            "word_idx_in_line": 0,
             "char_idx_in_line": 2,
             "char": "t",
             "char_idx": 2,
@@ -86,13 +122,13 @@ def _space_and_words():
             "top_left_y": 0,
             "width": 20,
             "height": 20,
-            "unit_of_analysis": "cat",
+            "word": "cat",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "unit_of_analysis_idx": 0,
-            "unit_of_analysis_idx_in_line": 0,
+            "word_idx": 0,
+            "word_idx_in_line": 0,
             "char_idx_in_line": 3,
             "char": " ",
             "char_idx": 3,
@@ -100,13 +136,13 @@ def _space_and_words():
             "top_left_y": 0,
             "width": 20,
             "height": 20,
-            "unit_of_analysis": None,
+            "word": None,
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "unit_of_analysis_idx": 1,
-            "unit_of_analysis_idx_in_line": 1,
+            "word_idx": 1,
+            "word_idx_in_line": 1,
             "char_idx_in_line": 4,
             "char": "d",
             "char_idx": 4,
@@ -114,13 +150,13 @@ def _space_and_words():
             "top_left_y": 0,
             "width": 20,
             "height": 20,
-            "unit_of_analysis": "dog",
+            "word": "dog",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "unit_of_analysis_idx": 1,
-            "unit_of_analysis_idx_in_line": 1,
+            "word_idx": 1,
+            "word_idx_in_line": 1,
             "char_idx_in_line": 5,
             "char": "o",
             "char_idx": 5,
@@ -128,13 +164,13 @@ def _space_and_words():
             "top_left_y": 0,
             "width": 20,
             "height": 20,
-            "unit_of_analysis": "dog",
+            "word": "dog",
         },
         {
             "page": "page_1",
             "line_idx": 0,
-            "unit_of_analysis_idx": 1,
-            "unit_of_analysis_idx_in_line": 1,
+            "word_idx": 1,
+            "word_idx_in_line": 1,
             "char_idx_in_line": 6,
             "char": "g",
             "char_idx": 6,
@@ -142,7 +178,7 @@ def _space_and_words():
             "top_left_y": 0,
             "width": 20,
             "height": 20,
-            "unit_of_analysis": "dog",
+            "word": "dog",
         },
     ]
 
@@ -153,7 +189,7 @@ def _read(path):
 
 def test_fix_aoi_file_remaps_space_and_repairs_labels(tmp_path):
     path = tmp_path / "aoi.csv"
-    _write(path, _space_and_words())
+    _write(path, _space_and_words(), postfix=False)
 
     fix_aoi_file(path)
 
@@ -170,7 +206,7 @@ def test_fix_aoi_file_remaps_space_and_repairs_labels(tmp_path):
 
 def test_fix_aoi_file_is_idempotent(tmp_path):
     path = tmp_path / "aoi.csv"
-    _write(path, _space_and_words())
+    _write(path, _space_and_words(), postfix=False)
 
     fix_aoi_file(path)
     first = _read(path)
@@ -187,8 +223,8 @@ def test_fix_aoi_file_does_not_touch_last_row_space(tmp_path):
         {
             "page": "page_1",
             "line_idx": 0,
-            "unit_of_analysis_idx": 1,
-            "unit_of_analysis_idx_in_line": 1,
+            "word_idx": 1,
+            "word_idx_in_line": 1,
             "char_idx_in_line": 7,
             "char": " ",
             "char_idx": 7,
@@ -196,11 +232,11 @@ def test_fix_aoi_file_does_not_touch_last_row_space(tmp_path):
             "top_left_y": 0,
             "width": 20,
             "height": 20,
-            "unit_of_analysis": None,
+            "word": None,
         }
     )
     path = tmp_path / "aoi.csv"
-    _write(path, rows)
+    _write(path, rows, postfix=False)
 
     fix_aoi_file(path)
 
@@ -269,7 +305,7 @@ def test_repair_word_labels_fills_within_group_not_across(tmp_path):
         },
     ]
     path = tmp_path / "aoi.csv"
-    _write(path, rows)
+    _write(path, rows, postfix=True)
 
     repair_word_labels(path)
 
@@ -313,7 +349,7 @@ def test_repair_word_labels_treats_whitespace_only_as_missing(tmp_path):
         },
     ]
     path = tmp_path / "aoi.csv"
-    _write(path, rows)
+    _write(path, rows, postfix=True)
 
     repair_word_labels(path)
 
@@ -323,7 +359,8 @@ def test_repair_word_labels_treats_whitespace_only_as_missing(tmp_path):
 
 def test_remap_space_standalone(tmp_path):
     path = tmp_path / "aoi.csv"
-    _write(path, _space_and_words())
+    aoi_df = pl.DataFrame(_space_and_words()).rename({"word":"unit_of_analysis", "word_idx":"unit_of_analysis_idx", "word_idx_in_line":"unit_of_analysis_idx_in_line"})
+    _write(path, aoi_df,postfix=True)
 
     remap_space_to_following_word(path)
 
@@ -336,7 +373,7 @@ def test_remap_space_standalone(tmp_path):
 
 def test_remap_preserves_row_order_and_corrects_column_order(tmp_path):
     path = tmp_path / "aoi.csv"
-    _write(path, _space_and_words())
+    _write(path, _space_and_words(), postfix=False)
     before = _read(path)
 
     fix_aoi_file(path)
@@ -370,3 +407,30 @@ def test_fix_aoi_file_missing_columns_raises(tmp_path):
     pl.DataFrame({"foo": [1]}).write_csv(path)
     with pytest.raises(pl.exceptions.ColumnNotFoundError):
         fix_aoi_file(path)
+
+
+def test_add_custom_uoa(tmp_path):
+    uoa_path = tmp_path / "custom_units_of_analysis" / "test_aoi.csv"
+    uoa_path.parent.mkdir()
+    aoi_rows = _space_and_words()
+    aoi_df = pl.DataFrame(aoi_rows)
+    uoa_df = aoi_df.drop(["word", "word_idx_in_line", "word_idx", "top_left_x", "top_left_y", "width", "height",])
+    uoa_column = pl.Series("unit_of_analysis", ["c", "at ", "at ", "at ", "d", "og", "og"])
+    uoa_idx_column = pl.Series("unit_of_analysis_idx", range(0,7))
+    uoa_df = uoa_df.with_columns([uoa_column, uoa_idx_column])
+    uoa_df.write_csv(uoa_path)
+
+    aoi_path = tmp_path / "test_aoi.csv"
+    aoi_df = aoi_df.with_columns(pl.lit(None).alias("secondary_unit_of_analysis"),
+                    pl.lit(None).alias("secondary_unit_of_analysis_idx"),
+                    pl.lit(None).alias("secondary_unit_of_analysis_idx_in_line"),
+)
+    aoi_df = aoi_df.rename({"word":"unit_of_analysis", "word_idx":"unit_of_analysis_idx", "word_idx_in_line":"unit_of_analysis_idx_in_line",})
+    aoi_df.write_csv(aoi_path)
+    add_custom_uoa(tmp_path, aoi_path, uoa_column_name = "unit_of_analysis", uoa_idx_colum_name="unit_of_analysis_idx")
+
+    new_aoi_df = pl.read_csv(aoi_path)
+
+    assert list(new_aoi_df["char"]) == list(aoi_df["char"])
+    assert list(new_aoi_df["secondary_unit_of_analysis"]) == list(aoi_df["unit_of_analysis"])
+    assert list(new_aoi_df["unit_of_analysis"]) == list(uoa_df["unit_of_analysis"])
