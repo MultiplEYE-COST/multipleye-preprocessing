@@ -323,4 +323,21 @@ are configured. It validates the Glottocode against the pinned Glottolog 5.3 lan
 rejects unknown codes and family rows. The Glottolog table is downloaded once and cached. The
 pipeline does not ship or vendor the tree.
 
+Psychometric tests can have their own language nodes for instructions and items. The codebook uses
+generic list fields:
+
+```text
+dataset.language_node.psychometric_tests[].test_id
+dataset.language_node.psychometric_tests[].instructions_node_id
+dataset.language_node.psychometric_tests[].instructions_source
+dataset.language_node.psychometric_tests[].items_node_id
+dataset.language_node.psychometric_tests[].items_source
+```
+
+The fields are generic so the structure can describe tests that are not in the current supported
+set. Missing test overrides fall back to the dataset language node. The preprocessing config accepts
+`plab`, `ran`, `stroop`, `flanker`, `lwmc` and `wiki_vocab`. `wmc` is an alias for `lwmc`. Items
+nodes are offered for `plab`, `stroop`, `lwmc` and `wiki_vocab`. RAN and Flanker expose instructions
+only.
+
 Do not parse session identifiers to derive language, country or city. Those are separate fields.

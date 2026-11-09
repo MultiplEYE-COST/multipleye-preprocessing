@@ -15,6 +15,11 @@ collection,dataset.language_details.end_date_of_data_collection
 collection,dataset.language_node_id
 collection,dataset.language_node_label
 collection,dataset.language_node_path
+collection,dataset.language_node.psychometric_tests[].test_id
+collection,dataset.language_node.psychometric_tests[].instructions_node_id
+collection,dataset.language_node.psychometric_tests[].instructions_source
+collection,dataset.language_node.psychometric_tests[].items_node_id
+collection,dataset.language_node.psychometric_tests[].items_source
 collection,dataset.administrative.number_of_sessions
 collection,dataset.administrative.number_of_pilots
 collection,dataset.administrative.number_of_et_sessions_per_participant

@@ -1358,6 +1358,75 @@ class TestLanguageNode:
         assert data["administrative"]["country"] == "UK"
 
 
+class TestPsychometricLanguageNodes:
+    @pytest.fixture
+    def configured_language_node(self, monkeypatch):
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_ID", "stan1295")
+        monkeypatch.setattr(
+            pipeline_settings,
+            "LANGUAGE_TREE_PATH",
+            "Indo-European/Germanic/German",
+        )
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_NODE_LABEL", "German")
+        monkeypatch.setattr(pipeline_settings, "LANGUAGE_TREE_VERSION", "2026.10")
+        monkeypatch.setattr(
+            pipeline_settings, "LANGUAGE_TREE_HASH", "sha256:configured"
+        )
+
+    def test_per_test_nodes_use_fallback_and_override(
+        self,
+        dummy_dcn_dir,
+        mock_load_lab_config,
+        mock_pipeline_version,
+        configured_language_node,
+        monkeypatch,
+    ) -> None:
+        monkeypatch.setattr(
+            pipeline_settings,
+            "LANGUAGE_TREE_PSYCHOMETRIC_TESTS",
+            {
+                "lwmc": {"items_node_id": "zuri1239"},
+                "wiki_vocab": {"instructions_node_id": "swis1247"},
+            },
+        )
+        dc = _create_dc(dummy_dcn_dir)
+        dc.lab_configuration.psychometric_tests = [
+            "WMC",
+            "WikiVocab",
+            "Stroop_Flanker",
+        ]
+        overview = dc.create_dataset_overview(path=dummy_dcn_dir)
+
+        assert overview["language_node"]["psychometric_tests"] == [
+            {
+                "test_id": "stroop",
+                "instructions_node_id": "stan1295",
+                "instructions_source": "dataset",
+                "items_node_id": "stan1295",
+                "items_source": "dataset",
+            },
+            {
+                "test_id": "flanker",
+                "instructions_node_id": "stan1295",
+                "instructions_source": "dataset",
+            },
+            {
+                "test_id": "lwmc",
+                "instructions_node_id": "stan1295",
+                "instructions_source": "dataset",
+                "items_node_id": "zuri1239",
+                "items_source": "override",
+            },
+            {
+                "test_id": "wiki_vocab",
+                "instructions_node_id": "swis1247",
+                "instructions_source": "override",
+                "items_node_id": "stan1295",
+                "items_source": "dataset",
+            },
+        ]
+
+
 class TestLabConfigAttributeSafety:
     def test_missing_lab_config_attrs_handled(
         self, dummy_dcn_dir, mock_pipeline_version, monkeypatch

@@ -43,7 +43,11 @@ from ..config import settings
 from ..metadata.availability import AvailabilityValue
 from ..metadata.codebook import load_codebook_identity
 from ..metadata.codebook import write_codebook_outputs as write_codebook_package
-from ..metadata.language_tree import language_node_overview
+from ..metadata.language_tree import (
+    language_node_overview,
+    psychometric_language_node_overview,
+    psychometric_test_ids_from_lab_config,
+)
 from ..models.dcn import Dcn
 from ..models.sid import Sid
 from ..plotting.plot import build_page_frames, plot_gaze, plot_main_sequence
@@ -1708,6 +1712,25 @@ class MultipleyeDataCollection:
             settings.LANGUAGE_TREE_HASH,
         )
         if language_node:
+            available_tests = psychometric_test_ids_from_lab_config(
+                getattr(self.lab_configuration, "psychometric_tests", None)
+            )
+            psychometric_nodes = psychometric_language_node_overview(
+                settings.LANGUAGE_NODE_ID,
+                settings.LANGUAGE_TREE_PSYCHOMETRIC_TESTS,
+                available_tests,
+            )
+            if psychometric_nodes:
+                language_node["psychometric_tests"] = psychometric_nodes
+            configured_tests = set(settings.LANGUAGE_TREE_PSYCHOMETRIC_TESTS)
+            if available_tests:
+                ignored = sorted(configured_tests - set(available_tests))
+                if ignored:
+                    self.logger.warning(
+                        "Psychometric language nodes configured for tests not "
+                        "present in the collection: %s",
+                        ", ".join(ignored),
+                    )
             overview["language_node"] = language_node
 
         # Add warnings to overview
