@@ -3,13 +3,12 @@
 import polars as pl
 import pytest
 
+from preprocessing.mapping.aoi import add_custom_uoa
 from preprocessing.utils.fix_multipleye_aoi_files import (
     fix_aoi_file,
     remap_space_to_following_word,
     repair_word_labels,
 )
-
-from preprocessing.mapping.aoi import add_custom_uoa
 
 PREFIX_COLUMNS = [
     "page",
@@ -72,12 +71,11 @@ POSTFIX_SCHEMA = {
 }
 
 
-
 def _write(path, rows, postfix=False):
     if postfix:
         pl.DataFrame(rows, schema=POSTFIX_SCHEMA).write_csv(path)
     else:
-            pl.DataFrame(rows, schema=PREFIX_SCHEMA).write_csv(path)
+        pl.DataFrame(rows, schema=PREFIX_SCHEMA).write_csv(path)
 
 
 def _space_and_words():
@@ -359,8 +357,14 @@ def test_repair_word_labels_treats_whitespace_only_as_missing(tmp_path):
 
 def test_remap_space_standalone(tmp_path):
     path = tmp_path / "aoi.csv"
-    aoi_df = pl.DataFrame(_space_and_words()).rename({"word":"unit_of_analysis", "word_idx":"unit_of_analysis_idx", "word_idx_in_line":"unit_of_analysis_idx_in_line"})
-    _write(path, aoi_df,postfix=True)
+    aoi_df = pl.DataFrame(_space_and_words()).rename(
+        {
+            "word": "unit_of_analysis",
+            "word_idx": "unit_of_analysis_idx",
+            "word_idx_in_line": "unit_of_analysis_idx_in_line",
+        }
+    )
+    _write(path, aoi_df, postfix=True)
 
     remap_space_to_following_word(path)
 
@@ -414,23 +418,49 @@ def test_add_custom_uoa(tmp_path):
     uoa_path.parent.mkdir()
     aoi_rows = _space_and_words()
     aoi_df = pl.DataFrame(aoi_rows)
-    uoa_df = aoi_df.drop(["word", "word_idx_in_line", "word_idx", "top_left_x", "top_left_y", "width", "height",])
-    uoa_column = pl.Series("unit_of_analysis", ["c", "at ", "at ", "at ", "d", "og", "og"])
-    uoa_idx_column = pl.Series("unit_of_analysis_idx", range(0,7))
+    uoa_df = aoi_df.drop(
+        [
+            "word",
+            "word_idx_in_line",
+            "word_idx",
+            "top_left_x",
+            "top_left_y",
+            "width",
+            "height",
+        ]
+    )
+    uoa_column = pl.Series(
+        "unit_of_analysis", ["c", "at ", "at ", "at ", "d", "og", "og"]
+    )
+    uoa_idx_column = pl.Series("unit_of_analysis_idx", range(7))
     uoa_df = uoa_df.with_columns([uoa_column, uoa_idx_column])
     uoa_df.write_csv(uoa_path)
 
     aoi_path = tmp_path / "test_aoi.csv"
-    aoi_df = aoi_df.with_columns(pl.lit(None).alias("secondary_unit_of_analysis"),
-                    pl.lit(None).alias("secondary_unit_of_analysis_idx"),
-                    pl.lit(None).alias("secondary_unit_of_analysis_idx_in_line"),
-)
-    aoi_df = aoi_df.rename({"word":"unit_of_analysis", "word_idx":"unit_of_analysis_idx", "word_idx_in_line":"unit_of_analysis_idx_in_line",})
+    aoi_df = aoi_df.with_columns(
+        pl.lit(None).alias("secondary_unit_of_analysis"),
+        pl.lit(None).alias("secondary_unit_of_analysis_idx"),
+        pl.lit(None).alias("secondary_unit_of_analysis_idx_in_line"),
+    )
+    aoi_df = aoi_df.rename(
+        {
+            "word": "unit_of_analysis",
+            "word_idx": "unit_of_analysis_idx",
+            "word_idx_in_line": "unit_of_analysis_idx_in_line",
+        }
+    )
     aoi_df.write_csv(aoi_path)
-    add_custom_uoa(tmp_path, aoi_path, uoa_column_name = "unit_of_analysis", uoa_idx_colum_name="unit_of_analysis_idx")
+    add_custom_uoa(
+        tmp_path,
+        aoi_path,
+        uoa_column_name="unit_of_analysis",
+        uoa_idx_colum_name="unit_of_analysis_idx",
+    )
 
     new_aoi_df = pl.read_csv(aoi_path)
 
     assert list(new_aoi_df["char"]) == list(aoi_df["char"])
-    assert list(new_aoi_df["secondary_unit_of_analysis"]) == list(aoi_df["unit_of_analysis"])
+    assert list(new_aoi_df["secondary_unit_of_analysis"]) == list(
+        aoi_df["unit_of_analysis"]
+    )
     assert list(new_aoi_df["unit_of_analysis"]) == list(uoa_df["unit_of_analysis"])
