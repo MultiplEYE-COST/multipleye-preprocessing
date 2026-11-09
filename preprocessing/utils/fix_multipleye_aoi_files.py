@@ -121,7 +121,15 @@ def fix_aoi_file(aoi_file_path: str | Path) -> None:
     if "questions" in aoi_file_path.name:
         col_order.append("question_image_version")
 
-    df = df[col_order]
+    try:
+        df = df[col_order]
+    except pl.exeptions.ColumnNotFoundError:
+        msg = (
+            f"The aoi file {aoi_file_path.name}, is missing required columns. "
+            f"Please verify that the stimuli files are correct."
+        )
+        logger.exception(msg)
+        raise
 
     df.write_csv(aoi_file_path)
     logger.debug(f"Applied AOI fixes to: {aoi_file_path}")

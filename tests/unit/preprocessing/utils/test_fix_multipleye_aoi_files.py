@@ -16,6 +16,11 @@ COLUMNS = [
     "unit_of_analysis_idx_in_line",
     "char_idx_in_line",
     "char",
+    "char_idx",
+    "top_left_x",
+    "top_left_y",
+    "width",
+    "height",
     "unit_of_analysis",
 ]
 
@@ -26,6 +31,11 @@ SCHEMA = {
     "unit_of_analysis_idx_in_line": pl.Int64,
     "char_idx_in_line": pl.Int64,
     "char": pl.String,
+    "char_idx": pl.Int64,
+    "top_left_x": pl.Int64,
+    "top_left_y": pl.Int64,
+    "width": pl.Int64,
+    "height": pl.Int64,
     "unit_of_analysis": pl.String,
 }
 
@@ -43,6 +53,11 @@ def _space_and_words():
             "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 0,
             "char": "c",
+            "char_idx": 0,
+            "top_left_x": 0,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": "cat",
         },
         {
@@ -52,6 +67,11 @@ def _space_and_words():
             "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 1,
             "char": "a",
+            "char_idx": 1,
+            "top_left_x": 20,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": "cat",
         },
         {
@@ -61,6 +81,11 @@ def _space_and_words():
             "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 2,
             "char": "t",
+            "char_idx": 2,
+            "top_left_x": 40,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": "cat",
         },
         {
@@ -70,6 +95,11 @@ def _space_and_words():
             "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 3,
             "char": " ",
+            "char_idx": 3,
+            "top_left_x": 60,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": None,
         },
         {
@@ -79,6 +109,11 @@ def _space_and_words():
             "unit_of_analysis_idx_in_line": 1,
             "char_idx_in_line": 4,
             "char": "d",
+            "char_idx": 4,
+            "top_left_x": 80,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": "dog",
         },
         {
@@ -88,6 +123,11 @@ def _space_and_words():
             "unit_of_analysis_idx_in_line": 1,
             "char_idx_in_line": 5,
             "char": "o",
+            "char_idx": 5,
+            "top_left_x": 100,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": "dog",
         },
         {
@@ -97,6 +137,11 @@ def _space_and_words():
             "unit_of_analysis_idx_in_line": 1,
             "char_idx_in_line": 6,
             "char": "g",
+            "char_idx": 6,
+            "top_left_x": 120,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": "dog",
         },
     ]
@@ -146,6 +191,11 @@ def test_fix_aoi_file_does_not_touch_last_row_space(tmp_path):
             "unit_of_analysis_idx_in_line": 1,
             "char_idx_in_line": 7,
             "char": " ",
+            "char_idx": 7,
+            "top_left_x": 0,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": None,
         }
     )
@@ -168,6 +218,11 @@ def test_repair_word_labels_fills_within_group_not_across(tmp_path):
             "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 0,
             "char": "a",
+            "char_idx": 0,
+            "top_left_x": 0,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": "alpha",
         },
         {
@@ -177,6 +232,11 @@ def test_repair_word_labels_fills_within_group_not_across(tmp_path):
             "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 1,
             "char": " ",
+            "char_idx": 1,
+            "top_left_x": 20,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": None,
         },
         {
@@ -186,6 +246,11 @@ def test_repair_word_labels_fills_within_group_not_across(tmp_path):
             "unit_of_analysis_idx_in_line": 1,
             "char_idx_in_line": 2,
             "char": "b",
+            "char_idx": 2,
+            "top_left_x": 40,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": "beta",
         },
         {
@@ -195,6 +260,11 @@ def test_repair_word_labels_fills_within_group_not_across(tmp_path):
             "unit_of_analysis_idx_in_line": 1,
             "char_idx_in_line": 3,
             "char": " ",
+            "char_idx": 3,
+            "top_left_x": 60,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": None,
         },
     ]
@@ -205,7 +275,7 @@ def test_repair_word_labels_fills_within_group_not_across(tmp_path):
 
     df = _read(path)
     labels = {
-        row["unit_of_analysis_idx"]: row["word"]
+        row["unit_of_analysis_idx"]: row["unit_of_analysis"]
         for row in df.filter(pl.col("char") == " ").to_dicts()
     }
     assert labels == {0: "alpha", 1: "beta"}
@@ -220,6 +290,11 @@ def test_repair_word_labels_treats_whitespace_only_as_missing(tmp_path):
             "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 0,
             "char": "x",
+            "char_idx": 0,
+            "top_left_x": 0,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": "gamma",
         },
         {
@@ -229,6 +304,11 @@ def test_repair_word_labels_treats_whitespace_only_as_missing(tmp_path):
             "unit_of_analysis_idx_in_line": 0,
             "char_idx_in_line": 1,
             "char": " ",
+            "char_idx": 1,
+            "top_left_x": 20,
+            "top_left_y": 0,
+            "width":20,
+            "height": 20,
             "unit_of_analysis": "   ",
         },
     ]
@@ -254,7 +334,7 @@ def test_remap_space_standalone(tmp_path):
     assert space["unit_of_analysis"].to_list() == [None]
 
 
-def test_remap_preserves_row_order_and_columns(tmp_path):
+def test_remap_preserves_row_order_and_corrects_column_order(tmp_path):
     path = tmp_path / "aoi.csv"
     _write(path, _space_and_words())
     before = _read(path)
@@ -262,7 +342,25 @@ def test_remap_preserves_row_order_and_columns(tmp_path):
     fix_aoi_file(path)
 
     after = _read(path)
-    assert after.columns == before.columns
+    correct_order = [
+        "char_idx",
+        "char",
+        "top_left_x",
+        "top_left_y",
+        "width",
+        "height",
+        "char_idx_in_line",
+        "line_idx",
+        "page",
+        "unit_of_analysis_idx",
+        "unit_of_analysis_idx_in_line",
+        "unit_of_analysis",
+        "secondary_unit_of_analysis_idx",
+        "secondary_unit_of_analysis_idx_in_line",
+        "secondary_unit_of_analysis",
+    ]
+
+    assert after.columns == correct_order
     assert after.height == before.height
     assert after["char_idx_in_line"].to_list() == before["char_idx_in_line"].to_list()
 
