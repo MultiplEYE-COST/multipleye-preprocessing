@@ -11,7 +11,6 @@ import pymovements as pm
 from pymovements.stimulus import TextStimulus
 
 from ..config import settings
-from ..mapping.aoi import enlarge_aois as _enlarge_aois
 from ..utils.data_path_utils import (
     _ci_resolve,
     find_metadata_form,
