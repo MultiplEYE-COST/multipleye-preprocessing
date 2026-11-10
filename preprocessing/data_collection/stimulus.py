@@ -184,7 +184,7 @@ class Stimulus:
             pl.col("secondary_unit_of_analysis_idx_in_line").cast(pl.Int64),
         )
         if enlarge_aois:
-          aois_df = enlarge_aois(aois_df)
+            aois_df = enlarge_aois(aois_df)
 
         text_stimulus = TextStimulus(
             aois_df,
