@@ -238,16 +238,18 @@ velocity_polynomial_degree: 2
 
 # --- FIXATION CORRECTION ---
 # Whether to correct fixation locations for vertical line drift.
-# When enabled, AOI enlargement is disabled and all downstream outputs (scanpaths, reading
-# measures, sanity plots) use the corrected fixations. The raw detected fixations are kept
-# in "fixations_uncorrected/", a subfolder of the processed data collection. When disabled,
-# "fixations/", scanpaths and reading measures stay uncorrected and no uncorrected copy is
-# written.
-RUN_FIXATION_CORRECTION: false
+# Correction is on by default and is the normal path for new data collections: fixations are
+# moved back onto the original, non-enlarged AOIs, so AOI enlargement is not needed. All
+# downstream outputs (scanpaths, reading measures, sanity plots) use the corrected fixations.
+# The raw detected fixations are kept in "fixations_uncorrected/", a subfolder of the processed
+# data collection. Set this to false to disable correction; then "fixations/", scanpaths and
+# reading measures stay uncorrected and no uncorrected copy is written.
+RUN_FIXATION_CORRECTION: true
 # Drift correction algorithm passed to pymovements. Either a single algorithm or a list.
 # Single algorithms: attach, chain, cluster, compare, merge, regress, segment, slice,
 # split, stretch, warp. "wisdom_of_the_crowd" (alias "woc") is the ensemble default and
-# combines all algorithms via majority voting.
+# combines all algorithms via majority voting. No kwargs are required; each algorithm uses
+# its own defaults.
 fixation_correction_algorithm: "wisdom_of_the_crowd"
 # Additional tuning parameters for the drift algorithms, e.g. {"x_thresh": 250.0}.
 # An entry is routed only to algorithms whose signature accepts it, but it fans out to all
