@@ -1,7 +1,11 @@
-"""Mapping of fixations to AOIs."""
+"""UOA importing and mapping of fixations to AOIs."""
+
+from pathlib import Path
 
 import polars as pl
 import pymovements as pm
+
+from preprocessing.utils.logging import get_logger
 
 
 def build_combined_text_stimulus(
@@ -139,3 +143,149 @@ def enlarge_aois(
     )
 
     return aois
+
+
+def add_custom_uoa(
+    stimuli_folder: Path,
+    aoi_file: Path,
+    uoa_column_name,
+    uoa_idx_colum_name,
+) -> None:
+    """
+    Add custom units of analysis to the aoi file and rewrite the file. The units of analysis file should be in the respective stimulus folder.
+
+
+
+    How to add it:
+    - Merge the custom and the original aoi files on the char and char index as well as the page column!
+    - check that all chars listed in both files exactly align. Index and char should be exactly the same.
+    - for the questions add the segments to all question images versions and make sure the characters match. Only the coordinates should be different for the options
+
+    Output:
+    The original aoi files should be exactly the same as before also the file name. The contents of the original "units_of_analysis" columns will be written
+    into the "secondary units of analysis" columns
+
+    If any of the characters do not match, the pipeline will fail. If the uoa file is missing, the pipeline will warn and the aoi file remains unchanged.
+
+    """
+    logger = get_logger()
+
+    # Import aoi data
+    aoi_data = pl.read_csv(aoi_file)
+    aoi_data = aoi_data.drop(
+        "secondary_unit_of_analysis",
+        "secondary_unit_of_analysis_idx",
+        "secondary_unit_of_analysis_idx_in_line",
+    )
+    aoi_data = aoi_data.sort(by=["page", "char_idx"])
+
+    # Import uoa data
+    uoa_file = stimuli_folder / "custom_units_of_analysis" / aoi_file.name
+
+    if not uoa_file.exists():
+        logger.warning(
+            f"We could not find a matching uoa file for {aoi_file.name}. Please make "
+            f"sure that the uoa file is named exactly as the corresponding aoi file and "
+            f"that it is in your data folder in a folder called 'custom_units_of_analysis'."
+            f"Using default white-spaced units of analysis for {aoi_file.name}."
+        )
+        return
+
+    if "questions" in uoa_file.name:
+        uoa_data = pl.read_csv(uoa_file)[
+            [
+                uoa_column_name,
+                uoa_idx_colum_name,
+                "char",
+                "char_idx",
+                "page",
+                "question_image_version",
+            ]
+        ]
+        uoa_data = uoa_data.filter(
+            uoa_data["question_image_version"] == "question_images_version_1"
+        )
+
+        uoa_data = uoa_data[
+            [uoa_column_name, uoa_idx_colum_name, "char", "char_idx", "page"]
+        ]
+
+    else:
+        uoa_data = pl.read_csv(uoa_file)[
+            [uoa_column_name, uoa_idx_colum_name, "char", "char_idx", "page"]
+        ]
+
+    uoa_data = uoa_data.sort(by=["page", "char_idx"])
+
+    # Ensure that list of characters matches exactly between files
+    uoa_chars = list(uoa_data["char"])
+    if "questions" in uoa_file.name:
+        aoi_chars = list(
+            aoi_data["char"].filter(
+                aoi_data["question_image_version"] == "question_images_version_1"
+            )
+        )
+    else:
+        aoi_chars = list(aoi_data["char"])
+
+    try:
+        assert aoi_chars == uoa_chars
+    except AssertionError:
+        msg = (
+            f"The custom units of analysis file for the corresponding aoi file {aoi_file.name}, contains different characters. "
+            f"Please verify that the charactters of the stimuli in both files match exactly."
+        )
+        logger.exception(msg)
+        raise
+
+    # Merge the data files. Previous units of analysis become secondary units of analysis
+    aoi_data = aoi_data.rename(
+        {
+            "unit_of_analysis_idx": "secondary_unit_of_analysis_idx",
+            "unit_of_analysis": "secondary_unit_of_analysis",
+            "unit_of_analysis_idx_in_line": "secondary_unit_of_analysis_idx_in_line",
+        }
+    )
+
+    uoa_data = uoa_data.rename(
+        {
+            uoa_column_name: "unit_of_analysis",
+            uoa_idx_colum_name: "unit_of_analysis_idx",
+        }
+    )
+
+    new_aois = aoi_data.join(uoa_data, on=["page", "char_idx", "char"])
+
+    # get the line index of the new units of analysis
+    new_aois = new_aois.with_columns(
+        pl.col("unit_of_analysis_idx")
+        .rank(method="dense")
+        .over(["page", "line_idx"])
+        .cast(pl.Int64)
+        .alias("unit_of_analysis_idx_in_line")
+    )
+
+    col_order = [
+        "char_idx",
+        "char",
+        "top_left_x",
+        "top_left_y",
+        "width",
+        "height",
+        "char_idx_in_line",
+        "line_idx",
+        "page",
+        "unit_of_analysis_idx",
+        "unit_of_analysis_idx_in_line",
+        "unit_of_analysis",
+        "secondary_unit_of_analysis_idx",
+        "secondary_unit_of_analysis_idx_in_line",
+        "secondary_unit_of_analysis",
+    ]
+
+    if "questions" in aoi_file.name:
+        col_order.append("question_image_version")
+
+    new_aois = new_aois[col_order]
+    new_aois = new_aois.sort(by=["page", "line_idx", "char_idx"])
+    new_aois.write_csv(aoi_file)

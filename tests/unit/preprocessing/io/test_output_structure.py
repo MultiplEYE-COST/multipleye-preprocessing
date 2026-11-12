@@ -86,9 +86,9 @@ def dummy_gaze():
                 "height": [10.0, 10.0],
                 "char_idx_in_line": [1, 1],
                 "line_idx": [1, 1],
-                "word_idx": [1, 1],
-                "word_idx_in_line": [1, 1],
-                "word": ["a", "b"],
+                "unit_of_analysis_idx": [1, 1],
+                "unit_of_analysis_idx_in_line": [1, 1],
+                "unit_of_analysis": ["a", "b"],
             }
         )
     )
@@ -196,9 +196,9 @@ def test_save_load_scanpaths_structure(tmp_path, dummy_gaze, sid_str):
         "height",
         "char_idx_in_line",
         "line_idx",
-        "word_idx",
-        "word_idx_in_line",
-        "word",
+        "unit_of_analysis_idx",
+        "unit_of_analysis_idx_in_line",
+        "unit_of_analysis",
     ]
 
     assert all(col in loaded_gaze.events.frame.columns for col in aoi_cols)

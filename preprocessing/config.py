@@ -456,6 +456,12 @@ class Settings:
         #: The expected sampling rate of the eye tracker in Hertz.
         self.EXPECTED_SAMPLING_RATE_HZ: int = 1000
 
+        #: custom uoa settings
+        self.CUSTOM_UOAS: bool = False
+        self.UOA_COLUMN: str | None = None
+        self.UOA_IDX_COLUMN: str | None = None
+        self.UOA_LEVEL: str
+
         # --- CONSTANTS FOR EXPERIMENT ---
 
         #: Expected number of practice trials.
@@ -573,7 +579,7 @@ class Settings:
         self.STIMULUS_COL = "stimulus"
 
         #: Column name for the word index.
-        self.WORD_IDX_COL = "word_idx"
+        self.WORD_IDX_COL = "unit_of_analysis_idx"
 
         #: Column name for the character index.
         self.CHAR_IDX_COL = "char_idx"
