@@ -15,6 +15,9 @@ dependencies = [
     "pandas>=2.2.2",
     "pillow==12.2.0",
     "polars>=2.0.0",
+    # polars read_excel requires fastexcel. pymovements only ships it via its
+    # datasets extra since pymovements#1804, so declare it explicitly.
+    "fastexcel>=0.21.0",
     "pymovements>=0.28.0",
     "tqdm>=4.66.4",
     "openpyxl>=3.0.0",
@@ -28,7 +31,7 @@ dependencies = [
 # TEMPORARY: fixation drift correction (pymovements/pymovements#1625) is merged to main but not
 # yet released on PyPI. Pin current main until the next release ships, then drop this
 # override and require the released version instead.
-pymovements = { git = "https://github.com/pymovements/pymovements.git", rev = "d4b75d42f5d683b503243e3bb6d51e6bb14eade6" }
+pymovements = { git = "https://github.com/pymovements/pymovements.git", rev = "e6304f2cd784bf90d1d47a13b5705b2457210484" }
 
 [project.optional-dependencies]
 review = [
