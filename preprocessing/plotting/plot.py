@@ -16,6 +16,7 @@ from matplotlib.patches import Circle
 
 from ..config import settings
 from ..data_collection.stimulus import Stimulus
+from ..utils.time_columns import time_columns_to_ms
 
 _SAMPLE_COLUMNS = ["pixel_x", "pixel_y"]
 _EVENT_COLUMNS = ["duration", "location_x", "location_y"]
@@ -32,10 +33,13 @@ def build_page_frames(gaze: pm.Gaze):
     data = gaze.clone()
     data.unnest(["pixel", "position", "velocity"])
 
+    # pymovements event durations are Duration; plots scale by numeric ms.
+    events_frame = time_columns_to_ms(data.events.frame, ["duration"])
+
     samples = data.samples.select(
         [settings.STIMULUS_COL, settings.PAGE_COL, *_SAMPLE_COLUMNS]
     )
-    events = data.events.frame.filter(pl.col("name") == settings.FIXATION).select(
+    events = events_frame.filter(pl.col("name") == settings.FIXATION).select(
         [settings.STIMULUS_COL, settings.PAGE_COL, *_EVENT_COLUMNS]
     )
 
@@ -86,6 +90,10 @@ def plot_gaze(
     if data is None:
         data = gaze.clone()
         data.unnest(["pixel", "position", "velocity"])
+
+    # pymovements event durations are Duration; Circle radii use numeric ms.
+    if data.events is not None:
+        data.events.frame = time_columns_to_ms(data.events.frame, ["duration"])
 
     # pixels per centimeter on this screen
     px_per_cm = data.experiment.screen.width_px / data.experiment.screen.width_cm
