@@ -2,7 +2,7 @@ import os
 import shutil
 from contextlib import contextmanager
 from pathlib import Path
-
+import yaml
 import polars as pl
 
 
@@ -240,6 +240,18 @@ def _change_pid_in_csv(file: Path, new_pid: int):
 
     df.write_csv(file)
 
+def _change_pid_in_yaml(file: Path, new_pid: int):
+    with open(file) as f:
+        previous_data = yaml.safe_load(f)
+
+    if "participant_id" in previous_data:
+        previous_data["participant_id"] = new_pid
+    else:
+        print(f"full_language info not found in {file}. Please check.")
+
+    with open(file, "w") as f:
+        yaml.safe_dump(previous_data, f)
+
 
 def change_psychometric_pid(psych_path: Path, input_dict: dict):
     print(f"Changing PIDs for {len(input_dict)} psychometric sessions")
@@ -288,6 +300,12 @@ def change_psychometric_pid(psych_path: Path, input_dict: dict):
                     f_path = Path(root) / f
                     _change_pid_in_csv(f_path, new_pid)
 
+                # Change pid in yaml
+                elif f.endswith(".yaml"):
+                    print(f"Editing pid in yaml {f}")
+                    f_path = Path(root) / f
+                    _change_pid_in_yaml(f_path, new_pid)
+
                 # Change filename if applicable
                 for filestart, new_filestart in filename_mappings.items():
                     if f.startswith(filestart):
@@ -296,6 +314,7 @@ def change_psychometric_pid(psych_path: Path, input_dict: dict):
                         old_path = Path(root) / f
                         new_path = Path(root) / new_filename
                         os.rename(old_path, new_path)
+                        break
 
         # Changing the session folder name
         new_path = psych_path / (f"{new_pid:03d}" + session_id[3:])
