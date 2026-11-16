@@ -1267,6 +1267,8 @@ class Session:
         if not {"time", "accuracy_avg"}.issubset(validations.columns):
             return {}
 
+        validations = time_columns_to_ms(validations, ["time"])
+
         rows: list[tuple[float, float]] = []
         for time_value, accuracy in zip(
             validations["time"].cast(pl.Float64, strict=False).to_list(),

@@ -1567,6 +1567,34 @@ def test_validation_before_start_requires_inter_trial_interval() -> None:
     assert scores == {}
 
 
+def test_validation_before_start_uses_inter_trial_interval() -> None:
+    sess = _make_session()
+    sess.stimulus_start_end_ts = [
+        {"trial": "trial_1", "start_ts": 1000.0, "stop_ts": 4000.0},
+        {"trial": "trial_2", "start_ts": 5000.0, "stop_ts": 8000.0},
+    ]
+    sess.validations = pl.DataFrame({"time": [4500.0], "accuracy_avg": [0.3]})
+
+    scores = sess._validation_before_trial_start(sess._trial_time_spans())
+
+    assert scores == {"trial_2": 0.3}
+
+
+def test_validation_before_start_handles_duration_time() -> None:
+    sess = _make_session()
+    sess.stimulus_start_end_ts = [
+        {"trial": "trial_1", "start_ts": 1000.0, "stop_ts": 4000.0},
+        {"trial": "trial_2", "start_ts": 5000.0, "stop_ts": 8000.0},
+    ]
+    sess.validations = _as_duration_us(
+        pl.DataFrame({"time": [4500.0], "accuracy_avg": [0.3]})
+    )
+
+    scores = sess._validation_before_trial_start(sess._trial_time_spans())
+
+    assert scores == {"trial_2": 0.3}
+
+
 def test_trials_unknown_for_empty_answers(tmp_path: Path) -> None:
     answers_dir = tmp_path / "comp_answers" / "001_EN_UK_1_ET1"
     answers_dir.mkdir(parents=True)
