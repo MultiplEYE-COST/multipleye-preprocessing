@@ -72,6 +72,7 @@ from ..utils.pq_normalisation import (
     normalise_pq,
 )
 from ..utils.stimulus_versions import stimulus_folder_name, version_suffix_for_pid
+from ..utils.time_columns import time_columns_to_ms
 from .experimenter_doc import ExperimenterDoc
 from .participant_info import (
     PSYCHOMETRIC_KEY_SCORES,
@@ -1282,6 +1283,7 @@ class MultipleyeDataCollection:
             messages = self.sessions[session_name].messages
 
             if isinstance(messages, pl.DataFrame):
+                messages = time_columns_to_ms(messages, ["time"])
                 messages_for_check = [
                     {"message": row["content"], "timestamp": row["time"]}
                     for row in messages.iter_rows(named=True)
@@ -2854,6 +2856,7 @@ class MultipleyeDataCollection:
             )
 
         if isinstance(messages, pl.DataFrame):
+            messages = time_columns_to_ms(messages, ["time"])
             row_iter = messages.iter_rows(named=True)
         else:
             row_iter = messages.copy()

@@ -154,3 +154,19 @@ def test_answer_changed_false():
     assert row["final_answer_key"] == "distractor_a_key"
     # Last preliminary key is distractor_a_key, matches final -> not changed
     assert row["preliminary_keys"][-1] == row["final_answer_key"]
+
+
+def _time_as_duration_us(messages: pl.DataFrame) -> pl.DataFrame:
+    return messages.with_columns(
+        (pl.col("time").cast(pl.Int64) * 1000).cast(pl.Duration("us"))
+    )
+
+
+def test_parse_single_question_with_duration_time(single_question_messages):
+    """pymovements >= 0.29 stores message time as Duration (pymovements#1637)."""
+    messages = _time_as_duration_us(single_question_messages)
+    assert messages.schema["time"] == pl.Duration
+
+    result = parse_answers_from_messages(messages)
+
+    assert result.equals(parse_answers_from_messages(single_question_messages))
