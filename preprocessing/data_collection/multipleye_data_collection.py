@@ -3243,9 +3243,13 @@ class MultipleyeDataCollection:
         :param gaze: Gaze object for this session.
         """
 
+        # pymovements event durations are Duration; convert before aggregating
+        # so the report columns are numeric milliseconds and CSV-writable.
+        events = time_columns_to_ms(gaze.events.frame, ["duration"])
+
         # for each gaze and page compute the average fixation duration
         fixation_durations_page_avg = (
-            gaze.events.frame.filter(pl.col("name") == settings.FIXATION)
+            events.filter(pl.col("name") == settings.FIXATION)
             .group_by(gaze.trial_columns)
             .agg(
                 [
