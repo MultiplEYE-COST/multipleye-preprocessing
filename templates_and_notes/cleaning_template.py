@@ -2,8 +2,9 @@ import os
 import shutil
 from contextlib import contextmanager
 from pathlib import Path
-import yaml
+
 import polars as pl
+import yaml
 
 
 def main():
@@ -239,6 +240,7 @@ def _change_pid_in_csv(file: Path, new_pid: int):
         print(f"Column [pP]articipant_id not found in {file}. Please check.")
 
     df.write_csv(file)
+
 
 def _change_pid_in_yaml(file: Path, new_pid: int):
     with open(file) as f:
