@@ -58,6 +58,7 @@ from ..utils.data_path_utils import (
     find_metadata_form,
     load_metadata_form,
 )
+from ..utils.durations import durations_to_ms
 from ..utils.eye_tracker import (
     CANONICAL_EYE_TRACKERS,
     eye_tracker_brand,
@@ -72,7 +73,6 @@ from ..utils.pq_normalisation import (
     normalise_pq,
 )
 from ..utils.stimulus_versions import stimulus_folder_name, version_suffix_for_pid
-from ..utils.time_columns import time_columns_to_ms
 from .experimenter_doc import ExperimenterDoc
 from .participant_info import (
     PSYCHOMETRIC_KEY_SCORES,
@@ -1283,7 +1283,6 @@ class MultipleyeDataCollection:
             messages = self.sessions[session_name].messages
 
             if isinstance(messages, pl.DataFrame):
-                messages = time_columns_to_ms(messages, ["time"])
                 messages_for_check = [
                     {"message": row["content"], "timestamp": row["time"]}
                     for row in messages.iter_rows(named=True)
@@ -2856,7 +2855,6 @@ class MultipleyeDataCollection:
             )
 
         if isinstance(messages, pl.DataFrame):
-            messages = time_columns_to_ms(messages, ["time"])
             row_iter = messages.iter_rows(named=True)
         else:
             row_iter = messages.copy()
@@ -3245,7 +3243,7 @@ class MultipleyeDataCollection:
 
         # pymovements event durations are Duration; convert before aggregating
         # so the report columns are numeric milliseconds and CSV-writable.
-        events = time_columns_to_ms(gaze.events.frame, ["duration"])
+        events = durations_to_ms(gaze.events.frame)
 
         # for each gaze and page compute the average fixation duration
         fixation_durations_page_avg = (

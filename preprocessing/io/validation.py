@@ -5,7 +5,7 @@ import logging
 import polars as pl
 import pymovements as pm
 
-from ..utils.time_columns import time_columns_to_ms
+from ..utils.durations import durations_to_ms
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def find_message_order_conflicts(
     if messages is None or messages.is_empty():
         return []
 
-    messages = time_columns_to_ms(messages, ["time"])
+    messages = durations_to_ms(messages)
 
     messages_by_time: dict[float | int, list[str]] = {}
     for row in messages.iter_rows(named=True):

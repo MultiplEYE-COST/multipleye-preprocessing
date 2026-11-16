@@ -2,7 +2,7 @@ import re
 
 import polars as pl
 
-from ..utils.time_columns import time_columns_to_ms
+from ..utils.durations import durations_to_ms
 
 
 def _result_schema() -> dict:
@@ -54,7 +54,7 @@ def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
             }
         )
 
-    messages = time_columns_to_ms(messages, ["time"])
+    messages = durations_to_ms(messages)
 
     # Define regex patterns based on the implementation guide
     START_RE = re.compile(

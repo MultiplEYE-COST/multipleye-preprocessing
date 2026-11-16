@@ -7,7 +7,6 @@ import polars as pl
 from ..config import settings
 from ..data_collection.stimulus import Stimulus
 from ..utils import _report_to_file
-from ..utils.time_columns import time_columns_to_ms
 
 ReportFunction = Callable[[str, Any, Any], None]
 
@@ -91,10 +90,8 @@ def check_comprehension_question_answers(
 def check_validation_requirements(
     validations: pl.DataFrame, calibrations: pl.DataFrame, report_file, stimulus_times
 ):
-    # pymovements stores quality timestamps as Duration; compare them in ms.
-    validations = time_columns_to_ms(validations, ["time"])
-    calibrations = time_columns_to_ms(calibrations, ["time"])
-
+    # Times are expected in milliseconds; Session converts pymovements Duration
+    # tables once at the boundary.
     # Aborted validations have no accuracy and must not be scored.
     if "accuracy_avg" in validations.columns:
         validations = validations.filter(pl.col("accuracy_avg").is_not_null())
