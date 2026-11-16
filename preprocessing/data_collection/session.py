@@ -3,7 +3,7 @@ import warnings
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import polars as pl
 
@@ -12,9 +12,9 @@ from ..config import settings
 from ..data_collection.stimulus import LabConfig, Stimulus
 from ..data_collection.trial import Trial, TrialAnswer
 from ..models import Sid
+from ..utils.durations import durations_to_ms
 from ..utils.eye_tracker import normalize_eye_tracker_name
 from ..utils.logging import get_logger
-from ..utils.time_columns import time_columns_to_ms
 from .experimenter_doc import (
     ExperimenterDoc,
     normalize_dominant_eye,
@@ -264,6 +264,22 @@ class Session:
 
     # tested language, used to build item text identifiers
     tested_language: str = field(default="unknown", init=True)
+
+    def set_gaze_tables(self, gaze: Any) -> None:
+        """Store pymovements messages, calibrations and validations in milliseconds.
+
+        pymovements stores these tables as ``polars.Duration``. The session
+        model works with numeric milliseconds, so convert once at this boundary
+        instead of in every consumer.
+
+        Parameters
+        ----------
+        gaze : pymovements.Gaze
+            Gaze object whose auxiliary tables should be stored.
+        """
+        self.messages = durations_to_ms(getattr(gaze, "messages", None))
+        self.calibrations = durations_to_ms(getattr(gaze, "calibrations", None))
+        self.validations = durations_to_ms(getattr(gaze, "validations", None))
 
     @property
     def sid(self) -> "Sid":
@@ -526,8 +542,7 @@ class Session:
             return None
         if "time" not in self.messages.columns:
             return None
-        messages = time_columns_to_ms(self.messages, ["time"])
-        times = messages["time"].cast(pl.Float64).drop_nulls().to_list()
+        times = self.messages["time"].cast(pl.Float64).drop_nulls().to_list()
         if not times:
             return None
         min_t = min(times)
@@ -670,11 +685,10 @@ class Session:
         if isinstance(self.messages, pl.DataFrame) and not self.messages.is_empty():
             if not {"time", "content"}.issubset(self.messages.columns):
                 return []
-            messages = time_columns_to_ms(self.messages, ["time"])
             return list(
                 zip(
-                    messages["time"].to_list(),
-                    messages["content"].to_list(),
+                    self.messages["time"].to_list(),
+                    self.messages["content"].to_list(),
                 )
             )
         if isinstance(self.messages, list):
@@ -731,10 +745,9 @@ class Session:
             isinstance(self.calibrations, pl.DataFrame)
             and "time" in self.calibrations.columns
         ):
-            calibrations = time_columns_to_ms(self.calibrations, ["time"])
             times = [
                 float(time_value)
-                for time_value in calibrations["time"]
+                for time_value in self.calibrations["time"]
                 .cast(pl.Float64, strict=False)
                 .drop_nulls()
                 .to_list()
@@ -781,9 +794,8 @@ class Session:
         if not {"time", "accuracy_avg"}.issubset(self.validations.columns):
             return "unknown"
 
-        validations = time_columns_to_ms(self.validations, ["time"])
         validation_times = (
-            validations["time"].cast(pl.Float64, strict=False).drop_nulls()
+            self.validations["time"].cast(pl.Float64, strict=False).drop_nulls()
         )
         if validation_times.is_empty():
             return "unknown"
@@ -794,7 +806,7 @@ class Session:
         if self._calibration_between(final_trial_end, last_time):
             return "unknown"
 
-        final_rows = validations.filter(
+        final_rows = self.validations.filter(
             pl.col("time").cast(pl.Float64, strict=False) == last_time
         )
         scores = [
@@ -1266,8 +1278,6 @@ class Session:
             return {}
         if not {"time", "accuracy_avg"}.issubset(validations.columns):
             return {}
-
-        validations = time_columns_to_ms(validations, ["time"])
 
         rows: list[tuple[float, float]] = []
         for time_value, accuracy in zip(

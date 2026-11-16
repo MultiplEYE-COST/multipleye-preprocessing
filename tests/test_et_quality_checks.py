@@ -26,13 +26,6 @@ def _calibrations_df(times: list[int]) -> pl.DataFrame:
     return pl.DataFrame({"time": times})
 
 
-def _as_duration_us(frame: pl.DataFrame, column: str = "time") -> pl.DataFrame:
-    """Return ``frame`` with ``column`` stored as pymovements-style Duration."""
-    return frame.with_columns(
-        (pl.col(column).cast(pl.Int64) * 1000).cast(pl.Duration("us"))
-    )
-
-
 def test_check_metadata_num_validations_uses_validation_range(monkeypatch):
     """Number of validations must be checked against ACCEPTABLE_NUM_VALIDATION."""
     monkeypatch.setattr(settings, "ACCEPTABLE_NUM_CALIBRATIONS", [3, 30])
@@ -146,29 +139,6 @@ def test_check_metadata_skips_aborted_validation_scores():
 
     avg_call = next(c for c in calls if c[0] == "AVG validation scores")
     assert avg_call[1] == [0.1]
-
-
-def test_check_validation_requirements_handles_duration_time_columns(
-    tmp_path: Path, monkeypatch
-):
-    """Validations/calibrations may carry pymovements Duration time columns."""
-    monkeypatch.setattr(settings, "SINGLE_VALIDATION_GOOD_MAX", 0.2)
-    monkeypatch.setattr(settings, "SINGLE_VALIDATION_MODERATE_MAX", 0.6)
-
-    validations = _as_duration_us(_validations_df([(1500, 0.5)]))
-    calibrations = _as_duration_us(_calibrations_df([]))
-    stimulus_times = [
-        {"time": 1000, "message": "start_Recording_trial_1"},
-        {"time": 2000, "message": "end_Recording_trial_1"},
-    ]
-    report_file = tmp_path / "report.md"
-
-    check_validation_requirements(
-        validations, calibrations, report_file, stimulus_times
-    )
-
-    text = report_file.read_text()
-    assert "Moderate validation at 1500 with score 0.5" in text
 
 
 def test_check_validation_requirements_default_boundaries(tmp_path: Path, monkeypatch):

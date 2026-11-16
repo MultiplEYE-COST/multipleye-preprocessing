@@ -271,9 +271,7 @@ def run_preprocessing(config_path: str | None = None):
             preprocessing.save_raw_data(sess.sid, gaze)
 
         sess.pm_gaze_metadata = gaze._metadata
-        sess.calibrations = gaze.calibrations
-        sess.validations = gaze.validations
-        sess.messages = gaze.messages
+        sess.set_gaze_tables(gaze)
 
         # Store measure-based data loss values (computed above and in load_gaze_data).
         sess._measure_total_data_loss_ratio = getattr(
