@@ -77,6 +77,13 @@ def _sess_with_validation_data() -> Session:
     return sess
 
 
+def _as_duration_us(frame: pl.DataFrame, column: str = "time") -> pl.DataFrame:
+    """Return ``frame`` with ``column`` stored as pymovements-style Duration."""
+    return frame.with_columns(
+        (pl.col(column).cast(pl.Int64) * 1000).cast(pl.Duration("us"))
+    )
+
+
 def test_create_overview_includes_new_fields() -> None:
     sess = _sess_with_validation_data()
 
@@ -239,6 +246,18 @@ def test_session_duration_from_messages() -> None:
     sess = _sess_with_validation_data()
     sess.messages = pl.DataFrame(
         {"time": [1000.0, 2000.0, 60000.0], "content": ["a", "b", "c"]}
+    )
+
+    overview = sess.create_overview()
+    proc = overview["experiment_procedure"]
+
+    assert proc["total_session_duration_s"] == 59.0
+
+
+def test_session_duration_from_duration_messages() -> None:
+    sess = _sess_with_validation_data()
+    sess.messages = _as_duration_us(
+        pl.DataFrame({"time": [1000, 2000, 60000], "content": ["a", "b", "c"]})
     )
 
     overview = sess.create_overview()
@@ -1812,6 +1831,24 @@ def test_final_validation_score_after_final_trial() -> None:
         accuracy=[0.9, 0.57],
         calibration_times=[50.0],
     )
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["final_validation_score_dva"] == 0.57
+
+
+def test_final_validation_score_with_duration_time_columns() -> None:
+    """Final validation must handle pymovements Duration time columns."""
+    sess = _final_validation_session(
+        message_time=450.0,
+        final_trial_stop=400.0,
+        validation_times=[300.0, 480.0],
+        accuracy=[0.9, 0.57],
+        calibration_times=[50.0],
+    )
+    sess.messages = _as_duration_us(sess.messages)
+    sess.validations = _as_duration_us(sess.validations)
+    sess.calibrations = _as_duration_us(sess.calibrations)
 
     cal = sess.create_overview()["calibration_validation"]
 

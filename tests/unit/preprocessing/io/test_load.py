@@ -4,6 +4,7 @@ from unittest.mock import patch
 import polars as pl
 import pytest
 
+from preprocessing.answers.msg_parser import parse_answers_from_messages
 from preprocessing.config import settings
 from preprocessing.data_collection.stimulus import LabConfig
 from preprocessing.io.load import _duration_to_ms, load_gaze_data
@@ -162,6 +163,31 @@ def test_load_gaze_data_with_patterns(synthetic_asc, lab_config):
     assert gaze.messages["content"].str.contains("page_1").any()
     # Question start should be here
     assert gaze.messages["content"].str.contains("question_6111").any()
+
+
+@pytest.mark.filterwarnings("ignore")
+def test_load_gaze_data_keeps_duration_time_and_parses_answers(
+    synthetic_asc, lab_config
+):
+    """Regression test: pymovements Duration message times must be parseable.
+
+    pymovements 0.29 stores message time as ``pl.Duration`` (pymovements#1637).
+    The parser used to call ``float()`` on the scalar, which raised
+    ``TypeError`` for ``datetime.timedelta`` values.
+    """
+    gaze = load_gaze_data(
+        asc_file=synthetic_asc,
+        lab_config=lab_config,
+        sid=Sid("001_SV_CH_Zurich_S1_ET1"),
+        messages=settings.EXPERIMENT_MSG_PATTERNS,
+    )
+
+    assert gaze.messages.schema["time"] == pl.Duration
+
+    parsed = parse_answers_from_messages(gaze.messages)
+
+    assert len(parsed) == 1
+    assert parsed.row(0, named=True)["question_onset_ts"] == 1500.0
 
 
 @pytest.mark.filterwarnings("ignore:No metadata found")

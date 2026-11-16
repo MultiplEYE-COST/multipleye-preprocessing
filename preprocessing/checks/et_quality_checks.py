@@ -7,6 +7,7 @@ import polars as pl
 from ..config import settings
 from ..data_collection.stimulus import Stimulus
 from ..utils import _report_to_file
+from ..utils.time_columns import time_columns_to_ms
 
 ReportFunction = Callable[[str, Any, Any], None]
 
@@ -90,6 +91,14 @@ def check_comprehension_question_answers(
 def check_validation_requirements(
     validations: pl.DataFrame, calibrations: pl.DataFrame, report_file, stimulus_times
 ):
+    # pymovements stores quality timestamps as Duration; compare them in ms.
+    validations = time_columns_to_ms(validations, ["time"])
+    calibrations = time_columns_to_ms(calibrations, ["time"])
+
+    # Aborted validations have no accuracy and must not be scored.
+    if "accuracy_avg" in validations.columns:
+        validations = validations.filter(pl.col("accuracy_avg").is_not_null())
+
     # sort validations and calibrations by timestamp, merge into one list
     vals = validations.sort("time").to_dicts()
     cals = calibrations.sort("time").to_dicts()
@@ -320,7 +329,12 @@ def check_metadata(
         settings.ACCEPTABLE_NUM_CALIBRATIONS,
     )
 
-    validation_scores_avg = validations["accuracy_avg"].cast(pl.Float32).to_list()
+    # Aborted validations carry no accuracy; skip them when scoring.
+    validation_scores_avg = [
+        score
+        for score in validations["accuracy_avg"].cast(pl.Float32).to_list()
+        if score is not None
+    ]
 
     num_validations = len(validations)
     report("Number of validations", num_validations, settings.ACCEPTABLE_NUM_VALIDATION)
@@ -329,7 +343,11 @@ def check_metadata(
         [round(score, 4) for score in validation_scores_avg],
         settings.ACCEPTABLE_AVG_VALIDATION_SCORES,
     )
-    validation_scores_max = validations["accuracy_max"].cast(pl.Float32).to_list()
+    validation_scores_max = [
+        score
+        for score in validations["accuracy_max"].cast(pl.Float32).to_list()
+        if score is not None
+    ]
     report(
         "MAX validation scores",
         [round(score, 4) for score in validation_scores_max],
