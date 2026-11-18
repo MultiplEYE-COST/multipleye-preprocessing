@@ -106,6 +106,7 @@ data_quality:
 | `contact_name` | str, null | Name of the corresponding contact person, from the metadata form. |
 | `contact_email` | str, null | Email address of the corresponding contact person, from the metadata form. |
 | `script_direction` | str, null | Script direction of the tested language, for example `ltr` or `rtl`, from the lab configuration or metadata form. |
+| `script_directions` | list, null | Present when `stimulus_versions` is configured. Each entry has `version`, `script_direction` and `participants`. |
 | `estimated_end_year` | int, null | Estimated year in which the data collection ends, from the lab configuration. |
 
 `session_completeness` contains:
@@ -358,9 +359,10 @@ folder layout.
 
 The script direction is a collection property recorded from the active stimulus version in
 `administrative.script_direction`. `LabConfig` is loaded per stimulus version, so sessions may use
-different directions when `stimulus_versions` is configured. The dataset overview records the
-direction of the default stimulus folder. Per-session processing uses the direction from the
-session's own stimulus folder.
+different directions when `stimulus_versions` is configured. In that case
+`administrative.script_directions` lists each configured version with its resolved direction and
+participant IDs. The grouping comes from the `stimulus_versions` settings map. Per-session
+processing uses the direction from the session's own stimulus folder.
 
 `tracked_eye` in this section is the list of accepted eye labels from the configuration, not the
 eye tracked in a particular session. The session-level `tracking.tracked_eye` holds the actual

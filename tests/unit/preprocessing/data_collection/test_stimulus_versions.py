@@ -167,6 +167,78 @@ def test_lab_config_is_loaded_and_cached_per_stimulus_dir(
     assert len(calls) == call_count
 
 
+def test_script_direction_groups_follow_stimulus_versions(
+    dummy_data_dir, monkeypatch_settings, monkeypatch
+):
+    """Configured versions are grouped with their resolved script directions."""
+
+    def fake_load(stimulus_dir, *args, **kwargs):
+        direction = "ttb" if Path(stimulus_dir).name.endswith("_v2") else "ltr"
+        return SimpleNamespace(
+            name_eye_tracker="EyeLink 1000 Plus",
+            psychometric_tests={},
+            script_direction=direction,
+        )
+
+    monkeypatch.setattr(
+        MultipleyeDataCollection,
+        "load_lab_config",
+        staticmethod(fake_load),
+    )
+    dc = MultipleyeDataCollection.create_from_data_folder(dummy_data_dir)
+
+    groups = dc._script_direction_groups(default_direction="ltr")
+
+    assert groups == [
+        {
+            "version": "v2",
+            "script_direction": "ttb",
+            "participants": ["003"],
+        },
+        {
+            "version": "default",
+            "script_direction": "ltr",
+            "participants": ["001", "002"],
+        },
+    ]
+
+
+def test_dataset_overview_records_script_direction_groups(
+    dummy_data_dir, monkeypatch_settings, monkeypatch, tmp_path
+):
+    """The dataset overview contains the version-to-direction grouping."""
+
+    def fake_load(stimulus_dir, *args, **kwargs):
+        direction = "ttb" if Path(stimulus_dir).name.endswith("_v2") else "ltr"
+        return SimpleNamespace(
+            name_eye_tracker="EyeLink 1000 Plus",
+            psychometric_tests={},
+            script_direction=direction,
+        )
+
+    monkeypatch.setattr(
+        MultipleyeDataCollection,
+        "load_lab_config",
+        staticmethod(fake_load),
+    )
+    dc = MultipleyeDataCollection.create_from_data_folder(dummy_data_dir)
+
+    overview = dc.create_dataset_overview(path=tmp_path)
+
+    assert overview["administrative"]["script_directions"] == [
+        {
+            "version": "v2",
+            "script_direction": "ttb",
+            "participants": ["003"],
+        },
+        {
+            "version": "default",
+            "script_direction": "ltr",
+            "participants": ["001", "002"],
+        },
+    ]
+
+
 def test_build_pid_stimulus_dirs_prefers_output_copy(tmp_path, monkeypatch_settings):
     """Versioned PIDs resolve to the prepared output copy, not the raw data folder."""
     dcn = "MultiplEYE_EN_UK_London_1_2025"

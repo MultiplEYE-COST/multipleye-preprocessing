@@ -714,6 +714,69 @@ class MultipleyeDataCollection:
             )
         return self._lab_config_cache[resolved]
 
+    def _script_direction_groups(
+        self,
+        default_direction: str | None,
+    ) -> list[dict] | None:
+        """Return configured stimulus versions with their script directions."""
+        pid_map = settings.STIMULUS_VERSIONS_PID_MAP or {}
+        if not pid_map or not self.pid_stimulus_dirs:
+            return None
+
+        default_direction = (
+            default_direction
+            or getattr(self.lab_configuration, "script_direction", None)
+            or "ltr"
+        )
+
+        all_pids: set[str] = set()
+        for session in [*self.sessions, *self.skipped_sessions]:
+            try:
+                all_pids.add(Sid(session).pid)
+            except (ValueError, TypeError):
+                continue
+
+        groups = []
+        assigned_pids: set[str] = set()
+        for version, pids in pid_map.items():
+            version_pids = sorted(str(pid) for pid in pids)
+            assigned_pids.update(version_pids)
+
+            direction = default_direction
+            for pid in version_pids:
+                stimulus_dir = self.pid_stimulus_dirs.get(pid)
+                if stimulus_dir is None:
+                    continue
+                try:
+                    version_config = self._lab_config_for_stimulus_dir(stimulus_dir)
+                    direction = (
+                        getattr(version_config, "script_direction", None)
+                        or default_direction
+                    )
+                except (AssertionError, OSError, ValueError):
+                    direction = default_direction
+                break
+
+            groups.append(
+                {
+                    "version": version,
+                    "script_direction": direction,
+                    "participants": version_pids,
+                }
+            )
+
+        default_pids = sorted(all_pids - assigned_pids)
+        if default_pids:
+            groups.append(
+                {
+                    "version": settings.STIMULUS_VERSIONS_DEFAULT_VERSION or "default",
+                    "script_direction": default_direction,
+                    "participants": default_pids,
+                }
+            )
+
+        return groups
+
     def _answer_option_stimulus_dirs(self) -> list[Path]:
         """Return the default and configured version-specific stimulus directories."""
         directories = [Path(self.stimulus_dir)]
@@ -1608,6 +1671,7 @@ class MultipleyeDataCollection:
         image_size_w, image_size_h = _lab_pair("image_size_cm")
         screen_distance_cm = getattr(self.lab_configuration, "screen_distance_cm", None)
         codebook_info = load_codebook_identity()
+        script_direction_groups = self._script_direction_groups(script_direction)
 
         overview = {
             "administrative": {
@@ -1760,6 +1824,9 @@ class MultipleyeDataCollection:
                         ", ".join(ignored),
                     )
             overview["language_node"] = language_node
+
+        if script_direction_groups is not None:
+            overview["administrative"]["script_directions"] = script_direction_groups
 
         # Add warnings to overview
         if hasattr(logging, "_captured_warnings") and logging._captured_warnings:
