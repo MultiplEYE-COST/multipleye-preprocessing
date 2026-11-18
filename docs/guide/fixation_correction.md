@@ -2,12 +2,25 @@
 
 # Fixation Correction
 
-The pEYEpline corrects vertical drift in fixation locations before scanpaths and reading measures
-are calculated. Drift correction moves each fixation toward the text line it was read from. It is
+The pEYEpline corrects drift in fixation locations before scanpaths and reading measures are
+calculated. Drift correction moves each fixation toward the text line it was read from. It is
 useful when the recorded gaze drifts away from the line during a trial.
 
 The correction is **on by default** (`RUN_FIXATION_CORRECTION: true`). Set it to `false` to
 disable it.
+
+## Text direction
+
+The script direction comes from `Script_direction` in the lab configuration of the active
+stimulus version. `LabConfig` is loaded per stimulus folder, so a collection that uses
+`stimulus_versions` can mix horizontal and vertical sessions.
+
+- `ltr` and `rtl` use the usual vertical line correction. For `rtl`, the direction is passed to
+  pymovements so that right-to-left line processing is used.
+- `ttb` is top-to-bottom vertical text. The pipeline transposes fixation coordinates and AOI
+  geometry, so columns become horizontal lines for pymovements, then transposes the corrected
+  locations back. The fixed coordinate is therefore x, while y is preserved.
+- `btt` is rejected with a clear error. The current stimulus generator does not produce it.
 
 ## Where it runs
 
@@ -82,6 +95,9 @@ fixations_uncorrected_folder: "fixations_uncorrected/"
 - `fixation_correction_kwargs` passes extra tuning parameters to the algorithms.
 - `fixations_uncorrected_folder` is the subfolder name inside the processed data collection.
 
+Direction is not a pipeline setting. It is read from `Script_direction` in each stimulus version's
+lab configuration. Missing values default to `ltr`.
+
 ## Final fixation dot
 
 Each stimulus page ends with a fixation dot. Dot positions can differ by language and collection, so
@@ -121,13 +137,14 @@ current collections. It is not a fixed constant.
 `final_fix_dot_radius`. If correction is active and the geometry cannot be derived, the run stops
 with an error. There is no AOI fallback for the final dot.
 
-A fixation counts as a dot fixation only when it is outside the text AOI bounds, with one line
-height of tolerance, and within a tolerance around the dot centre. The tolerance is the larger of
-four dot radii and the distance from the dot to the last text line, because gaze positions on the
-dot can be several dot radii away from its centre. Dot fixations are removed from the correction
-input before pymovements runs. Correction therefore uses only the real text lines. The dot fixations
-are reinserted unchanged afterwards. This avoids a fake dot line and prevents text fixations near
-the bottom of the page from snapping to the dot.
+A fixation counts as a dot fixation only when it is outside the text AOI bounds, with a
+direction-aware tolerance, and within a tolerance around the dot centre. The tolerance is the
+larger of four dot radii and the distance from the dot to the nearest text edge, because gaze
+positions on the dot can be several dot radii away from its centre. This works for horizontal
+text with a bottom dot and for TTB text with a bottom-left dot. Dot fixations are removed from the
+correction input before pymovements runs. Correction therefore uses only the real text lines. The
+dot fixations are reinserted unchanged afterwards. This avoids a fake dot line and prevents text
+fixations near the last line or column from snapping to the dot.
 
 ## Dataset overview and codebook
 
@@ -161,10 +178,7 @@ downstream outputs.
 
 ## Current limitations
 
-- Top-to-bottom (TTB) scripts are not supported yet. Correction currently fixes the vertical
-  coordinate, which suits left-to-right and right-to-left text. For TTB scripts the AOIs must be
-  enlarged along the horizontal axis and correction must fix the horizontal coordinate instead.
-  This applies to the `ttb` value of `dataset.administrative.script_direction`. Until it is
-  implemented, keep `RUN_FIXATION_CORRECTION: false` for TTB collections.
 - The pipeline temporarily pins pymovements to the commit that contains the correction API. The pin
   is removed when a pymovements release includes it.
+- Vertical correction is implemented locally by transposing the geometry. Native vertical support
+  in pymovements is a follow-up.

@@ -1,5 +1,8 @@
 """Unit tests for per-session stimulus version folder resolution."""
 
+from pathlib import Path
+from types import SimpleNamespace
+
 import pandas as pd
 import pytest
 
@@ -67,6 +70,7 @@ def dummy_data_dir(tmp_path):
 @pytest.fixture
 def monkeypatch_settings(monkeypatch):
     """Configure stimulus version settings."""
+    monkeypatch.setattr(settings, "_loaded", True)
     monkeypatch.setattr(settings, "STIMULUS_VERSIONS_DEFAULT_VERSION", None)
     monkeypatch.setattr(settings, "STIMULUS_VERSIONS_PID_MAP", {"v2": ["003"]})
 
@@ -128,6 +132,39 @@ def test_load_stim_order_versions_from_versioned_dir(
     # PID 001 is not mapped; it reads the default folder CSV
     df_default = dc._load_stim_order_versions("001_EN_UK_1_ET1")
     assert int(df_default.iloc[0]["participant_id"]) == 1
+
+
+def test_lab_config_is_loaded_and_cached_per_stimulus_dir(
+    dummy_data_dir, monkeypatch_settings, monkeypatch
+):
+    """Each stimulus version gets its own cached lab configuration."""
+    calls: list[Path] = []
+
+    def fake_load(stimulus_dir, *args, **kwargs):
+        calls.append(Path(stimulus_dir))
+        direction = "ttb" if Path(stimulus_dir).name.endswith("_v2") else "ltr"
+        return SimpleNamespace(
+            name_eye_tracker="EyeLink 1000 Plus",
+            psychometric_tests={},
+            script_direction=direction,
+        )
+
+    monkeypatch.setattr(
+        MultipleyeDataCollection,
+        "load_lab_config",
+        staticmethod(fake_load),
+    )
+    dc = MultipleyeDataCollection.create_from_data_folder(dummy_data_dir)
+
+    default_config = dc._lab_config_for_stimulus_dir(dc.stimulus_dir)
+    versioned_config = dc._lab_config_for_stimulus_dir(dc.pid_stimulus_dirs["003"])
+
+    assert default_config.script_direction == "ltr"
+    assert versioned_config.script_direction == "ttb"
+
+    call_count = len(calls)
+    dc._lab_config_for_stimulus_dir(dc.pid_stimulus_dirs["003"])
+    assert len(calls) == call_count
 
 
 def test_build_pid_stimulus_dirs_prefers_output_copy(tmp_path, monkeypatch_settings):

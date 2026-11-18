@@ -149,9 +149,6 @@ def run_preprocessing(config_path: str | None = None):
             f"Invalid experiment type: {settings.EXPERIMENT_TYPE}. Supported types: [MultiplEYE, MeRID]"
         )
 
-    if settings.RUN_FIXATION_CORRECTION:
-        preprocessing.validate_final_fix_dot(data_collection.lab_configuration)
-
     write_quality_thresholds(settings.OUTPUT_DIR)
 
     if settings.RUN_PREFLIGHT_CHECK:
@@ -170,6 +167,9 @@ def run_preprocessing(config_path: str | None = None):
     if len(data_collection.sessions) > 0:
         data_collection.convert_edf_to_asc()
     data_collection.prepare_session_level_information()
+
+    if settings.RUN_FIXATION_CORRECTION:
+        data_collection.validate_final_fix_dots()
 
     # for sess in multipleye:
     #     if sess.stimuli == 'unknown':

@@ -356,6 +356,12 @@ corrected fixations and `fixations_uncorrected/` keeps the raw detected copy.
 and kwargs are recorded in both cases for reproducibility. See {ref}`fixation_correction` for the
 folder layout.
 
+The script direction is a collection property recorded from the active stimulus version in
+`administrative.script_direction`. `LabConfig` is loaded per stimulus version, so sessions may use
+different directions when `stimulus_versions` is configured. The dataset overview records the
+direction of the default stimulus folder. Per-session processing uses the direction from the
+session's own stimulus folder.
+
 `tracked_eye` in this section is the list of accepted eye labels from the configuration, not the
 eye tracked in a particular session. The session-level `tracking.tracked_eye` holds the actual
 value. {ref}`technical_architecture` describes the meaning of the individual settings.

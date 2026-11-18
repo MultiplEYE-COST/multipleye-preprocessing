@@ -113,6 +113,44 @@ def test_lab_config_raises_for_unparseable_metadata_form(tmp_path: Path):
         _load(stimulus_dir)
 
 
+def test_lab_config_reads_script_direction_from_lab_config(tmp_path: Path):
+    stimulus_dir = _make_stimulus_dir(tmp_path)
+    json_path = next((stimulus_dir / "config").glob("*_lab_configuration.json"))
+    json_path.write_text(
+        '{"Name_eye-tracker": "EyeLink 1000 Plus", "Script_direction": "ttb"}',
+        encoding="utf-8",
+    )
+
+    lab_config = _load(stimulus_dir)
+
+    assert lab_config.script_direction == "ttb"
+
+
+def test_lab_config_reads_script_direction_from_metadata_form(tmp_path: Path):
+    stimulus_dir = _make_stimulus_dir(tmp_path)
+    doc_dir = stimulus_dir.parent / "documentation"
+    doc_dir.mkdir()
+    (doc_dir / "metadataForm_MultiplEYE_EN_UK_City_1_2024.json").write_text(
+        '{"Script_direction": "rtl"}', encoding="utf-8"
+    )
+
+    lab_config = _load(stimulus_dir)
+
+    assert lab_config.script_direction == "rtl"
+
+
+def test_lab_config_rejects_bottom_to_top_direction(tmp_path: Path):
+    stimulus_dir = _make_stimulus_dir(tmp_path)
+    json_path = next((stimulus_dir / "config").glob("*_lab_configuration.json"))
+    json_path.write_text(
+        '{"Name_eye-tracker": "EyeLink 1000 Plus", "Script_direction": "btt"}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="btt"):
+        _load(stimulus_dir)
+
+
 def test_lab_config_derives_final_fix_dot_geometry(tmp_path: Path):
     stimulus_dir = _make_stimulus_dir(tmp_path)
 

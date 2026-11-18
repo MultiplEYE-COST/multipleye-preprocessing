@@ -7,6 +7,7 @@ import pymovements as pm
 
 from ..config import settings
 from ..mapping.aoi import build_combined_text_stimulus
+from ..utils.text_direction import is_vertical_script, normalize_script_direction
 
 __all__ = ["correct_fixations", "validate_final_fix_dot"]
 
@@ -74,6 +75,7 @@ def _text_bounds_table(
         (pl.col("top_left_x") + pl.col("width")).max().alias("__text_x_max"),
         (pl.col("top_left_y") + pl.col("height")).max().alias("__text_y_max"),
         pl.col("height").max().alias("__text_line_height"),
+        pl.col("width").max().alias("__text_column_width"),
     )
 
 
@@ -82,20 +84,31 @@ def _dot_mask(
     x: float,
     y: float,
     radius: float,
+    *,
+    vertical: bool,
 ) -> pl.Expr:
     location_x, location_y = _location_expressions(frame)
     line_height = pl.col("__text_line_height")
+    x_tolerance = pl.col("__text_column_width") if vertical else line_height
 
     inside_text = (
-        (location_x >= pl.col("__text_x_min") - line_height)
-        & (location_x <= pl.col("__text_x_max") + line_height)
+        (location_x >= pl.col("__text_x_min") - x_tolerance)
+        & (location_x <= pl.col("__text_x_max") + x_tolerance)
         & (location_y >= pl.col("__text_y_min") - line_height)
         & (location_y <= pl.col("__text_y_max") + line_height)
     )
     # Gaze positions on the dot can be several dot radii away from its centre.
-    # Use the distance from the dot to the last text line as a tolerance, while
-    # the text bounds guard above prevents real text fixations from being excluded.
-    dot_to_text = (y - pl.col("__text_y_max")).clip(lower_bound=0.0)
+    # Use the distance from the dot to the text block as a tolerance, while the
+    # text bounds guard above prevents real text fixations from being excluded.
+    horizontal_gap = pl.max_horizontal(
+        (pl.col("__text_x_min") - x).clip(lower_bound=0.0),
+        (x - pl.col("__text_x_max")).clip(lower_bound=0.0),
+    )
+    vertical_gap = pl.max_horizontal(
+        (pl.col("__text_y_min") - y).clip(lower_bound=0.0),
+        (y - pl.col("__text_y_max")).clip(lower_bound=0.0),
+    )
+    dot_to_text = pl.max_horizontal(horizontal_gap, vertical_gap)
     dot_reach = pl.max_horizontal(
         pl.lit(radius * 4.0),
         dot_to_text,
@@ -113,6 +126,8 @@ def _separate_excluded_events(
     y: float,
     radius: float,
     stimulus: pm.stimulus.TextStimulus,
+    *,
+    vertical: bool,
 ) -> pl.DataFrame | None:
     frame = gaze.events.frame
     if frame.is_empty():
@@ -135,7 +150,7 @@ def _separate_excluded_events(
         how="left",
     )
     has_text = pl.col("__text_y_max").is_not_null()
-    dot_mask = _dot_mask(indexed, x, y, radius)
+    dot_mask = _dot_mask(indexed, x, y, radius, vertical=vertical)
     excluded_rows = indexed.filter(~has_text | dot_mask)
     if excluded_rows.is_empty():
         gaze.events.frame = frame
@@ -168,23 +183,129 @@ def _restore_excluded_events(gaze: pm.Gaze, excluded_rows: pl.DataFrame | None) 
     )
 
 
+def _transpose_location_columns(frame: pl.DataFrame) -> pl.DataFrame:
+    """Swap the x and y components of all location representations."""
+    has_split = {"location_x", "location_y"}.issubset(frame.columns)
+    has_list = "location" in frame.columns
+    if not has_split and not has_list:
+        raise ValueError(
+            "Fixation events need location_x/location_y columns or a location column "
+            "for top-to-bottom correction."
+        )
+
+    if has_split:
+        frame = frame.with_columns(
+            pl.col("location_y").alias("__fixation_transpose_tmp")
+        )
+        frame = frame.with_columns(
+            pl.col("location_x").alias("location_y"),
+            pl.col("__fixation_transpose_tmp").alias("location_x"),
+        ).drop("__fixation_transpose_tmp")
+
+    if has_list:
+        frame = frame.with_columns(
+            pl.concat_list(
+                [
+                    pl.col("location").list.get(1),
+                    pl.col("location").list.get(0),
+                ]
+            ).alias("location")
+        )
+    return frame
+
+
+def _sync_split_locations_from_list(frame: pl.DataFrame) -> pl.DataFrame:
+    """Keep split location columns consistent when both representations exist."""
+    if (
+        {"location_x", "location_y"}.issubset(frame.columns)
+        and "location" in frame.columns
+        and frame["location"].null_count() < frame.height
+    ):
+        return frame.with_columns(
+            pl.col("location").list.get(0).alias("location_x"),
+            pl.col("location").list.get(1).alias("location_y"),
+        )
+    return frame
+
+
+def _save_original_locations(
+    frame: pl.DataFrame,
+) -> tuple[pl.DataFrame, set[str]]:
+    """Store original locations before a transposed correction."""
+    saved: set[str] = set()
+    if {"location_x", "location_y"}.issubset(frame.columns):
+        frame = frame.with_columns(
+            pl.col("location_x").alias("__fixation_original_x"),
+            pl.col("location_y").alias("__fixation_original_y"),
+        )
+        saved.add("split")
+    if "location" in frame.columns:
+        frame = frame.with_columns(
+            pl.col("location").alias("__fixation_original_location")
+        )
+        saved.add("list")
+    return frame, saved
+
+
+def _restore_original_locations(
+    frame: pl.DataFrame,
+    saved: set[str],
+) -> pl.DataFrame:
+    """Write saved original locations back into the standard bookkeeping columns."""
+    expressions = []
+    if "split" in saved:
+        expressions.extend(
+            [
+                pl.col("__fixation_original_x").alias("location_x_original"),
+                pl.col("__fixation_original_y").alias("location_y_original"),
+            ]
+        )
+    if "list" in saved:
+        expressions.append(
+            pl.col("__fixation_original_location").alias("location_original")
+        )
+    frame = frame.with_columns(expressions)
+    temporary_columns = [
+        column
+        for column in (
+            "__fixation_original_x",
+            "__fixation_original_y",
+            "__fixation_original_location",
+        )
+        if column in frame.columns
+    ]
+    return frame.drop(*temporary_columns)
+
+
+def _resolve_direction(
+    script_direction: str | None,
+    lab_config: object,
+) -> str:
+    if not isinstance(script_direction, str):
+        candidate = getattr(lab_config, "script_direction", None)
+        script_direction = candidate if isinstance(candidate, str) else None
+    return normalize_script_direction(script_direction)
+
+
 def correct_fixations(
     gaze: pm.Gaze,
     stimuli: list,
     lab_config: object,
     algorithm: str | list[str] | None = None,
     algorithm_kwargs: dict | None = None,
+    script_direction: str | None = None,
 ) -> None:
     """
-    Correct the vertical drift of fixation locations for all trials of a session.
+    Correct the drift of fixation locations for all trials of a session.
+
+    For horizontal text, the vertical drift is corrected. For top-to-bottom text,
+    the coordinates are transposed before correction so that text columns become
+    horizontal lines, then the corrected locations are transposed back.
 
     Events on trials without text AOIs, and fixations on the final fixation dot, are
     removed before correction and reinserted unchanged afterwards. Correction therefore
     sees only the real text lines on text trials. The dot geometry is derived from the
-    stimulus config. A fixation counts as a dot fixation only when it is outside the
-    text AOI bounds and within a tolerance around the dot centre derived from the dot
-    radius and the text line height. Missing geometry is an error when correction is
-    active.
+    stimulus config.
 
     Parameters
     ----------
@@ -194,13 +315,16 @@ def correct_fixations(
         A list of Stimulus objects, each containing ``text_stimulus`` data with defined
         AOIs and trial IDs. Their AOIs are consolidated into a single text stimulus.
     lab_config : object
-        Resolved lab configuration with the final fixation dot geometry.
+        Resolved lab configuration with the final fixation dot geometry and script
+        direction.
     algorithm : str | list[str] | None, optional
         Drift correction algorithm or list of algorithms. Defaults to
         ``settings.FIXATION_CORRECTION_ALGORITHM``.
     algorithm_kwargs : dict | None, optional
         Additional tuning parameters passed to the drift algorithms. Defaults to
         ``settings.FIXATION_CORRECTION_KWARGS``.
+    script_direction : str | None, optional
+        Script direction. Defaults to ``lab_config.script_direction``.
 
     Notes
     -----
@@ -213,6 +337,9 @@ def correct_fixations(
     if algorithm_kwargs is None:
         algorithm_kwargs = settings.FIXATION_CORRECTION_KWARGS
 
+    direction = _resolve_direction(script_direction, lab_config)
+    vertical = is_vertical_script(direction)
+
     dot_x, dot_y, dot_radius = validate_final_fix_dot(lab_config)
     stimulus = build_combined_text_stimulus(stimuli)
     character_level = settings.CHAR_IDX_COL in stimulus.aois.columns
@@ -223,14 +350,41 @@ def correct_fixations(
         dot_y,
         dot_radius,
         stimulus,
+        vertical=vertical,
     )
     try:
-        gaze.events.correct_fixations(
-            stimulus,
-            algorithm=algorithm,
-            algorithm_kwargs=algorithm_kwargs,
-            fixation_name=settings.FIXATION,
-            character_level=character_level,
-        )
+        if vertical:
+            gaze.events.frame, saved_locations = _save_original_locations(
+                gaze.events.frame
+            )
+            gaze.events.frame = _transpose_location_columns(gaze.events.frame)
+            transposed_stimulus = build_combined_text_stimulus(
+                stimuli,
+                script_direction="ttb",
+            )
+            gaze.events.correct_fixations(
+                transposed_stimulus,
+                algorithm=algorithm,
+                directionality="left-to-right",
+                algorithm_kwargs=algorithm_kwargs,
+                fixation_name=settings.FIXATION,
+                character_level=character_level,
+            )
+            gaze.events.frame = _sync_split_locations_from_list(gaze.events.frame)
+            gaze.events.frame = _transpose_location_columns(gaze.events.frame)
+            gaze.events.frame = _restore_original_locations(
+                gaze.events.frame,
+                saved_locations,
+            )
+        else:
+            directionality = "right-to-left" if direction == "rtl" else "left-to-right"
+            gaze.events.correct_fixations(
+                stimulus,
+                algorithm=algorithm,
+                directionality=directionality,
+                algorithm_kwargs=algorithm_kwargs,
+                fixation_name=settings.FIXATION,
+                character_level=character_level,
+            )
     finally:
         _restore_excluded_events(gaze, excluded_rows)
