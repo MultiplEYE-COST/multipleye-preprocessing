@@ -22,6 +22,7 @@ import yaml
 from polars.exceptions import ComputeError
 from tqdm import tqdm
 
+from preprocessing.data_collection.data_collection import DataCollection
 from preprocessing.scripts.prepare_language_folder import (
     extract_stimulus_version_number_from_asc,
 )
@@ -541,7 +542,7 @@ def _find_experimenter_doc(
     return None
 
 
-class MultipleyeDataCollection:
+class MultipleyeDataCollection(DataCollection):
     crashed_session_ids: list[str] = []
     skipped_sessions: dict = {}
     num_sessions = 1
@@ -784,154 +785,6 @@ class MultipleyeDataCollection:
 
     def __getitem__(self, item):
         return self.sessions[item]
-
-    def add_recorded_sessions(
-        self,
-        data_root: Path,
-        session_folder_regex: str = "",
-        session_file_suffix: str = "",
-    ) -> None:
-        """
-        Checks what sessions there exist for this data collection and adds them to the sessions dict. No preprocessing or anything happends in here.
-        :param data_root: Specifies the root folder where the data is stored
-        :param session_folder_regex: The pattern for the session folder names. It is possible to include infomration in
-        regex groups. Those will be parsed directly and stored in the session object.
-        Those folders should be in the root folder. If '' then the root folder is assumed to contain all files
-        from the sessions.
-        :param session_file_suffix: The pattern for the session file names. If no pattern is given, all files in the
-        session folder are assumed to be the data files depending on the eye tracker.
-        """
-
-        self.data_root = data_root
-        self.session_folder_regex = session_folder_regex
-
-        found_sessions = []
-
-        if not session_file_suffix and self.eye_tracker == "eyelink":
-            # TODO: add configs for each eye tracker such that we don't always have to loop through all eye trackers
-            #  but can write generic code. E.g. self.eye_tracker.session_file_regex
-            session_file_suffix = r".edf"
-
-        # get a list of all folders in the data folder
-        if session_folder_regex:
-            items = list(os.scandir(self.data_root))
-            pilots = []
-            if self.include_pilots:
-                pilots = list(os.scandir(self.data_root / self.pilot_folder))
-                items = items + pilots
-
-            for item in items:
-                if item.is_dir():
-                    if re.match(session_folder_regex, item.name, re.IGNORECASE):
-                        found_sessions.append(item.name)
-                        # Determine if the session should be included based on filters
-                        keep = True
-                        if self.included_sessions:
-                            keep = item.name in self.included_sessions
-                        elif self.excluded_sessions:
-                            keep = item.name not in self.excluded_sessions
-
-                        if keep:
-                            is_pilot = self.include_pilots and (item in pilots)
-                            session_file = list(
-                                Path(item.path).glob("*" + session_file_suffix)
-                            )
-
-                            if len(session_file) == 0:
-                                self.logger.warning(
-                                    f"No EDF file found for {item.name}, only parsing comprehension answers."
-                                )
-                                self.skipped_sessions[item.name] = Session(
-                                    participant_id=int(item.name.split("_")[0]),
-                                    session_identifier=item.name,
-                                    session_folder_path=Path(item.path),
-                                    session_file_path="unknown",
-                                    session_file_name="unknown",
-                                    is_pilot=is_pilot,
-                                    tested_language=getattr(self, "language", None)
-                                    or "unknown",
-                                )
-                                continue
-
-                            elif len(session_file) > 1:
-                                raise ValueError(
-                                    f"More than one file found in folder {item.name} that match the pattern "
-                                    f"{session_file_suffix}. Please specify a more specific pattern and check "
-                                    f"your data."
-                                )
-                            else:
-                                session_file = session_file[0]
-
-                            # When a core and pilot session share the same identifier,
-                            # keep the core one (added first) and skip the pilot duplicate.
-                            if is_pilot and item.name in self.sessions:
-                                self.logger.warning(
-                                    f"Skipping pilot session '{item.name}' — "
-                                    f"a core session with the same identifier already exists."
-                                )
-                                continue
-
-                            ses = Session(
-                                participant_id=int(item.name.split("_")[0]),
-                                session_identifier=item.name,
-                                session_folder_path=Path(item.path),
-                                session_file_path=session_file,
-                                session_file_name=session_file.name,
-                                is_pilot=is_pilot,
-                                tested_language=getattr(self, "language", None)
-                                or "unknown",
-                            )
-
-                            self.sessions[item.name] = ses
-
-                    else:
-                        if item.name not in settings.IGNORED_SESSION_FOLDERS:
-                            self.logger.warning(
-                                f"Folder in eye-tracking-sessions '{item.name}' does not match the eye-tracking session regex pattern "
-                                f"{session_folder_regex}. Not considered an eye-tracking session."
-                            )
-
-        if not found_sessions:
-            raise ValueError(
-                f"No sessions found (or none matching the ex-/inclusion criteria) in data folder {self.data_root}"
-            )
-
-        unique_sessions = set(found_sessions)
-
-        if len(unique_sessions) != len(found_sessions):
-            # Duplicate names (e.g. pilot + core sharing the same identifier).
-            # Keep the first occurrence (core) and skip pilot duplicates.
-            seen = set()
-            deduped = []
-            skipped = []
-            for name in found_sessions:
-                if name not in seen:
-                    seen.add(name)
-                    deduped.append(name)
-                else:
-                    skipped.append(name)
-            found_sessions[:] = deduped
-            self.logger.warning(
-                f"Removed duplicate session identifiers: {', '.join(skipped)}. "
-                "Pilot sessions with the same name as core sessions were skipped. "
-                "Check your pilot_sessions folder to resolve naming conflicts."
-            )
-
-        if self.included_sessions:
-            missing_included = set(self.included_sessions) - unique_sessions
-            if missing_included:
-                self.logger.warning(
-                    f"The following sessions were specified in 'include_sessions' but "
-                    f"were not found in the data folder: {sorted(missing_included)}"
-                )
-
-        if self.excluded_sessions:
-            missing_excluded = set(self.excluded_sessions) - unique_sessions
-            if missing_excluded:
-                self.logger.warning(
-                    f"The following sessions were specified in 'exclude_sessions' but "
-                    f"were not found in the data folder: {sorted(missing_excluded)}"
-                )
 
     @eyelink
     def convert_edf_to_asc(self) -> None:
@@ -1773,22 +1626,6 @@ class MultipleyeDataCollection:
         environment = self._get_processing_environment()
         environment["pipeline_version"] = self._get_pipeline_version()
         return write_codebook_package(path, environment, availability=availability)
-
-    @staticmethod
-    def _get_pipeline_version() -> str | None:
-        """
-        Return the installed pipeline version, or None if it cannot be determined.
-
-        Returns
-        -------
-        str | None
-            Version string from package metadata, or None on failure.
-        """
-        try:
-            version, _ = get_pipeline_info()
-            return version
-        except (ImportError, KeyError, subprocess.SubprocessError):
-            return None
 
     @staticmethod
     def _get_processing_environment() -> dict:

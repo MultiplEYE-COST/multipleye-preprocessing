@@ -456,6 +456,44 @@ class Settings:
         #: The expected sampling rate of the eye tracker in Hertz.
         self.EXPECTED_SAMPLING_RATE_HZ: int = 1000
 
+        # --- RAW RECORDING FORMAT (generic, non-MultiplEYE datasets) ---
+
+        #: Format the raw recording files are provided in: ``"edf"`` (needs
+        #: edf2asc conversion, MultiplEYE's default), ``"asc"`` (already
+        #: converted, used as-is), or ``"csv"`` (samples already parsed into a
+        #: plain CSV; processing starts directly from that CSV).
+        self.RECORDING_FORMAT: str = "edf"
+
+        #: Name of the time column in the raw CSV. Only used when
+        #: ``RECORDING_FORMAT == "csv"``. Passed to ``pymovements.gaze.from_csv``.
+        self.CSV_TIME_COLUMN: str | None = None
+
+        #: Unit of the time column (e.g. ``"ms"``, ``"s"``). Only used when
+        #: ``RECORDING_FORMAT == "csv"``. Passed to ``pymovements.gaze.from_csv``.
+        self.CSV_TIME_UNIT: str | None = None
+
+        #: Names of the raw pixel-coordinate columns, as ``[x_column,
+        #: y_column]``. Only used when ``RECORDING_FORMAT == "csv"``. Passed to
+        #: ``pymovements.gaze.from_csv``.
+        self.CSV_PIXEL_COLUMNS: list[str] | None = None
+
+        #: Names of the columns that uniquely identify a trial in the raw CSV,
+        #: if the CSV already marks trial boundaries. Only used when
+        #: ``RECORDING_FORMAT == "csv"``. Passed to ``pymovements.gaze.from_csv``.
+        self.CSV_TRIAL_COLUMNS: list[str] | None = None
+
+        #: Explicit polars dtypes for raw CSV columns that need one, keyed by
+        #: column name (e.g. ``{"pupil_diameter": "Float32"}``). Only used when
+        #: ``RECORDING_FORMAT == "csv"``. Passed to ``pymovements.gaze.from_csv``
+        #: as ``column_schema_overrides``.
+        self.CSV_COLUMN_SCHEMA_OVERRIDES: dict[str, str] | None = None
+
+        #: Extra keyword arguments forwarded to polars' ``read_csv`` when
+        #: reading the raw CSV (e.g. ``{"separator": "\t"}``). Only used when
+        #: ``RECORDING_FORMAT == "csv"``. Passed to
+        #: ``pymovements.gaze.from_csv`` as ``read_csv_kwargs``.
+        self.CSV_READ_KWARGS: dict[str, Any] | None = None
+
         # --- CONSTANTS FOR EXPERIMENT ---
 
         #: Expected number of practice trials.

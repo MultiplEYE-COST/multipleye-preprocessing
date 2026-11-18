@@ -8,6 +8,7 @@ from typing import Literal
 
 import polars as pl
 import pymovements as pm
+import yaml
 from pymovements.stimulus import TextStimulus
 
 from ..config import settings
@@ -458,6 +459,68 @@ class LabConfig:
             final_fix_dot_x=fix_dot[0] if fix_dot else None,
             final_fix_dot_y=fix_dot[1] if fix_dot else None,
             final_fix_dot_radius=fix_dot[2] if fix_dot else None,
+        )
+
+    @classmethod
+    def load_generic(
+        cls,
+        config_path: Path,
+    ) -> "LabConfig":
+        """
+        Load the lab configuration for a generic (non-MultiplEYE) data collection.
+
+        The config file is a single YAML file containing all fields needed to convert raw
+        gaze coordinates into degrees of visual angle, plus a few optional descriptive
+        fields -- see ``data/PoTeC/documentation/lab_config.yaml`` for a filled-in example.
+
+        Parameters
+        ----------
+        config_path : Path
+            Path to the dataset's ``lab_config.yaml``.
+
+        Returns
+        -------
+        LabConfig
+            A LabConfig object. ``final_fix_dot_*`` is left unset: the fixation-trigger-dot
+            geometry is a MultiplEYE-specific concept with no generic equivalent.
+        """
+        with open(config_path, encoding="utf8") as f:
+            data = yaml.safe_load(f) or {}
+
+        required = (
+            "name_eye_tracker",
+            "sampling_frequency_hz",
+            "screen_resolution_px",
+            "screen_size_cm",
+            "screen_distance_cm",
+        )
+        missing = [key for key in required if data.get(key) is None]
+        if missing:
+            raise ValueError(
+                f"Lab config '{config_path}' is missing required field(s): "
+                f"{', '.join(missing)}."
+            )
+
+        screen_resolution = tuple(data["screen_resolution_px"])
+        screen_size_cm = tuple(data["screen_size_cm"])
+
+        # Stimuli presented directly on screen (rather than as pre-rendered images, as
+        # MultiplEYE does) have no separate image geometry -- fall back to the screen's
+        # own resolution/size.
+        image_resolution = tuple(data.get("image_resolution_px") or screen_resolution)
+        image_size_cm = tuple(data.get("image_size_cm") or screen_size_cm)
+
+        logger.info(f"Lab config loaded from {config_path}")
+
+        return cls(
+            screen_resolution=screen_resolution,
+            screen_size_cm=screen_size_cm,
+            screen_distance_cm=data["screen_distance_cm"],
+            image_resolution=image_resolution,
+            image_size_cm=image_size_cm,
+            name_eye_tracker=data["name_eye_tracker"],
+            sampling_frequency_hz=data["sampling_frequency_hz"],
+            psychometric_tests=data.get("psychometric_tests") or None,
         )
 
 
