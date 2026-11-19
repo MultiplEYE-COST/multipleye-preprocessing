@@ -129,9 +129,11 @@ filters.
 **The dataset overview records how the data was processed.** `{dcn}_overview.yaml` contains a
 `processing_config` section with the algorithm settings used for the run: event-detection
 parameters (`fixation_method`, `fixation_minimum_duration_ms`, `fixation_velocity_threshold`,
-`saccade_method`, `saccade_minimum_duration`, `saccade_threshold_factor`), velocity-estimation
-parameters (`velocity_estimation_method`, `velocity_smoothing_window_ms`,
-`velocity_polynomial_degree`), fixation drift correction settings (`fixation_correction`,
+`fixation_dispersion_threshold`, `fixation_include_nan`, `saccade_method`,
+`saccade_minimum_duration`, `saccade_threshold`, `saccade_threshold_factor`,
+`saccade_minimum_threshold`, `saccade_include_nan`), velocity-estimation parameters
+(`velocity_estimation_method`, `velocity_smoothing_window_ms`, `velocity_polynomial_degree`,
+`velocity_padding`), fixation drift correction settings (`fixation_correction`,
 `fixation_correction_algorithm`, `fixation_correction_kwargs`), psychometric scoring thresholds
 (`psym_wikivocab_{min,max}_rt`, `psym_stroop_{min,max}_rt`, `psym_flanker_{min,max}_rt`), eye and
 column mappings (`tracked_eye`, `trial_cols`, `trial_col`, `page_col`, `stimulus_col`,

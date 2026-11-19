@@ -335,10 +335,12 @@ determined is `null`.
 This section records the resolved settings used for the run. It covers:
 
 - event detection: `fixation_method`, `fixation_minimum_duration_ms`,
-  `fixation_velocity_threshold`, `saccade_method`, `saccade_minimum_duration`,
-  `saccade_threshold_factor`;
+  `fixation_velocity_threshold`, `fixation_dispersion_threshold`,
+  `fixation_include_nan`, `saccade_method`, `saccade_minimum_duration`,
+  `saccade_threshold`, `saccade_threshold_factor`, `saccade_minimum_threshold`,
+  `saccade_include_nan`;
 - velocity estimation: `velocity_estimation_method`, `velocity_smoothing_window_ms`,
-  `velocity_polynomial_degree`;
+  `velocity_polynomial_degree`, `velocity_padding`;
 - fixation drift correction: `fixation_correction`, `fixation_correction_algorithm`,
   `fixation_correction_kwargs`;
 - psychometric scoring windows: `psym_wikivocab_min_rt`, `psym_wikivocab_max_rt`,

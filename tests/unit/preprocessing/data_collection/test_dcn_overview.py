@@ -826,12 +826,18 @@ class TestProcessingConfig:
         assert pc["fixation_method"] == "ivt"
         assert pc["fixation_minimum_duration_ms"] == 100
         assert pc["fixation_velocity_threshold"] == 20.0
+        assert pc["fixation_dispersion_threshold"] == 1.0
+        assert pc["fixation_include_nan"] is False
         assert pc["saccade_method"] == "microsaccades"
         assert pc["saccade_minimum_duration"] == 6
+        assert pc["saccade_threshold"] == "engbert2015"
         assert pc["saccade_threshold_factor"] == 6.0
+        assert pc["saccade_minimum_threshold"] == 1e-10
+        assert pc["saccade_include_nan"] is False
         assert pc["velocity_estimation_method"] == "savitzky_golay"
         assert pc["velocity_smoothing_window_ms"] == 50
         assert pc["velocity_polynomial_degree"] == 2
+        assert pc["velocity_padding"] == "nearest"
 
     def test_processing_config_records_fixed_design_decisions(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version

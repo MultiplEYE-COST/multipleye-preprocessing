@@ -669,14 +669,30 @@ class Settings:
         #: Velocity threshold for IVT fixation detection in degrees/second.
         self.FIXATION_VELOCITY_THRESHOLD = 20.0
 
+        #: Dispersion threshold for IDT fixation detection in degrees of visual angle.
+        self.FIXATION_DISPERSION_THRESHOLD = 1.0
+
+        #: Whether to split fixation events on missing samples.
+        self.FIXATION_INCLUDE_NAN = False
+
         #: Saccade detection method passed to pymovements (e.g. "microsaccades").
         self.SACCADE_METHOD = "microsaccades"
 
         #: Minimum saccade duration in samples.
         self.SACCADE_MINIMUM_DURATION = 6
 
+        #: Data-driven threshold method or explicit two-value threshold for
+        #: microsaccade detection.
+        self.SACCADE_THRESHOLD = "engbert2015"
+
         #: Noise-adaptive velocity threshold factor for saccade detection.
         self.SACCADE_THRESHOLD_FACTOR = 6.0
+
+        #: Minimum threshold value for microsaccade detection.
+        self.SACCADE_MINIMUM_THRESHOLD = 1e-10
+
+        #: Whether to split saccade events on missing samples.
+        self.SACCADE_INCLUDE_NAN = False
 
         #: Velocity estimation method (e.g. "savitzky_golay").
         self.VELOCITY_ESTIMATION_METHOD = "savitzky_golay"
@@ -686,6 +702,9 @@ class Settings:
 
         #: Polynomial degree used in the Savitzky-Golay velocity filter.
         self.VELOCITY_POLYNOMIAL_DEGREE = 2
+
+        #: Padding used by the Savitzky-Golay velocity filter.
+        self.VELOCITY_PADDING = "nearest"
 
         # --- FIXATION CORRECTION ---
 

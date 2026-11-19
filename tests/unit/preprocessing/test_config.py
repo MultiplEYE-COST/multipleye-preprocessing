@@ -29,12 +29,18 @@ def settings_obj():
         ("FIXATION_METHOD", "ivt"),
         ("FIXATION_MINIMUM_DURATION_MS", 100),
         ("FIXATION_VELOCITY_THRESHOLD", 20.0),
+        ("FIXATION_DISPERSION_THRESHOLD", 1.0),
+        ("FIXATION_INCLUDE_NAN", False),
         ("SACCADE_METHOD", "microsaccades"),
         ("SACCADE_MINIMUM_DURATION", 6),
+        ("SACCADE_THRESHOLD", "engbert2015"),
         ("SACCADE_THRESHOLD_FACTOR", 6.0),
+        ("SACCADE_MINIMUM_THRESHOLD", 1e-10),
+        ("SACCADE_INCLUDE_NAN", False),
         ("VELOCITY_ESTIMATION_METHOD", "savitzky_golay"),
         ("VELOCITY_SMOOTHING_WINDOW_MS", 50),
         ("VELOCITY_POLYNOMIAL_DEGREE", 2),
+        ("VELOCITY_PADDING", "nearest"),
     ],
 )
 def test_settings_default_values(settings_obj, attr, expected):

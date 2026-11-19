@@ -21,6 +21,7 @@ def detect_fixations(
     method: str | None = None,
     minimum_duration: int | None = None,
     velocity_threshold: float | None = None,
+    dispersion_threshold: float | None = None,
 ) -> None:
     """
     This function applies a fixation detection method and then computes
@@ -50,6 +51,10 @@ def detect_fixations(
         Velocity threshold used by the IVT method (in degrees/second).
         Defaults to ``settings.FIXATION_VELOCITY_THRESHOLD``.
 
+    dispersion_threshold : float | None, optional
+        Dispersion threshold used by the IDT method.
+        Defaults to ``settings.FIXATION_DISPERSION_THRESHOLD``.
+
     Notes
     -----
     After detection, fixation properties (e.g., fixation location) are
@@ -61,10 +66,26 @@ def detect_fixations(
         minimum_duration = settings.FIXATION_MINIMUM_DURATION_MS
     if velocity_threshold is None:
         velocity_threshold = settings.FIXATION_VELOCITY_THRESHOLD
+    if dispersion_threshold is None:
+        dispersion_threshold = settings.FIXATION_DISPERSION_THRESHOLD
 
-    gaze.detect(
-        method, minimum_duration=minimum_duration, velocity_threshold=velocity_threshold
-    )
+    if method not in {"ivt", "idt"}:
+        raise ValueError(
+            f"Unsupported fixation detection method {method!r}. "
+            "Supported methods are: ivt, idt."
+        )
+
+    method_kwargs = {
+        "minimum_duration": minimum_duration,
+        "include_nan": settings.FIXATION_INCLUDE_NAN,
+        "name": settings.FIXATION,
+    }
+    if method == "ivt":
+        method_kwargs["velocity_threshold"] = velocity_threshold
+    else:
+        method_kwargs["dispersion_threshold"] = dispersion_threshold
+
+    gaze.detect(method, **method_kwargs)
 
     compute_event_properties(
         gaze, settings.FIXATION, settings.EVENT_PROPERTIES[settings.FIXATION]
@@ -92,6 +113,8 @@ def _auto_eye_components(samples: pl.DataFrame) -> tuple[int, int]:
 def _is_degenerate_group(
     group: pl.DataFrame,
     eye_components: tuple[int, int],
+    threshold: str | tuple[float, float] | list[float] | np.ndarray,
+    minimum_threshold: float,
 ) -> tuple[str | None, int]:
     """Return the reason a trial/page group cannot produce micro-saccades."""
     velocities = group.get_column("velocity").drop_nulls()
@@ -103,12 +126,13 @@ def _is_degenerate_group(
     if values.ndim != 2 or values.shape[1] <= max(eye_components):
         return "invalid_velocity_shape", valid_sample_count
 
-    threshold = compute_threshold(
-        values[:, eye_components],
-        method="engbert2015",
-    )
-    if (threshold < _MINIMUM_SACCADE_THRESHOLD).any():
-        return "zero_variance", valid_sample_count
+    if isinstance(threshold, str):
+        threshold_values = compute_threshold(
+            values[:, eye_components],
+            method=threshold,
+        )
+        if (threshold_values < minimum_threshold).any():
+            return "zero_variance", valid_sample_count
     return None, valid_sample_count
 
 
@@ -132,9 +156,17 @@ def _group_details(
 def _detect_microsaccades_without_degenerate_groups(
     gaze,
     method: str,
+    *,
+    threshold: str | tuple[float, float] | list[float] | np.ndarray,
+    minimum_threshold: float,
     **kwargs,
 ) -> None:
     """Run micro-saccade detection after removing groups that would abort it."""
+    detect_kwargs = {
+        **kwargs,
+        "threshold": threshold,
+        "minimum_threshold": minimum_threshold,
+    }
     samples = getattr(gaze, "samples", None)
     trial_columns = getattr(gaze, "trial_columns", None)
     if (
@@ -143,7 +175,7 @@ def _detect_microsaccades_without_degenerate_groups(
         or not trial_columns
         or "velocity" not in samples.columns
     ):
-        gaze.detect(method, **kwargs)
+        gaze.detect(method, **detect_kwargs)
         return
 
     eye_components = _auto_eye_components(samples)
@@ -161,6 +193,8 @@ def _detect_microsaccades_without_degenerate_groups(
         reason, valid_sample_count = _is_degenerate_group(
             group,
             eye_components,
+            threshold,
+            minimum_threshold,
         )
         if reason is None:
             continue
@@ -175,7 +209,7 @@ def _detect_microsaccades_without_degenerate_groups(
         )
 
     if not bad_row_indices:
-        gaze.detect(method, **kwargs)
+        gaze.detect(method, **detect_kwargs)
         return
 
     session_id = None
@@ -206,7 +240,7 @@ def _detect_microsaccades_without_degenerate_groups(
     original_samples = gaze.samples
     gaze.samples = filtered_samples
     try:
-        gaze.detect(method, **kwargs)
+        gaze.detect(method, **detect_kwargs)
     finally:
         gaze.samples = original_samples
 
@@ -215,6 +249,9 @@ def detect_saccades(
     gaze,
     minimum_duration: int | None = None,
     threshold_factor: float | None = None,
+    threshold: str | tuple[float, float] | list[float] | None = None,
+    minimum_threshold: float | None = None,
+    include_nan: bool | None = None,
 ) -> None:
     """
     This function detects saccades (or micro-saccades) using a
@@ -237,6 +274,18 @@ def detect_saccades(
         more conservative (fewer saccades). Defaults to
         ``settings.SACCADE_THRESHOLD_FACTOR``.
 
+    threshold : str or tuple of float or list of float or None, optional
+        Data-driven threshold method or explicit two-value threshold.
+        Defaults to ``settings.SACCADE_THRESHOLD``.
+
+    minimum_threshold : float | None, optional
+        Minimum threshold value. Defaults to
+        ``settings.SACCADE_MINIMUM_THRESHOLD``.
+
+    include_nan : bool | None, optional
+        Whether to split saccade events on missing samples. Defaults to
+        ``settings.SACCADE_INCLUDE_NAN``.
+
     Notes
     -----
     After detection, saccade properties (e.g., amplitude and peak velocity)
@@ -246,21 +295,34 @@ def detect_saccades(
         minimum_duration = settings.SACCADE_MINIMUM_DURATION
     if threshold_factor is None:
         threshold_factor = settings.SACCADE_THRESHOLD_FACTOR
+    if threshold is None:
+        threshold = settings.SACCADE_THRESHOLD
+    if minimum_threshold is None:
+        minimum_threshold = settings.SACCADE_MINIMUM_THRESHOLD
+    if include_nan is None:
+        include_nan = settings.SACCADE_INCLUDE_NAN
+
+    if isinstance(threshold, list):
+        threshold = tuple(threshold)
 
     method = settings.SACCADE_METHOD
+    method_kwargs = {
+        "minimum_duration": minimum_duration,
+        "threshold_factor": threshold_factor,
+        "threshold": threshold,
+        "minimum_threshold": minimum_threshold,
+        "include_nan": include_nan,
+        "name": settings.SACCADE,
+    }
+
     if method == "microsaccades":
         _detect_microsaccades_without_degenerate_groups(
             gaze,
             method,
-            minimum_duration=minimum_duration,
-            threshold_factor=threshold_factor,
+            **method_kwargs,
         )
     else:
-        gaze.detect(
-            method,
-            minimum_duration=minimum_duration,
-            threshold_factor=threshold_factor,
-        )
+        gaze.detect(method, **method_kwargs)
 
     compute_event_properties(
         gaze, settings.SACCADE, settings.EVENT_PROPERTIES[settings.SACCADE]
