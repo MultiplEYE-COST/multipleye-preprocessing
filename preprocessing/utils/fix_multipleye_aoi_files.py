@@ -123,7 +123,7 @@ def fix_aoi_file(aoi_file_path: str | Path) -> None:
 
     try:
         df = df[col_order]
-    except pl.exeptions.ColumnNotFoundError:
+    except pl.exceptions.ColumnNotFoundError:
         msg = (
             f"The aoi file {aoi_file_path.name}, is missing required columns. "
             f"Please verify that the stimuli files are correct."
