@@ -7,16 +7,12 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from .config import PREPROCESSED_DATA_DIR
-from .routes.collection import (
-    page_router as collection_page_router,
-)
-from .routes.collection import (
-    router as collection_router,
-)
+from .routes.collection import router as collection_router
 from .routes.home import router as home_router
 from .routes.session import api_router as session_api_router
 from .routes.session import router as session_router
 from .routes.swipe import router as swipe_router
+from .routes.views import router as views_router
 
 _HTMX_URL = "https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
 _HTMX_PATH = Path(__file__).parent / "static" / "htmx.min.js"
@@ -42,13 +38,16 @@ app = FastAPI(
 
 app.include_router(home_router)
 app.include_router(collection_router)
-app.include_router(collection_page_router)
+app.include_router(views_router)
 app.include_router(session_router)
 app.include_router(session_api_router)
 app.include_router(swipe_router)
 
-if PREPROCESSED_DATA_DIR.exists():
-    app.mount("/files", StaticFiles(directory=str(PREPROCESSED_DATA_DIR)), name="files")
+app.mount(
+    "/files",
+    StaticFiles(directory=str(PREPROCESSED_DATA_DIR), check_dir=False),
+    name="files",
+)
 
 _ensure_htmx()
 app.mount(

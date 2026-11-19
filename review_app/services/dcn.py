@@ -6,9 +6,11 @@ from preprocessing.models import Dcn
 
 from ..config import PREPROCESSED_DATA_DIR, RAW_DATA_DIR
 from ..models import DcnSummary, SessionSummary
+from . import codebook_store
+from .codebook_checks import compute_session_checks
 from .preflight import run_pipeline_preflight
 from .review import load_review
-from .session_data import compute_checks, read_overview
+from .session_data import read_overview
 
 
 def _discover_dcn_names() -> set[str]:
@@ -75,9 +77,9 @@ def _build_dcn_summary(dcn: Dcn) -> DcnSummary:
         if s.is_pilot:
             n_pilots += 1
 
-    preflight_status: str = "pass"
+    preflight_status: str = "unknown"
     preflight_detail: dict | None = None
-    if has_raw_data or is_processed:
+    if has_raw_data:
         result = run_pipeline_preflight(dcn_name)
         raw_status = result.get("status", "pass")
         preflight_status = "fail" if raw_status == "error" else raw_status
@@ -122,23 +124,19 @@ def list_sessions(dcn_name: str) -> list[SessionSummary]:
 
 
 def _build_session_summary(dcn_name: str, sid: str) -> SessionSummary | None:
-    from ..config import metadata_path, quality_thresholds_path
+    from ..config import metadata_path
     from .session_data import get_field
 
     overview = read_overview(metadata_path(dcn_name, sid) / f"{sid}_overview.yaml")
     if overview is None:
         return None
 
-    pid = get_field(overview, "participant_id") or 0
+    pid = str(get_field(overview, "participant_id") or "")
     is_pilot = get_field(overview, "is_pilot") or False
 
-    thresholds = None
-    t_path = quality_thresholds_path(dcn_name)
-    if t_path.exists():
-        with open(t_path) as f:
-            thresholds = yaml.safe_load(f)
-
-    checks = compute_checks(overview, thresholds)
+    checks = compute_session_checks(
+        overview, dcn_name, codebook_store.dcn_codebook(dcn_name)
+    )
     n_fail = sum(1 for c in checks if c.status == "fail")
     n_warn = sum(1 for c in checks if c.status == "warn")
 

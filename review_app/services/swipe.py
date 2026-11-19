@@ -12,10 +12,11 @@ from ..config import (
     session_overview_path,
     swipe_judgments_path,
 )
+from . import codebook_store
+from .codebook_checks import compute_session_checks
 from .dcn import get_dcn, list_sessions
 from .review import load_review
-from .session_data import compute_checks, get_field, read_overview
-from .thresholds import load_thresholds
+from .session_data import get_field, read_overview
 
 VALID_JUDGMENTS = {"keep", "flag", "skip"}
 
@@ -235,7 +236,7 @@ def swipe_data(dcn_name: str) -> dict:
         language_name = dcn_summary.language
         country_name_str = _country_name(dcn_summary.country)
 
-    thresholds = load_thresholds(dcn_name)
+    codebook = codebook_store.dcn_codebook(dcn_name)
 
     enriched = []
     for s in sessions:
@@ -252,7 +253,7 @@ def swipe_data(dcn_name: str) -> dict:
             p["judgment"] = plot_judgments.get(p["name"])
             p["comment"] = plot_comments.get(p["name"], "")
 
-        checks = compute_checks(overview, thresholds)
+        checks = compute_session_checks(overview, dcn_name, codebook)
         flagged = [
             {
                 "label": c.label,

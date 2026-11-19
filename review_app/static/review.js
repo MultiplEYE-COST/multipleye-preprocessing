@@ -134,7 +134,8 @@
   }
 
   document.addEventListener("keydown", function (e) {
-    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT" || e.target.tagName === "BUTTON") return;
+    if (e.target.isContentEditable) return;
 
     /* ---------- 1-4 keyboard shortcuts (always work) ---------- */
     var statusMap = { "1": "unreviewed", "2": "accepted", "3": "flagged", "4": "excluded" };
@@ -172,6 +173,8 @@
       var ta = document.querySelector('#review-form textarea[name="comment"]');
       if (ta) { e.preventDefault(); ta.focus(); }
     }
+
+    if (!rows.length) return;
 
     var active = document.querySelector(".session-row.active");
     var idx = rows.indexOf(active);

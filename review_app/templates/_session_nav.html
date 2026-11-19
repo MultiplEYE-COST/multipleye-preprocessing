@@ -116,11 +116,17 @@
     if(!sid || !dcn) return Promise.resolve();
     var curStatus = "unreviewed";
     var statusBtn = document.querySelector("#review-form .btn-status.active");
-    if(statusBtn) curStatus = statusBtn.textContent.trim().split(" ")[0];
+    if(statusBtn && statusBtn.dataset.statusKey) curStatus = statusBtn.dataset.statusKey;
+    var issueBtn = document.querySelector("#review-form .btn-issue.active");
+    var curIssue = issueBtn ? issueBtn.dataset.issueKey : "";
+    var reproBox = document.querySelector('#review-form input[name="needs_reprocessing"]');
+    var curRepro = reproBox ? reproBox.checked : false;
     var url = "/api/dcn/" + encodeURIComponent(dcn) + "/session/" + encodeURIComponent(sid) +
               "/review?comment=" + encodeURIComponent(textarea.value) +
               "&status=" + encodeURIComponent(curStatus) +
-              "&reviewer=" + encodeURIComponent(window.getReviewer ? window.getReviewer() : "");
+              "&reviewer=" + encodeURIComponent(window.getReviewer ? window.getReviewer() : "") +
+              "&type_of_issue=" + encodeURIComponent(curIssue) +
+              "&needs_reprocessing=" + (curRepro ? "true" : "false");
     return fetch(url, {method:"POST"}).then(function(r){ return r.text(); }).catch(function(){});
   }
 

@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 ReviewStatus = Literal["unreviewed", "accepted", "flagged", "excluded"]
 CheckStatus = Literal["pass", "warn", "fail"]
@@ -36,7 +36,7 @@ class ReviewAnnotation(BaseModel):
 
 class SessionSummary(BaseModel):
     sid: str
-    pid: int
+    pid: str
     is_pilot: bool
     n_flags: int = 0
     n_fail_flags: int = 0
@@ -50,7 +50,7 @@ class SessionSummary(BaseModel):
 
 class SessionDetail(BaseModel):
     sid: str
-    pid: int
+    pid: str
     is_pilot: bool
     overview: dict = Field(
         default_factory=dict, description="All fields from overview YAML"
@@ -71,13 +71,8 @@ class DcnSummary(BaseModel):
     n_pilots: int = 0
     is_processed: bool = False
     has_raw_data: bool = False
-    preflight_status: CheckStatus = "pass"
+    preflight_status: str = "unknown"
     preflight_detail: dict | None = None
-
-    @field_validator("preflight_status", mode="before")
-    @classmethod
-    def coerce_preflight_status(cls, v: str) -> str:
-        return v if v in ("pass", "warn", "fail") else "fail"
 
     n_reviewed_unreviewed: int = 0
     n_reviewed_accepted: int = 0

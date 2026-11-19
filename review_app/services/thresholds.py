@@ -18,8 +18,12 @@ def load_thresholds(dcn_name: str) -> dict[str, Any] | None:
     path = quality_thresholds_path(dcn_name)
     if not path.exists():
         return None
-    with open(path) as f:
-        return yaml.load(f, Loader=yaml.FullLoader)
+    try:
+        with open(path) as f:
+            data = yaml.load(f, Loader=yaml.FullLoader)
+    except (OSError, yaml.YAMLError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def compare(value: Any, threshold_spec: Any) -> CheckStatus:

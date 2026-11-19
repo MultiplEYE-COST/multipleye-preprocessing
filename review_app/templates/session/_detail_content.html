@@ -2,8 +2,9 @@
   <div>
     <h2>{{ detail.sid }}</h2>
     <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px">
-      {% set parts = detail.sid.split("_") %}
-      PID {{ parts[0] }} · <span title="{{ lang_name(parts[1]) }}">{{ parts[1] }}</span> · {{ parts[2] }}
+      {% set admin = detail.overview.get("administrative", {}) %}
+      PID {{ detail.pid }} &middot; {{ detail.sid }}
+      {% if admin.get("month_of_data_collection") %} &middot; {{ admin.get("month_of_data_collection") }} {{ admin.get("year_of_data_collection", "") }}{% endif %}
       {% if detail.is_pilot %} &middot; <span class="badge badge-warn">pilot</span>{% endif %}
       &middot; <span class="badge badge-{{ detail.review.status }}">{{ detail.review.status }}</span>
       {% set n_flagged = plot_judgments.values() | select('eq', 'flag') | list | length %}
@@ -45,6 +46,8 @@
       </button>
     </div>
     <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+      <a href="/dcn/{{ dcn }}/view/trial?f=session.session_identifier:eq:{{ detail.sid }}" class="btn btn-sm" style="text-decoration:none;text-align:center">Trials</a>
+      <a href="/dcn/{{ dcn }}/participant/{{ participant_key }}" class="btn btn-sm" style="text-decoration:none;text-align:center">Participant</a>
       <a href="/dcn/{{ dcn }}" class="btn btn-sm">&larr; back</a>
       <a href="/dcn/{{ dcn }}/swipe?session={{ detail.sid }}" class="btn btn-sm" style="text-decoration:none;background:var(--accent);color:#fff;border-color:var(--accent);text-align:center" title="Swipe review starting from this session">
         <i class="fa-solid fa-arrows-left-right" style="margin-right:4px"></i>Swipe

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}MultiplEYE Data Review — {{ dcn_name }} — {{ view_title }}{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h2>{{ view_title }} {{ row.key }}</h2>
+    <div class="subtle" style="margin-top:4px">
+      {{ dcn_name }}
+      {% for parent_view, parent_key in row.parents.items() %}
+      &middot; {{ parent_view }}: {{ parent_key }}
+      {% endfor %}
+    </div>
+  </div>
+  <div style="display:flex;gap:6px">
+    <a href="{{ return_to or '/dcn/' ~ dcn_name ~ '/view/' ~ view_id }}" class="btn btn-sm">&larr; {{ view_title }} view</a>
+    <a href="/dcn/{{ dcn_name }}" class="btn btn-sm">&larr; collection</a>
+  </div>
+</div>
+
+{% if row.view == "session" %}
+<div class="card">
+  <p>Session review, checks and gaze plots are available on the dedicated session page.</p>
+  <a class="btn btn-sm btn-primary" href="/dcn/{{ dcn_name }}/session/{{ row.key }}">Open session review</a>
+</div>
+{% endif %}
+
+{% for category, items in sections.items() %}
+<div class="card">
+  <h3 style="margin-bottom:0.75rem">{{ category }}</h3>
+  <table class="detail-table">
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <th title="{{ item.field.description }}">{{ item.field.feature_label }}{% if item.field.unit %} <span class="unit">({{ item.field.unit }})</span>{% endif %}</th>
+        <td>
+          {% if item.availability and not item.availability.is_available %}
+          <span class="cell-unavailable" title="{{ item.availability.available }}{% if item.availability.reason %}: {{ item.availability.reason }}{% endif %}">not available</span>
+          {% else %}
+          <pre class="value-long">{{ item.value | format_value_long(item.field) }}</pre>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+
+{% if related %}
+<div class="card">
+  <h3 style="margin-bottom:0.75rem">Related records</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:6px">
+    {% for record in related %}
+    <a class="pill" href="{{ record.url }}">{{ record.title }}: {{ record.key }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

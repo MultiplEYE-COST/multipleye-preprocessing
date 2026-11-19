@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}MultiplEYE Data Review — {{ dcn_name }}{% endblock %}
+{% block content %}
+{% set admin = dataset_overview.get("administrative", {}) %}
+<div class="topbar">
+  <div>
+    <h2>{{ dcn_name }}</h2>
+    <div class="subtle" style="margin-top:4px">
+      {% if admin.get("tested_language") %}{{ admin.get("tested_language") }}{% endif %}
+      {% if admin.get("country") %} &middot; {{ admin.get("country") }}{% endif %}
+      {% if admin.get("city") %} &middot; {{ admin.get("city") }}{% endif %}
+      {% if admin.get("estimated_end_year") %} &middot; {{ admin.get("estimated_end_year") }}{% endif %}
+      {% if admin.get("number_of_sessions") is not none %} &middot; {{ admin.get("number_of_sessions") }} sessions{% endif %}
+      {% if admin.get("number_of_pilots") %} &middot; {{ admin.get("number_of_pilots") }} pilots{% endif %}
+    </div>
+  </div>
+  <div style="text-align:right">
+    <div class="subtle" style="font-size:0.78rem">
+      Codebook {{ codebook_status.version or "unknown" }}
+      {% if codebook_status.source == "repo" %}(repository fallback){% endif %}
+    </div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px">
+      <button class="btn btn-sm" onclick="openFolder('{{ dcn_name }}','input')" title="Open raw data folder">Input</button>
+      <button class="btn btn-sm" onclick="openFolder('{{ dcn_name }}','output')" title="Open preprocessed data folder">Output</button>
+      <a href="/dcn/{{ dcn_name }}/swipe" class="btn btn-sm">Swipe</a>
+      <a href="/" class="btn btn-sm">&larr; collections</a>
+    </div>
+  </div>
+</div>
+
+{% if preflight %}
+<details class="card" style="padding:0;border-left:3px solid var(--{{ 'fail' if preflight_status == 'fail' else ('warn' if preflight_status == 'warn' else 'border') }})"{% if preflight_status in ('fail', 'warn') %} open{% endif %}>
+  <summary style="cursor:pointer;padding:0.6rem 1rem;display:flex;align-items:center;gap:8px;font-size:0.85rem">
+    <span style="font-weight:600;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-secondary)">Preflight</span>
+    <span class="pill pill-{{ preflight_status }}">{{ preflight_status }}</span>
+    <span class="subtle">{{ preflight.get("n_errors", 0) }} errors &middot; {{ preflight.get("n_sessions", 0) }} sessions &middot; {{ (preflight.get("run_at") or "")[:10] }}</span>
+  </summary>
+  <div style="padding:0 1rem 0.75rem;font-size:0.85rem;border-top:1px solid var(--border);max-height:50vh;overflow:auto">
+    {% if preflight.get("error_groups") %}
+    {% for label, items in preflight.get("error_groups", {}).items() %}
+    <div style="margin-top:0.5rem"><strong>{{ label }}</strong> ({{ items|length }})</div>
+    {% for item in items %}
+    <div style="padding-left:1rem;font-family:monospace;font-size:0.78rem;color:var(--text-secondary)">{{ item }}</div>
+    {% endfor %}
+    {% endfor %}
+    {% endif %}
+    {% if preflight.get("stderr") %}<pre class="value-long" style="margin-top:0.5rem;color:var(--text-secondary)">{{ preflight.get("stderr") }}</pre>{% endif %}
+    <button class="btn btn-sm" style="margin-top:0.5rem" onclick="rerunPreflight('{{ dcn_name }}')">Re-run preflight</button>
+  </div>
+</details>
+{% elif not is_processed %}
+<div class="card" style="border-left:3px solid var(--warn)">
+  <strong>Not processed.</strong>
+  <span class="subtle">This collection has raw data but no preprocessed output yet. Run the pipeline from the data/ folder, then reload.</span>
+</div>
+{% endif %}
+
+<details class="card" style="padding:0">
+  <summary style="cursor:pointer;padding:0.6rem 1rem;display:flex;align-items:center;gap:8px;font-size:0.85rem">
+    <span style="font-weight:600;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-secondary)">Codebook</span>
+    <span class="subtle">{{ codebook_status.version or "unknown" }}</span>
+    {% if codebook_status.hash %}<span class="subtle" style="font-family:monospace;font-size:0.72rem">{{ codebook_status.hash[:19] }}…</span>{% endif %}
+    {% if codebook_status.source == "repo" %}<span class="pill pill-warn">repository fallback</span>{% endif %}
+  </summary>
+  <div style="padding:0 1rem 0.75rem;font-size:0.82rem;border-top:1px solid var(--border)">
+    <p class="subtle" style="margin-top:0.4rem">{{ codebook.credit }}</p>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin-top:0.4rem">
+      {% for key, value in codebook.environment.items() %}
+      <span class="subtle">{{ key }}</span><span>{{ value }}</span>
+      {% endfor %}
+    </div>
+    <p class="subtle" style="margin-top:0.4rem">{{ availability.values() | selectattr("is_available") | list | length }} of {{ availability | length }} fields available in this collection.</p>
+  </div>
+</details>
+
+<div class="view-tabs" id="view-tabs">
+  {% for tab in view_tabs %}
+  <a href="{{ tab.href }}"
+     class="view-tab{% if tab.active %} active{% endif %}"
+     data-view="{{ tab.view_id }}">{{ tab.title }}</a>
+  {% endfor %}
+</div>
+
+<div id="view-content">
+  {% include "views/_table.html" %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/views.js" defer></script>
+<script>
+function openFolder(dcnName, which) {
+  fetch('/api/dcn/' + encodeURIComponent(dcnName) + '/open/' + which)
+    .catch(function () {});
+}
+function rerunPreflight(dcnName) {
+  fetch('/api/dcn/' + encodeURIComponent(dcnName) + '/preflight/rerun', {method: 'POST'})
+    .then(function () { window.location.reload(); })
+    .catch(function () { window.location.reload(); });
+}
+</script>
+{% endblock %}

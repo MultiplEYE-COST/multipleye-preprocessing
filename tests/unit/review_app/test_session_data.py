@@ -173,11 +173,11 @@ def test_compute_checks_scalar_threshold_does_not_crash() -> None:
     """
     overview = {
         "session_total_data_loss_ratio": 0.02,
-        "num_practice_trials": 2,
+        "num_calibrations": 2,
     }
     thresholds = {
         "session_total_data_loss_ratio": 0.1,
-        "num_practice_trials": 2,
+        "num_calibrations": 2,
     }
     checks = compute_checks(overview, thresholds)
     check_map = {c.check_id: c for c in checks}
@@ -185,5 +185,5 @@ def test_compute_checks_scalar_threshold_does_not_crash() -> None:
     assert check_map["session_total_data_loss_ratio"].status == "pass"
     assert check_map["session_total_data_loss_ratio"].threshold == "0.1"
 
-    assert check_map["num_practice_trials"].status == "pass"
-    assert check_map["num_practice_trials"].threshold == "2"
+    assert check_map["num_calibrations"].status == "pass"
+    assert check_map["num_calibrations"].threshold == "2"

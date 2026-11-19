@@ -20,8 +20,11 @@ def _load_all_reviews(dcn_name: str) -> dict[str, dict]:
     path = reviews_file_path(dcn_name)
     if not path.exists():
         return {}
-    with open(path) as f:
-        data = yaml.load(f, Loader=yaml.FullLoader)
+    try:
+        with open(path) as f:
+            data = yaml.load(f, Loader=yaml.FullLoader)
+    except (OSError, yaml.YAMLError):
+        return {}
     return data if isinstance(data, dict) else {}
 
 

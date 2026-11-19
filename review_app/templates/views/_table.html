@@ -1,0 +1,110 @@
+{% set available_count = rows | length %}
+<div class="view-toolbar">
+  <div class="toolbar-group">
+    <label class="subtle" for="group-select">Columns</label>
+    <select id="group-select">
+      {% for option in group_options %}
+      <option value="{{ option.group_id }}"{% if option.selected %} selected{% endif %}>{{ option.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="toolbar-group grow">
+    <label class="subtle" for="view-search">Search</label>
+    <input id="view-search" class="search" style="margin:0" type="search" value="{{ query }}" placeholder="Search this view…">
+  </div>
+  <div class="subtle" style="white-space:nowrap">{{ total }} row{% if total != 1 %}s{% endif %}</div>
+</div>
+
+{% set op_labels = {"eq": "=", "ne": "≠", "contains": "contains", "gt": ">", "ge": "≥", "lt": "<", "le": "≤"} %}
+{% if filters %}
+<div class="filter-chips">
+  {% for f in filters %}
+  {% set filter_field = codebook.field(f.variable_id) %}
+  <span class="filter-chip" data-filter="{{ f.to_query() }}">
+    {{ filter_field.feature_label if filter_field else f.variable_id }} {{ op_labels.get(f.operator, f.operator) }} {{ f.value }}
+    <button type="button" class="filter-chip-remove" title="Remove filter">&times;</button>
+  </span>
+  {% endfor %}
+  <button type="button" class="btn btn-sm clear-filters">Clear filters</button>
+</div>
+{% endif %}
+
+<details class="filter-builder">
+  <summary>Add filter</summary>
+  <form id="filter-form" class="filter-form">
+    <select name="variable_id" id="filter-variable">
+      {% for field in filter_fields %}
+      <option value="{{ field.variable_id }}">{{ field.feature_label }} — {{ field.variable_id }}</option>
+      {% endfor %}
+    </select>
+    <select name="operator" id="filter-operator">
+      <option value="eq">equals</option>
+      <option value="ne">not equals</option>
+      <option value="contains">contains</option>
+      <option value="gt">&gt;</option>
+      <option value="ge">&gt;=</option>
+      <option value="lt">&lt;</option>
+      <option value="le">&lt;=</option>
+    </select>
+    <input name="value" id="filter-value" class="search" style="margin:0" placeholder="Value">
+    <button class="btn btn-sm btn-primary" type="submit">Apply</button>
+  </form>
+  <div class="subtle" style="font-size:0.78rem;margin-top:4px">
+    Filters stay in the URL when switching views. Filters from other views are applied through the codebook relations.
+  </div>
+</details>
+
+{% if rows %}
+<div class="table-wrap">
+<table class="data-table">
+  <thead>
+    <tr>
+      {% for field in columns %}
+      <th title="{{ field.description }}">
+        {{ field.feature_label }}{% if field.unit %}<span class="unit">({{ field.unit }})</span>{% endif %}
+      </th>
+      {% endfor %}
+      {% if view_id == "session" %}<th>Review</th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    {% set href = row_url(row) %}
+    <tr{% if href %} class="clickable" data-href="{{ href }}"{% endif %}>
+      {% for field in columns %}
+      {% set av = availability.get(field.variable_id) %}
+      <td>
+        {% if av and not av.is_available %}
+        <span class="cell-unavailable" title="{{ av.available }}{% if av.reason %}: {{ av.reason }}{% endif %}">&mdash;</span>
+        {% else %}
+        {{ row.value(field.variable_id) | format_value(field) }}
+        {% endif %}
+      </td>
+      {% endfor %}
+      {% if view_id == "session" %}
+      {% set review = reviews.get(row.key) %}
+      <td>
+        {% if review %}
+        {% set badge = {"unreviewed": "badge-unreviewed", "accepted": "badge-pass", "flagged": "badge-fail", "excluded": "badge-warn"} %}
+        <span class="badge {{ badge.get(review.status, 'badge-unreviewed') }}">{{ review.status }}</span>
+        {% if review.needs_reprocessing %}<span title="Needs reprocessing" style="color:var(--warn)">↻</span>{% endif %}
+        {% if review.reviewer %}<span class="subtle" style="display:block;font-size:0.72rem">{{ review.reviewer }}</span>{% endif %}
+        {% endif %}
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="pager">
+  <span class="subtle">{{ start + 1 }}–{{ start + available_count }} of {{ total }}</span>
+  <div style="display:flex;gap:6px">
+    {% if previous_url %}<a class="btn btn-sm" href="{{ previous_url }}" data-page>&larr; previous</a>{% endif %}
+    {% if next_url %}<a class="btn btn-sm" href="{{ next_url }}" data-page>next &rarr;</a>{% endif %}
+  </div>
+</div>
+{% else %}
+<div class="card"><p class="subtle">No rows for this view. The collection may be unprocessed, the search may be empty, or the filters may exclude everything.</p></div>
+{% endif %}

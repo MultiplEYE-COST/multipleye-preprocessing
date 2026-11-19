@@ -207,16 +207,6 @@ CHECK_REGISTRY: list[dict] = [
         "category": "Experiment",
     },
     {
-        "field": "num_experiment_trials",
-        "label": "Experiment trials completed",
-        "category": "Experiment",
-    },
-    {
-        "field": "num_practice_trials",
-        "label": "Practice trials completed",
-        "category": "Experiment",
-    },
-    {
         "field": "was_session_interrupted",
         "label": "Session interrupted",
         "category": "Experiment",
@@ -326,8 +316,11 @@ def read_overview(path: Path) -> dict | None:
     """
     if not path.exists():
         return None
-    with open(path) as f:
-        return yaml.load(f, Loader=yaml.FullLoader)
+    try:
+        with open(path) as f:
+            return yaml.load(f, Loader=yaml.FullLoader)
+    except (OSError, yaml.YAMLError):
+        return None
 
 
 def get_field(overview: dict, field: str) -> object | None:
@@ -414,6 +407,7 @@ def build_session_detail(
     thresholds: dict | None,
     dcn_name: str,
     sid: str,
+    codebook: object | None = None,
 ) -> SessionDetail:
     """Build a SessionDetail from overview YAML, review, and thresholds.
 
@@ -424,9 +418,14 @@ def build_session_detail(
     :param sid: Session identifier.
     :returns: SessionDetail model.
     """
-    pid = get_field(overview, "participant_id") or 0
+    pid = str(get_field(overview, "participant_id") or "")
     is_pilot = get_field(overview, "is_pilot") or False
-    checks = compute_checks(overview, thresholds)
+    if codebook is not None:
+        from .codebook_checks import compute_session_checks
+
+        checks = compute_session_checks(overview, dcn_name, codebook)
+    else:
+        checks = compute_checks(overview, thresholds)
 
     from ..config import sanity_checks_path
 

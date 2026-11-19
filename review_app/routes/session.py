@@ -5,8 +5,10 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
+from ..services import codebook_store
 from ..services.review import load_review, save_review
 from ..services.session_data import build_session_detail, read_overview
+from ..services.view_data import resolve_participant_key
 from ..services.swipe import (
     list_plot_data,
     load_plot_comments_dict,
@@ -36,7 +38,13 @@ async def session_page(
         )
     thresholds = load_thresholds(dcn)
     review = load_review(dcn, sid)
-    detail = build_session_detail(ov, review, thresholds, dcn, sid)
+    codebook = codebook_store.dcn_codebook(dcn)
+    detail = build_session_detail(
+        ov, review, thresholds, dcn, sid, codebook
+    )
+    participant_key = resolve_participant_key(
+        codebook_store.dcn_path(dcn), detail.pid, detail.sid, codebook
+    )
 
     plots = list_plot_data(dcn, sid)
     plot_judgments = load_plot_judgments_dict(dcn, sid)
@@ -51,6 +59,7 @@ async def session_page(
         detail=detail,
         dcn=dcn,
         sessions=sessions,
+        participant_key=participant_key,
         plots=plots,
         plot_judgments=plot_judgments,
         plot_comments=plot_comments,
@@ -84,7 +93,13 @@ async def session_content_partial(
         )
     thresholds = load_thresholds(dcn)
     review = load_review(dcn, sid)
-    detail = build_session_detail(ov, review, thresholds, dcn, sid)
+    codebook = codebook_store.dcn_codebook(dcn)
+    detail = build_session_detail(
+        ov, review, thresholds, dcn, sid, codebook
+    )
+    participant_key = resolve_participant_key(
+        codebook_store.dcn_path(dcn), detail.pid, detail.sid, codebook
+    )
 
     plots = list_plot_data(dcn, sid)
     plot_judgments = load_plot_judgments_dict(dcn, sid)
@@ -99,6 +114,7 @@ async def session_content_partial(
         detail=detail,
         dcn=dcn,
         sessions=sessions,
+        participant_key=participant_key,
         plots=plots,
         plot_judgments=plot_judgments,
         plot_comments=plot_comments,
@@ -127,7 +143,9 @@ async def session_detail(
         )
     thresholds = load_thresholds(dcn)
     review = load_review(dcn, sid)
-    detail = build_session_detail(ov, review, thresholds, dcn, sid)
+    detail = build_session_detail(
+        ov, review, thresholds, dcn, sid, codebook_store.dcn_codebook(dcn)
+    )
     return detail.model_dump()
 
 
@@ -204,6 +222,9 @@ async def session_review_save(
 ):
     from ..config import session_overview_path
 
+    overview_path = session_overview_path(dcn, sid)
+    if not overview_path.exists():
+        raise HTTPException(status_code=404, detail=f"Session '{sid}' not found")
     form = await request.form()
     comment = str(form.get("comment", request.query_params.get("comment", "")))
     reviewer = str(form.get("reviewer", request.query_params.get("reviewer", "")))
@@ -213,18 +234,25 @@ async def session_review_save(
     needs_reprocessing = form.get(
         "needs_reprocessing", request.query_params.get("needs_reprocessing", "false")
     ) in ("true", "True", "1")
-    annotation = save_review(
-        dcn,
-        sid,
-        status=status,
-        reviewer=reviewer,
-        comment=comment,
-        type_of_issue=type_of_issue,
-        needs_reprocessing=needs_reprocessing,
-    )
-    ov = read_overview(session_overview_path(dcn, sid))
+    try:
+        annotation = save_review(
+            dcn,
+            sid,
+            status=status,
+            reviewer=reviewer,
+            comment=comment,
+            type_of_issue=type_of_issue,
+            needs_reprocessing=needs_reprocessing,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    ov = read_overview(overview_path)
+    if ov is None:
+        raise HTTPException(status_code=404, detail=f"Session '{sid}' not found")
     thresholds = load_thresholds(dcn)
-    detail = build_session_detail(ov, annotation, thresholds, dcn, sid)
+    detail = build_session_detail(
+        ov, annotation, thresholds, dcn, sid, codebook_store.dcn_codebook(dcn)
+    )
     html = render(
         "session/_review_form.html",
         request=request,
