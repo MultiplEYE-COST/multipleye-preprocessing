@@ -660,6 +660,9 @@ class Settings:
 
         # --- EVENT DETECTION ---
 
+        #: Eye selection passed to pymovements event detection.
+        self.DETECTION_EYE = "auto"
+
         #: Fixation detection method passed to pymovements (e.g. "ivt", "idt").
         self.FIXATION_METHOD = "ivt"
 
@@ -719,6 +722,11 @@ class Settings:
         #: ``{"x_thresh": 250.0}``. In ensemble mode an entry is routed only to the candidate
         #: algorithms whose signature accepts it, but it fans out to all of them.
         self.FIXATION_CORRECTION_KWARGS = {}
+
+        # --- DATA LOSS ---
+
+        #: Sample column used to detect missing data.
+        self.DATA_LOSS_MISSINGNESS_COLUMN = "pixel"
 
         # --- PSYCHOMETRIC TEST THRESHOLDS ---
 

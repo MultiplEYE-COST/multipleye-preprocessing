@@ -26,6 +26,8 @@ def settings_obj():
         ("RUN_FIXATION_CORRECTION", True),
         ("SANITY_CHECKS_FOLDER", Path("sanity_checks/")),
         ("METADATA_FOLDER", Path("metadata/")),
+        ("DETECTION_EYE", "auto"),
+        ("DATA_LOSS_MISSINGNESS_COLUMN", "pixel"),
         ("FIXATION_METHOD", "ivt"),
         ("FIXATION_MINIMUM_DURATION_MS", 100),
         ("FIXATION_VELOCITY_THRESHOLD", 20.0),

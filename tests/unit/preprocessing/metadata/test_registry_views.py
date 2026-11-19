@@ -128,6 +128,7 @@ DATASET_PATHS = {
     *_paths(
         "processing_config",
         (
+            "detection_eye",
             "fixation_method",
             "fixation_minimum_duration_ms",
             "fixation_velocity_threshold",

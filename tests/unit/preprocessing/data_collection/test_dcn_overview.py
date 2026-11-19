@@ -823,6 +823,7 @@ class TestProcessingConfig:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         pc = overview["processing_config"]
 
+        assert pc["detection_eye"] == "auto"
         assert pc["fixation_method"] == "ivt"
         assert pc["fixation_minimum_duration_ms"] == 100
         assert pc["fixation_velocity_threshold"] == 20.0

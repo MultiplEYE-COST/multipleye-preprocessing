@@ -79,6 +79,7 @@ def detect_fixations(
         "minimum_duration": minimum_duration,
         "include_nan": settings.FIXATION_INCLUDE_NAN,
         "name": settings.FIXATION,
+        "eye": settings.DETECTION_EYE,
     }
     if method == "ivt":
         method_kwargs["velocity_threshold"] = velocity_threshold
@@ -313,6 +314,7 @@ def detect_saccades(
         "minimum_threshold": minimum_threshold,
         "include_nan": include_nan,
         "name": settings.SACCADE,
+        "eye": settings.DETECTION_EYE,
     }
 
     if method == "microsaccades":

@@ -685,6 +685,16 @@ FIELDS = (
         notes="Recorded for reproducibility. Applied only when fixation_correction is true.",
     ),
     _field(
+        "processing_config.detection_eye",
+        "Detection eye",
+        "Eye selection used for event detection.",
+        "string",
+        "processing_config",
+        "provenance",
+        allowed_values="auto,left,right",
+        notes="A null value means no eye selection.",
+    ),
+    _field(
         "processing_config.fixation_method",
         "Fixation detection method",
         "Fixation detection method passed to pymovements.",
@@ -960,6 +970,7 @@ FIELDS = (
         "string",
         "processing_config",
         "provenance",
+        allowed_values="pixel,position",
     ),
     _field(
         "processing_config.per_trial_loss_weighting",

@@ -218,6 +218,8 @@ psym_flanker_max_rt: .inf
 tracked_eye: ["L", "R", "RIGHT", "LEFT"]
 
 # --- EVENT DETECTION ---
+# Eye selection for event detection. Valid values are "auto", "left", "right" or null.
+detection_eye: "auto"
 # Fixation detection method passed to pymovements.
 fixation_method: "ivt"
 # Minimum fixation duration in milliseconds.
@@ -248,6 +250,10 @@ velocity_smoothing_window_ms: 50
 velocity_polynomial_degree: 2
 # Padding used by the Savitzky-Golay velocity filter.
 velocity_padding: "nearest"
+
+# --- DATA LOSS ---
+# Sample column used to detect missing data.
+data_loss_missingness_column: "pixel"
 
 # --- FIXATION CORRECTION ---
 # Whether to correct fixation locations for line or column drift.

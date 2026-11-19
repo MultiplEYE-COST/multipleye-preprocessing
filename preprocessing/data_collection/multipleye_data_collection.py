@@ -1752,6 +1752,7 @@ class MultipleyeDataCollection:
             },
             "processing_environment": self._get_processing_environment(),
             "processing_config": {
+                "detection_eye": settings.DETECTION_EYE,
                 "fixation_method": settings.FIXATION_METHOD,
                 "fixation_minimum_duration_ms": settings.FIXATION_MINIMUM_DURATION_MS,
                 "fixation_velocity_threshold": settings.FIXATION_VELOCITY_THRESHOLD,
@@ -1786,7 +1787,7 @@ class MultipleyeDataCollection:
                 "aoi_enlargement": "half_line_spacing" if self.enlarge_aois else "none",
                 "reading_measures_null_fill": 0,
                 "scanpath_drop_unmapped": True,
-                "data_loss_missingness_column": "pixel",
+                "data_loss_missingness_column": settings.DATA_LOSS_MISSINGNESS_COLUMN,
                 "per_trial_loss_weighting": "equal",
             },
             "data_quality": {

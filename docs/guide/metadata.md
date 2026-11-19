@@ -334,13 +334,14 @@ determined is `null`.
 
 This section records the resolved settings used for the run. It covers:
 
-- event detection: `fixation_method`, `fixation_minimum_duration_ms`,
+- event detection: `detection_eye`, `fixation_method`, `fixation_minimum_duration_ms`,
   `fixation_velocity_threshold`, `fixation_dispersion_threshold`,
   `fixation_include_nan`, `saccade_method`, `saccade_minimum_duration`,
   `saccade_threshold`, `saccade_threshold_factor`, `saccade_minimum_threshold`,
   `saccade_include_nan`;
 - velocity estimation: `velocity_estimation_method`, `velocity_smoothing_window_ms`,
   `velocity_polynomial_degree`, `velocity_padding`;
+- data loss: `data_loss_missingness_column`;
 - fixation drift correction: `fixation_correction`, `fixation_correction_algorithm`,
   `fixation_correction_kwargs`;
 - psychometric scoring windows: `psym_wikivocab_min_rt`, `psym_wikivocab_max_rt`,
@@ -348,7 +349,7 @@ This section records the resolved settings used for the run. It covers:
 - column mappings: `trial_cols`, `trial_col`, `page_col`, `stimulus_col`, `word_idx_col`,
   `char_idx_col`;
 - fixed design decisions: `aoi_enlargement`, `reading_measures_null_fill`,
-  `scanpath_drop_unmapped`, `data_loss_missingness_column`, `per_trial_loss_weighting`.
+  `scanpath_drop_unmapped`, `per_trial_loss_weighting`.
 
 `aoi_enlargement` is `none` when fixation correction is active, because corrected fixations land
 on the AOIs. It is `half_line_spacing` when correction is off.

@@ -17,6 +17,7 @@ def test_detect_fixations_uses_settings(monkeypatch):
     monkeypatch.setattr(settings, "FIXATION_MINIMUM_DURATION_MS", 250)
     monkeypatch.setattr(settings, "FIXATION_DISPERSION_THRESHOLD", 2.5)
     monkeypatch.setattr(settings, "FIXATION_INCLUDE_NAN", True)
+    monkeypatch.setattr(settings, "DETECTION_EYE", "left")
     monkeypatch.setattr(detect_module, "compute_event_properties", lambda *a, **k: None)
 
     gaze = _FakeGaze()
@@ -29,6 +30,7 @@ def test_detect_fixations_uses_settings(monkeypatch):
                 "minimum_duration": 250,
                 "include_nan": True,
                 "name": "fixation",
+                "eye": "left",
                 "dispersion_threshold": 2.5,
             },
         )
@@ -53,6 +55,7 @@ def test_detect_fixations_explicit_args_override_settings(monkeypatch):
                 "minimum_duration": 50,
                 "include_nan": False,
                 "name": "fixation",
+                "eye": "auto",
                 "velocity_threshold": 15.0,
             },
         )
@@ -76,6 +79,7 @@ def test_detect_saccades_uses_settings(monkeypatch):
     monkeypatch.setattr(settings, "SACCADE_THRESHOLD_FACTOR", 7.5)
     monkeypatch.setattr(settings, "SACCADE_MINIMUM_THRESHOLD", 1e-9)
     monkeypatch.setattr(settings, "SACCADE_INCLUDE_NAN", True)
+    monkeypatch.setattr(settings, "DETECTION_EYE", "right")
     monkeypatch.setattr(detect_module, "compute_event_properties", lambda *a, **k: None)
 
     gaze = _FakeGaze()
@@ -91,6 +95,7 @@ def test_detect_saccades_uses_settings(monkeypatch):
                 "minimum_threshold": 1e-9,
                 "include_nan": True,
                 "name": "saccade",
+                "eye": "right",
             },
         )
     ]
@@ -125,6 +130,7 @@ def test_detect_saccades_explicit_args_override_settings(monkeypatch):
                 "minimum_threshold": 1e-8,
                 "include_nan": False,
                 "name": "saccade",
+                "eye": "auto",
             },
         )
     ]

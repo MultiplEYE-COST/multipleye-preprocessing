@@ -79,6 +79,8 @@ These control fixation/saccade detection and velocity estimation. The defaults m
 published MultiplEYE pipeline. Change them only with a clear methodological reason. Whatever
 values are used are recorded in the dataset overview `processing_config` section.
 
+- `DETECTION_EYE`: eye selection for event detection (`auto`, `left`, `right` or null;
+  default: `auto`).
 - `FIXATION_METHOD`: fixation detection method (`ivt` or `idt`; default: `ivt`).
 - `FIXATION_MINIMUM_DURATION_MS`: minimum fixation duration in milliseconds (default: `100`).
 - `FIXATION_VELOCITY_THRESHOLD`: IVT velocity threshold in degrees/second (default: `20.0`).
@@ -96,6 +98,11 @@ values are used are recorded in the dataset overview `processing_config` section
 - `VELOCITY_SMOOTHING_WINDOW_MS`: velocity window length in milliseconds (default: `50`).
 - `VELOCITY_POLYNOMIAL_DEGREE`: Savitzky-Golay polynomial degree (default: `2`).
 - `VELOCITY_PADDING`: Savitzky-Golay padding (default: `nearest`).
+
+### Data Loss Settings
+
+- `DATA_LOSS_MISSINGNESS_COLUMN`: sample column used to detect missing data
+  (default: `pixel`).
 
 ### Fixation Correction Settings
 
