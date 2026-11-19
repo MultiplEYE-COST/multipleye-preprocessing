@@ -14,7 +14,7 @@ of the pEYEpline.
 Here, the eye-tracking data will be processed.
 The {ref}`reading_measures` section documents the reading measures that can be calculated from
 preprocessed data.
-The {ref}`fixation_correction` section explains vertical drift correction and how it changes the
+The {ref}`fixation_correction` section explains drift correction and how it changes the
 fixation, scanpath and reading-measure outputs.
 Additionally, the {ref}`psychometric_tests` section describes how to process
 the psychometric tests. This step is rather fast.

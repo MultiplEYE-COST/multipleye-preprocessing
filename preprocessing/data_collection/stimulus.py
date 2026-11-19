@@ -18,6 +18,7 @@ from ..utils.data_path_utils import (
     load_metadata_form,
 )
 from ..utils.logging import get_logger
+from ..utils.text_direction import normalize_script_direction
 
 logger = get_logger()
 
@@ -120,6 +121,7 @@ class Stimulus:
         question_version: int,
         trial: str,
         enlarge_aois: bool = True,
+        script_direction: str = "ltr",
     ) -> "Stimulus":
         # assert stimulus_name in NAMES, f"{stimulus_name!r} is not a valid stimulus name"
         stimulus_df_path = _ci_resolve(
@@ -179,7 +181,7 @@ class Stimulus:
 
         aois_df = pl.read_csv(aoi_path)
         if enlarge_aois:
-            aois_df = _enlarge_aois(aois_df)
+            aois_df = _enlarge_aois(aois_df, script_direction=script_direction)
 
         text_stimulus = TextStimulus(
             aois_df,
@@ -321,6 +323,24 @@ def _metadata_sampling_frequency(metadata_form: dict) -> object:
     return metadata_form.get("Default_frequency")
 
 
+def _metadata_script_direction(metadata_form: dict | None) -> str | None:
+    """Read ``Script_direction`` from a lab configuration or metadata form."""
+    if not isinstance(metadata_form, dict):
+        return None
+    for key in ("Script_direction", "Script direction", "SCRIPT_DIRECTION"):
+        value = metadata_form.get(key)
+        if value is not None and str(value).strip():
+            return str(value)
+
+    tested_language = metadata_form.get("Tested_language")
+    if isinstance(tested_language, dict):
+        for key in ("Script_direction", "Script direction"):
+            value = tested_language.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+    return None
+
+
 def _final_fix_dot_geometry(config: object) -> tuple[float, float, float] | None:
     """Derive the bottom fixation dot from the stimulus config.
 
@@ -380,6 +400,7 @@ class LabConfig:
     final_fix_dot_x: float | None = None
     final_fix_dot_y: float | None = None
     final_fix_dot_radius: float | None = None
+    script_direction: str = "ltr"
 
     @classmethod
     def load(
@@ -430,11 +451,17 @@ class LabConfig:
 
         # if the final data has been collected and this is not just a sanity check
         sampling_frequency_hz = None
+        final_metadata_json = None
         if final_metadata_path is not None:
             final_metadata_json = load_metadata_form(final_metadata_path)
             sampling_frequency_hz = _metadata_sampling_frequency(final_metadata_json)
         if sampling_frequency_hz is None:
             sampling_frequency_hz = settings.EXPECTED_SAMPLING_RATE_HZ
+
+        script_direction = _metadata_script_direction(json_config)
+        if script_direction is None and final_metadata_json is not None:
+            script_direction = _metadata_script_direction(final_metadata_json)
+        script_direction = normalize_script_direction(script_direction)
 
         psychometric_tests = json_config.get("Psychometric_tests", {})
         if not isinstance(psychometric_tests, dict):
@@ -458,6 +485,7 @@ class LabConfig:
             final_fix_dot_x=fix_dot[0] if fix_dot else None,
             final_fix_dot_y=fix_dot[1] if fix_dot else None,
             final_fix_dot_radius=fix_dot[2] if fix_dot else None,
+            script_direction=script_direction,
         )
 
 
