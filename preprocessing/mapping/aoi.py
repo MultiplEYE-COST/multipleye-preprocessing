@@ -187,7 +187,7 @@ def add_custom_uoa(
         logger.warning(
             f"We could not find a matching uoa file for {aoi_file.name}. Please make "
             f"sure that the uoa file is named exactly as the corresponding aoi file and "
-            f"that it is in your data folder in a folder called 'custom_units_of_analysis'."
+            f"that it is in the stimulus folder in a folder called 'custom_units_of_analysis'."
             f"Using default white-spaced units of analysis for {aoi_file.name}."
         )
         return
@@ -218,23 +218,24 @@ def add_custom_uoa(
 
     uoa_data = uoa_data.sort(by=["page", "char_idx"])
 
-    # Ensure that list of characters matches exactly between files
-    uoa_chars = list(uoa_data["char"])
+    # Ensure that list of characters, character indices and pages matches exactly between files
+    key_columns = ["char", "char_idx", "page"]
+    uoa_key = uoa_data[key_columns]
     if "questions" in uoa_file.name:
-        aoi_chars = list(
-            aoi_data["char"].filter(
+        aoi_key = list(
+            aoi_data[key_columns].filter(
                 aoi_data["question_image_version"] == "question_images_version_1"
             )
         )
     else:
-        aoi_chars = list(aoi_data["char"])
+        aoi_key = aoi_data[key_columns]
 
     try:
-        assert aoi_chars == uoa_chars
+        assert aoi_key.equals(uoa_key)
     except AssertionError:
         msg = (
-            f"The custom units of analysis file for the corresponding aoi file {aoi_file.name}, contains different characters. "
-            f"Please verify that the charactters of the stimuli in both files match exactly."
+            f"The custom units of analysis file for the corresponding aoi file {aoi_file.name}, contains different characters, character indices or page numbers. "
+            f"Please verify that the characters of the stimuli and their corresponding indices and pages match exactly in both files."
         )
         logger.exception(msg)
         raise
