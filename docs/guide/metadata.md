@@ -240,7 +240,7 @@ confirmed by the language team.
 The MultiplEYE pipeline sets all four flags to `true`.
 
 ### `psychometric_tests`
-
+Col
 | Field | Type | Description |
 | --- | --- | --- |
 | `tests_available` | list, null | Psychometric tests configured for the lab, for example `LWMC`, `PLAB`, `Stroop`, `RAN`. `null` when the lab configuration lists none. |
@@ -342,7 +342,7 @@ This section records the resolved settings used for the run. It covers:
   `fixation_correction_kwargs`;
 - psychometric scoring windows: `psym_wikivocab_min_rt`, `psym_wikivocab_max_rt`,
   `psym_stroop_min_rt`, `psym_stroop_max_rt`, `psym_flanker_min_rt`, `psym_flanker_max_rt`;
-- column mappings: `trial_cols`, `trial_col`, `page_col`, `stimulus_col`, `unit_of_analysis_idx_col`,
+- column mappings: `trial_cols`, `trial_col`, `page_col`, `stimulus_col`, `word_idx_col`,
   `char_idx_col`;
 - fixed design decisions: `aoi_enlargement`, `reading_measures_null_fill`,
   `scanpath_drop_unmapped`, `data_loss_missingness_column`, `per_trial_loss_weighting`.
