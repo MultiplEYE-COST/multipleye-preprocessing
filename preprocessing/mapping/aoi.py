@@ -47,6 +47,7 @@ def build_combined_text_stimulus(
         height_column="height",
         page_column=settings.PAGE_COL,
         trial_column=settings.TRIAL_COL,
+        word_column="unit_of_analysis",
     )
 
 

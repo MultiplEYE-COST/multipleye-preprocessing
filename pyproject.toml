@@ -15,6 +15,7 @@ dependencies = [
     "pandas>=2.2.2",
     "pillow==12.2.0",
     "polars>=2.0.0",
+    "fastexcel>=0.21.0",
     "pymovements>=0.28.0",
     "tqdm>=4.66.4",
     "openpyxl>=3.0.0",
@@ -22,13 +23,15 @@ dependencies = [
     "jupyterlab",
     "ipywidgets",
     "sphinxcontrib-mermaid>=2.0.2",
+    "pydantic>=2.13.4",
+    "pycountry>=24.6.1",
 ]
 
 [tool.uv.sources]
 # TEMPORARY: fixation drift correction (pymovements/pymovements#1625) is merged to main but not
 # yet released on PyPI. Pin current main until the next release ships, then drop this
 # override and require the released version instead.
-pymovements = { git = "https://github.com/pymovements/pymovements.git", rev = "d4b75d42f5d683b503243e3bb6d51e6bb14eade6" }
+pymovements = { git = "https://github.com/pymovements/pymovements.git", rev = "67bf0d643733e680f7426ab1ed25068bcabfe248" }
 
 [project.optional-dependencies]
 review = [

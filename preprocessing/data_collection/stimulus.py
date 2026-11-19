@@ -195,6 +195,7 @@ class Stimulus:
             height_column="height",
             page_column="page",
             trial_column="trial",
+            word_column="unit_of_analysis",
         )
 
         questions_df_path = (
