@@ -11,6 +11,7 @@ import pymovements as pm
 from pymovements.stimulus import TextStimulus
 
 from ..config import settings
+from ..mapping.aoi import enlarge_aois as _enlarge_aois
 from ..utils.data_path_utils import (
     _ci_resolve,
     find_metadata_form,
@@ -183,7 +184,7 @@ class Stimulus:
             pl.col("secondary_unit_of_analysis_idx_in_line").cast(pl.Int64),
         )
         if enlarge_aois:
-            aois_df = enlarge_aois(aois_df)
+            aois_df = _enlarge_aois(aois_df)
 
         text_stimulus = TextStimulus(
             aois_df,
