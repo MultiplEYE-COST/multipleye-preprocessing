@@ -665,10 +665,15 @@ FIELDS = (
         "processing_config.fixation_correction_algorithm",
         "Drift correction algorithm",
         "Drift correction algorithm or ensemble passed to pymovements.",
-        "string",
+        "object",
         "processing_config",
         "provenance",
-        notes="Recorded for reproducibility. Applied only when fixation_correction is true.",
+        notes=(
+            "A string or a list of algorithm names. Valid names are "
+            "wisdom_of_the_crowd, woc, attach, chain, cluster, compare, merge, "
+            "regress, segment, slice, split, stretch and warp. Recorded for "
+            "reproducibility. Applied only when fixation_correction is true."
+        ),
     ),
     _field(
         "processing_config.fixation_correction_kwargs",
@@ -680,12 +685,23 @@ FIELDS = (
         notes="Recorded for reproducibility. Applied only when fixation_correction is true.",
     ),
     _field(
+        "processing_config.detection_eye",
+        "Detection eye",
+        "Eye selection used for event detection.",
+        "string",
+        "processing_config",
+        "provenance",
+        allowed_values="auto,left,right",
+        notes="A null value means no eye selection.",
+    ),
+    _field(
         "processing_config.fixation_method",
         "Fixation detection method",
         "Fixation detection method passed to pymovements.",
         "string",
         "processing_config",
         "provenance",
+        allowed_values="ivt,idt",
     ),
     _field(
         "processing_config.fixation_minimum_duration_ms",
@@ -706,12 +722,31 @@ FIELDS = (
         unit="deg/s",
     ),
     _field(
+        "processing_config.fixation_dispersion_threshold",
+        "Fixation dispersion threshold",
+        "Dispersion threshold for IDT fixation detection.",
+        "number",
+        "processing_config",
+        "provenance",
+        unit="deg",
+    ),
+    _field(
+        "processing_config.fixation_include_nan",
+        "Split fixations on missing samples",
+        "Whether fixation events are split on missing samples.",
+        "boolean",
+        "processing_config",
+        "provenance",
+        allowed_values="true,false",
+    ),
+    _field(
         "processing_config.saccade_method",
         "Saccade detection method",
         "Saccade detection method passed to pymovements.",
         "string",
         "processing_config",
         "provenance",
+        allowed_values="microsaccades",
     ),
     _field(
         "processing_config.saccade_minimum_duration",
@@ -723,6 +758,19 @@ FIELDS = (
         unit="samples",
     ),
     _field(
+        "processing_config.saccade_threshold",
+        "Saccade threshold",
+        "Data-driven threshold method or explicit two-value threshold for "
+        "microsaccade detection.",
+        "object",
+        "processing_config",
+        "provenance",
+        notes=(
+            "A string selects a data-driven method such as engbert2015. A "
+            "two-item list sets an explicit threshold."
+        ),
+    ),
+    _field(
         "processing_config.saccade_threshold_factor",
         "Saccade threshold factor",
         "Noise-adaptive velocity threshold factor for saccade detection.",
@@ -731,12 +779,30 @@ FIELDS = (
         "provenance",
     ),
     _field(
+        "processing_config.saccade_minimum_threshold",
+        "Saccade minimum threshold",
+        "Minimum threshold value for microsaccade detection.",
+        "number",
+        "processing_config",
+        "provenance",
+    ),
+    _field(
+        "processing_config.saccade_include_nan",
+        "Split saccades on missing samples",
+        "Whether saccade events are split on missing samples.",
+        "boolean",
+        "processing_config",
+        "provenance",
+        allowed_values="true,false",
+    ),
+    _field(
         "processing_config.velocity_estimation_method",
         "Velocity estimation method",
         "Velocity estimation method used for event detection.",
         "string",
         "processing_config",
         "provenance",
+        allowed_values="preceding,neighbors,fivepoint,smooth,savitzky_golay",
     ),
     _field(
         "processing_config.velocity_smoothing_window_ms",
@@ -752,6 +818,14 @@ FIELDS = (
         "Velocity polynomial degree",
         "Polynomial degree used in the velocity filter.",
         "integer",
+        "processing_config",
+        "provenance",
+    ),
+    _field(
+        "processing_config.velocity_padding",
+        "Velocity padding",
+        "Padding used by the Savitzky-Golay velocity filter.",
+        "string",
         "processing_config",
         "provenance",
     ),
@@ -896,6 +970,7 @@ FIELDS = (
         "string",
         "processing_config",
         "provenance",
+        allowed_values="pixel,position",
     ),
     _field(
         "processing_config.per_trial_loss_weighting",

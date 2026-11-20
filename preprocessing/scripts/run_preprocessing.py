@@ -255,6 +255,7 @@ def run_preprocessing(config_path: str | None = None):
             ) = compute_data_loss(
                 gaze.samples,
                 sampling_rate=sr,
+                pixel_column=settings.DATA_LOSS_MISSINGNESS_COLUMN,
                 page_columns=list(gaze.trial_columns),
                 trial_columns=["trial", "stimulus"],
             )

@@ -76,18 +76,33 @@ output folder always records the exact settings the data was processed with.
 ### Event Detection Settings
 
 These control fixation/saccade detection and velocity estimation. The defaults match the
-published MultiplEYE pipeline; **only change them if you are a core developer**. Whatever
+published MultiplEYE pipeline. Change them only with a clear methodological reason. Whatever
 values are used are recorded in the dataset overview `processing_config` section.
 
+- `DETECTION_EYE`: eye selection for event detection (`auto`, `left`, `right` or null;
+  default: `auto`).
 - `FIXATION_METHOD`: fixation detection method (`ivt` or `idt`; default: `ivt`).
 - `FIXATION_MINIMUM_DURATION_MS`: minimum fixation duration in milliseconds (default: `100`).
 - `FIXATION_VELOCITY_THRESHOLD`: IVT velocity threshold in degrees/second (default: `20.0`).
+- `FIXATION_DISPERSION_THRESHOLD`: IDT dispersion threshold (default: `1.0`).
+- `FIXATION_INCLUDE_NAN`: split fixation events on missing samples (default: `false`).
 - `SACCADE_METHOD`: saccade detection method (default: `microsaccades`).
 - `SACCADE_MINIMUM_DURATION`: minimum saccade duration in samples (default: `6`).
+- `SACCADE_THRESHOLD`: data-driven threshold method or an explicit two-value threshold
+  (default: `engbert2015`).
 - `SACCADE_THRESHOLD_FACTOR`: noise-adaptive velocity threshold factor (default: `6.0`).
-- `VELOCITY_ESTIMATION_METHOD`: velocity estimation method (default: `savitzky_golay`).
+- `SACCADE_MINIMUM_THRESHOLD`: minimum threshold value (default: `1e-10`).
+- `SACCADE_INCLUDE_NAN`: split saccade events on missing samples (default: `false`).
+- `VELOCITY_ESTIMATION_METHOD`: velocity estimation method (`preceding`, `neighbors`,
+  `fivepoint`, `smooth` or `savitzky_golay`; default: `savitzky_golay`).
 - `VELOCITY_SMOOTHING_WINDOW_MS`: velocity window length in milliseconds (default: `50`).
 - `VELOCITY_POLYNOMIAL_DEGREE`: Savitzky-Golay polynomial degree (default: `2`).
+- `VELOCITY_PADDING`: Savitzky-Golay padding (default: `nearest`).
+
+### Data Loss Settings
+
+- `DATA_LOSS_MISSINGNESS_COLUMN`: sample column used to detect missing data
+  (default: `pixel`).
 
 ### Fixation Correction Settings
 

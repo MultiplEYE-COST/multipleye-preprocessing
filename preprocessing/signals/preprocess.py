@@ -10,6 +10,7 @@ def preprocess_gaze(
     method: str | None = None,
     window_ms: int | None = None,
     poly_degree: int | None = None,
+    padding: str | float | None = None,
 ) -> None:
     """
     Convert gaze samples from pixel coordinates to degrees of visual angle (dva),
@@ -32,6 +33,10 @@ def preprocess_gaze(
         Polynomial degree used in the Savitzky-Golay filter.
         Defaults to ``settings.VELOCITY_POLYNOMIAL_DEGREE``.
 
+    padding : str or float or None, optional
+        Padding used by the Savitzky-Golay filter.
+        Defaults to ``settings.VELOCITY_PADDING``.
+
     Notes
     -----
     This function should be called **before** detecting fixations or saccades,
@@ -50,6 +55,8 @@ def preprocess_gaze(
         window_ms = settings.VELOCITY_SMOOTHING_WINDOW_MS
     if poly_degree is None:
         poly_degree = settings.VELOCITY_POLYNOMIAL_DEGREE
+    if padding is None:
+        padding = settings.VELOCITY_PADDING
 
     # Savitzky-Golay filter as in https://doi.org/10.3758/BRM.42.1.188
     window_length = round(gaze.experiment.sampling_rate / 1000 * window_ms)
@@ -72,4 +79,9 @@ def preprocess_gaze(
 
     # pos2vel smooths across a window, so it must stay grouped by trial/page to
     # avoid bleeding across page boundaries.
-    gaze.pos2vel(method, window_length=window_length, degree=poly_degree)
+    gaze.pos2vel(
+        method,
+        window_length=window_length,
+        degree=poly_degree,
+        padding=padding,
+    )
