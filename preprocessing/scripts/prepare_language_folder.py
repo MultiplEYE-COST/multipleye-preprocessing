@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from ..mapping.aoi import add_custom_uoa
 from ..models.dcn import Dcn
 from ..scripts.restructure_psychometric_tests import fix_psychometric_tests_structure
 from ..utils.data_path_utils import check_data_collection_exists
@@ -317,8 +318,20 @@ def prepare_language_folder(data_collection_name: str | None = None):
             for aoi_file in aoi_files:
                 fix_aoi_file(aoi_file)
 
+            if settings.CUSTOM_UOAS:
+                logger.info("Adding custom unit of analysis info to AOI files")
+                # merge uoa information into aoi files if uoa is enabled in the settings
+                for aoi_file in aoi_files:
+                    add_custom_uoa(
+                        stimuli_folder=preprocessed_stimulus_path,
+                        aoi_file=aoi_file,
+                        uoa_column_name=settings.UOA_COLUMN,
+                        uoa_idx_colum_name=settings.UOA_IDX_COLUMN,
+                    )
+
             # Create a marker file to indicate that these files have been fixed
             (destination_aoi_path / ".fixed").touch()
+
         elif len(aoi_files) == 0:
             logger.warning(f"No AOI files found in '{destination_aoi_path}'.")
         else:
@@ -378,6 +391,21 @@ def _copy_stimulus_assets(
     for pattern in ["[!.]*.xlsx", "[!.]*.xls", "[!.]*.csv"]:
         for file in source_stimulus_dir.glob(pattern):
             dest_file = dest_stimulus_dir / file.name
+            if not dest_file.exists():
+                shutil.copy2(
+                    _to_win_long_path(file) if os.name == "nt" else file,
+                    _to_win_long_path(dest_file) if os.name == "nt" else dest_file,
+                )
+
+    # 6. Copy Custom units of analysis, if applicable
+    uoa_folder = "custom_units_of_analysis"
+    uoa_dir = source_stimulus_dir / uoa_folder
+    dest_uoa = dest_stimulus_dir / "custom_units_of_analysis"
+    if uoa_dir.exists():
+        if not dest_uoa.exists():
+            os.mkdir(dest_uoa)
+        for file in uoa_dir.glob("*.csv"):
+            dest_file = dest_uoa / file.name
             if not dest_file.exists():
                 shutil.copy2(
                     _to_win_long_path(file) if os.name == "nt" else file,

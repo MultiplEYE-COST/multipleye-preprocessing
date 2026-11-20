@@ -8,7 +8,8 @@ from preprocessing.data_collection.stimulus import Stimulus
 
 
 def _combined_aois(stimuli: list[Stimulus]) -> pl.DataFrame:
-    """Stack the AOIs of all stimuli and tag them with their trial id."""
+    """Stack the AOIs of all stimuli and tag them with their trial id.
+    Secondary units of analysis are dropped, as their availability might not be constant across a session."""
     all_aois = pl.DataFrame()
     for stimulus in stimuli:
         aoi = stimulus.text_stimulus.aois.with_columns(
@@ -36,15 +37,23 @@ def calculate_reading_measures(gaze: pm.Gaze, stimuli: list[Stimulus]) -> pl.Dat
     -------
     pl.DataFrame
         One row per word with the reading measures, the ``trial``/``page``
-        group columns, ``word_idx``/``word`` and a ``stimulus`` column used for
+        group columns, ``unit_of_analysis_idx``/``unit_of_analysis`` and a ``stimulus`` column used for
         saving per-trial files.
     """
+
     measures = pm.measure.reading.compute_reading_measures(
         gaze.events.frame,
         _combined_aois(stimuli),
         group_columns=[settings.TRIAL_COL, settings.PAGE_COL],
+        word_index_column=settings.WORD_IDX_COL,
+        word_column="unit_of_analysis",
     )
-    measures = measures.rename({"word_index": settings.WORD_IDX_COL})
+    measures = measures.rename(
+        {
+            "word_index": settings.WORD_IDX_COL,
+            "word": "unit_of_analysis",
+        }
+    )
 
     trial_to_stimulus = {
         stimulus.trial_id: stimulus.full_identifier for stimulus in stimuli

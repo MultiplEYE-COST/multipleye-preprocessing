@@ -17,7 +17,7 @@ def _stimulus() -> SimpleNamespace:
         {
             "char_idx": [1, 2, 3, 4],
             "char": ["a", "b", "c", "d"],
-            "word": ["ab", "ab", "cd", "cd"],
+            "unit_of_analysis": ["ab", "ab", "cd", "cd"],
             "top_left_x": [90.0, 100.0, 90.0, 100.0],
             "top_left_y": [80.0, 80.0, 180.0, 180.0],
             "width": [10.0, 10.0, 10.0, 10.0],
@@ -285,7 +285,7 @@ def test_text_fixation_near_dot_inside_text_bounds_is_corrected() -> None:
         {
             "char_idx": [1, 2],
             "char": ["a", "b"],
-            "word": ["ab", "ab"],
+            "unit_of_analysis": ["ab", "ab"],
             "top_left_x": [90.0, 100.0],
             "top_left_y": [80.0, 80.0],
             "width": [10.0, 10.0],
