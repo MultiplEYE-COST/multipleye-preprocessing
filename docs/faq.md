@@ -52,6 +52,28 @@ a corrected version), the pEYEpline notices the difference and copies the update
 folder automatically. No manual action needed.
 :::
 
+:::{dropdown} Do I need psychometric test data to run the pEYEpline?
+
+No. Psychometric tests are a separate stage. If the collection has no
+`psychometric-tests-sessions/` folder or no recognizable test data, the stage is skipped and the
+pipeline processes the eye-tracking data normally.
+
+If no psychometric tests were collected, set `RUN_PSYCHOMETRIC_TESTS: false` in the settings file
+to stop the related warnings. If tests were collected but skipped, see the psychometric test
+sections of the troubleshooting page.
+:::
+
+:::{dropdown} Why does the pEYEpline continue after a warning?
+
+Warnings describe data that were skipped, a fallback that was used, or a quality problem that does
+not stop the pipeline. For example, a session without an EDF file still contributes comprehension
+answers, and a collection without psychometric test data still produces eye-tracking outputs.
+
+Errors stop the stage or the run because continuing would produce wrong results. Read the message
+to decide whether a warning is expected. If it is not, fix the input and rerun the affected
+session with `recalculate: true`. The troubleshooting page lists the common warnings and errors.
+:::
+
 (faq_equipment)=
 
 ## Eye-Tracking Equipment

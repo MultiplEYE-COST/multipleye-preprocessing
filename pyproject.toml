@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "MultiplEYE-preprocessing"
-version = "2026.11.05"
+version = "2026.11.17"
 description = "Pipeline for Multipleye data preprocessing"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -15,6 +15,8 @@ dependencies = [
     "pandas>=2.2.2",
     "pillow==12.2.0",
     "polars>=2.0.0",
+    # polars read_excel requires fastexcel. pymovements only ships it via its
+    # datasets extra since pymovements#1804, so declare it explicitly.
     "fastexcel>=0.21.0",
     "pymovements>=0.28.0",
     "tqdm>=4.66.4",

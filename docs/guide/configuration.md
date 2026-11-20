@@ -91,15 +91,17 @@ values are used are recorded in the dataset overview `processing_config` section
 
 ### Fixation Correction Settings
 
-These control the vertical drift correction of fixation locations. The correction is off by
-default so existing outputs stay unchanged. Whatever values are used are recorded in the dataset
-overview `processing_config` section. See {ref}`fixation_correction` for the output contract.
+These control the drift correction of fixation locations. Correction is on by default
+and is the normal path for new data collections. Whatever values are used are recorded in the
+dataset overview `processing_config` section. See {ref}`fixation_correction` for the output
+contract.
 
 - `RUN_FIXATION_CORRECTION`: whether to correct fixation locations for line drift
-  (default: `false`). When enabled, AOI enlargement is disabled and all downstream outputs
-  (scanpaths, reading measures, sanity plots) use the corrected fixations. The raw detected
-  fixations are written to `fixations_uncorrected/`, a subfolder of the processed data
-  collection.
+  (default: `true`). Corrected fixations land on the original AOIs, so AOI enlargement is
+  `none`. All downstream outputs (scanpaths, reading measures, sanity plots) use the corrected
+  fixations. The raw detected fixations are written to `fixations_uncorrected/`, a subfolder of
+  the processed data collection. Set this to `false` to disable correction; then AOI enlargement
+  is `half_line_spacing`.
 - `FIXATION_CORRECTION_ALGORITHM`: drift correction algorithm passed to pymovements. Either
   a single algorithm (`attach`, `chain`, `cluster`, `compare`, `merge`, `regress`, `segment`,
   `slice`, `split`, `stretch`, `warp`) or `wisdom_of_the_crowd` (alias `woc`), the ensemble
@@ -113,6 +115,11 @@ overview `processing_config` section. See {ref}`fixation_correction` for the out
 The final-dot position is not a pipeline setting. It is derived from the stimulus config. Newer
 configs can provide `POS_BOTTOM_DOT_X_PX`, `POS_BOTTOM_DOT_Y_PX` and `FIX_DOT_RADIUS`. Older
 configs fall back to the image generator geometry. See {ref}`fixation_correction`.
+
+The script direction is also not a pipeline setting. `LabConfig` is loaded per stimulus version,
+so each session uses the `Script_direction` and dot geometry from the stimulus folder it actually
+saw. This allows one data collection to contain horizontal and vertical stimulus versions. Missing
+`Script_direction` values fall back to `ltr`.
 
 ### Quality Check Thresholds
 

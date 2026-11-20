@@ -3,7 +3,7 @@ import warnings
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import polars as pl
 
@@ -12,6 +12,7 @@ from ..config import settings
 from ..data_collection.stimulus import LabConfig, Stimulus
 from ..data_collection.trial import Trial, TrialAnswer
 from ..models import Sid
+from ..utils.durations import durations_to_ms
 from ..utils.eye_tracker import normalize_eye_tracker_name
 from ..utils.logging import get_logger
 from .experimenter_doc import (
@@ -263,6 +264,22 @@ class Session:
 
     # tested language, used to build item text identifiers
     tested_language: str = field(default="unknown", init=True)
+
+    def set_gaze_tables(self, gaze: Any) -> None:
+        """Store pymovements messages, calibrations and validations in milliseconds.
+
+        pymovements stores these tables as ``polars.Duration``. The session
+        model works with numeric milliseconds, so convert once at this boundary
+        instead of in every consumer.
+
+        Parameters
+        ----------
+        gaze : pymovements.Gaze
+            Gaze object whose auxiliary tables should be stored.
+        """
+        self.messages = durations_to_ms(getattr(gaze, "messages", None))
+        self.calibrations = durations_to_ms(getattr(gaze, "calibrations", None))
+        self.validations = durations_to_ms(getattr(gaze, "validations", None))
 
     @property
     def sid(self) -> "Sid":

@@ -5,6 +5,8 @@ import logging
 import polars as pl
 import pymovements as pm
 
+from ..utils.durations import durations_to_ms
+
 logger = logging.getLogger(__name__)
 
 _START_PREFIX = "start_recording_"
@@ -29,6 +31,8 @@ def find_message_order_conflicts(
     """
     if messages is None or messages.is_empty():
         return []
+
+    messages = durations_to_ms(messages)
 
     messages_by_time: dict[float | int, list[str]] = {}
     for row in messages.iter_rows(named=True):

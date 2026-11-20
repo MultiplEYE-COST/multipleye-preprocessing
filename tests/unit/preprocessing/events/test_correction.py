@@ -76,6 +76,123 @@ def test_correct_fixations_snaps_to_lines_and_preserves_originals() -> None:
     assert frame["correction_algorithm"].to_list() == ["attach", "attach"]
 
 
+def _ttb_stimulus() -> SimpleNamespace:
+    aois = pl.DataFrame(
+        {
+            "char_idx": [0, 1, 2, 3],
+            "char": ["a", "b", "c", "d"],
+            "word": ["ab", "ab", "cd", "cd"],
+            "top_left_x": [200.0, 200.0, 119.0, 119.0],
+            "top_left_y": [80.0, 108.0, 80.0, 108.0],
+            "width": [28.0, 28.0, 28.0, 28.0],
+            "height": [28.0, 28.0, 28.0, 28.0],
+            "line_idx": [0, 0, 1, 1],
+            "page": ["p1", "p1", "p1", "p1"],
+        }
+    )
+    return SimpleNamespace(
+        text_stimulus=SimpleNamespace(aois=aois),
+        trial_id="t1",
+    )
+
+
+def _ttb_lab_config() -> SimpleNamespace:
+    return SimpleNamespace(
+        final_fix_dot_x=83.0,
+        final_fix_dot_y=947.0,
+        final_fix_dot_radius=8.0,
+        script_direction="ttb",
+    )
+
+
+def _ttb_gaze(*, include_dot: bool = False) -> SimpleNamespace:
+    data = {
+        "name": ["fixation", "fixation"],
+        "onset": [0, 200],
+        "duration": [100, 100],
+        "location_x": [205.0, 125.0],
+        "location_y": [90.0, 100.0],
+        "trial": ["t1", "t1"],
+        "page": ["p1", "p1"],
+    }
+    if include_dot:
+        data["name"].append("fixation")
+        data["onset"].append(400)
+        data["duration"].append(100)
+        data["location_x"].append(83.0)
+        data["location_y"].append(947.0)
+        data["trial"].append("t1")
+        data["page"].append("p1")
+
+    events = pm.Events(
+        pl.DataFrame(data),
+        trial_columns=["trial", "page"],
+    )
+    return SimpleNamespace(events=events)
+
+
+def test_correct_fixations_ttb_transposes_x_axis() -> None:
+    gaze = _ttb_gaze()
+
+    correct_fixations(
+        gaze,
+        [_ttb_stimulus()],
+        _ttb_lab_config(),
+        algorithm="attach",
+    )
+
+    frame = gaze.events.frame
+    assert frame["location_x"].to_list() == [214.0, 133.0]
+    assert frame["location_y"].to_list() == [90.0, 100.0]
+    assert frame["location_x_original"].to_list() == [205.0, 125.0]
+    assert frame["location_y_original"].to_list() == [90.0, 100.0]
+    assert frame["correction_algorithm"].to_list() == ["attach", "attach"]
+
+
+def test_correct_fixations_ttb_keeps_bottom_left_dot_unchanged() -> None:
+    gaze = _ttb_gaze(include_dot=True)
+
+    correct_fixations(
+        gaze,
+        [_ttb_stimulus()],
+        _ttb_lab_config(),
+        algorithm="attach",
+    )
+
+    frame = gaze.events.frame
+    dot = frame.filter(pl.col("location_x") == 83.0)
+    assert dot["location_y"].to_list() == [947.0]
+    assert dot["correction_algorithm"].to_list() == [None]
+    text = frame.filter(pl.col("location_x") != 83.0)
+    assert text["location_x"].to_list() == [214.0, 133.0]
+
+
+def test_correct_fixations_rejects_bottom_to_top_direction() -> None:
+    lab_config = _ttb_lab_config()
+    lab_config.script_direction = "btt"
+
+    with pytest.raises(ValueError, match="btt"):
+        correct_fixations(
+            _ttb_gaze(),
+            [_ttb_stimulus()],
+            lab_config,
+            algorithm="attach",
+        )
+
+
+def test_correct_fixations_passes_rtl_directionality() -> None:
+    lab_config = _lab_config()
+    lab_config.script_direction = "rtl"
+
+    with pytest.raises(ValueError, match="right-to-left"):
+        correct_fixations(
+            _gaze(),
+            [_stimulus()],
+            lab_config,
+            algorithm="compare",
+        )
+
+
 def test_correct_fixations_uses_configured_algorithm(monkeypatch) -> None:
     monkeypatch.setattr(settings, "FIXATION_CORRECTION_ALGORITHM", "attach")
     gaze = _gaze()

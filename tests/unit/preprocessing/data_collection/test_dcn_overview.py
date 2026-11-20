@@ -840,23 +840,23 @@ class TestProcessingConfig:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         pc = overview["processing_config"]
 
-        assert pc["fixation_correction"] is False
+        assert pc["fixation_correction"] is True
         assert pc["fixation_correction_algorithm"] == "wisdom_of_the_crowd"
         assert pc["fixation_correction_kwargs"] == {}
-        assert pc["aoi_enlargement"] == "half_line_spacing"
+        assert pc["aoi_enlargement"] == "none"
         assert pc["reading_measures_null_fill"] == 0
         assert pc["scanpath_drop_unmapped"] is True
         assert pc["data_loss_missingness_column"] == "pixel"
         assert pc["per_trial_loss_weighting"] == "equal"
 
-    def test_processing_config_disables_aoi_enlargement_for_corrected_fixations(
+    def test_processing_config_enables_aoi_enlargement_when_correction_is_off(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version
     ) -> None:
-        dc = _create_dc(dummy_dcn_dir, enlarge_aois=False)
+        dc = _create_dc(dummy_dcn_dir, enlarge_aois=True)
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         pc = overview["processing_config"]
 
-        assert pc["aoi_enlargement"] == "none"
+        assert pc["aoi_enlargement"] == "half_line_spacing"
 
     def test_processing_config_records_psychometric_thresholds(
         self, dummy_dcn_dir, mock_load_lab_config, mock_pipeline_version

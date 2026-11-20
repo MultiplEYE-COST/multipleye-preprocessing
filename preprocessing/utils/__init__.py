@@ -6,6 +6,7 @@ from .data_path_utils import (
     find_psychometric_config_files,
     validate_psychometric_data,
 )
+from .durations import durations_to_ms
 from .file_utils import _copytree, _to_win_long_path
 from .logging import get_logger, setup_logging
 
@@ -14,6 +15,7 @@ __all__ = [
     "_report_to_file",
     "_to_win_long_path",
     "check_data_collection_exists",
+    "durations_to_ms",
     "find_psychometric_config_files",
     "get_logger",
     "setup_logging",

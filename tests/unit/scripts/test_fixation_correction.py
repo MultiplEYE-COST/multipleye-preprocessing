@@ -38,7 +38,10 @@ def test_correction_cache_missing_is_not_current(tmp_path) -> None:
     assert not _fixation_correction_is_current(tmp_path)
 
 
-def test_correction_cache_without_flag_matches_disabled_setting(tmp_path) -> None:
+def test_correction_cache_without_flag_matches_disabled_setting(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(settings, "RUN_FIXATION_CORRECTION", False)
     _write_fixation(
         tmp_path / "sess_trial_1_fixation.csv",
         None,
@@ -48,7 +51,10 @@ def test_correction_cache_without_flag_matches_disabled_setting(tmp_path) -> Non
     assert _fixation_correction_is_current(tmp_path)
 
 
-def test_correction_cache_with_flag_mismatches_disabled_setting(tmp_path) -> None:
+def test_correction_cache_with_flag_mismatches_disabled_setting(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(settings, "RUN_FIXATION_CORRECTION", False)
     _write_fixation(tmp_path / "sess_trial_1_fixation.csv", "attach")
 
     assert not _fixation_correction_is_current(tmp_path)

@@ -2,6 +2,8 @@ import re
 
 import polars as pl
 
+from ..utils.durations import durations_to_ms
+
 
 def _result_schema() -> dict:
     return {
@@ -26,7 +28,8 @@ def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
     Parameters
     ----------
     messages : pl.DataFrame
-        DataFrame with columns 'time' (int/float) and 'content' (str).
+        DataFrame with columns 'time' and 'content' (str). The time column may
+        be numeric milliseconds or a pymovements ``Duration`` column.
 
     Returns
     -------
@@ -50,6 +53,8 @@ def parse_answers_from_messages(messages: pl.DataFrame) -> pl.DataFrame:
                 "question_stop_ts": pl.Float64,
             }
         )
+
+    messages = durations_to_ms(messages)
 
     # Define regex patterns based on the implementation guide
     START_RE = re.compile(

@@ -1,13 +1,14 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import polars as pl
 import pytest
 
 from preprocessing.config import settings
 from preprocessing.data_collection.stimulus import (
     Stimulus,
 )
-from preprocessing.plotting.plot import plot_gaze
+from preprocessing.plotting.plot import build_page_frames, plot_gaze
 
 
 @pytest.fixture
@@ -31,16 +32,20 @@ def mock_stimulus():
     return stimulus
 
 
-@pytest.fixture
-def mock_gaze():
+@pytest.fixture(params=["numeric", "duration"])
+def mock_gaze(request):
     gaze = MagicMock()
     gaze.clone.return_value = gaze
     gaze.experiment.screen.width_px = 1920
     gaze.experiment.screen.width_cm = 50
     gaze.experiment.screen.height_px = 1080
 
-    # Mock polars dataframes
-    import polars as pl
+    # pymovements >= 0.29 stores event durations as Duration.
+    duration = (
+        [100]
+        if request.param == "numeric"
+        else pl.Series([100_000], dtype=pl.Int64).cast(pl.Duration("us"))
+    )
 
     gaze.samples = pl.DataFrame(
         {
@@ -55,7 +60,7 @@ def mock_gaze():
             "stimulus": ["test_stim_1"],
             "page": ["page_1"],
             "name": ["fixation"],
-            "duration": [100],
+            "duration": duration,
             "location_x": [100],
             "location_y": [100],
         }
@@ -133,3 +138,32 @@ def test_plot_gaze_aoi_no_fallback(
     calls = [call[0][0] for call in mock_image_open.call_args_list]
     assert mock_stimulus.pages[0].aoi_image_path in calls
     assert mock_stimulus.questions[0].aoi_image_path in calls
+
+
+def test_build_page_frames_converts_duration_to_ms():
+    gaze = MagicMock()
+    gaze.clone.return_value = gaze
+    gaze.samples = pl.DataFrame(
+        {
+            "stimulus": ["test_stim_1"],
+            "page": ["page_1"],
+            "pixel_x": [100],
+            "pixel_y": [100],
+        }
+    )
+    gaze.events.frame = pl.DataFrame(
+        {
+            "stimulus": ["test_stim_1"],
+            "page": ["page_1"],
+            "name": ["fixation"],
+            "duration": pl.Series([100_000], dtype=pl.Int64).cast(pl.Duration("us")),
+            "location_x": [100],
+            "location_y": [100],
+        }
+    )
+
+    _, _, events_by_key = build_page_frames(gaze)
+
+    events = events_by_key[("test_stim_1", "page_1")]
+    assert events.schema["duration"] == pl.Int64
+    assert events["duration"].to_list() == [100]

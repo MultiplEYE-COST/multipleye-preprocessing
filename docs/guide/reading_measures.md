@@ -68,8 +68,17 @@ columns and are marked as `skipped = 1`.
 
 ## AOI Enlargement
 
-**AOIs are enlarged vertically before mapping to cover the space between lines.**
-The original AOIs from the stimulus files only cover the exact character bounding box.
-A fixation slightly above or below the line would miss the word. The `enlarge_aois()`
-function in `mapping.aoi` extends each AOI upward and downward by half the inter-line
-spacing, so fixations between lines still map to the correct character.
+**With fixation correction active (the default), AOIs stay at their original size.**
+Correction moves fixations back onto the text lines, so no enlargement is needed.
+
+When correction is off (`RUN_FIXATION_CORRECTION: false`), AOIs are enlarged before mapping to
+cover the space between lines. The original AOIs from the stimulus files only cover the exact
+character bounding box, so a fixation slightly outside the line would miss the word.
+
+- For horizontal text, `enlarge_aois()` extends each AOI upward and downward along y.
+- For `ttb` text, it extends each AOI along x, because the lines of vertical text are columns.
+  Columns are sorted by their physical x position, so right-to-left column order is handled
+  correctly.
+
+The direction comes from `Script_direction` in the stimulus version's lab configuration.
+See {ref}`fixation_correction`.

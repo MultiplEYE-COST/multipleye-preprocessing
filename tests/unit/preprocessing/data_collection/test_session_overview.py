@@ -1,6 +1,7 @@
 import contextlib
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import polars as pl
@@ -75,6 +76,13 @@ def _sess_with_validation_data() -> Session:
     sess.validations = _validations()
     sess.calibrations = _calibrations()
     return sess
+
+
+def _as_duration_us(frame: pl.DataFrame, column: str = "time") -> pl.DataFrame:
+    """Return ``frame`` with ``column`` stored as pymovements-style Duration."""
+    return frame.with_columns(
+        (pl.col(column).cast(pl.Int64) * 1000).cast(pl.Duration("us"))
+    )
 
 
 def test_create_overview_includes_new_fields() -> None:
@@ -240,6 +248,43 @@ def test_session_duration_from_messages() -> None:
     sess.messages = pl.DataFrame(
         {"time": [1000.0, 2000.0, 60000.0], "content": ["a", "b", "c"]}
     )
+
+    overview = sess.create_overview()
+    proc = overview["experiment_procedure"]
+
+    assert proc["total_session_duration_s"] == 59.0
+
+
+def test_set_gaze_tables_converts_duration_to_milliseconds() -> None:
+    sess = _make_session()
+    gaze = SimpleNamespace(
+        messages=_as_duration_us(
+            pl.DataFrame({"time": [1000], "content": ["start_experiment"]})
+        ),
+        calibrations=_as_duration_us(pl.DataFrame({"time": [2000], "eye": ["R"]})),
+        validations=_as_duration_us(
+            pl.DataFrame({"time": [3000], "accuracy_avg": [0.1]})
+        ),
+    )
+
+    sess.set_gaze_tables(gaze)
+
+    assert sess.messages.schema["time"] == pl.Int64
+    assert sess.messages["time"].to_list() == [1000]
+    assert sess.calibrations["time"].to_list() == [2000]
+    assert sess.validations["time"].to_list() == [3000]
+
+
+def test_session_duration_from_duration_messages() -> None:
+    sess = _sess_with_validation_data()
+    gaze = SimpleNamespace(
+        messages=_as_duration_us(
+            pl.DataFrame({"time": [1000, 2000, 60000], "content": ["a", "b", "c"]})
+        ),
+        calibrations=sess.calibrations,
+        validations=sess.validations,
+    )
+    sess.set_gaze_tables(gaze)
 
     overview = sess.create_overview()
     proc = overview["experiment_procedure"]
@@ -1548,6 +1593,40 @@ def test_validation_before_start_requires_inter_trial_interval() -> None:
     assert scores == {}
 
 
+def test_validation_before_start_uses_inter_trial_interval() -> None:
+    sess = _make_session()
+    sess.stimulus_start_end_ts = [
+        {"trial": "trial_1", "start_ts": 1000.0, "stop_ts": 4000.0},
+        {"trial": "trial_2", "start_ts": 5000.0, "stop_ts": 8000.0},
+    ]
+    sess.validations = pl.DataFrame({"time": [4500.0], "accuracy_avg": [0.3]})
+
+    scores = sess._validation_before_trial_start(sess._trial_time_spans())
+
+    assert scores == {"trial_2": 0.3}
+
+
+def test_validation_before_start_handles_duration_time() -> None:
+    sess = _make_session()
+    sess.stimulus_start_end_ts = [
+        {"trial": "trial_1", "start_ts": 1000.0, "stop_ts": 4000.0},
+        {"trial": "trial_2", "start_ts": 5000.0, "stop_ts": 8000.0},
+    ]
+    sess.set_gaze_tables(
+        SimpleNamespace(
+            messages=None,
+            calibrations=None,
+            validations=_as_duration_us(
+                pl.DataFrame({"time": [4500.0], "accuracy_avg": [0.3]})
+            ),
+        )
+    )
+
+    scores = sess._validation_before_trial_start(sess._trial_time_spans())
+
+    assert scores == {"trial_2": 0.3}
+
+
 def test_trials_unknown_for_empty_answers(tmp_path: Path) -> None:
     answers_dir = tmp_path / "comp_answers" / "001_EN_UK_1_ET1"
     answers_dir.mkdir(parents=True)
@@ -1811,6 +1890,28 @@ def test_final_validation_score_after_final_trial() -> None:
         validation_times=[300.0, 480.0],
         accuracy=[0.9, 0.57],
         calibration_times=[50.0],
+    )
+
+    cal = sess.create_overview()["calibration_validation"]
+
+    assert cal["final_validation_score_dva"] == 0.57
+
+
+def test_final_validation_score_with_duration_time_columns() -> None:
+    """Final validation must handle pymovements Duration time columns."""
+    sess = _final_validation_session(
+        message_time=450.0,
+        final_trial_stop=400.0,
+        validation_times=[300.0, 480.0],
+        accuracy=[0.9, 0.57],
+        calibration_times=[50.0],
+    )
+    sess.set_gaze_tables(
+        SimpleNamespace(
+            messages=_as_duration_us(sess.messages),
+            validations=_as_duration_us(sess.validations),
+            calibrations=_as_duration_us(sess.calibrations),
+        )
     )
 
     cal = sess.create_overview()["calibration_validation"]

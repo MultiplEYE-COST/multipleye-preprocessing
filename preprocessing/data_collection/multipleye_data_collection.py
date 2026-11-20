@@ -58,6 +58,7 @@ from ..utils.data_path_utils import (
     find_metadata_form,
     load_metadata_form,
 )
+from ..utils.durations import durations_to_ms
 from ..utils.eye_tracker import (
     CANONICAL_EYE_TRACKERS,
     eye_tracker_brand,
@@ -591,7 +592,14 @@ class MultipleyeDataCollection:
         self.include_pilots = kwargs.get("include_pilots", False)
         self.output_dir = kwargs.get("output_dir", "")
         self.pilot_folder = kwargs.get("pilot_folder", "")
-        self.enlarge_aois = kwargs.get("enlarge_aois", True)
+        # Corrected fixations land on the original AOIs, so enlargement is only needed
+        # when correction is off.
+        enlarge_aois = kwargs.get("enlarge_aois")
+        self.enlarge_aois = (
+            not settings.RUN_FIXATION_CORRECTION
+            if enlarge_aois is None
+            else enlarge_aois
+        )
         self.reports_folder = "reports"
 
         canonical_eye_tracker = normalize_eye_tracker_name(eye_tracker)
@@ -620,6 +628,7 @@ class MultipleyeDataCollection:
         self.excluded_sessions = excluded_sessions
         self.included_sessions = included_sessions
         self.pid_stimulus_dirs = kwargs.get("pid_stimulus_dirs", None)
+        self._lab_config_cache: dict[Path, LabConfig] = {}
         self.logger = get_logger()
 
         self.logger.info(
@@ -685,6 +694,88 @@ class MultipleyeDataCollection:
             return self.stimulus_dir
         pid = Sid(session_identifier).pid
         return self.pid_stimulus_dirs.get(pid, self.stimulus_dir)
+
+    def _lab_config_for_stimulus_dir(self, stimulus_dir: Path) -> LabConfig:
+        """Load and cache the lab configuration belonging to a stimulus folder.
+
+        Versioned stimulus folders may describe a different script direction and
+        final-dot geometry. Loading the config per folder keeps each session tied to
+        the stimuli it actually saw.
+        """
+        resolved = Path(stimulus_dir).resolve()
+        if resolved not in self._lab_config_cache:
+            self._lab_config_cache[resolved] = self.load_lab_config(
+                stimulus_dir,
+                self.language,
+                self.country,
+                self.lab_number,
+                self.city,
+                self.year,
+            )
+        return self._lab_config_cache[resolved]
+
+    def _script_direction_groups(
+        self,
+        default_direction: str | None,
+    ) -> list[dict] | None:
+        """Return configured stimulus versions with their script directions."""
+        pid_map = settings.STIMULUS_VERSIONS_PID_MAP or {}
+        if not pid_map or not self.pid_stimulus_dirs:
+            return None
+
+        default_direction = (
+            default_direction
+            or getattr(self.lab_configuration, "script_direction", None)
+            or "ltr"
+        )
+
+        all_pids: set[str] = set()
+        for session in [*self.sessions, *self.skipped_sessions]:
+            try:
+                all_pids.add(Sid(session).pid)
+            except (ValueError, TypeError):
+                continue
+
+        groups = []
+        assigned_pids: set[str] = set()
+        for version, pids in pid_map.items():
+            version_pids = sorted(str(pid) for pid in pids)
+            assigned_pids.update(version_pids)
+
+            direction = default_direction
+            for pid in version_pids:
+                stimulus_dir = self.pid_stimulus_dirs.get(pid)
+                if stimulus_dir is None:
+                    continue
+                try:
+                    version_config = self._lab_config_for_stimulus_dir(stimulus_dir)
+                    direction = (
+                        getattr(version_config, "script_direction", None)
+                        or default_direction
+                    )
+                except (AssertionError, OSError, ValueError):
+                    direction = default_direction
+                break
+
+            groups.append(
+                {
+                    "version": version,
+                    "script_direction": direction,
+                    "participants": version_pids,
+                }
+            )
+
+        default_pids = sorted(all_pids - assigned_pids)
+        if default_pids:
+            groups.append(
+                {
+                    "version": settings.STIMULUS_VERSIONS_DEFAULT_VERSION or "default",
+                    "script_direction": default_direction,
+                    "participants": default_pids,
+                }
+            )
+
+        return groups
 
     def _answer_option_stimulus_dirs(self) -> list[Path]:
         """Return the default and configured version-specific stimulus directories."""
@@ -1058,7 +1149,7 @@ class MultipleyeDataCollection:
         excluded_sessions: list[str] | None = None,
         included_sessions: list[str] | None = None,
         output_dir: Path | None = None,
-        enlarge_aois: bool = True,
+        enlarge_aois: bool | None = None,
     ) -> "MultipleyeDataCollection":
         """
         :param data_dir: str  path to the data folder
@@ -1071,8 +1162,8 @@ class MultipleyeDataCollection:
         :param included_sessions: If not None, the sessions included in the data collection.
         :param output_dir: The output directory for the preprocessed data.
         :param enlarge_aois: If True, the character AOIs are vertically enlarged to half the
-        line spacing. Set to False when fixation correction is active, since corrected
-        fixations already land on the AOIs.
+        line spacing. Defaults to the inverse of ``RUN_FIXATION_CORRECTION``, because corrected
+        fixations already land on the AOIs. Pass True explicitly when correction is off.
         :return:
         MultipleyeDataCollection object
         """
@@ -1580,6 +1671,7 @@ class MultipleyeDataCollection:
         image_size_w, image_size_h = _lab_pair("image_size_cm")
         screen_distance_cm = getattr(self.lab_configuration, "screen_distance_cm", None)
         codebook_info = load_codebook_identity()
+        script_direction_groups = self._script_direction_groups(script_direction)
 
         overview = {
             "administrative": {
@@ -1732,6 +1824,9 @@ class MultipleyeDataCollection:
                         ", ".join(ignored),
                     )
             overview["language_node"] = language_node
+
+        if script_direction_groups is not None:
+            overview["administrative"]["script_directions"] = script_direction_groups
 
         # Add warnings to overview
         if hasattr(logging, "_captured_warnings") and logging._captured_warnings:
@@ -2110,8 +2205,10 @@ class MultipleyeDataCollection:
                 session, self.sessions[session].randomization_version
             )
 
-            # TODO: lab config should be changeable for each session
-            self.sessions[session].lab_config = self.lab_configuration
+            session_stimulus_dir = self._resolve_stimulus_dir(session)
+            self.sessions[session].lab_config = self._lab_config_for_stimulus_dir(
+                session_stimulus_dir
+            )
 
             if (
                 self.sessions[session].stimulus_order_ids
@@ -2127,12 +2224,15 @@ class MultipleyeDataCollection:
                 logging._captured_warnings.append(msg)  # type: ignore
 
             self.sessions[session].stimuli = self._load_session_stimuli(
-                self._resolve_stimulus_dir(session),
+                session_stimulus_dir,
                 self.language,
                 self.country,
                 self.lab_number,
                 self.sessions[session].randomization_version,
                 session,
+                script_direction=getattr(
+                    self.sessions[session].lab_config, "script_direction", None
+                ),
             )
 
         for session in (
@@ -2171,8 +2271,10 @@ class MultipleyeDataCollection:
                 session, self.skipped_sessions[session].randomization_version
             )
 
-            # TODO: lab config should be changeable for each session
-            self.skipped_sessions[session].lab_config = self.lab_configuration
+            session_stimulus_dir = self._resolve_stimulus_dir(session)
+            self.skipped_sessions[
+                session
+            ].lab_config = self._lab_config_for_stimulus_dir(session_stimulus_dir)
 
             if (
                 self.skipped_sessions[session].stimulus_order_ids
@@ -2188,12 +2290,17 @@ class MultipleyeDataCollection:
                 logging._captured_warnings.append(msg)  # type: ignore
 
             self.skipped_sessions[session].stimuli = self._load_session_stimuli(
-                self._resolve_stimulus_dir(session),
+                session_stimulus_dir,
                 self.language,
                 self.country,
                 self.lab_number,
                 self.skipped_sessions[session].randomization_version,
                 session,
+                script_direction=getattr(
+                    self.skipped_sessions[session].lab_config,
+                    "script_direction",
+                    None,
+                ),
             )
 
         self._assign_participant_info()
@@ -2386,6 +2493,7 @@ class MultipleyeDataCollection:
         stimulus_order_version: int,
         session_identifier: str,
         stimulus_names: None | list = None,
+        script_direction: str | None = None,
     ) -> list[Stimulus]:
         """
         Load the stimuli from the specified directory.
@@ -2433,10 +2541,28 @@ class MultipleyeDataCollection:
                 stimulus_order_version,
                 trial_id[0],
                 enlarge_aois=self.enlarge_aois,
+                script_direction=script_direction or "ltr",
             )
             stimuli.append(stimulus)
 
         return stimuli
+
+    def validate_final_fix_dots(self) -> None:
+        """Validate the final-dot geometry of every distinct session lab config."""
+        from ..events.correction import validate_final_fix_dot
+
+        seen: set[tuple[object, object, object]] = set()
+        for session in self.sessions.values():
+            lab_config = session.lab_config
+            key = (
+                getattr(lab_config, "final_fix_dot_x", None),
+                getattr(lab_config, "final_fix_dot_y", None),
+                getattr(lab_config, "final_fix_dot_radius", None),
+            )
+            if key in seen:
+                continue
+            validate_final_fix_dot(lab_config)
+            seen.add(key)
 
     def _load_stimulus_order_version_from_logfile(self, session_identifier: str) -> int:
         """
@@ -3233,9 +3359,13 @@ class MultipleyeDataCollection:
         :param gaze: Gaze object for this session.
         """
 
+        # pymovements event durations are Duration; convert before aggregating
+        # so the report columns are numeric milliseconds and CSV-writable.
+        events = durations_to_ms(gaze.events.frame)
+
         # for each gaze and page compute the average fixation duration
         fixation_durations_page_avg = (
-            gaze.events.frame.filter(pl.col("name") == settings.FIXATION)
+            events.filter(pl.col("name") == settings.FIXATION)
             .group_by(gaze.trial_columns)
             .agg(
                 [
