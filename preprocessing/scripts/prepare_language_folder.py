@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pandas as pd
+import polars as pl
 
 from ..mapping.aoi import add_custom_uoa
 from ..models.dcn import Dcn
@@ -271,10 +272,21 @@ def prepare_language_folder(data_collection_name: str | None = None):
             and len(list(destination_aoi_path.glob("[!.]*.csv"))) == 24
             and (destination_aoi_path / ".fixed").exists()
         ):
-            logger.debug(
-                f"AOI files already exist, are split and fixed in {destination_aoi_path}. Skipping."
-            )
-            continue
+            # Previously, aoi files contained the columns "word" instead of "unit_of_analysis" 
+            # If the copied aoi file column names were not changed yet, we need to recalculate as the previous output is invalid 
+            test_path = list(destination_aoi_path.glob("[!.]*.csv"))[0] 
+            if "unit_of_analysis" in pl.read_csv(test_path, n_rows=0).columns: 
+                logger.debug( 
+                f"AOI files already exist, are split and fixed in {destination_aoi_path}. Skipping." 
+                ) 
+                continue 
+
+            else: 
+                logger.debug( 
+                f"AOI files have outdated column names. Output needs to be recalculated." 
+                )
+                settings.RECALCULATE 
+
 
         if not destination_aoi_path.exists():
             if source_aoi_path.exists():
