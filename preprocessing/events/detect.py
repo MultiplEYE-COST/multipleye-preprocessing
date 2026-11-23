@@ -69,6 +69,10 @@ def detect_fixations(
     if dispersion_threshold is None:
         dispersion_threshold = settings.FIXATION_DISPERSION_THRESHOLD
 
+    minimum_duration = int(minimum_duration)
+    velocity_threshold = float(velocity_threshold)
+    dispersion_threshold = float(dispersion_threshold)
+
     if method not in {"ivt", "idt"}:
         raise ValueError(
             f"Unsupported fixation detection method {method!r}. "
@@ -302,6 +306,10 @@ def detect_saccades(
         minimum_threshold = settings.SACCADE_MINIMUM_THRESHOLD
     if include_nan is None:
         include_nan = settings.SACCADE_INCLUDE_NAN
+
+    minimum_duration = int(minimum_duration)
+    threshold_factor = float(threshold_factor)
+    minimum_threshold = float(minimum_threshold)
 
     if isinstance(threshold, list):
         threshold = tuple(threshold)

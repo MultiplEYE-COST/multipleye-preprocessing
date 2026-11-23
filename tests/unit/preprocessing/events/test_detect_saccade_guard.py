@@ -22,6 +22,7 @@ def _settings(monkeypatch):
     monkeypatch.setattr(settings, "SACCADE_METHOD", "microsaccades")
     monkeypatch.setattr(settings, "SACCADE_MINIMUM_DURATION", 6)
     monkeypatch.setattr(settings, "SACCADE_THRESHOLD_FACTOR", 6.0)
+    monkeypatch.setattr(settings, "SACCADE_MINIMUM_THRESHOLD", 1e-10)
     monkeypatch.setattr(
         detect_module,
         "compute_event_properties",
@@ -98,6 +99,21 @@ def test_detect_saccades_skips_zero_variance_group(caplog):
     assert "Skipping saccade detection for 1 trial/page group" in caplog.text
     assert "page_2" in caplog.text
     assert "zero_variance" in caplog.text
+
+
+def test_detect_saccades_coerces_string_minimum_threshold(monkeypatch):
+    monkeypatch.setattr(settings, "SACCADE_MINIMUM_THRESHOLD", "1e-10")
+    gaze = _GuardFakeGaze(
+        _samples(
+            trial=["trial_1", "trial_1"],
+            page=["page_1", "page_1"],
+            velocity=[[0.1, 0.1], [0.2, 0.2]],
+        )
+    )
+
+    detect_module.detect_saccades(gaze)
+
+    assert len(gaze.detect_calls) == 1
 
 
 def test_detect_saccades_keeps_all_valid_groups():

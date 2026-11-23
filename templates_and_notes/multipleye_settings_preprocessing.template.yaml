@@ -239,7 +239,7 @@ saccade_threshold: "engbert2015"
 # Noise-adaptive velocity threshold factor for saccade detection.
 saccade_threshold_factor: 6.0
 # Minimum threshold value for microsaccade detection.
-saccade_minimum_threshold: 1e-10
+saccade_minimum_threshold: 1.0e-10
 # Whether to split saccade events on missing samples.
 saccade_include_nan: false
 # Velocity estimation method (e.g. "savitzky_golay").

@@ -17,6 +17,17 @@ TEMPLATE_RELATIVE_PATH = Path(
     "templates_and_notes/multipleye_settings_preprocessing.template.yaml"
 )
 
+_NUMERIC_SETTINGS = {
+    "FIXATION_MINIMUM_DURATION_MS": int,
+    "FIXATION_VELOCITY_THRESHOLD": float,
+    "FIXATION_DISPERSION_THRESHOLD": float,
+    "SACCADE_MINIMUM_DURATION": int,
+    "SACCADE_THRESHOLD_FACTOR": float,
+    "SACCADE_MINIMUM_THRESHOLD": float,
+    "VELOCITY_SMOOTHING_WINDOW_MS": int,
+    "VELOCITY_POLYNOMIAL_DEGREE": int,
+}
+
 logger = logging.getLogger(__name__)
 package_logger = logging.getLogger("preprocessing")
 
@@ -1066,6 +1077,9 @@ class Settings:
                     **self._normalize_availability_overrides(overrides),
                 }
                 continue
+
+            if upper_key in _NUMERIC_SETTINGS and value is not None:
+                value = _NUMERIC_SETTINGS[upper_key](value)
 
             if upper_key in self.__dict__:
                 setattr(self, upper_key, value)

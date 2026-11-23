@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from preprocessing.config import TEMPLATE_RELATIVE_PATH
+
 
 @pytest.fixture
 def settings_obj():
@@ -143,12 +145,30 @@ def test_settings_load_from_yaml_logging(settings_obj, caplog, tmp_path, config_
         ({"data_collection_name": "ME_TEST"}, "DATA_COLLECTION_NAME", "ME_TEST"),
         ({"include_pilots": True}, "INCLUDE_PILOTS", True),
         ({"EXPECTED_SAMPLING_RATE_HZ": 500}, "EXPECTED_SAMPLING_RATE_HZ", 500),
+        (
+            {"saccade_minimum_threshold": "1e-10"},
+            "SACCADE_MINIMUM_THRESHOLD",
+            1e-10,
+        ),
+        (
+            {"fixation_velocity_threshold": "20.5"},
+            "FIXATION_VELOCITY_THRESHOLD",
+            20.5,
+        ),
     ],
 )
 def test_settings_update(settings_obj, update_dict, attr, expected):
     """Test updating settings from a dictionary."""
     settings_obj.update(update_dict)
     assert getattr(settings_obj, attr) == expected
+
+
+def test_template_scientific_notation_is_float(settings_obj):
+    """The template uses float syntax for the saccade minimum threshold."""
+    template = settings_obj._repo_root / TEMPLATE_RELATIVE_PATH
+    values = yaml.safe_load(template.read_text(encoding="utf-8"))
+
+    assert isinstance(values["saccade_minimum_threshold"], float)
 
 
 @pytest.mark.parametrize(
