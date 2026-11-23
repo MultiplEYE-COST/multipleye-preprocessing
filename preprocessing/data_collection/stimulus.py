@@ -180,6 +180,11 @@ class Stimulus:
         )
 
         aois_df = pl.read_csv(aoi_path)
+        # Missing values are automatically read as string, casting dtype
+        aois_df = aois_df.with_columns(
+            pl.col("secondary_unit_of_analysis_idx").cast(pl.Int64),
+            pl.col("secondary_unit_of_analysis_idx_in_line").cast(pl.Int64),
+        )
         if enlarge_aois:
             aois_df = _enlarge_aois(aois_df, script_direction=script_direction)
 
@@ -192,6 +197,7 @@ class Stimulus:
             height_column="height",
             page_column="page",
             trial_column="trial",
+            word_column="unit_of_analysis",
         )
 
         questions_df_path = (

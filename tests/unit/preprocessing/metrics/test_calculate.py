@@ -11,8 +11,8 @@ from preprocessing.metrics.calculate import calculate_reading_measures
 def _stimulus(trial_id: str, identifier: str, words: list[str]) -> SimpleNamespace:
     aois = pl.DataFrame(
         {
-            "word_idx": list(range(len(words))),
-            "word": words,
+            "unit_of_analysis_idx": list(range(len(words))),
+            "unit_of_analysis": words,
             "char_idx": list(range(len(words))),
             "page": ["page_1"] * len(words),
         }
@@ -55,7 +55,12 @@ def test_calls_engine_with_trial_page_grouping(monkeypatch):
 
     assert captured["fixations"] is fixations
     assert captured["group_columns"] == ["trial", "page"]
-    assert set(captured["aois"].columns) >= {"word_idx", "word", "char_idx", "trial"}
+    assert set(captured["aois"].columns) >= {
+        "unit_of_analysis_idx",
+        "unit_of_analysis",
+        "char_idx",
+        "trial",
+    }
     assert captured["aois"]["trial"].to_list() == ["trial_1", "trial_2"]
 
 
@@ -81,6 +86,6 @@ def test_renames_word_index_and_adds_stimulus(monkeypatch):
 
     result = calculate_reading_measures(gaze, stimuli)
 
-    assert "word_idx" in result.columns
+    assert "unit_of_analysis_idx" in result.columns
     assert "word_index" not in result.columns
     assert result["stimulus"].to_list() == ["Stim_A_1", "Stim_B_2", None]

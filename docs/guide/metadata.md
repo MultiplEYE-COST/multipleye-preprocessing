@@ -241,7 +241,6 @@ confirmed by the language team.
 The MultiplEYE pipeline sets all four flags to `true`.
 
 ### `psychometric_tests`
-
 | Field | Type | Description |
 | --- | --- | --- |
 | `tests_available` | list, null | Psychometric tests configured for the lab, for example `LWMC`, `PLAB`, `Stroop`, `RAN`. `null` when the lab configuration lists none. |
