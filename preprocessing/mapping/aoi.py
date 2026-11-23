@@ -271,7 +271,9 @@ def add_custom_uoa(
     key_columns = ["char", "char_idx", "page"]
     uoa_key = uoa_data[key_columns]
     if "questions" in uoa_file.name:
-        aoi_key = aoi_data[key_columns].filter(aoi_data["question_image_version"] == "question_images_version_1")
+        aoi_key = aoi_data[key_columns].filter(
+            aoi_data["question_image_version"] == "question_images_version_1"
+        )
     else:
         aoi_key = aoi_data[key_columns]
 

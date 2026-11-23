@@ -180,6 +180,7 @@ def _space_and_words():
         },
     ]
 
+
 def _aoi_uoa_df_for_merging():
     aoi_rows = _space_and_words()
     aoi_df = pl.DataFrame(aoi_rows)
@@ -191,26 +192,26 @@ def _aoi_uoa_df_for_merging():
         }
     )
     uoa_df = aoi_df.drop(
-            [
-                "unit_of_analysis",
-                "unit_of_analysis_idx_in_line",
-                "unit_of_analysis_idx",
-                "top_left_x",
-                "top_left_y",
-                "width",
-                "height",
-            ]
-        )
+        [
+            "unit_of_analysis",
+            "unit_of_analysis_idx_in_line",
+            "unit_of_analysis_idx",
+            "top_left_x",
+            "top_left_y",
+            "width",
+            "height",
+        ]
+    )
     uoa_column = pl.Series(
-            "unit_of_analysis", ["c", "at ", "at ", "at ", "d", "og", "og"]
-        )
-    uoa_idx_column = pl.Series("unit_of_analysis_idx", [0,1,1,1,2,3,3])
+        "unit_of_analysis", ["c", "at ", "at ", "at ", "d", "og", "og"]
+    )
+    uoa_idx_column = pl.Series("unit_of_analysis_idx", [0, 1, 1, 1, 2, 3, 3])
     uoa_df = uoa_df.with_columns([uoa_column, uoa_idx_column])
     aoi_df = aoi_df.with_columns(
-            pl.lit(None).alias("secondary_unit_of_analysis"),
-            pl.lit(None).alias("secondary_unit_of_analysis_idx"),
-            pl.lit(None).alias("secondary_unit_of_analysis_idx_in_line"),
-        )
+        pl.lit(None).alias("secondary_unit_of_analysis"),
+        pl.lit(None).alias("secondary_unit_of_analysis_idx"),
+        pl.lit(None).alias("secondary_unit_of_analysis_idx_in_line"),
+    )
 
     return aoi_df, uoa_df
 
@@ -477,12 +478,16 @@ def test_add_question_custom_uoa(tmp_path):
 
     nrow = len(aoi_df)
     aoi_df = aoi_df.vstack(aoi_df)
-    qiv = pl.Series(values=["question_images_version_1"]*nrow+["question_images_version_2"]*nrow, name="question_image_version")
+    qiv = pl.Series(
+        values=["question_images_version_1"] * nrow
+        + ["question_images_version_2"] * nrow,
+        name="question_image_version",
+    )
     aoi_df = aoi_df.with_columns(qiv)
     uoa_df_second_half = uoa_df.with_columns(
         pl.lit(None).alias("unit_of_analysis"),
         pl.lit(None).alias("unit_of_analysis_idx"),
-        )
+    )
     uoa_df = uoa_df.vstack(uoa_df_second_half)
     uoa_df = uoa_df.with_columns(qiv)
 
@@ -505,6 +510,12 @@ def test_add_question_custom_uoa(tmp_path):
     assert list(new_aoi_df["secondary_unit_of_analysis"]) == list(
         aoi_df["unit_of_analysis"]
     )
-    assert list(new_aoi_df["unit_of_analysis"].filter(
-        new_aoi_df["question_image_version"] == "question_images_version_1"
-        )) == list(uoa_df["unit_of_analysis"].filter(uoa_df["question_image_version"]=="question_images_version_1"))
+    assert list(
+        new_aoi_df["unit_of_analysis"].filter(
+            new_aoi_df["question_image_version"] == "question_images_version_1"
+        )
+    ) == list(
+        uoa_df["unit_of_analysis"].filter(
+            uoa_df["question_image_version"] == "question_images_version_1"
+        )
+    )
