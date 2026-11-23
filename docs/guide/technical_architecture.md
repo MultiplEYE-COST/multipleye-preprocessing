@@ -128,16 +128,19 @@ filters.
 
 **The dataset overview records how the data was processed.** `{dcn}_overview.yaml` contains a
 `processing_config` section with the algorithm settings used for the run: event-detection
-parameters (`fixation_method`, `fixation_minimum_duration_ms`, `fixation_velocity_threshold`,
-`saccade_method`, `saccade_minimum_duration`, `saccade_threshold_factor`), velocity-estimation
-parameters (`velocity_estimation_method`, `velocity_smoothing_window_ms`,
-`velocity_polynomial_degree`), fixation drift correction settings (`fixation_correction`,
-`fixation_correction_algorithm`, `fixation_correction_kwargs`), psychometric scoring thresholds
+parameters (`detection_eye`, `fixation_method`, `fixation_minimum_duration_ms`,
+`fixation_velocity_threshold`, `fixation_dispersion_threshold`, `fixation_include_nan`,
+`saccade_method`, `saccade_minimum_duration`, `saccade_threshold`, `saccade_threshold_factor`,
+`saccade_minimum_threshold`, `saccade_include_nan`), velocity-estimation parameters
+(`velocity_estimation_method`, `velocity_smoothing_window_ms`, `velocity_polynomial_degree`,
+`velocity_padding`), data-loss settings (`data_loss_missingness_column`), fixation drift
+correction settings (`fixation_correction`, `fixation_correction_algorithm`,
+`fixation_correction_kwargs`), psychometric scoring thresholds
 (`psym_wikivocab_{min,max}_rt`, `psym_stroop_{min,max}_rt`, `psym_flanker_{min,max}_rt`), eye and
 column mappings (`tracked_eye`, `trial_cols`, `trial_col`, `page_col`, `stimulus_col`,
 `word_idx_col`, `char_idx_col`) and fixed design decisions that are not configurable
 (`aoi_enlargement`, `reading_measures_null_fill`, `scanpath_drop_unmapped`,
-`data_loss_missingness_column`, `per_trial_loss_weighting`). These values are read from the
+`per_trial_loss_weighting`). These values are read from the
 resolved configuration, so the overview always reflects what was actually applied.
 Fixation correction is on by default. `aoi_enlargement` is `none` when correction is active
 (corrected fixations land on the AOIs) and `half_line_spacing` when correction is off. When

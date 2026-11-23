@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from preprocessing.config import TEMPLATE_RELATIVE_PATH
+
 
 @pytest.fixture
 def settings_obj():
@@ -26,15 +28,23 @@ def settings_obj():
         ("RUN_FIXATION_CORRECTION", True),
         ("SANITY_CHECKS_FOLDER", Path("sanity_checks/")),
         ("METADATA_FOLDER", Path("metadata/")),
+        ("DETECTION_EYE", "auto"),
+        ("DATA_LOSS_MISSINGNESS_COLUMN", "pixel"),
         ("FIXATION_METHOD", "ivt"),
         ("FIXATION_MINIMUM_DURATION_MS", 100),
         ("FIXATION_VELOCITY_THRESHOLD", 20.0),
+        ("FIXATION_DISPERSION_THRESHOLD", 1.0),
+        ("FIXATION_INCLUDE_NAN", False),
         ("SACCADE_METHOD", "microsaccades"),
         ("SACCADE_MINIMUM_DURATION", 6),
+        ("SACCADE_THRESHOLD", "engbert2015"),
         ("SACCADE_THRESHOLD_FACTOR", 6.0),
+        ("SACCADE_MINIMUM_THRESHOLD", 1e-10),
+        ("SACCADE_INCLUDE_NAN", False),
         ("VELOCITY_ESTIMATION_METHOD", "savitzky_golay"),
         ("VELOCITY_SMOOTHING_WINDOW_MS", 50),
         ("VELOCITY_POLYNOMIAL_DEGREE", 2),
+        ("VELOCITY_PADDING", "nearest"),
     ],
 )
 def test_settings_default_values(settings_obj, attr, expected):
@@ -135,12 +145,30 @@ def test_settings_load_from_yaml_logging(settings_obj, caplog, tmp_path, config_
         ({"data_collection_name": "ME_TEST"}, "DATA_COLLECTION_NAME", "ME_TEST"),
         ({"include_pilots": True}, "INCLUDE_PILOTS", True),
         ({"EXPECTED_SAMPLING_RATE_HZ": 500}, "EXPECTED_SAMPLING_RATE_HZ", 500),
+        (
+            {"saccade_minimum_threshold": "1e-10"},
+            "SACCADE_MINIMUM_THRESHOLD",
+            1e-10,
+        ),
+        (
+            {"fixation_velocity_threshold": "20.5"},
+            "FIXATION_VELOCITY_THRESHOLD",
+            20.5,
+        ),
     ],
 )
 def test_settings_update(settings_obj, update_dict, attr, expected):
     """Test updating settings from a dictionary."""
     settings_obj.update(update_dict)
     assert getattr(settings_obj, attr) == expected
+
+
+def test_template_scientific_notation_is_float(settings_obj):
+    """The template uses float syntax for the saccade minimum threshold."""
+    template = settings_obj._repo_root / TEMPLATE_RELATIVE_PATH
+    values = yaml.safe_load(template.read_text(encoding="utf-8"))
+
+    assert isinstance(values["saccade_minimum_threshold"], float)
 
 
 @pytest.mark.parametrize(

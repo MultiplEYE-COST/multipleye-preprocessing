@@ -17,6 +17,17 @@ TEMPLATE_RELATIVE_PATH = Path(
     "templates_and_notes/multipleye_settings_preprocessing.template.yaml"
 )
 
+_NUMERIC_SETTINGS = {
+    "FIXATION_MINIMUM_DURATION_MS": int,
+    "FIXATION_VELOCITY_THRESHOLD": float,
+    "FIXATION_DISPERSION_THRESHOLD": float,
+    "SACCADE_MINIMUM_DURATION": int,
+    "SACCADE_THRESHOLD_FACTOR": float,
+    "SACCADE_MINIMUM_THRESHOLD": float,
+    "VELOCITY_SMOOTHING_WINDOW_MS": int,
+    "VELOCITY_POLYNOMIAL_DEGREE": int,
+}
+
 logger = logging.getLogger(__name__)
 package_logger = logging.getLogger("preprocessing")
 
@@ -660,6 +671,9 @@ class Settings:
 
         # --- EVENT DETECTION ---
 
+        #: Eye selection passed to pymovements event detection.
+        self.DETECTION_EYE = "auto"
+
         #: Fixation detection method passed to pymovements (e.g. "ivt", "idt").
         self.FIXATION_METHOD = "ivt"
 
@@ -669,14 +683,30 @@ class Settings:
         #: Velocity threshold for IVT fixation detection in degrees/second.
         self.FIXATION_VELOCITY_THRESHOLD = 20.0
 
+        #: Dispersion threshold for IDT fixation detection in degrees of visual angle.
+        self.FIXATION_DISPERSION_THRESHOLD = 1.0
+
+        #: Whether to split fixation events on missing samples.
+        self.FIXATION_INCLUDE_NAN = False
+
         #: Saccade detection method passed to pymovements (e.g. "microsaccades").
         self.SACCADE_METHOD = "microsaccades"
 
         #: Minimum saccade duration in samples.
         self.SACCADE_MINIMUM_DURATION = 6
 
+        #: Data-driven threshold method or explicit two-value threshold for
+        #: microsaccade detection.
+        self.SACCADE_THRESHOLD = "engbert2015"
+
         #: Noise-adaptive velocity threshold factor for saccade detection.
         self.SACCADE_THRESHOLD_FACTOR = 6.0
+
+        #: Minimum threshold value for microsaccade detection.
+        self.SACCADE_MINIMUM_THRESHOLD = 1e-10
+
+        #: Whether to split saccade events on missing samples.
+        self.SACCADE_INCLUDE_NAN = False
 
         #: Velocity estimation method (e.g. "savitzky_golay").
         self.VELOCITY_ESTIMATION_METHOD = "savitzky_golay"
@@ -686,6 +716,9 @@ class Settings:
 
         #: Polynomial degree used in the Savitzky-Golay velocity filter.
         self.VELOCITY_POLYNOMIAL_DEGREE = 2
+
+        #: Padding used by the Savitzky-Golay velocity filter.
+        self.VELOCITY_PADDING = "nearest"
 
         # --- FIXATION CORRECTION ---
 
@@ -700,6 +733,11 @@ class Settings:
         #: ``{"x_thresh": 250.0}``. In ensemble mode an entry is routed only to the candidate
         #: algorithms whose signature accepts it, but it fans out to all of them.
         self.FIXATION_CORRECTION_KWARGS = {}
+
+        # --- DATA LOSS ---
+
+        #: Sample column used to detect missing data.
+        self.DATA_LOSS_MISSINGNESS_COLUMN = "pixel"
 
         # --- PSYCHOMETRIC TEST THRESHOLDS ---
 
@@ -1039,6 +1077,9 @@ class Settings:
                     **self._normalize_availability_overrides(overrides),
                 }
                 continue
+
+            if upper_key in _NUMERIC_SETTINGS and value is not None:
+                value = _NUMERIC_SETTINGS[upper_key](value)
 
             if upper_key in self.__dict__:
                 setattr(self, upper_key, value)
