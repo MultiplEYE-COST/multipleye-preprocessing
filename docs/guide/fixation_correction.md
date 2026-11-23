@@ -22,6 +22,8 @@ stimulus version. `LabConfig` is loaded per stimulus folder, so a collection tha
   locations back. The fixed coordinate is therefore x, while y is preserved.
 - `btt` is rejected with a clear error. The current stimulus generator does not produce it.
 
+See {ref}`configuration_guide` for a mixed-direction `stimulus_versions` example.
+
 ## Where it runs
 
 Correction runs after fixation detection and before scanpaths, reading measures and sanity plots.
