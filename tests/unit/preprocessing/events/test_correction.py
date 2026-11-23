@@ -81,7 +81,12 @@ def _ttb_stimulus() -> SimpleNamespace:
         {
             "char_idx": [0, 1, 2, 3],
             "char": ["a", "b", "c", "d"],
-            "word": ["ab", "ab", "cd", "cd"],
+            "unit_of_analysis": ["ab", "ab", "cd", "cd"],
+            "unit_of_analysis_idx": [0, 0, 1, 1],
+            "unit_of_analysis_idx_in_line": [0, 0, 1, 1],
+            "secondary_unit_of_analysis": ["x", "x", "y", "y"],
+            "secondary_unit_of_analysis_idx": [10, 10, 11, 11],
+            "secondary_unit_of_analysis_idx_in_line": [0, 0, 1, 1],
             "top_left_x": [200.0, 200.0, 119.0, 119.0],
             "top_left_y": [80.0, 108.0, 80.0, 108.0],
             "width": [28.0, 28.0, 28.0, 28.0],

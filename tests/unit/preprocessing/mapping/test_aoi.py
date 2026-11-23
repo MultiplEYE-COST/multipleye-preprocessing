@@ -16,7 +16,7 @@ def _ttb_aois() -> pl.DataFrame:
         {
             "char_idx": [0, 1, 2, 3],
             "char": ["a", "b", "c", "d"],
-            "word": ["ab", "ab", "cd", "cd"],
+            "unit_of_analysis": ["ab", "ab", "cd", "cd"],
             "top_left_x": [1244, 1244, 1163, 1163],
             "top_left_y": [91, 119, 91, 119],
             "width": [28, 28, 28, 28],
@@ -24,8 +24,11 @@ def _ttb_aois() -> pl.DataFrame:
             "char_idx_in_line": [0, 1, 0, 1],
             "line_idx": [0, 0, 1, 1],
             "page": ["page_1"] * 4,
-            "word_idx": [0, 0, 1, 1],
-            "word_idx_in_line": [0, 0, 1, 1],
+            "unit_of_analysis_idx": [0, 0, 1, 1],
+            "unit_of_analysis_idx_in_line": [0, 0, 1, 1],
+            "secondary_unit_of_analysis": ["x", "x", "y", "y"],
+            "secondary_unit_of_analysis_idx": [10, 10, 11, 11],
+            "secondary_unit_of_analysis_idx_in_line": [0, 0, 1, 1],
         }
     )
 
@@ -86,3 +89,12 @@ def test_build_combined_text_stimulus_transposes_ttb_geometry() -> None:
     assert combined.aois["width"].to_list() == aois["height"].to_list()
     assert combined.aois["height"].to_list() == aois["width"].to_list()
     assert combined.aois[settings.TRIAL_COL].unique().to_list() == ["trial_1"]
+    for column in (
+        "unit_of_analysis",
+        "unit_of_analysis_idx",
+        "unit_of_analysis_idx_in_line",
+        "secondary_unit_of_analysis",
+        "secondary_unit_of_analysis_idx",
+        "secondary_unit_of_analysis_idx_in_line",
+    ):
+        assert combined.aois[column].to_list() == aois[column].to_list()
