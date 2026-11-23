@@ -133,8 +133,50 @@ configs fall back to the image generator geometry. See {ref}`fixation_correction
 
 The script direction is also not a pipeline setting. `LabConfig` is loaded per stimulus version,
 so each session uses the `Script_direction` and dot geometry from the stimulus folder it actually
-saw. This allows one data collection to contain horizontal and vertical stimulus versions. Missing
-`Script_direction` values fall back to `ltr`.
+saw. Missing `Script_direction` values fall back to `ltr`.
+
+(stimulus_content_versions)=
+
+### Stimulus Content Versions
+
+`stimulus_versions` assigns each participant to a stimulus folder. `default_version: null` uses
+the suffix-less folder `stimuli_<dcn>/`. Each suffix under `versions` maps to the sibling folder
+`stimuli_<dcn>_<suffix>/`. A participant may appear in only one version bucket. Participants not
+listed under `versions` use the default folder.
+
+```yaml
+stimulus_versions:
+  default_version: null
+  versions:
+    v2:
+      - "008"
+      - "010"
+```
+
+For the collection `MultiplEYE_XX_XX_Example_1_2026`, the default folder is
+`stimuli_MultiplEYE_XX_XX_Example_1_2026/` and the `v2` folder is
+`stimuli_MultiplEYE_XX_XX_Example_1_2026_v2/`.
+
+The suffix is only a folder name. It does not set the script direction or any other processing
+setting.
+
+### Mixed Script Directions
+
+If a collection has sessions with different script directions, assign the matching stimulus folder
+to each participant with {ref}`stimulus_content_versions`. The version suffix can be `vertical`,
+`v2`, `ttb` or any other folder name. It does not set the direction.
+
+The `Script_direction` in the lab configuration for each version must match the direction that was
+used when the stimuli were generated. It is not a free processing choice. A vertical version has:
+
+```json
+"Script_direction": "ttb"
+```
+
+A horizontal default version normally has `"ltr"`. The pipeline loads the lab configuration for
+each session, so AOI enlargement, fixation correction and final-dot handling use the direction of
+the folder that session saw. The dataset overview records the groups in
+`administrative.script_directions`.
 
 ### Quality Check Thresholds
 
