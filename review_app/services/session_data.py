@@ -429,8 +429,8 @@ def build_session_detail(
 
     from ..config import sanity_checks_path
 
-    plots_dir = sanity_checks_path(dcn_name, sid) / f"{sid}_plots"
-    plots_available = plots_dir.exists()
+    plots_dir = sanity_checks_path(dcn_name, sid)
+    plots_available = plots_dir.exists() and any(plots_dir.rglob("*.png"))
 
     return SessionDetail(
         sid=sid,

@@ -21,6 +21,9 @@ class ViewRow:
     raw: Any = None
     source: Path | None = None
     source_key: str = ""
+    dcn_name: str = ""
+    dcn_path: Path | None = None
+    availability: dict[str, Any] = field(default_factory=dict)
 
     def value(self, variable_id: str) -> Any:
         return self.values.get(variable_id)
@@ -227,7 +230,30 @@ def load_view_rows(
     if cached is not None and cached[0] == fingerprint:
         return cached[1]
     rows = _load_view_rows(dcn_path, view_id, codebook)
+    for row in rows:
+        row.dcn_name = dcn_path.name
+        row.dcn_path = dcn_path
     _VIEW_CACHE[cache_key] = (fingerprint, rows)
+    return rows
+
+
+def load_all_view_rows(
+    preprocessed_dir: Path,
+    view_id: str,
+    codebook: Codebook,
+    availability_func: object | None = None,
+) -> list[ViewRow]:
+    rows: list[ViewRow] = []
+    for dcn_path in processed_dcn_paths(preprocessed_dir):
+        dcn_rows = load_view_rows(dcn_path, view_id, codebook)
+        available = (
+            availability_func(dcn_path.name)
+            if callable(availability_func)
+            else {}
+        )
+        for row in dcn_rows:
+            row.availability = available
+        rows.extend(dcn_rows)
     return rows
 
 
@@ -401,6 +427,8 @@ def related_rows(
     target_view: str,
     codebook: Codebook,
 ) -> list[ViewRow]:
+    if source_row.dcn_path is not None:
+        dcn_path = source_row.dcn_path
     rows = load_view_rows(dcn_path, target_view, codebook)
     if source_row.view == target_view:
         return [source_row]

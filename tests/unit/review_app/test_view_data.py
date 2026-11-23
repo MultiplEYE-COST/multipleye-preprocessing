@@ -1,5 +1,6 @@
 """Tests for loading the five views from processed collection YAML."""
 
+import shutil
 from pathlib import Path
 
 import yaml
@@ -7,6 +8,7 @@ import yaml
 from review_app.services.codebook import load_repo_codebook
 from review_app.services.filters import apply_filters, parse_filters
 from review_app.services.view_data import (
+    load_all_view_rows,
     load_dataset_overview,
     load_items,
     load_participants,
@@ -174,6 +176,25 @@ def test_participant_and_trial_relations(tmp_path: Path) -> None:
 
     trial_filter = parse_filters(["trial.is_practice:eq:false"])
     assert len(apply_filters(participants, trial_filter, codebook, dcn)) == 1
+
+
+def test_load_all_view_rows_spans_collections(tmp_path: Path) -> None:
+    first = _build_collection(tmp_path)
+    second = tmp_path / "MultiplEYE_KL_DK_Copenhagen_1_2026"
+    shutil.copytree(first, second)
+    old_overview = second / f"{first.name}_overview.yaml"
+    overview_path = second / f"{second.name}_overview.yaml"
+    old_overview.rename(overview_path)
+    overview = yaml.safe_load(overview_path.read_text())
+    overview["administrative"]["title"] = second.name
+    _write_yaml(overview_path, overview)
+
+    codebook = load_repo_codebook()
+    datasets = load_all_view_rows(tmp_path, "dataset", codebook)
+    sessions = load_all_view_rows(tmp_path, "session", codebook)
+    assert {row.key for row in datasets} == {first.name, second.name}
+    assert len(sessions) == 2
+    assert {row.dcn_name for row in sessions} == {first.name, second.name}
 
 
 def test_same_view_trial_filter_does_not_cross_sessions(tmp_path: Path) -> None:

@@ -1,7 +1,25 @@
 {% extends "base.html" %}
-{% block title %}MultiplEYE Data Review — {{ dcn_name }}{% endblock %}
+{% block title %}MultiplEYE Data Review — {% if scope == "all" %}All data{% else %}{{ dcn_name }}{% endif %}{% endblock %}
 {% block content %}
 {% set admin = dataset_overview.get("administrative", {}) %}
+{% if scope == "all" %}
+<div class="topbar">
+  <div>
+    <h2>All data collections</h2>
+    <div class="subtle" style="margin-top:4px">
+      {{ collection_count }} processed collection{% if collection_count != 1 %}s{% endif %} &middot; five codebook views &middot; filterable across collections
+    </div>
+  </div>
+  <div style="text-align:right">
+    <div class="subtle" style="font-size:0.78rem">
+      Codebook {{ codebook_status.version or "unknown" }} (union)
+    </div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px">
+      <a href="/" class="btn btn-sm">&larr; landing page</a>
+    </div>
+  </div>
+</div>
+{% else %}
 <div class="topbar">
   <div>
     <h2>{{ dcn_name }}</h2>
@@ -27,6 +45,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 {% if preflight %}
 <details class="card" style="padding:0;border-left:3px solid var(--{{ 'fail' if preflight_status == 'fail' else ('warn' if preflight_status == 'warn' else 'border') }})"{% if preflight_status in ('fail', 'warn') %} open{% endif %}>
@@ -61,6 +80,7 @@
     <span class="subtle">{{ codebook_status.version or "unknown" }}</span>
     {% if codebook_status.hash %}<span class="subtle" style="font-family:monospace;font-size:0.72rem">{{ codebook_status.hash[:19] }}…</span>{% endif %}
     {% if codebook_status.source == "repo" %}<span class="pill pill-warn">repository fallback</span>{% endif %}
+    {% if codebook_status.source == "union" %}<span class="pill">union of collections</span>{% endif %}
   </summary>
   <div style="padding:0 1rem 0.75rem;font-size:0.82rem;border-top:1px solid var(--border)">
     <p class="subtle" style="margin-top:0.4rem">{{ codebook.credit }}</p>
@@ -69,7 +89,9 @@
       <span class="subtle">{{ key }}</span><span>{{ value }}</span>
       {% endfor %}
     </div>
+    {% if scope != "all" %}
     <p class="subtle" style="margin-top:0.4rem">{{ availability.values() | selectattr("is_available") | list | length }} of {{ availability | length }} fields available in this collection.</p>
+    {% endif %}
   </div>
 </details>
 

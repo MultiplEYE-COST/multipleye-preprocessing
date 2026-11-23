@@ -9,19 +9,29 @@ from urllib.parse import quote, urlencode
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from ..config import RAW_DATA_DIR
+from ..config import PREPROCESSED_DATA_DIR, RAW_DATA_DIR
 from ..services import codebook_store
 from ..services.codebook import VIEW_IDS, Codebook
 from ..services.preflight import run_pipeline_preflight
 from ..services.review import load_review
-from ..services.filters import ViewFilter, apply_filters, parse_filters, search_rows
+from ..services.swipe import list_plot_data
+from ..services.filters import (
+    ViewFilter,
+    apply_filters,
+    operator_label,
+    operators_for_field,
+    parse_filters,
+    search_rows,
+    value_options,
+)
 from ..services.view_data import (
     ViewRow,
     dataset_overview_path,
     find_row,
+    load_all_view_rows,
     load_dataset_overview,
-    load_view_rows,
     load_session_overviews,
+    load_view_rows,
     related_rows,
 )
 from ..templating import render
@@ -101,6 +111,165 @@ def _query_url(
     return f"/dcn/{_quote(dcn_name)}/view/{view_id}{suffix}"
 
 
+def _global_query_url(
+    view_id: str,
+    group_id: str,
+    query: str,
+    filters: list[ViewFilter],
+    page: int,
+) -> str:
+    params: list[tuple[str, str]] = []
+    if group_id:
+        params.append(("group", group_id))
+    if query:
+        params.append(("q", query))
+    for view_filter in filters:
+        params.append(("f", view_filter.to_query()))
+    if page > 1:
+        params.append(("page", str(page)))
+    suffix = f"?{urlencode(params)}" if params else ""
+    return f"/views/view/{view_id}{suffix}"
+
+
+def _global_context(
+    view_id: str,
+    group_id: str | None,
+    query: str,
+    filters: list[ViewFilter],
+    page: int,
+) -> dict:
+    codebook = codebook_store.union_codebook()
+    view_id = _resolve_view(view_id)
+    group_id = _resolve_group(codebook, view_id, group_id)
+    rows = load_all_view_rows(
+        PREPROCESSED_DATA_DIR,
+        view_id,
+        codebook,
+        availability_func=lambda name: codebook_store.availability(name, codebook),
+    )
+    rows = search_rows(rows, query, codebook)
+    rows = apply_filters(rows, filters, codebook, PREPROCESSED_DATA_DIR)
+
+    page_size = PAGE_SIZES.get(view_id, 50)
+    total = len(rows)
+    page_count = max(1, math.ceil(total / page_size))
+    page = min(max(1, page), page_count)
+    start = (page - 1) * page_size
+    page_rows = rows[start : start + page_size]
+    current_url = _global_query_url(view_id, group_id, query, filters, page)
+
+    group_options = [
+        {
+            "group_id": gid,
+            "label": codebook.groups[gid].label,
+            "selected": gid == group_id,
+        }
+        for gid in codebook.group_ids_for_view(view_id)
+    ]
+    columns = codebook.columns_for(view_id, group_id)
+    filter_fields = sorted(
+        codebook.fields_for_view(view_id),
+        key=lambda field_obj: field_obj.feature_label.lower(),
+    )
+    filter_field_meta = {
+        field_obj.variable_id: {
+            "type": field_obj.data_type,
+            "operators": [
+                {"value": operator, "label": operator_label(operator)}
+                for operator in operators_for_field(field_obj)
+            ],
+            "values": value_options(field_obj),
+        }
+        for field_obj in filter_fields
+    }
+    filter_default = filter_fields[0] if filter_fields else None
+    filter_default_meta = (
+        filter_field_meta.get(filter_default.variable_id, {}) if filter_default else {}
+    )
+    reviews = {}
+    plot_counts = {}
+    if view_id == "session":
+        for row in page_rows:
+            key = f"{row.dcn_name}|{row.source_key or row.key}"
+            reviews[key] = load_review(row.dcn_name, row.source_key or row.key)
+            plot_counts[key] = len(
+                list_plot_data(row.dcn_name, row.source_key or row.key)
+            )
+    collections = processed_collection_count()
+
+    return {
+        "scope": "all",
+        "dcn_name": "",
+        "dcn_path": PREPROCESSED_DATA_DIR,
+        "view_id": view_id,
+        "view_title": VIEW_TITLES[view_id],
+        "view_tabs": [
+            {
+                "view_id": candidate,
+                "title": VIEW_TITLES[candidate],
+                "active": candidate == view_id,
+                "href": _global_query_url(candidate, group_id, query, filters, 1),
+            }
+            for candidate in VIEW_IDS
+        ],
+        "group_id": group_id,
+        "group_options": group_options,
+        "columns": columns,
+        "rows": page_rows,
+        "reviews": reviews,
+        "plot_counts": plot_counts,
+        "row_url": lambda row: _row_url_with_return(row.dcn_name, row, current_url),
+        "total": total,
+        "page": page,
+        "page_count": page_count,
+        "page_size": page_size,
+        "start": start,
+        "query": query,
+        "filters": filters,
+        "filter_fields": filter_fields,
+        "filter_field_meta": filter_field_meta,
+        "filter_default": filter_default,
+        "filter_default_meta": filter_default_meta,
+        "availability": {},
+        "codebook": codebook,
+        "dataset_overview": {},
+        "is_processed": True,
+        "preflight": None,
+        "preflight_status": "unknown",
+        "codebook_status": {
+            "source": "union",
+            "version": codebook.version,
+            "hash": codebook.hash,
+        },
+        "collection_count": collections,
+        "previous_url": _global_query_url(
+            view_id, group_id, query, filters, page - 1
+        )
+        if page > 1
+        else "",
+        "next_url": _global_query_url(
+            view_id, group_id, query, filters, page + 1
+        )
+        if page < page_count
+        else "",
+        "table_url": f"/views/view/{view_id}/table",
+    }
+
+
+def processed_collection_count() -> int:
+    if not PREPROCESSED_DATA_DIR.exists():
+        return 0
+    return sum(
+        1
+        for entry in PREPROCESSED_DATA_DIR.iterdir()
+        if entry.is_dir()
+        and (
+            (entry / f"{entry.name}_overview.yaml").exists()
+            or (entry / "metadata").exists()
+        )
+    )
+
+
 def _collection_context(
     dcn_name: str,
     view_id: str,
@@ -141,12 +310,36 @@ def _collection_context(
     ]
     current_url = _query_url(dcn_name, view_id, group_id, query, filters, page)
     columns = codebook.columns_for(view_id, group_id)
-    filter_fields = codebook.fields_for_view(view_id)
+    filter_fields = sorted(
+        codebook.fields_for_view(view_id),
+        key=lambda field_obj: field_obj.feature_label.lower(),
+    )
+    filter_field_meta = {
+        field_obj.variable_id: {
+            "type": field_obj.data_type,
+            "operators": [
+                {"value": operator, "label": operator_label(operator)}
+                for operator in operators_for_field(field_obj)
+            ],
+            "values": value_options(field_obj),
+        }
+        for field_obj in filter_fields
+    }
+    filter_default = filter_fields[0] if filter_fields else None
+    filter_default_meta = (
+        filter_field_meta.get(filter_default.variable_id, {}) if filter_default else {}
+    )
     dataset_overview = load_dataset_overview(dcn_path)
     reviews = {}
+    plot_counts = {}
     if view_id == "session":
         for row in page_rows:
-            reviews[row.key] = load_review(dcn_name, row.source_key or row.key)
+            reviews[f"{dcn_name}|{row.source_key or row.key}"] = load_review(
+                dcn_name, row.source_key or row.key
+            )
+            plot_counts[f"{dcn_name}|{row.source_key or row.key}"] = len(
+                list_plot_data(dcn_name, row.source_key or row.key)
+            )
     is_processed = bool(load_session_overviews(dcn_path)) or dataset_overview_path(dcn_path).exists()
     preflight = None
     preflight_status = "unknown"
@@ -156,8 +349,10 @@ def _collection_context(
         preflight_status = "fail" if raw_status == "error" else raw_status
 
     return {
+        "scope": "collection",
         "dcn_name": dcn_name,
         "dcn_path": dcn_path,
+        "collection_count": 1,
         "view_id": view_id,
         "view_title": VIEW_TITLES[view_id],
         "view_tabs": [
@@ -176,6 +371,7 @@ def _collection_context(
         "columns": columns,
         "rows": page_rows,
         "reviews": reviews,
+        "plot_counts": plot_counts,
         "row_url": lambda row: _row_url_with_return(dcn_name, row, current_url),
         "total": total,
         "page": page,
@@ -185,6 +381,9 @@ def _collection_context(
         "query": query,
         "filters": filters,
         "filter_fields": filter_fields,
+        "filter_field_meta": filter_field_meta,
+        "filter_default": filter_default,
+        "filter_default_meta": filter_default_meta,
         "availability": availability,
         "codebook": codebook,
         "dataset_overview": dataset_overview,
@@ -208,6 +407,48 @@ def _collection_context(
 
 def _request_filters(request: Request) -> list[ViewFilter]:
     return parse_filters(request.query_params.getlist("f"))
+
+
+@router.get("/views", response_class=HTMLResponse)
+def all_views_page(
+    request: Request,
+    view: str = "dataset",
+    group: str | None = None,
+    q: str = "",
+    page: int = 1,
+):
+    filters = _request_filters(request)
+    context = _global_context(view, group, q, filters, page)
+    html = render("views/page.html", request=request, **context)
+    return HTMLResponse(html)
+
+
+@router.get("/views/view/{view_id}", response_class=HTMLResponse)
+def all_views_view_page(
+    request: Request,
+    view_id: str,
+    group: str | None = None,
+    q: str = "",
+    page: int = 1,
+):
+    filters = _request_filters(request)
+    context = _global_context(view_id, group, q, filters, page)
+    html = render("views/page.html", request=request, **context)
+    return HTMLResponse(html)
+
+
+@router.get("/views/view/{view_id}/table", response_class=HTMLResponse)
+def all_views_table(
+    request: Request,
+    view_id: str,
+    group: str | None = None,
+    q: str = "",
+    page: int = 1,
+):
+    filters = _request_filters(request)
+    context = _global_context(view_id, group, q, filters, page)
+    html = render("views/_table.html", request=request, **context)
+    return HTMLResponse(html)
 
 
 @router.get("/dcn/{dcn_name}", response_class=HTMLResponse)

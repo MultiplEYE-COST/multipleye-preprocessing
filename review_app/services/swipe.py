@@ -147,30 +147,39 @@ def list_plot_data(dcn_name: str, sid: str) -> list[dict]:
     Returns a list of ``{url, name, stimulus, page, activity}`` sorted
     with main_sequence first, then by filename.
     """
-    plots_dir = sanity_checks_path(dcn_name, sid) / f"{sid}_plots"
+    session_dir = sanity_checks_path(dcn_name, sid)
+    preferred = session_dir / f"{sid}_plots"
+    preferred_files = list(preferred.glob("*.png")) if preferred.exists() else []
+    files = sorted(
+        preferred_files or list(session_dir.rglob("*.png")),
+        key=lambda p: ("0" if p.stem == "main_sequence" else "1", str(p)),
+    )
+    base = dcn_path(dcn_name).parent
     plots = []
-    if plots_dir.exists():
-        files = sorted(
-            plots_dir.glob("*.png"),
-            key=lambda p: ("0" if p.stem == "main_sequence" else "1", p.stem),
+    seen = set()
+    for png in files:
+        if png.resolve() in seen:
+            continue
+        seen.add(png.resolve())
+        meta = _parse_plot_name(png.stem)
+        if meta["page"].startswith("question"):
+            continue
+        stimulus_parts = meta["stimulus"].lower().split("_")
+        if any(kw in stimulus_parts for kw in _NON_SCANPATH_KEYWORDS):
+            continue
+        try:
+            relative = png.relative_to(base)
+        except ValueError:
+            continue
+        plots.append(
+            {
+                "url": f"/files/{relative}",
+                "name": png.stem,
+                "stimulus": meta["stimulus"],
+                "page": meta["page"],
+                "activity": meta["activity"],
+            }
         )
-        for png in files:
-            meta = _parse_plot_name(png.stem)
-            if meta["page"].startswith("question"):
-                continue
-            stimulus_parts = meta["stimulus"].lower().split("_")
-            if any(kw in stimulus_parts for kw in _NON_SCANPATH_KEYWORDS):
-                continue
-            relative = png.relative_to(dcn_path(dcn_name).parent)
-            plots.append(
-                {
-                    "url": f"/files/{relative}",
-                    "name": png.stem,
-                    "stimulus": meta["stimulus"],
-                    "page": meta["page"],
-                    "activity": meta["activity"],
-                }
-            )
     return plots
 
 

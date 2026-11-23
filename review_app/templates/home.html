@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}MultiplEYE Data Review — Collections{% endblock %}
 {% block content %}
-<div class="topbar"><h2>Data Collections</h2></div>
+<div class="topbar">
+  <h2>Data Collections</h2>
+  <a href="/views" class="btn btn-primary">Browse all data &rarr;</a>
+</div>
 {% if dcns %}
 {% set processed = dcns | selectattr("is_processed") | list %}
 {% set raw = dcns | rejectattr("is_processed") | selectattr("has_raw_data") | list %}

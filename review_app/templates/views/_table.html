@@ -21,7 +21,7 @@
   {% for f in filters %}
   {% set filter_field = codebook.field(f.variable_id) %}
   <span class="filter-chip" data-filter="{{ f.to_query() }}">
-    {{ filter_field.feature_label if filter_field else f.variable_id }} {{ op_labels.get(f.operator, f.operator) }} {{ f.value }}
+    {{ filter_field.feature_label if filter_field else f.variable_id }} {{ op_labels.get(f.operator, f.operator) }} {{ filter_field.value_labels.get(f.value, f.value) if filter_field and filter_field.value_labels else f.value }}
     <button type="button" class="filter-chip-remove" title="Remove filter">&times;</button>
   </span>
   {% endfor %}
@@ -38,17 +38,27 @@
       {% endfor %}
     </select>
     <select name="operator" id="filter-operator">
-      <option value="eq">equals</option>
-      <option value="ne">not equals</option>
-      <option value="contains">contains</option>
-      <option value="gt">&gt;</option>
-      <option value="ge">&gt;=</option>
-      <option value="lt">&lt;</option>
-      <option value="le">&lt;=</option>
+      {% for operator in filter_default_meta.get("operators", []) %}
+      <option value="{{ operator.value }}">{{ operator.label }}</option>
+      {% endfor %}
     </select>
-    <input name="value" id="filter-value" class="search" style="margin:0" placeholder="Value">
+    <span id="filter-value-wrap">
+      {% if filter_default_meta.get("values") %}
+      <select name="value" id="filter-value">
+        {% for option in filter_default_meta.get("values", []) %}
+        <option value="{{ option.value }}">{{ option.label }}</option>
+        {% endfor %}
+      </select>
+      {% else %}
+      <input name="value" id="filter-value" class="search" style="margin:0"
+             type="{{ 'number' if filter_default_meta.get('type') in ('number', 'integer') else 'text' }}"
+             {% if filter_default_meta.get('type') in ('number', 'integer') %}step="any"{% endif %}
+             placeholder="Value">
+      {% endif %}
+    </span>
     <button class="btn btn-sm btn-primary" type="submit">Apply</button>
   </form>
+  <script id="filter-field-meta" type="application/json">{{ filter_field_meta | tojson }}</script>
   <div class="subtle" style="font-size:0.78rem;margin-top:4px">
     Filters stay in the URL when switching views. Filters from other views are applied through the codebook relations.
   </div>
@@ -64,7 +74,7 @@
         {{ field.feature_label }}{% if field.unit %}<span class="unit">({{ field.unit }})</span>{% endif %}
       </th>
       {% endfor %}
-      {% if view_id == "session" %}<th>Review</th>{% endif %}
+      {% if view_id == "session" %}<th>Review</th><th>Plots</th>{% endif %}
     </tr>
   </thead>
   <tbody>
@@ -72,7 +82,7 @@
     {% set href = row_url(row) %}
     <tr{% if href %} class="clickable" data-href="{{ href }}"{% endif %}>
       {% for field in columns %}
-      {% set av = availability.get(field.variable_id) %}
+      {% set av = (row.availability.get(field.variable_id) if row.availability else availability.get(field.variable_id)) %}
       <td>
         {% if av and not av.is_available %}
         <span class="cell-unavailable" title="{{ av.available }}{% if av.reason %}: {{ av.reason }}{% endif %}">&mdash;</span>
@@ -82,7 +92,8 @@
       </td>
       {% endfor %}
       {% if view_id == "session" %}
-      {% set review = reviews.get(row.key) %}
+      {% set row_key = row.dcn_name ~ "|" ~ (row.source_key or row.key) %}
+      {% set review = reviews.get(row_key) %}
       <td>
         {% if review %}
         {% set badge = {"unreviewed": "badge-unreviewed", "accepted": "badge-pass", "flagged": "badge-fail", "excluded": "badge-warn"} %}
@@ -91,6 +102,8 @@
         {% if review.reviewer %}<span class="subtle" style="display:block;font-size:0.72rem">{{ review.reviewer }}</span>{% endif %}
         {% endif %}
       </td>
+      {% set n_plots = plot_counts.get(row_key, 0) %}
+      <td>{% if n_plots %}{{ n_plots }}{% else %}<span class="cell-unavailable">&mdash;</span>{% endif %}</td>
       {% endif %}
     </tr>
     {% endfor %}

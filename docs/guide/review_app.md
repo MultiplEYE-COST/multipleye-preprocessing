@@ -25,7 +25,12 @@ preprocessed directory defaults to `preprocessed_data/` in the repository root.
 
 ## Views
 
-The collection page has five views. They are fixed:
+The landing page lists collections and links to two ways of browsing them:
+
+- the collection page at `/dcn/<dcn>`, scoped to one collection
+- the global page at `/views`, which shows all processed collections at once
+
+Both pages use the same five fixed views:
 
 - Dataset
 - Session
@@ -37,6 +42,9 @@ The view names and keys come from `codebook/views.csv`. Columns are display-grou
 `codebook/display_groups.csv` and `display_group_members.csv`. Field labels, descriptions,
 units, allowed values and value labels come from `fields.csv`. The app does not keep a separate
 hardcoded field registry.
+
+The global page uses the union of all processed collection codebooks. Fields that exist in another
+collection but not the current row's collection are shown as unavailable for that row.
 
 Membership is evaluated against the union of processed collections. A field that exists in
 another collection but not the current one is shown as unavailable. Availability comes from the
@@ -54,12 +62,19 @@ Filters are stored as `f` query parameters, for example:
 ?f=dataset.administrative.country:eq:IT
 ```
 
+The filter builder is type-aware. Numeric fields offer comparison operators, boolean fields offer
+true and false, and categorical fields offer their canonical codebook values with display labels.
+String fields offer equality and contains. Invalid operators in a hand-written URL are ignored.
+
 Filters are mapped across views through the codebook relations. Dataset and session filters
 restrict child views. Trial filters restrict their parent sessions and participants by matching
 related trials. Dynamic recomputation of aggregate values after filtering is a later EyeStore
 feature; the review app applies filters to the selected rows.
 
-Session rows open the session review page with checks, gaze plots and the review form. Trial,
+Session rows open the session review page with checks, gaze plots and the review form. Plot
+discovery looks in the usual `sanity_checks/<sid>/<sid>_plots/` folder and falls back to a recursive
+search below the session sanity-check folder, so older or slightly reorganised outputs still show
+their plots when the PNG files are present. If no plots are found, the session page says so. Trial,
 participant and item rows open detail pages with every codebook field for that view and links to
 related records.
 

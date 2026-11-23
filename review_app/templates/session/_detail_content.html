@@ -97,6 +97,13 @@
       {% include "session/_plot_grid.html" %}
       </div>
     </div>
+    {% else %}
+    <div class="card" style="margin-top:1rem">
+      <h3 style="margin-bottom:0.5rem">Gaze Plots</h3>
+      <p class="subtle">No gaze plots found for this session. The pipeline writes them under
+      <code>sanity_checks/{{ detail.sid }}/{{ detail.sid }}_plots/</code> when sanity checks and
+      plotting are enabled. Re-run the sanity checks with plotting enabled if the folder is missing.</p>
+    </div>
     {% endif %}
   </div>
 

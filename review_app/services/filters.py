@@ -10,6 +10,51 @@ from .codebook import Codebook
 from .view_data import ViewRow, related_rows
 
 _OPERATORS = ("eq", "ne", "contains", "gt", "ge", "lt", "le")
+_NUMERIC_TYPES = {"number", "integer"}
+_OPERATOR_LABELS = {
+    "eq": "equals",
+    "ne": "not equals",
+    "contains": "contains",
+    "gt": "greater than",
+    "ge": "at least",
+    "lt": "less than",
+    "le": "at most",
+}
+
+
+def operators_for_field(field: Any) -> tuple[str, ...]:
+    data_type = getattr(field, "data_type", "")
+    allowed = getattr(field, "allowed_values", ())
+    if allowed:
+        return ("eq", "ne")
+    if data_type in _NUMERIC_TYPES:
+        return ("eq", "ne", "gt", "ge", "lt", "le")
+    if data_type == "boolean":
+        return ("eq", "ne")
+    if data_type.startswith("list"):
+        return ("contains", "eq", "ne")
+    if data_type == "object":
+        return ("eq", "ne")
+    return ("eq", "ne", "contains")
+
+
+def operator_allowed(field: Any, operator: str) -> bool:
+    return operator in operators_for_field(field)
+
+
+def operator_label(operator: str) -> str:
+    return _OPERATOR_LABELS.get(operator, operator)
+
+
+def value_options(field: Any) -> list[dict[str, str]]:
+    labels = getattr(field, "value_labels", {}) or {}
+    return [
+        {
+            "value": value,
+            "label": labels.get(value, value),
+        }
+        for value in getattr(field, "allowed_values", ()) or ()
+    ]
 
 
 @dataclass(frozen=True)
@@ -128,13 +173,17 @@ def apply_filters(
         return rows
     result = rows
     for view_filter in filters:
-        if codebook.field(view_filter.variable_id) is None:
+        field_obj = codebook.field(view_filter.variable_id)
+        if field_obj is None:
+            continue
+        if not operator_allowed(field_obj, view_filter.operator):
             continue
         if not _connected(codebook, result[0].view if result else "", view_filter.view):
             continue
         selected = []
         for row in result:
-            candidates = related_rows(dcn_path, row, view_filter.view, codebook)
+            row_path = row.dcn_path or dcn_path
+            candidates = related_rows(row_path, row, view_filter.view, codebook)
             if any(matches(candidate, view_filter) for candidate in candidates):
                 selected.append(row)
         result = selected
