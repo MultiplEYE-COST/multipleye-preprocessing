@@ -199,7 +199,7 @@ def add_custom_uoa(
     stimuli_folder: Path,
     aoi_file: Path,
     uoa_column_name,
-    uoa_idx_colum_name,
+    uoa_idx_column_name,
 ) -> None:
     """
     Add custom units of analysis to the aoi file and rewrite the file. The units of analysis file should be in the respective stimulus folder.
@@ -245,7 +245,7 @@ def add_custom_uoa(
         uoa_data = pl.read_csv(uoa_file)[
             [
                 uoa_column_name,
-                uoa_idx_colum_name,
+                uoa_idx_column_name,
                 "char",
                 "char_idx",
                 "page",
@@ -257,12 +257,12 @@ def add_custom_uoa(
         )
 
         uoa_data = uoa_data[
-            [uoa_column_name, uoa_idx_colum_name, "char", "char_idx", "page"]
+            [uoa_column_name, uoa_idx_column_name, "char", "char_idx", "page"]
         ]
 
     else:
         uoa_data = pl.read_csv(uoa_file)[
-            [uoa_column_name, uoa_idx_colum_name, "char", "char_idx", "page"]
+            [uoa_column_name, uoa_idx_column_name, "char", "char_idx", "page"]
         ]
 
     uoa_data = uoa_data.sort(by=["page", "char_idx"])
@@ -271,11 +271,7 @@ def add_custom_uoa(
     key_columns = ["char", "char_idx", "page"]
     uoa_key = uoa_data[key_columns]
     if "questions" in uoa_file.name:
-        aoi_key = list(
-            aoi_data[key_columns].filter(
-                aoi_data["question_image_version"] == "question_images_version_1"
-            )
-        )
+        aoi_key = aoi_data[key_columns].filter(aoi_data["question_image_version"] == "question_images_version_1")
     else:
         aoi_key = aoi_data[key_columns]
 
@@ -301,7 +297,7 @@ def add_custom_uoa(
     uoa_data = uoa_data.rename(
         {
             uoa_column_name: "unit_of_analysis",
-            uoa_idx_colum_name: "unit_of_analysis_idx",
+            uoa_idx_column_name: "unit_of_analysis_idx",
         }
     )
 
