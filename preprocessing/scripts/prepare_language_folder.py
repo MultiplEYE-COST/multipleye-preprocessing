@@ -337,7 +337,7 @@ def prepare_language_folder(data_collection_name: str | None = None):
                         stimuli_folder=preprocessed_stimulus_path,
                         aoi_file=aoi_file,
                         uoa_column_name=settings.UOA_COLUMN,
-                        uoa_idx_colum_name=settings.UOA_IDX_COLUMN,
+                        uoa_idx_column_name=settings.UOA_IDX_COLUMN,
                     )
 
             # Create a marker file to indicate that these files have been fixed

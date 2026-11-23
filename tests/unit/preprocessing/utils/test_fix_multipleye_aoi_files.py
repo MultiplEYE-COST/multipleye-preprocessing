@@ -180,6 +180,40 @@ def _space_and_words():
         },
     ]
 
+def _aoi_uoa_df_for_merging():
+    aoi_rows = _space_and_words()
+    aoi_df = pl.DataFrame(aoi_rows)
+    aoi_df = aoi_df.rename(
+        {
+            "word": "unit_of_analysis",
+            "word_idx": "unit_of_analysis_idx",
+            "word_idx_in_line": "unit_of_analysis_idx_in_line",
+        }
+    )
+    uoa_df = aoi_df.drop(
+            [
+                "unit_of_analysis",
+                "unit_of_analysis_idx_in_line",
+                "unit_of_analysis_idx",
+                "top_left_x",
+                "top_left_y",
+                "width",
+                "height",
+            ]
+        )
+    uoa_column = pl.Series(
+            "unit_of_analysis", ["c", "at ", "at ", "at ", "d", "og", "og"]
+        )
+    uoa_idx_column = pl.Series("unit_of_analysis_idx", [0,1,1,1,2,3,3])
+    uoa_df = uoa_df.with_columns([uoa_column, uoa_idx_column])
+    aoi_df = aoi_df.with_columns(
+            pl.lit(None).alias("secondary_unit_of_analysis"),
+            pl.lit(None).alias("secondary_unit_of_analysis_idx"),
+            pl.lit(None).alias("secondary_unit_of_analysis_idx_in_line"),
+        )
+
+    return aoi_df, uoa_df
+
 
 def _read(path):
     return pl.read_csv(path)
@@ -416,45 +450,15 @@ def test_fix_aoi_file_missing_columns_raises(tmp_path):
 def test_add_custom_uoa(tmp_path):
     uoa_path = tmp_path / "custom_units_of_analysis" / "test_aoi.csv"
     uoa_path.parent.mkdir()
-    aoi_rows = _space_and_words()
-    aoi_df = pl.DataFrame(aoi_rows)
-    uoa_df = aoi_df.drop(
-        [
-            "word",
-            "word_idx_in_line",
-            "word_idx",
-            "top_left_x",
-            "top_left_y",
-            "width",
-            "height",
-        ]
-    )
-    uoa_column = pl.Series(
-        "unit_of_analysis", ["c", "at ", "at ", "at ", "d", "og", "og"]
-    )
-    uoa_idx_column = pl.Series("unit_of_analysis_idx", range(7))
-    uoa_df = uoa_df.with_columns([uoa_column, uoa_idx_column])
+    aoi_df, uoa_df = _aoi_uoa_df_for_merging()
     uoa_df.write_csv(uoa_path)
-
     aoi_path = tmp_path / "test_aoi.csv"
-    aoi_df = aoi_df.with_columns(
-        pl.lit(None).alias("secondary_unit_of_analysis"),
-        pl.lit(None).alias("secondary_unit_of_analysis_idx"),
-        pl.lit(None).alias("secondary_unit_of_analysis_idx_in_line"),
-    )
-    aoi_df = aoi_df.rename(
-        {
-            "word": "unit_of_analysis",
-            "word_idx": "unit_of_analysis_idx",
-            "word_idx_in_line": "unit_of_analysis_idx_in_line",
-        }
-    )
     aoi_df.write_csv(aoi_path)
     add_custom_uoa(
         tmp_path,
         aoi_path,
         uoa_column_name="unit_of_analysis",
-        uoa_idx_colum_name="unit_of_analysis_idx",
+        uoa_idx_column_name="unit_of_analysis_idx",
     )
 
     new_aoi_df = pl.read_csv(aoi_path)
@@ -464,3 +468,43 @@ def test_add_custom_uoa(tmp_path):
         aoi_df["unit_of_analysis"]
     )
     assert list(new_aoi_df["unit_of_analysis"]) == list(uoa_df["unit_of_analysis"])
+
+
+def test_add_question_custom_uoa(tmp_path):
+    uoa_path = tmp_path / "custom_units_of_analysis" / "test_aoi_questions.csv"
+    uoa_path.parent.mkdir()
+    aoi_df, uoa_df = _aoi_uoa_df_for_merging()
+
+    nrow = len(aoi_df)
+    aoi_df = aoi_df.vstack(aoi_df)
+    qiv = pl.Series(values=["question_images_version_1"]*nrow+["question_images_version_2"]*nrow, name="question_image_version")
+    aoi_df = aoi_df.with_columns(qiv)
+    uoa_df_second_half = uoa_df.with_columns(
+        pl.lit(None).alias("unit_of_analysis"),
+        pl.lit(None).alias("unit_of_analysis_idx"),
+        )
+    uoa_df = uoa_df.vstack(uoa_df_second_half)
+    uoa_df = uoa_df.with_columns(qiv)
+
+    uoa_df.write_csv(uoa_path)
+    aoi_path = tmp_path / "test_aoi_questions.csv"
+    aoi_df.write_csv(aoi_path)
+    add_custom_uoa(
+        tmp_path,
+        aoi_path,
+        uoa_column_name="unit_of_analysis",
+        uoa_idx_column_name="unit_of_analysis_idx",
+    )
+
+    new_aoi_df = pl.read_csv(aoi_path)
+
+    aoi_df = aoi_df.sort(by=["page", "line_idx", "char_idx"])
+    uoa_df = uoa_df.sort(by=["page", "line_idx", "char_idx"])
+
+    assert list(new_aoi_df["char"]) == list(aoi_df["char"])
+    assert list(new_aoi_df["secondary_unit_of_analysis"]) == list(
+        aoi_df["unit_of_analysis"]
+    )
+    assert list(new_aoi_df["unit_of_analysis"].filter(
+        new_aoi_df["question_image_version"] == "question_images_version_1"
+        )) == list(uoa_df["unit_of_analysis"].filter(uoa_df["question_image_version"]=="question_images_version_1"))
