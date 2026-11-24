@@ -245,13 +245,13 @@ def test_build_pid_stimulus_dirs_prefers_output_copy(tmp_path, monkeypatch_setti
     data_dir = tmp_path / dcn
     (data_dir / f"stimuli_{dcn}_v2").mkdir(parents=True)
 
-    output_default = tmp_path / "preprocessed_data" / dcn / f"stimuli_{dcn}"
-    output_default.mkdir(parents=True)
-    (output_default.parent / f"stimuli_{dcn}_v2").mkdir()
+    output_dir = tmp_path / "preprocessed_data" / dcn
+    (output_dir / f"stimuli_{dcn}").mkdir(parents=True)
+    (output_dir / f"stimuli_{dcn}_v2").mkdir()
 
-    result = MultipleyeDataCollection._build_pid_stimulus_dirs(data_dir, output_default)
+    result = MultipleyeDataCollection._build_pid_stimulus_dirs(data_dir, output_dir)
 
-    assert result["003"] == output_default.parent / f"stimuli_{dcn}_v2"
+    assert result["003"] == output_dir / f"stimuli_{dcn}_v2"
 
 
 def test_build_pid_stimulus_dirs_falls_back_to_data(tmp_path, monkeypatch_settings):
@@ -260,9 +260,25 @@ def test_build_pid_stimulus_dirs_falls_back_to_data(tmp_path, monkeypatch_settin
     data_dir = tmp_path / dcn
     (data_dir / f"stimuli_{dcn}_v2").mkdir(parents=True)
 
-    output_default = tmp_path / "preprocessed_data" / dcn / f"stimuli_{dcn}"
-    output_default.mkdir(parents=True)
+    output_dir = tmp_path / "preprocessed_data" / dcn
+    (output_dir / f"stimuli_{dcn}").mkdir(parents=True)
 
-    result = MultipleyeDataCollection._build_pid_stimulus_dirs(data_dir, output_default)
+    result = MultipleyeDataCollection._build_pid_stimulus_dirs(data_dir, output_dir)
 
     assert result["003"] == data_dir / f"stimuli_{dcn}_v2"
+
+
+def test_build_pid_stimulus_dirs_uses_output_root_without_default_folder(
+    tmp_path, monkeypatch_settings
+):
+    """Versioned folders resolve under output when no default folder exists."""
+    dcn = "MultiplEYE_KL_DK_Example_1_2026"
+    data_dir = tmp_path / dcn
+    (data_dir / f"stimuli_{dcn}_v2").mkdir(parents=True)
+
+    output_dir = tmp_path / "preprocessed_data" / dcn
+    (output_dir / f"stimuli_{dcn}_v2").mkdir(parents=True)
+
+    result = MultipleyeDataCollection._build_pid_stimulus_dirs(data_dir, output_dir)
+
+    assert result["003"] == output_dir / f"stimuli_{dcn}_v2"

@@ -1252,7 +1252,11 @@ class MultipleyeDataCollection:
             doc_sheet = None
 
         # Build the per-PID stimulus directory map from the stimulus_versions config.
-        pid_stimulus_dirs = cls._build_pid_stimulus_dirs(data_dir, stimulus_folder_path)
+        # Versioned folders are resolved from the prepared output root, independent
+        # of whether the default (suffix-less) stimulus folder exists.
+        pid_stimulus_dirs = cls._build_pid_stimulus_dirs(
+            data_dir, Path(output_dir or settings.OUTPUT_DIR).resolve()
+        )
 
         return cls(
             data_collection_name=data_folder_name,
@@ -1281,20 +1285,20 @@ class MultipleyeDataCollection:
 
     @classmethod
     def _build_pid_stimulus_dirs(
-        cls, data_folder_path: Path, default_stimulus_dir: Path
+        cls, data_folder_path: Path, output_dir: Path
     ) -> dict[str, Path] | None:
         """Build a map from participant ID to its stimulus folder.
 
         Reads the configured ``stimulus_versions`` and resolves each versioned
-        folder (``stimuli_<dcn>_<suffix>``) under the data folder or the default
-        stimulus dir's parent.
+        folder (``stimuli_<dcn>_<suffix>``) under the prepared output root first,
+        then under the raw data folder.
 
         Parameters
         ----------
         data_folder_path : Path
             The raw data collection directory (contains ``stimuli_<dcn>``).
-        default_stimulus_dir : Path
-            The resolved default stimulus directory.
+        output_dir : Path
+            The prepared output root that contains the copied stimulus folders.
 
         Returns
         -------
@@ -1306,13 +1310,13 @@ class MultipleyeDataCollection:
         if not pid_map:
             return None
 
-        # Prefer the prepared copy next to the default stimulus dir (the output
-        # folder the pipeline uses, where AOIs are split/fixed); fall back to the
-        # raw data folder.
+        # Prefer the prepared copy under the output root, where AOIs are split and
+        # fixed. Do not derive this root from the default stimulus folder, because
+        # that folder may not exist for versioned-only collections.
         result: dict[str, Path] = {}
         for version, pids in pid_map.items():
             folder_name = stimulus_folder_name(data_folder_path.name, version)
-            version_dir = default_stimulus_dir.parent / folder_name
+            version_dir = output_dir / folder_name
             if not version_dir.exists():
                 version_dir = data_folder_path / folder_name
             for pid in pids:
