@@ -72,7 +72,11 @@ from ..utils.pq_normalisation import (
     find_questionnaire_files,
     normalise_pq,
 )
-from ..utils.stimulus_versions import stimulus_folder_name, version_suffix_for_pid
+from ..utils.stimulus_versions import (
+    default_version_suffix,
+    stimulus_folder_name,
+    version_suffix_for_pid,
+)
 from .experimenter_doc import ExperimenterDoc
 from .participant_info import (
     PSYCHOMETRIC_KEY_SCORES,
@@ -1202,11 +1206,29 @@ class MultipleyeDataCollection:
             + r"_ET\d(?:_.*)?"
         )
 
-        stimulus_folder_path = (
-            settings.OUTPUT_DIR / f"stimuli_{data_folder_name}"
-        ).resolve()
+        output_root = Path(output_dir or settings.OUTPUT_DIR).resolve()
+        default_folder_name = stimulus_folder_name(
+            data_folder_name, default_version_suffix()
+        )
+        stimulus_folder_path = (output_root / default_folder_name).resolve()
         if not stimulus_folder_path.exists():
-            stimulus_folder_path = (data_dir / f"stimuli_{data_folder_name}").resolve()
+            source_stimulus_path = (data_dir / default_folder_name).resolve()
+            if source_stimulus_path.exists():
+                stimulus_folder_path = source_stimulus_path
+            else:
+                raise FileNotFoundError(
+                    f"Default stimulus folder not found: {stimulus_folder_path}. "
+                    f"Also checked the raw data folder at {source_stimulus_path}. "
+                    "If this collection only ships versioned stimulus folders, set "
+                    "'stimulus_versions.default_version' to the folder suffix to use "
+                    "as the default (for example 'vs1'). Otherwise check that the "
+                    "stimulus folder was uploaded."
+                )
+
+        # Build the per-PID stimulus directory map from the stimulus_versions config.
+        # Versioned folders are resolved from the prepared output root, independent
+        # of whether the default (suffix-less) stimulus folder exists.
+        pid_stimulus_dirs = cls._build_pid_stimulus_dirs(data_dir, output_root)
 
         config_file = (
             stimulus_folder_path
@@ -1250,13 +1272,6 @@ class MultipleyeDataCollection:
             doc_sheet = ExperimenterDoc.create_from_excel(doc_sheet_path)
         else:
             doc_sheet = None
-
-        # Build the per-PID stimulus directory map from the stimulus_versions config.
-        # Versioned folders are resolved from the prepared output root, independent
-        # of whether the default (suffix-less) stimulus folder exists.
-        pid_stimulus_dirs = cls._build_pid_stimulus_dirs(
-            data_dir, Path(output_dir or settings.OUTPUT_DIR).resolve()
-        )
 
         return cls(
             data_collection_name=data_folder_name,
