@@ -14,6 +14,7 @@ from preprocessing.checks.preflight import (
     _check_doc_sheet_pids,
     _check_psychometric_tests,
     _check_session_completeness,
+    _check_shared_files,
     _check_stimulus_order_coverage,
     _check_stimulus_versions,
     run_preflight_check,
@@ -43,6 +44,7 @@ class FakeDataCollection:
     sessions: dict[str, FakeSession] = field(default_factory=dict)
     skipped_sessions: dict = field(default_factory=dict)
     num_sessions: int = 2
+    data_collection_name: str | None = None
 
 
 def _write_csv(path: Path, columns: list[str], rows: list[list[str]]) -> None:
@@ -51,6 +53,50 @@ def _write_csv(path: Path, columns: list[str], rows: list[list[str]]) -> None:
     header = ",".join(columns)
     lines = [header] + [",".join(row) for row in rows]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_shared_stimulus_files(
+    stim_dir: Path,
+    *,
+    lang: str = "EN",
+    country: str = "UK",
+    labnum: int = 1,
+    city: str = "City",
+    year: int = 2026,
+) -> None:
+    """Populate a stimulus folder with the files checked by preflight."""
+    lang_lower = lang.lower()
+    country_lower = country.lower()
+    stim_dir.mkdir(parents=True, exist_ok=True)
+
+    for name in [
+        f"multipleye_stimuli_experiment_{lang}.xlsx",
+        f"multipleye_comprehension_questions_{lang}.xlsx",
+        f"multipleye_participant_instructions_{lang_lower}_with_img_paths.csv",
+    ]:
+        (stim_dir / name).write_text("dummy", encoding="utf-8")
+
+    config_dir = stim_dir / "config"
+    config_dir.mkdir()
+    (
+        config_dir
+        / f"config_{lang_lower}_{country_lower}_{city.lower()}_{labnum}_{year}.py"
+    ).write_text("dummy", encoding="utf-8")
+    (
+        config_dir
+        / f"MultiplEYE_{lang}_{country}_{city}_{labnum}_{year}_lab_configuration.json"
+    ).write_text("{}", encoding="utf-8")
+    (config_dir / f"stimulus_order_versions_{lang}_{country}_{labnum}.csv").write_text(
+        "participant_id,version_number\n001,1\n", encoding="utf-8"
+    )
+
+    for folder_name in [
+        f"stimuli_images_{lang_lower}_{country_lower}_{labnum}",
+        f"aoi_stimuli_{lang_lower}_{country_lower}_{labnum}",
+        f"question_images_{lang_lower}_{country_lower}_{labnum}",
+        f"participant_instructions_images_{lang_lower}_{country_lower}_{labnum}",
+    ]:
+        (stim_dir / folder_name).mkdir()
 
 
 @pytest.fixture
@@ -1430,6 +1476,71 @@ def test_stimulus_order_coverage_uses_version_csv(version_env):
     _check_stimulus_order_coverage(dc, groups)
 
     assert "Stimulus order versions coverage" not in groups
+
+
+def test_check_shared_files_uses_prepared_stimulus_copy(tmp_path, monkeypatch):
+    """Shared stimulus files are validated in the prepared copy."""
+    dcn = "MultiplEYE_EN_UK_Example_1_2026"
+    source_dir = tmp_path / "data" / dcn
+    output_dir = tmp_path / "preprocessed_data" / dcn
+    source_stim = source_dir / f"stimuli_{dcn}"
+    prepared_stim = output_dir / f"stimuli_{dcn}"
+
+    source_stim.mkdir(parents=True)
+    _write_shared_stimulus_files(prepared_stim, year=2024)
+
+    # Documentation is not copied to the prepared output.
+    doc_dir = source_dir / "documentation"
+    doc_dir.mkdir()
+    (doc_dir / "MultiplEYE_EN_UK_City_1_2024_metadata_form.json").write_text("{}")
+
+    monkeypatch.setattr(settings, "DATASET_DIR", source_dir)
+    dc = FakeDataCollection(
+        stimulus_dir=prepared_stim,
+        language="EN",
+        country="UK",
+        lab_number=1,
+        experimenter_doc=None,
+        data_collection_name=dcn,
+    )
+
+    errors: dict[str, list[str]] = {}
+    warnings: dict[str, list[str]] = {}
+    _check_shared_files(dc, errors, warnings)
+
+    assert errors == {}
+    assert "Metadata form JSON" not in warnings
+
+
+def test_check_stimulus_versions_uses_prepared_version_folder(tmp_path, monkeypatch):
+    """Versioned checks resolve the prepared sibling folder, not the raw data one."""
+    dcn = "MultiplEYE_EN_UK_Example_1_2026"
+    output_dir = tmp_path / "preprocessed_data" / dcn
+    prepared_default = output_dir / f"stimuli_{dcn}"
+    prepared_version = output_dir / f"stimuli_{dcn}_v2"
+    prepared_default.mkdir(parents=True)
+    (prepared_version / "config").mkdir(parents=True)
+    (prepared_version / "config" / "stimulus_order_versions_EN_UK_1.csv").write_text(
+        "participant_id,version_number\n003,1\n"
+    )
+
+    sid = "003_EN_UK_1_ET1"
+    dc = FakeDataCollection(
+        stimulus_dir=prepared_default,
+        language="EN",
+        country="UK",
+        lab_number=1,
+        experimenter_doc=None,
+        data_collection_name=dcn,
+        sessions={sid: FakeSession(sid, Path("/edf"), Path("/sess"), 3)},
+    )
+    monkeypatch.setattr(settings, "STIMULUS_VERSIONS_DEFAULT_VERSION", None)
+    monkeypatch.setattr(settings, "STIMULUS_VERSIONS_PID_MAP", {"v2": ["003"]})
+
+    groups: dict[str, list[str]] = {}
+    _check_stimulus_versions(dc, groups)
+
+    assert "Stimulus versions" not in groups
 
 
 def test_stimulus_order_coverage_reports_missing_in_version_csv(version_env):
