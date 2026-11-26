@@ -751,3 +751,86 @@ def test_availability_overrides_reject_unsupported_value(settings_obj, tmp_path)
 
     with pytest.raises(TypeError, match="must be a state"):
         settings_obj.load_from_yaml(config_file)
+
+
+def test_psychometric_test_mapping_defaults(settings_obj):
+    """The default mapping keeps the existing test folders and flags."""
+    assert settings_obj.PSYCHOMETRIC_TEST_MAPPING == {
+        "plab": "PLAB",
+        "ran": "RAN",
+        "stroop_flanker": "Stroop_Flanker",
+        "wmc": "WMC",
+        "wiki_vocab": "WikiVocab",
+    }
+    assert settings_obj.PSYCHOMETRIC_TEST_FOLDERS == [
+        "PLAB",
+        "RAN",
+        "Stroop_Flanker",
+        "WMC",
+        "WikiVocab",
+    ]
+    assert settings_obj.PSYCHOMETRIC_TEST_CANONICAL_IDS["wmc"] == ("lwmc",)
+    assert settings_obj.PSYCHOMETRIC_TEST_CANONICAL_IDS["stroop_flanker"] == (
+        "stroop",
+        "flanker",
+    )
+
+
+def test_psychometric_test_mapping_loads_from_yaml(settings_obj, tmp_path):
+    """Custom test flags and folders can be set from the config."""
+    config_file = tmp_path / "test_config.yaml"
+    config_data = {
+        "data_collection_name": "MultiplEYE_EN_UK_London_1_2026",
+        "psychometric_test_mapping": {
+            "plab": "PLAB_2026",
+            "BCST": "BCST",
+        },
+    }
+    with open(config_file, "w") as f:
+        yaml.dump(config_data, f)
+
+    settings_obj.load(path=config_file)
+
+    assert settings_obj.PSYCHOMETRIC_TEST_MAPPING == {
+        "plab": "PLAB_2026",
+        "bcst": "BCST",
+    }
+    assert set(settings_obj.PSYCHOMETRIC_TEST_FOLDERS) == {"PLAB_2026", "BCST"}
+    assert settings_obj.PSYCHOMETRIC_TEST_CANONICAL_IDS["plab"] == ("plab",)
+    assert settings_obj.PSYCHOMETRIC_TEST_CANONICAL_IDS["bcst"] == ("bcst",)
+    assert settings_obj.PSYM_PLAB_DIR == Path("PLAB_2026")
+
+
+def test_psychometric_test_mapping_syncs_known_dirs(settings_obj):
+    """Known preprocessing folder paths follow the configurable mapping."""
+    settings_obj._loaded = True
+    settings_obj.PSYCHOMETRIC_TEST_MAPPING = {
+        "plab": "PLAB_X",
+        "ran": "RAN_X",
+        "stroop_flanker": "SF_X",
+        "wmc": "WMC_X",
+        "wiki_vocab": "WV_X",
+    }
+    settings_obj.validate_psychometric_test_mapping()
+
+    assert settings_obj.PSYM_PLAB_DIR == Path("PLAB_X")
+    assert settings_obj.PSYM_RAN_DIR == Path("RAN_X")
+    assert settings_obj.PSYM_STROOP_FLANKER_DIR == Path("SF_X")
+    assert settings_obj.PSYM_LWMC_DIR == Path("WMC_X")
+    assert settings_obj.PSYM_WIKIVOCAB_DIR == Path("WV_X")
+
+
+def test_psychometric_test_mapping_rejects_invalid_values(settings_obj):
+    settings_obj._loaded = True
+
+    settings_obj.PSYCHOMETRIC_TEST_MAPPING = ["PLAB"]
+    with pytest.raises(TypeError, match="must be a mapping"):
+        settings_obj.validate_psychometric_test_mapping()
+
+    settings_obj.PSYCHOMETRIC_TEST_MAPPING = {"plab": "/absolute/PLAB"}
+    with pytest.raises(ValueError, match="relative name"):
+        settings_obj.validate_psychometric_test_mapping()
+
+    settings_obj.PSYCHOMETRIC_TEST_MAPPING = {"plab": ""}
+    with pytest.raises(ValueError, match="must not be empty"):
+        settings_obj.validate_psychometric_test_mapping()

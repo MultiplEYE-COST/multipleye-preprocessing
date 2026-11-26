@@ -1789,6 +1789,11 @@ class MultipleyeDataCollection:
                 "scanpath_drop_unmapped": True,
                 "data_loss_missingness_column": settings.DATA_LOSS_MISSINGNESS_COLUMN,
                 "per_trial_loss_weighting": "equal",
+                "psychometric_test_mapping": dict(settings.PSYCHOMETRIC_TEST_MAPPING),
+                "psychometric_test_ids": {
+                    flag: list(ids)
+                    for flag, ids in settings.PSYCHOMETRIC_TEST_CANONICAL_IDS.items()
+                },
             },
             "data_quality": {
                 "attrition_rate": self._compute_attrition_rate(),

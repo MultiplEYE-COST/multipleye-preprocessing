@@ -964,6 +964,28 @@ FIELDS = (
         "provenance",
     ),
     _field(
+        "processing_config.psychometric_test_mapping",
+        "Psychometric test folder mapping",
+        (
+            "Participant-config flags mapped to the raw psychometric test folder "
+            "names used during restructuring."
+        ),
+        "object",
+        "processing_config",
+        "provenance",
+    ),
+    _field(
+        "processing_config.psychometric_test_ids",
+        "Psychometric test IDs",
+        (
+            "Participant-config flags mapped to canonical codebook test IDs. "
+            "Unknown test flags keep their normalized flag name."
+        ),
+        "object",
+        "processing_config",
+        "provenance",
+    ),
+    _field(
         "processing_config.data_loss_missingness_column",
         "Data-loss missingness column",
         "Column used to determine missingness for data loss.",

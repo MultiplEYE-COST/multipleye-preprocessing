@@ -170,7 +170,7 @@ def _move_session_data(
     session_folder: Path, data_folder: Path, name: str, config_sid: Sid | None
 ) -> None:
     """Move all of a session's test data into its session-first folder."""
-    for folder_name in settings.PSYCHOMETRIC_TEST_MAPPING.values():
+    for folder_name in settings.PSYCHOMETRIC_TEST_FOLDERS:
         # Try exact match first
         old_path = data_folder / folder_name / name
 
@@ -205,7 +205,7 @@ def _adopt_orphan_data(data_folder: Path, out_folder: Path) -> None:
 
     A single warning is emitted listing every session whose config is missing.
     """
-    test_folders = list(settings.PSYCHOMETRIC_TEST_MAPPING.values())
+    test_folders = list(settings.PSYCHOMETRIC_TEST_FOLDERS)
     if not data_folder.exists():
         return
 
@@ -244,7 +244,7 @@ def _has_adoptable_data(data_folder: Path) -> bool:
     """Return True if any mapped test root still contains session data to adopt."""
     if not data_folder.exists():
         return False
-    for test_name in settings.PSYCHOMETRIC_TEST_MAPPING.values():
+    for test_name in settings.PSYCHOMETRIC_TEST_FOLDERS:
         test_root = data_folder / test_name
         if test_root.is_dir() and any(test_root.iterdir()):
             return True

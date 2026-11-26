@@ -3,6 +3,7 @@ import logging
 import pytest
 import yaml
 
+from preprocessing import settings
 from preprocessing.scripts.restructure_psychometric_tests import (
     fix_psychometric_tests_structure,
 )
@@ -301,3 +302,25 @@ def test_restructure_adopts_orphan_normalizes_s_to_pt(psychometric_structure, ca
     assert (out_folder / "037_ZH_CH_1_PT1" / "PLAB" / "data.csv").exists()
     assert not (data_folder / "PLAB").exists()
     assert not data_folder.exists()
+
+
+def test_restructure_custom_test_folder(psychometric_structure, monkeypatch):
+    """A configured extra test folder is restructured like the known tests."""
+    config_folder, data_folder, out_folder = psychometric_structure
+    sid = "001_ZH_CH_1_PT1"
+    monkeypatch.setattr(
+        settings,
+        "PSYCHOMETRIC_TEST_MAPPING",
+        {**settings.PSYCHOMETRIC_TEST_MAPPING, "bcst": "BCST"},
+    )
+
+    with open(config_folder / f"{sid}.yaml", "w") as f:
+        yaml.dump({"bcst": True}, f)
+
+    (data_folder / "BCST" / sid).mkdir(parents=True)
+    (data_folder / "BCST" / sid / "data.csv").touch()
+
+    fix_psychometric_tests_structure(config_folder, data_folder, out_folder)
+
+    assert (out_folder / sid / "BCST" / "data.csv").exists()
+    assert (out_folder / sid / f"{sid}.yaml").exists()

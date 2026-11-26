@@ -377,8 +377,44 @@ Otherwise, you can find out how to overwrite the global settings by invoking
 
 Session data that has no matching participant config is still moved into a session-first folder:
 a single warning lists every such session, no config YAML is generated, and the session is later
-processed based on whatever data is present. Test data under folders that are not part of the
-psychometric test mapping (for example `WCST`) is left in place in the source and logged.
+processed based on whatever data is present. Test data under folders that are not part of
+`psychometric_test_mapping` is left in place in the source and logged.
+
+#### Configuring test folders
+
+The folder names are read from `psychometric_test_mapping`. The keys are the flags used in
+participant YAML files and the values are the raw test subfolders. The default is:
+
+```yaml
+psychometric_test_mapping:
+  plab: PLAB
+  ran: RAN
+  stroop_flanker: Stroop_Flanker
+  wmc: WMC
+  wiki_vocab: WikiVocab
+```
+
+The flags map to the codebook test IDs as follows: `plab` to `plab`, `ran` to `ran`,
+`stroop_flanker` to `stroop` and `flanker`, `wmc` to `lwmc`, and `wiki_vocab` to `wiki_vocab`.
+The dataset overview records the resolved mapping in
+`processing_config.psychometric_test_mapping` and the canonical IDs in
+`processing_config.psychometric_test_ids`.
+
+To restructure another test, add its flag and folder. For example:
+
+```yaml
+psychometric_test_mapping:
+  plab: PLAB
+  ran: RAN
+  stroop_flanker: Stroop_Flanker
+  wmc: WMC
+  wiki_vocab: WikiVocab
+  bcst: BCST
+```
+
+Restructuring moves `core_data/BCST/<sid>` into `<sid>/BCST`. Scoring is only implemented for
+the known tests. A future test can be added without code changes as long as the data only needs
+restructuring.
 
 If one session did not finish all tests, this is no problem.
 For the sessions where this is the case, the tests that do not have data will be logged to the

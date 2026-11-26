@@ -162,6 +162,8 @@ DATASET_PATHS = {
             "scanpath_drop_unmapped",
             "data_loss_missingness_column",
             "per_trial_loss_weighting",
+            "psychometric_test_mapping",
+            "psychometric_test_ids",
         ),
     ),
     *_paths(

@@ -17,6 +17,7 @@ __all__ = [
     "language_node_overview",
     "normalize_psychometric_test_id",
     "psychometric_language_node_overview",
+    "psychometric_test_ids_for_flag",
     "psychometric_test_ids_from_lab_config",
 ]
 
@@ -74,6 +75,17 @@ def normalize_psychometric_test_id(test_id: object) -> str:
             f"Supported tests: {supported}."
         )
     return text
+
+
+def psychometric_test_ids_for_flag(flag: object) -> tuple[str, ...]:
+    """Return canonical codebook test IDs for a participant-config flag.
+
+    Known flags map to the codebook IDs used in the dataset metadata. Unknown
+    flags keep their normalized name so a future test can be configured without
+    a code change.
+    """
+    text = str(flag).strip().lower().replace(" ", "_")
+    return LAB_PSYCHOMETRIC_TEST_IDS.get(text, (text,))
 
 
 def psychometric_test_ids_from_lab_config(names: object) -> tuple[str, ...]:
