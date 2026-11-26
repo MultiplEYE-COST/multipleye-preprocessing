@@ -225,10 +225,13 @@ def add_custom_uoa(
     - for the questions add the segments to all question images versions and make sure the characters match. Only the coordinates should be different for the options
 
     Output:
-    The original aoi files should be exactly the same as before also the file name. The contents of the original "units_of_analysis" columns will be written
-    into the "secondary units of analysis" columns
+    The AOI file keeps its name and geometry. The default unit columns are replaced
+    by the custom unit columns, so ``unit_of_analysis`` and ``unit_of_analysis_idx``
+    remain the only analysis columns in every collection.
 
-    If any of the characters do not match, the pipeline will fail. If the uoa file is missing, the pipeline will warn and the aoi file remains unchanged.
+    If any of the characters do not match, the pipeline will fail. If the UoA file is
+    missing, the pipeline warns and keeps the default units. The default-fixed AOI
+    files are preserved in the preparation provenance folder.
 
     """
     logger = get_logger()
