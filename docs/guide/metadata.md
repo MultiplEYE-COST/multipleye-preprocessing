@@ -347,8 +347,13 @@ This section records the resolved settings used for the run. It covers:
   `psym_stroop_min_rt`, `psym_stroop_max_rt`, `psym_flanker_min_rt`, `psym_flanker_max_rt`;
 - column mappings: `trial_cols`, `trial_col`, `page_col`, `stimulus_col`, `word_idx_col`,
   `char_idx_col`;
+- units of analysis: `custom_units_of_analysis`, `uoa_column`, `uoa_idx_column`, `uoa_source`;
 - fixed design decisions: `aoi_enlargement`, `reading_measures_null_fill`,
   `scanpath_drop_unmapped`, `per_trial_loss_weighting`.
+
+`uoa_source` is `space_delimited` when `unit_of_analysis` contains the default whitespace
+units. It is `custom` when the column contains custom units. In the custom case, the original
+whitespace units remain available from the AOI provenance folder.
 
 `aoi_enlargement` is `none` when fixation correction is active, because corrected fixations land
 on the AOIs. It is `half_line_spacing` when correction is off.

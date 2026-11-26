@@ -932,6 +932,44 @@ FIELDS = (
         "provenance",
     ),
     _field(
+        "processing_config.custom_units_of_analysis",
+        "Custom units of analysis",
+        "Whether custom units of analysis were applied to the AOIs.",
+        "boolean",
+        "processing_config",
+        "provenance",
+    ),
+    _field(
+        "processing_config.uoa_column",
+        "Unit of analysis column",
+        "Column name holding the unit labels in the custom UoA files.",
+        "string",
+        "processing_config",
+        "provenance",
+    ),
+    _field(
+        "processing_config.uoa_idx_column",
+        "Unit of analysis index column",
+        "Column name holding the unit indices in the custom UoA files.",
+        "string",
+        "processing_config",
+        "provenance",
+    ),
+    _field(
+        "processing_config.uoa_source",
+        "Unit of analysis source",
+        "Source of the units stored in the analysis column.",
+        "string",
+        "processing_config",
+        "provenance",
+        allowed_values="custom,space_delimited",
+        notes=(
+            "space_delimited means unit_of_analysis contains the default whitespace "
+            "units. custom means it contains the custom units and the original "
+            "whitespace units are available from the AOI provenance folder."
+        ),
+    ),
+    _field(
         "processing_config.char_idx_col",
         "Character index column",
         "Column name used for the character index.",
