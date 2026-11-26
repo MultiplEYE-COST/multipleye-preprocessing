@@ -1,5 +1,6 @@
 """UOA importing and mapping of fixations to AOIs."""
 
+import shutil
 from pathlib import Path
 
 import polars as pl
@@ -7,7 +8,7 @@ import pymovements as pm
 
 from preprocessing.utils.logging import get_logger
 
-from ..utils.fix_multipleye_aoi_files import repair_word_labels_df
+from ..utils.fix_multipleye_aoi_files import fix_aoi_file, repair_word_labels_df
 from ..utils.text_direction import is_vertical_script
 
 __all__ = [
@@ -15,12 +16,14 @@ __all__ = [
     "build_combined_text_stimulus",
     "enlarge_aois",
     "map_fixations_to_aois",
+    "prepare_aoi_file",
 ]
 
 
 def build_combined_text_stimulus(
     stimuli: list,
     script_direction: str = "ltr",
+    use_correction_aois: bool = False,
 ) -> pm.stimulus.TextStimulus:
     """
     Consolidate the AOIs of all stimuli into a single text stimulus.
@@ -40,6 +43,9 @@ def build_combined_text_stimulus(
         AOIs and trial IDs.
     script_direction : str
         Script direction of the data collection. ``"ttb"`` transposes the AOIs.
+    use_correction_aois : bool
+        Use ``correction_text_stimulus`` when available. That table keeps the
+        default space-delimited units even when the main AOIs use custom UoAs.
 
     Returns
     -------
@@ -50,7 +56,12 @@ def build_combined_text_stimulus(
 
     all_aois = pl.DataFrame()
     for stimulus in stimuli:
-        aoi = stimulus.text_stimulus.aois
+        aoi_source = stimulus.text_stimulus
+        if use_correction_aois:
+            aoi_source = (
+                getattr(stimulus, "correction_text_stimulus", None) or aoi_source
+            )
+        aoi = aoi_source.aois
         trial = stimulus.trial_id
         aoi = aoi.with_columns(pl.lit(trial).alias(settings.TRIAL_COL))
         all_aois = all_aois.vstack(aoi)
@@ -201,6 +212,7 @@ def add_custom_uoa(
     aoi_file: Path,
     uoa_column_name,
     uoa_idx_column_name,
+    uoa_file: Path | None = None,
 ) -> None:
     """
     Add custom units of analysis to the aoi file and rewrite the file. The units of analysis file should be in the respective stimulus folder.
@@ -233,7 +245,8 @@ def add_custom_uoa(
     aoi_data = aoi_data.sort(by=["page", "char_idx"])
 
     # Import uoa data
-    uoa_file = stimuli_folder / "custom_units_of_analysis" / aoi_file.name
+    if uoa_file is None:
+        uoa_file = stimuli_folder / "custom_units_of_analysis" / aoi_file.name
 
     if not uoa_file.exists():
         logger.warning(
@@ -333,6 +346,43 @@ def add_custom_uoa(
     new_aois = new_aois[col_order]
     new_aois = new_aois.sort(by=["page", "line_idx", "char_idx"])
     new_aois.write_csv(aoi_file)
+
+
+def prepare_aoi_file(
+    aoi_file: Path,
+    custom_uoa_file: Path | None = None,
+    uoa_column_name: str | None = None,
+    uoa_idx_column_name: str | None = None,
+    default_copy_path: Path | None = None,
+) -> None:
+    """Apply the default fixes and optional custom units to one AOI file in place.
+
+    The function starts from a raw or freshly split AOI file. It never reapplies
+    custom units to an already prepared file. ``default_copy_path`` receives the
+    default-fixed file before custom units are merged, so fixation correction can
+    use a UoA-independent AOI table.
+    """
+    fix_aoi_file(aoi_file)
+    if default_copy_path is not None:
+        default_copy_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(aoi_file, default_copy_path)
+
+    if custom_uoa_file is None:
+        return
+    if not custom_uoa_file.exists():
+        get_logger().warning(
+            f"Custom UoA file not found for {aoi_file.name}: {custom_uoa_file}. "
+            "Keeping the default space-delimited units."
+        )
+        return
+
+    add_custom_uoa(
+        stimuli_folder=aoi_file.parent,
+        aoi_file=aoi_file,
+        uoa_column_name=uoa_column_name,
+        uoa_idx_column_name=uoa_idx_column_name,
+        uoa_file=custom_uoa_file,
+    )
 
 
 def _enlarge_aois_columns(aois: pl.DataFrame) -> pl.DataFrame:

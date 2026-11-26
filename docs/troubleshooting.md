@@ -213,7 +213,7 @@ copies or a previously interrupted preparation commonly cause this.
 - **Compare with the source package:** The source `aoi_stimuli_<lang>_<country>_<lab>/` folder
   should contain 12 CSV files.
 - **Remove stray files:** Delete temporary CSVs and backup copies that do not belong to the
-  package. Leave the `.fixed` marker alone unless you delete the whole staged folder.
+  package. Leave the `.aoi_manifest.json` file alone unless you delete the whole staged folder.
 - **Reset the staged folder:** Delete the prepared
   `preprocessed_data/<dcn>/stimuli_<dcn>/aoi_stimuli_<lang>_<country>_<lab>/` folder and rerun the
   preparation step.

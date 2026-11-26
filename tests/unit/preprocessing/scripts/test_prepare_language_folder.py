@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 import pytest
 
@@ -175,7 +177,8 @@ def test_prepare_language_folder_copies_and_modifies_in_preprocessed(
 
     files_preprocessed = list(preprocessed_aoi_dir.glob("*.csv"))
     assert len(files_preprocessed) == 24
-    assert (preprocessed_aoi_dir / ".fixed").exists()
+    assert (preprocessed_aoi_dir / ".aoi_manifest.json").exists()
+    assert (preprocessed_stim_dir / "provenance" / "aoi_sources").exists()
 
     # Verify other assets were copied
     assert (
@@ -492,7 +495,7 @@ def test_prepare_language_folder_multiple_versions(
         )
         assert preprocessed_aoi_dir.exists()
         assert len(list(preprocessed_aoi_dir.glob("*.csv"))) == 24
-        assert (preprocessed_aoi_dir / ".fixed").exists()
+        assert (preprocessed_aoi_dir / ".aoi_manifest.json").exists()
 
 
 @pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
@@ -587,3 +590,151 @@ def test_prepare_missing_sessions_mentions_archive(
 
     with pytest.raises(FileNotFoundError, match="eye-tracking-sessions.tar"):
         prepare_language_folder(data_collection_name)
+
+
+def _prepared_stimulus_paths(tmp_path, data_collection_name):
+    dcn = Dcn(data_collection_name)
+    stim_dir = (
+        tmp_path
+        / "preprocessed_data"
+        / data_collection_name
+        / f"stimuli_{data_collection_name}"
+    )
+    aoi_dir = (
+        stim_dir / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
+    )
+    return stim_dir, aoi_dir
+
+
+def _add_custom_uoa_files(aoi_dir, label="CUSTOM"):
+    uoa_dir = aoi_dir.parent / "custom_units_of_analysis"
+    uoa_dir.mkdir(exist_ok=True)
+    for source_file in sorted(aoi_dir.glob("test_*_aoi.csv")):
+        df = pd.read_csv(source_file)
+        text_df = df[~df["page"].str.contains("question", na=False)].copy()
+        question_df = df[df["page"].str.contains("question", na=False)].copy()
+        for target_df, name in (
+            (text_df, source_file.name),
+            (question_df, f"{source_file.stem}_questions{source_file.suffix}"),
+        ):
+            uoa_df = target_df[
+                ["page", "char", "char_idx", "question_image_version"]
+            ].copy()
+            uoa_df["unit_of_analysis"] = label
+            uoa_df["unit_of_analysis_idx"] = 0
+            uoa_df.to_csv(uoa_dir / name, index=False)
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_aoi_manifest_skips_unchanged_preparation(
+    mock_data_collection_factory, monkeypatch, data_collection_name
+):
+    tmp_path, name, aoi_dir = mock_data_collection_factory(data_collection_name)
+    setup_stimulus_assets(tmp_path, name, aoi_dir)
+    monkeypatch.setattr(settings, "CUSTOM_UOAS", False)
+
+    calls = []
+    original = plf_module.prepare_aoi_file
+
+    def spy(*args, **kwargs):
+        calls.append(args[0].name)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(plf_module, "prepare_aoi_file", spy)
+
+    prepare_language_folder(name)
+    assert len(calls) == 24
+    calls.clear()
+
+    prepare_language_folder(name)
+    assert calls == []
+
+    _, pre_aoi = _prepared_stimulus_paths(tmp_path, name)
+    manifest = json.loads((pre_aoi / ".aoi_manifest.json").read_text())
+    assert manifest["custom_uoas"] is False
+    assert sorted(manifest["outputs"]) == sorted(
+        path.name for path in pre_aoi.glob("[!.]*.csv")
+    )
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_aoi_manifest_rebuilds_when_custom_uoa_enabled(
+    mock_data_collection_factory, monkeypatch, data_collection_name
+):
+    tmp_path, name, aoi_dir = mock_data_collection_factory(data_collection_name)
+    setup_stimulus_assets(tmp_path, name, aoi_dir)
+    monkeypatch.setattr(settings, "CUSTOM_UOAS", False)
+    prepare_language_folder(name)
+
+    _add_custom_uoa_files(aoi_dir)
+    monkeypatch.setattr(settings, "CUSTOM_UOAS", True)
+    monkeypatch.setattr(settings, "UOA_COLUMN", "unit_of_analysis")
+    monkeypatch.setattr(settings, "UOA_IDX_COLUMN", "unit_of_analysis_idx")
+    prepare_language_folder(name)
+
+    stim_dir, pre_aoi = _prepared_stimulus_paths(tmp_path, name)
+    manifest = json.loads((pre_aoi / ".aoi_manifest.json").read_text())
+    assert manifest["custom_uoas"] is True
+    assert (stim_dir / "provenance" / "custom_units_of_analysis").exists()
+    assert (stim_dir / "provenance" / "aoi_default").exists()
+
+    text_file = min(pre_aoi.glob("test_*_aoi.csv"))
+    df = pd.read_csv(text_file)
+    assert "CUSTOM" in set(df["unit_of_analysis"].astype(str))
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_aoi_manifest_rebuilds_on_same_size_source_change(
+    mock_data_collection_factory, monkeypatch, data_collection_name
+):
+    tmp_path, name, aoi_dir = mock_data_collection_factory(data_collection_name)
+    setup_stimulus_assets(tmp_path, name, aoi_dir)
+    monkeypatch.setattr(settings, "CUSTOM_UOAS", False)
+    prepare_language_folder(name)
+
+    source_file = min(aoi_dir.glob("test_*_aoi.csv"))
+    before = source_file.read_bytes()
+    source_file.write_bytes(before.replace(b"word1", b"word2"))
+    assert source_file.stat().st_size == len(before)
+
+    prepare_language_folder(name)
+
+    _, pre_aoi = _prepared_stimulus_paths(tmp_path, name)
+    df = pd.read_csv(pre_aoi / source_file.name)
+    assert "word2" in set(df["unit_of_analysis"].astype(str))
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_aoi_manifest_rebuilds_on_pipeline_version_change(
+    mock_data_collection_factory, monkeypatch, data_collection_name
+):
+    tmp_path, name, aoi_dir = mock_data_collection_factory(data_collection_name)
+    setup_stimulus_assets(tmp_path, name, aoi_dir)
+    monkeypatch.setattr(settings, "CUSTOM_UOAS", False)
+    prepare_language_folder(name)
+
+    monkeypatch.setattr(plf_module, "_AOI_PIPELINE_VERSION", 2)
+    prepare_language_folder(name)
+
+    _, pre_aoi = _prepared_stimulus_paths(tmp_path, name)
+    manifest = json.loads((pre_aoi / ".aoi_manifest.json").read_text())
+    assert manifest["aoi_pipeline_version"] == 2
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_legacy_fixed_marker_triggers_rebuild(
+    mock_data_collection_factory, monkeypatch, data_collection_name
+):
+    tmp_path, name, aoi_dir = mock_data_collection_factory(data_collection_name)
+    setup_stimulus_assets(tmp_path, name, aoi_dir)
+    monkeypatch.setattr(settings, "CUSTOM_UOAS", False)
+    prepare_language_folder(name)
+
+    _, pre_aoi = _prepared_stimulus_paths(tmp_path, name)
+    (pre_aoi / ".aoi_manifest.json").unlink()
+    (pre_aoi / ".fixed").touch()
+
+    prepare_language_folder(name)
+
+    assert (pre_aoi / ".aoi_manifest.json").exists()
+    assert not (pre_aoi / ".fixed").exists()
