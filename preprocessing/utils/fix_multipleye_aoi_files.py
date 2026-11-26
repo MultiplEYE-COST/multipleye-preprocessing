@@ -89,15 +89,8 @@ def fix_aoi_file(aoi_file_path: str | Path) -> None:
         },
         strict=False,
     )
-    df = df.with_columns(
-        [
-            pl.lit(None).alias("secondary_unit_of_analysis"),
-            pl.lit(None).alias("secondary_unit_of_analysis_idx"),
-            pl.lit(None).alias("secondary_unit_of_analysis_idx_in_line"),
-        ]
-    )
 
-    df = _repair_word_labels(_remap_space(df))
+    df = repair_word_labels_df(_remap_space(df))
 
     # Ensure consistent column order to enable stacking
     col_order = [
@@ -113,9 +106,6 @@ def fix_aoi_file(aoi_file_path: str | Path) -> None:
         "unit_of_analysis_idx",
         "unit_of_analysis_idx_in_line",
         "unit_of_analysis",
-        "secondary_unit_of_analysis_idx",
-        "secondary_unit_of_analysis_idx_in_line",
-        "secondary_unit_of_analysis",
     ]
 
     if "questions" in aoi_file_path.name:
@@ -151,6 +141,11 @@ def remap_space_to_following_word(aoi_file_path: str | Path) -> None:
     logger.debug(f"Remapped space to following word for AOI file: {aoi_file_path}")
 
 
+def repair_word_labels_df(df: pl.DataFrame) -> pl.DataFrame:
+    """Return a copy of *df* with consistent unit labels within each unit group."""
+    return _repair_word_labels(df)
+
+
 def repair_word_labels(aoi_file_path: str | Path) -> None:
     """Ensure consistent word string labels within each word index group.
 
@@ -163,6 +158,6 @@ def repair_word_labels(aoi_file_path: str | Path) -> None:
         ``char_idx_in_line``, and ``page``, ``line_idx``.
     """
     df = pl.read_csv(aoi_file_path)
-    df = _repair_word_labels(df)
+    df = repair_word_labels_df(df)
     df.write_csv(aoi_file_path)
     logger.debug(f"Filled missing word labels in AOI file: {aoi_file_path}")

@@ -26,9 +26,6 @@ def _ttb_aois() -> pl.DataFrame:
             "page": ["page_1"] * 4,
             "unit_of_analysis_idx": [0, 0, 1, 1],
             "unit_of_analysis_idx_in_line": [0, 0, 1, 1],
-            "secondary_unit_of_analysis": ["x", "x", "y", "y"],
-            "secondary_unit_of_analysis_idx": [10, 10, 11, 11],
-            "secondary_unit_of_analysis_idx_in_line": [0, 0, 1, 1],
         }
     )
 
@@ -93,8 +90,5 @@ def test_build_combined_text_stimulus_transposes_ttb_geometry() -> None:
         "unit_of_analysis",
         "unit_of_analysis_idx",
         "unit_of_analysis_idx_in_line",
-        "secondary_unit_of_analysis",
-        "secondary_unit_of_analysis_idx",
-        "secondary_unit_of_analysis_idx_in_line",
     ):
         assert combined.aois[column].to_list() == aois[column].to_list()

@@ -7,6 +7,7 @@ import pymovements as pm
 
 from preprocessing.utils.logging import get_logger
 
+from ..utils.fix_multipleye_aoi_files import repair_word_labels_df
 from ..utils.text_direction import is_vertical_script
 
 __all__ = [
@@ -220,12 +221,14 @@ def add_custom_uoa(
     """
     logger = get_logger()
 
-    # Import aoi data
+    # Import aoi data. The default unit columns are replaced by the custom units,
+    # so drop them before the join to avoid duplicate column names.
     aoi_data = pl.read_csv(aoi_file)
     aoi_data = aoi_data.drop(
-        "secondary_unit_of_analysis",
-        "secondary_unit_of_analysis_idx",
-        "secondary_unit_of_analysis_idx_in_line",
+        "unit_of_analysis",
+        "unit_of_analysis_idx",
+        "unit_of_analysis_idx_in_line",
+        strict=False,
     )
     aoi_data = aoi_data.sort(by=["page", "char_idx"])
 
@@ -287,15 +290,6 @@ def add_custom_uoa(
         logger.exception(msg)
         raise
 
-    # Merge the data files. Previous units of analysis become secondary units of analysis
-    aoi_data = aoi_data.rename(
-        {
-            "unit_of_analysis_idx": "secondary_unit_of_analysis_idx",
-            "unit_of_analysis": "secondary_unit_of_analysis",
-            "unit_of_analysis_idx_in_line": "secondary_unit_of_analysis_idx_in_line",
-        }
-    )
-
     uoa_data = uoa_data.rename(
         {
             uoa_column_name: "unit_of_analysis",
@@ -314,6 +308,10 @@ def add_custom_uoa(
         .alias("unit_of_analysis_idx_in_line")
     )
 
+    # Custom UoA files may repeat inconsistent labels inside a unit. Repair them
+    # with the same rule as the default units, using the merged unit indices.
+    new_aois = repair_word_labels_df(new_aois)
+
     col_order = [
         "char_idx",
         "char",
@@ -327,9 +325,6 @@ def add_custom_uoa(
         "unit_of_analysis_idx",
         "unit_of_analysis_idx_in_line",
         "unit_of_analysis",
-        "secondary_unit_of_analysis_idx",
-        "secondary_unit_of_analysis_idx_in_line",
-        "secondary_unit_of_analysis",
     ]
 
     if "questions" in aoi_file.name:
