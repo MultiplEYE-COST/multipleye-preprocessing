@@ -26,9 +26,6 @@ def _ttb_aois() -> pl.DataFrame:
             "page": ["page_1"] * 4,
             "unit_of_analysis_idx": [0, 0, 1, 1],
             "unit_of_analysis_idx_in_line": [0, 0, 1, 1],
-            "secondary_unit_of_analysis": ["x", "x", "y", "y"],
-            "secondary_unit_of_analysis_idx": [10, 10, 11, 11],
-            "secondary_unit_of_analysis_idx_in_line": [0, 0, 1, 1],
         }
     )
 
@@ -93,8 +90,23 @@ def test_build_combined_text_stimulus_transposes_ttb_geometry() -> None:
         "unit_of_analysis",
         "unit_of_analysis_idx",
         "unit_of_analysis_idx_in_line",
-        "secondary_unit_of_analysis",
-        "secondary_unit_of_analysis_idx",
-        "secondary_unit_of_analysis_idx_in_line",
     ):
         assert combined.aois[column].to_list() == aois[column].to_list()
+
+
+def test_build_combined_text_stimulus_uses_correction_aois() -> None:
+    aois = _ttb_aois()
+    correction_aois = aois.with_columns(
+        pl.lit("default").alias("unit_of_analysis"),
+        pl.lit(0).alias("unit_of_analysis_idx"),
+        pl.lit(0).alias("unit_of_analysis_idx_in_line"),
+    )
+    stimulus = SimpleNamespace(
+        text_stimulus=SimpleNamespace(aois=aois),
+        correction_text_stimulus=SimpleNamespace(aois=correction_aois),
+        trial_id="trial_1",
+    )
+
+    combined = build_combined_text_stimulus([stimulus], use_correction_aois=True)
+
+    assert combined.aois["unit_of_analysis"].unique().to_list() == ["default"]

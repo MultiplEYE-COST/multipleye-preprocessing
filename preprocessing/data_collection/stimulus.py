@@ -93,6 +93,21 @@ class ComprehensionQuestion:
     question_type: str | None = None
 
 
+def _text_stimulus_from_aois(aois_df: pl.DataFrame) -> TextStimulus:
+    """Build a pymovements text stimulus from an AOI table."""
+    return TextStimulus(
+        aois_df,
+        aoi_column="char",
+        start_x_column="top_left_x",
+        start_y_column="top_left_y",
+        width_column="width",
+        height_column="height",
+        page_column="page",
+        trial_column="trial",
+        word_column="unit_of_analysis",
+    )
+
+
 @dataclass
 class Stimulus:
     id: int
@@ -105,6 +120,7 @@ class Stimulus:
     ratings: list[Rating]
     trial_id: str
     full_identifier: str = field(default="")
+    correction_text_stimulus: pm.stimulus.TextStimulus | None = None
 
     def __post_init__(self):
         if not self.full_identifier:
@@ -180,25 +196,35 @@ class Stimulus:
         )
 
         aois_df = pl.read_csv(aoi_path)
-        # Missing values are automatically read as string, casting dtype
-        aois_df = aois_df.with_columns(
-            pl.col("secondary_unit_of_analysis_idx").cast(pl.Int64),
-            pl.col("secondary_unit_of_analysis_idx_in_line").cast(pl.Int64),
-        )
+        # Older prepared AOIs carried secondary unit columns. They are no longer
+        # part of the output schema, so drop them when loading legacy files.
+        legacy_columns = [
+            column
+            for column in (
+                "secondary_unit_of_analysis",
+                "secondary_unit_of_analysis_idx",
+                "secondary_unit_of_analysis_idx_in_line",
+            )
+            if column in aois_df.columns
+        ]
+        if legacy_columns:
+            aois_df = aois_df.drop(legacy_columns)
         if enlarge_aois:
             aois_df = _enlarge_aois(aois_df, script_direction=script_direction)
 
-        text_stimulus = TextStimulus(
-            aois_df,
-            aoi_column="char",
-            start_x_column="top_left_x",
-            start_y_column="top_left_y",
-            width_column="width",
-            height_column="height",
-            page_column="page",
-            trial_column="trial",
-            word_column="unit_of_analysis",
-        )
+        text_stimulus = _text_stimulus_from_aois(aois_df)
+
+        # Fixation correction uses a UoA-independent AOI table when custom UoAs
+        # are applied. The default-fixed copy is stored in provenance.
+        correction_text_stimulus = None
+        default_aoi_path = stimulus_dir / "provenance" / "aoi_default" / aoi_path.name
+        if default_aoi_path.exists():
+            default_aois_df = pl.read_csv(default_aoi_path)
+            if enlarge_aois:
+                default_aois_df = _enlarge_aois(
+                    default_aois_df, script_direction=script_direction
+                )
+            correction_text_stimulus = _text_stimulus_from_aois(default_aois_df)
 
         questions_df_path = (
             stimulus_dir / f"multipleye_comprehension_questions_{lang}.xlsx"
@@ -308,6 +334,7 @@ class Stimulus:
             instructions=instructions,
             ratings=ratings,
             trial_id=trial,
+            correction_text_stimulus=correction_text_stimulus,
         )
         return stim
 

@@ -207,11 +207,6 @@ def _aoi_uoa_df_for_merging():
     )
     uoa_idx_column = pl.Series("unit_of_analysis_idx", [0, 1, 1, 1, 2, 3, 3])
     uoa_df = uoa_df.with_columns([uoa_column, uoa_idx_column])
-    aoi_df = aoi_df.with_columns(
-        pl.lit(None).alias("secondary_unit_of_analysis"),
-        pl.lit(None).alias("secondary_unit_of_analysis_idx"),
-        pl.lit(None).alias("secondary_unit_of_analysis_idx_in_line"),
-    )
 
     return aoi_df, uoa_df
 
@@ -431,9 +426,6 @@ def test_remap_preserves_row_order_and_corrects_column_order(tmp_path):
         "unit_of_analysis_idx",
         "unit_of_analysis_idx_in_line",
         "unit_of_analysis",
-        "secondary_unit_of_analysis_idx",
-        "secondary_unit_of_analysis_idx_in_line",
-        "secondary_unit_of_analysis",
     ]
 
     assert after.columns == correct_order
@@ -465,9 +457,6 @@ def test_add_custom_uoa(tmp_path):
     new_aoi_df = pl.read_csv(aoi_path)
 
     assert list(new_aoi_df["char"]) == list(aoi_df["char"])
-    assert list(new_aoi_df["secondary_unit_of_analysis"]) == list(
-        aoi_df["unit_of_analysis"]
-    )
     assert list(new_aoi_df["unit_of_analysis"]) == list(uoa_df["unit_of_analysis"])
 
 
@@ -507,9 +496,6 @@ def test_add_question_custom_uoa(tmp_path):
     uoa_df = uoa_df.sort(by=["page", "line_idx", "char_idx"])
 
     assert list(new_aoi_df["char"]) == list(aoi_df["char"])
-    assert list(new_aoi_df["secondary_unit_of_analysis"]) == list(
-        aoi_df["unit_of_analysis"]
-    )
     assert list(
         new_aoi_df["unit_of_analysis"].filter(
             new_aoi_df["question_image_version"] == "question_images_version_1"

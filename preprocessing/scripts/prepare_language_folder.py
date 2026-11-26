@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -9,14 +10,11 @@ from pathlib import Path
 import pandas as pd
 import polars as pl
 
-from ..mapping.aoi import add_custom_uoa
+from ..mapping.aoi import prepare_aoi_file
 from ..models.dcn import Dcn
 from ..scripts.restructure_psychometric_tests import fix_psychometric_tests_structure
 from ..utils.data_path_utils import check_data_collection_exists
 from ..utils.file_utils import _copytree, _to_win_long_path
-from ..utils.fix_multipleye_aoi_files import (
-    fix_aoi_file,
-)
 from ..utils.logging import get_logger
 from ..utils.stimulus_versions import (
     configured_version_suffixes,
@@ -28,6 +26,23 @@ from ..utils.stimulus_versions import (
 logger = get_logger()
 
 _ARCHIVE_SUFFIXES = (".zip", ".tar", ".tar.gz", ".tgz", ".7z", ".rar")
+
+_AOI_MANIFEST_NAME = ".aoi_manifest.json"
+_AOI_PIPELINE_VERSION = 1
+_AOI_REQUIRED_COLUMNS = (
+    "char_idx",
+    "char",
+    "top_left_x",
+    "top_left_y",
+    "width",
+    "height",
+    "char_idx_in_line",
+    "line_idx",
+    "page",
+    "unit_of_analysis_idx",
+    "unit_of_analysis_idx_in_line",
+    "unit_of_analysis",
+)
 
 
 def _find_named_archives(directory: Path, name: str) -> list[Path]:
@@ -225,17 +240,6 @@ def prepare_language_folder(data_collection_name: str | None = None):
                     "Please check and restructure or possibly unzip the stimulus folder."
                 )
 
-        # if aoi files are not yet split into questions and texts, do it here:
-        source_aoi_path = (
-            stimulus_folder_path
-            / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
-        )
-
-        destination_aoi_path = (
-            preprocessed_stimulus_path
-            / f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
-        )
-
         # Check if stimulus assets have changed since last copy
         checksum_path = preprocessed_stimulus_path / ".copy_checksum"
         source_checksum = _compute_stimulus_checksum(stimulus_folder_path)
@@ -267,89 +271,384 @@ def prepare_language_folder(data_collection_name: str | None = None):
             dcn,
         )
 
-        if (  # check if it already contains 24 files and the fixed marker
-            destination_aoi_path.exists()
-            and len(list(destination_aoi_path.glob("[!.]*.csv"))) == 24
-            and (destination_aoi_path / ".fixed").exists()
+        _prepare_aoi_folder(
+            source_stimulus_path=stimulus_folder_path,
+            preprocessed_stimulus_path=preprocessed_stimulus_path,
+            data_folder_path=data_folder_path,
+            version_suffix=version_suffix,
+            dcn=dcn,
+        )
+
+
+def _aoi_folder_name(dcn: Dcn) -> str:
+    """Return the AOI folder name for a data collection."""
+    return f"aoi_stimuli_{dcn.lang.lower()}_{dcn.country.lower()}_{dcn.lab}"
+
+
+def _hash_folder(directory: Path | None, pattern: str = "*.csv") -> str | None:
+    """Return a content hash for the CSV files in *directory*."""
+    if directory is None or not directory.exists():
+        return None
+    entries = []
+    for file in sorted(directory.glob(pattern)):
+        entries.append(f"{file.name}:{hashlib.sha256(file.read_bytes()).hexdigest()}")
+    return hashlib.sha256("\n".join(entries).encode()).hexdigest()
+
+
+def _resolve_custom_uoa_source(
+    source_stimulus_path: Path,
+    data_folder_path: Path,
+    version_suffix: str | None,
+) -> Path | None:
+    """Return the custom UoA folder for a stimulus version, if present."""
+    candidates = [source_stimulus_path / "custom_units_of_analysis"]
+    if version_suffix is not None:
+        candidates.append(
+            data_folder_path / f"custom_units_of_analysis_{version_suffix}"
+        )
+    candidates.append(data_folder_path / "custom_units_of_analysis")
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _match_custom_uoa_file(
+    aoi_file: Path,
+    uoa_source: Path | None,
+) -> Path | None:
+    """Return the custom UoA file matching an AOI file, if present."""
+    if uoa_source is None:
+        return None
+    exact = uoa_source / aoi_file.name
+    if exact.exists():
+        return exact
+    # Some labs name the custom files with a suffix, for example ``_morph``.
+    variant = uoa_source / f"{aoi_file.stem}_morph{aoi_file.suffix}"
+    if variant.exists():
+        return variant
+    return None
+
+
+def _expected_aoi_outputs(source_aoi_path: Path) -> list[str]:
+    """Return the expected prepared AOI file names."""
+    source_files = sorted(source_aoi_path.glob("[!.]*.csv"))
+    if len(source_files) == 24:
+        return [file.name for file in source_files]
+    if len(source_files) != 12:
+        raise ValueError(
+            f"Unexpected number of source AOI files ({len(source_files)}) in "
+            f"'{source_aoi_path}'. Expected 12 (not split) or 24 (already split)."
+        )
+    outputs = []
+    for file in source_files:
+        outputs.append(file.name)
+        outputs.append(f"{file.stem}_questions{file.suffix}")
+    return sorted(outputs)
+
+
+def _split_aoi_files(directory: Path) -> None:
+    """Split combined AOI files into text and question files in *directory*."""
+    aoi_files = sorted(directory.glob("[!.]*.csv"))
+    if len(aoi_files) == 24:
+        return
+    if len(aoi_files) != 12:
+        raise ValueError(
+            f"Unexpected number of AOI files ({len(aoi_files)}) in '{directory}'. "
+            "Expected 12 (not split) or 24 (already split)."
+        )
+
+    logger.info("Splitting AOI files into text and question AOIs...")
+    for aoi_file in aoi_files:
+        aoi_df = pd.read_csv(aoi_file)
+        aoi_df_texts = aoi_df[~aoi_df["page"].str.contains("question", na=False)]
+        aoi_df_texts.drop(
+            columns=["question_image_version"], inplace=True, errors="ignore"
+        )
+        aoi_df_questions = aoi_df[aoi_df["page"].str.contains("question", na=False)]
+
+        aoi_df_texts.to_csv(aoi_file, sep=",", index=False, encoding="UTF-8")
+        question_path = directory / f"{aoi_file.stem}_questions{aoi_file.suffix}"
+        aoi_df_questions.to_csv(question_path, sep=",", index=False, encoding="UTF-8")
+
+
+def _validate_aoi_outputs(directory: Path, expected: list[str]) -> bool:
+    """Return True when all expected AOI files exist with the required columns."""
+    for name in expected:
+        path = directory / name
+        if not path.exists():
+            return False
+        try:
+            columns = set(pl.read_csv(path, n_rows=0).columns)
+        except Exception:
+            return False
+        if not set(_AOI_REQUIRED_COLUMNS).issubset(columns):
+            return False
+    return True
+
+
+def _validate_or_raise(directory: Path, expected: list[str]) -> None:
+    if not _validate_aoi_outputs(directory, expected):
+        raise ValueError(f"AOI preparation produced invalid output in '{directory}'.")
+
+
+def _swap_folder(temp_path: Path, destination_path: Path) -> None:
+    """Replace *destination_path* with *temp_path* without a partial folder."""
+    backup = destination_path.with_name(destination_path.name + ".old")
+    if backup.exists():
+        shutil.rmtree(backup)
+    if destination_path.exists():
+        destination_path.rename(backup)
+    temp_path.rename(destination_path)
+    if backup.exists():
+        shutil.rmtree(backup)
+
+
+def _copy_provenance_inputs(
+    source_aoi_path: Path,
+    uoa_source: Path | None,
+    preprocessed_stimulus_path: Path,
+    custom_uoas: bool,
+) -> None:
+    """Copy the raw AOI and custom UoA inputs into the output provenance folder."""
+    provenance = preprocessed_stimulus_path / "provenance"
+    provenance.mkdir(parents=True, exist_ok=True)
+
+    aoi_sources = provenance / "aoi_sources"
+    if aoi_sources.exists():
+        shutil.rmtree(aoi_sources)
+    shutil.copytree(source_aoi_path, aoi_sources)
+
+    uoa_dest = provenance / "custom_units_of_analysis"
+    if uoa_dest.exists():
+        shutil.rmtree(uoa_dest)
+    if custom_uoas and uoa_source is not None:
+        shutil.copytree(uoa_source, uoa_dest)
+
+
+def _build_aoi_manifest(
+    source_aoi_path: Path,
+    uoa_source: Path | None,
+    preprocessed_stimulus_path: Path,
+) -> dict:
+    """Build the manifest that describes the current AOI preparation inputs."""
+    from preprocessing import settings
+
+    custom_uoas = bool(settings.CUSTOM_UOAS)
+    provenance = preprocessed_stimulus_path / "provenance"
+    return {
+        "schema": 1,
+        "aoi_pipeline_version": _AOI_PIPELINE_VERSION,
+        "custom_uoas": custom_uoas,
+        "uoa_column": settings.UOA_COLUMN,
+        "uoa_idx_column": settings.UOA_IDX_COLUMN,
+        "word_idx_col": settings.WORD_IDX_COL,
+        "uoa_source": "custom" if custom_uoas else "space_delimited",
+        "source_aoi_sha256": _hash_folder(source_aoi_path),
+        "custom_uoa_sha256": _hash_folder(uoa_source) if custom_uoas else None,
+        "default_aoi_sha256": (
+            _hash_folder(provenance / "aoi_default") if custom_uoas else None
+        ),
+        "units_of_analysis_sha256": _hash_folder(provenance / "units_of_analysis"),
+        "outputs": _expected_aoi_outputs(source_aoi_path),
+        "default_outputs": (
+            _expected_aoi_outputs(source_aoi_path) if custom_uoas else []
+        ),
+    }
+
+
+def _manifest_matches(
+    manifest_path: Path,
+    expected: dict,
+    destination_aoi_path: Path,
+    preprocessed_stimulus_path: Path,
+) -> bool:
+    """Return True when the stored manifest and the prepared outputs are current."""
+    if not manifest_path.exists():
+        return False
+    try:
+        stored = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    keys = [
+        "schema",
+        "aoi_pipeline_version",
+        "custom_uoas",
+        "uoa_column",
+        "uoa_idx_column",
+        "word_idx_col",
+        "uoa_source",
+        "source_aoi_sha256",
+        "custom_uoa_sha256",
+        "default_aoi_sha256",
+        "units_of_analysis_sha256",
+        "outputs",
+        "default_outputs",
+    ]
+    if any(stored.get(key) != expected.get(key) for key in keys):
+        return False
+    if not _validate_aoi_outputs(destination_aoi_path, expected["outputs"]):
+        return False
+
+    provenance = preprocessed_stimulus_path / "provenance"
+    if _hash_folder(provenance / "aoi_sources") != expected["source_aoi_sha256"]:
+        return False
+    if (
+        _hash_folder(provenance / "units_of_analysis")
+        != expected["units_of_analysis_sha256"]
+    ):
+        return False
+    if expected["custom_uoas"]:
+        if (
+            _hash_folder(provenance / "custom_units_of_analysis")
+            != expected["custom_uoa_sha256"]
         ):
-            # Previously, aoi files contained the columns "word" instead of "unit_of_analysis"
-            # If the copied aoi file column names were not changed yet, we need to recalculate as the previous output is invalid
-            test_path = next(iter(destination_aoi_path.glob("[!.]*.csv")))
-            if "unit_of_analysis" in pl.read_csv(test_path, n_rows=0).columns:
-                logger.debug(
-                    f"AOI files already exist, are split and fixed in {destination_aoi_path}. Skipping."
-                )
-                continue
+            return False
+        if _hash_folder(provenance / "aoi_default") != expected["default_aoi_sha256"]:
+            return False
+    return True
 
-            else:
-                logger.debug(
-                    "AOI files have outdated column names. Output needs to be recalculated."
-                )
-                settings.RECALCULATE = True
 
-        if not destination_aoi_path.exists():
-            if source_aoi_path.exists():
-                logger.debug(f"Copying AOI files to {destination_aoi_path}...")
-                _copytree(source_aoi_path, destination_aoi_path)
-            else:
-                logger.warning(f"Source AOI path {source_aoi_path} does not exist.")
-                continue
+def _write_applied_units(aoi_dir: Path, destination: Path) -> None:
+    """Write the applied units as CSV files shaped like custom UoA inputs."""
+    destination.mkdir(parents=True, exist_ok=True)
+    for aoi_file in sorted(aoi_dir.glob("[!.]*.csv")):
+        df = pl.read_csv(aoi_file)
+        columns = [
+            "page",
+            "char",
+            "char_idx",
+            "unit_of_analysis",
+            "unit_of_analysis_idx",
+        ]
+        if "question_image_version" in df.columns:
+            columns.append("question_image_version")
+        df.select(columns).write_csv(destination / aoi_file.name)
 
-        # get all aoi files in the preprocessed folder
-        aoi_files = list(destination_aoi_path.glob("[!.]*.csv"))
-        if len(aoi_files) == 12:
-            logger.info("Splitting AOI files into text and question AOIs...")
-            for aoi_file in aoi_files:
-                aoi_df = pd.read_csv(aoi_file)
-                # split the aoi_df into two parts, one for the stimulus and one for the questions
-                aoi_df_texts = aoi_df[
-                    ~aoi_df["page"].str.contains("question", na=False)
-                ]
-                aoi_df_texts.drop(
-                    columns=["question_image_version"], inplace=True, errors="ignore"
-                )
-                aoi_df_questions = aoi_df[
-                    aoi_df["page"].str.contains("question", na=False)
-                ]
 
-                aoi_df_texts.to_csv(aoi_file, sep=",", index=False, encoding="UTF-8")
+def _prepare_aoi_folder(
+    source_stimulus_path: Path,
+    preprocessed_stimulus_path: Path,
+    data_folder_path: Path,
+    version_suffix: str | None,
+    dcn: Dcn,
+) -> None:
+    """Prepare, validate and record the AOI files for one stimulus version."""
+    from preprocessing import settings
 
-                question_path = destination_aoi_path / (
-                    aoi_file.stem + "_questions" + aoi_file.suffix
-                )
-                aoi_df_questions.to_csv(
-                    question_path, sep=",", index=False, encoding="UTF-8"
-                )
+    source_aoi_path = source_stimulus_path / _aoi_folder_name(dcn)
+    destination_aoi_path = preprocessed_stimulus_path / _aoi_folder_name(dcn)
+    if not source_aoi_path.exists():
+        logger.warning(f"Source AOI path {source_aoi_path} does not exist.")
+        return
 
-            # Re-get files to include the new _questions files
-            aoi_files = list(destination_aoi_path.glob("*.csv"))
+    uoa_source = (
+        _resolve_custom_uoa_source(
+            source_stimulus_path, data_folder_path, version_suffix
+        )
+        if settings.CUSTOM_UOAS
+        else None
+    )
+    if settings.CUSTOM_UOAS and uoa_source is None:
+        raise FileNotFoundError(
+            "Custom UoAs are enabled but no custom_units_of_analysis folder was "
+            f"found for '{source_stimulus_path}'. Add the folder or disable custom UoAs."
+        )
+    expected = _build_aoi_manifest(
+        source_aoi_path, uoa_source, preprocessed_stimulus_path
+    )
+    manifest_path = destination_aoi_path / _AOI_MANIFEST_NAME
 
-        if len(aoi_files) == 24:
-            logger.info("Applying AOI fixes (remapping space and repairing labels)...")
-            for aoi_file in aoi_files:
-                fix_aoi_file(aoi_file)
+    if not settings.RECALCULATE and _manifest_matches(
+        manifest_path, expected, destination_aoi_path, preprocessed_stimulus_path
+    ):
+        logger.debug(f"AOI files are current in {destination_aoi_path}. Skipping.")
+        return
 
-            if settings.CUSTOM_UOAS:
-                logger.info("Adding custom unit of analysis info to AOI files")
-                # merge uoa information into aoi files if uoa is enabled in the settings
-                for aoi_file in aoi_files:
-                    add_custom_uoa(
-                        stimuli_folder=preprocessed_stimulus_path,
-                        aoi_file=aoi_file,
-                        uoa_column_name=settings.UOA_COLUMN,
-                        uoa_idx_column_name=settings.UOA_IDX_COLUMN,
-                    )
+    logger.info(f"Preparing AOI files in {destination_aoi_path}...")
+    temp_path = destination_aoi_path.with_name(destination_aoi_path.name + ".tmp")
+    default_temp = preprocessed_stimulus_path / "provenance" / "aoi_default.tmp"
+    units_temp = preprocessed_stimulus_path / "provenance" / "units_of_analysis.tmp"
+    if temp_path.exists():
+        shutil.rmtree(temp_path)
+    if default_temp.exists():
+        shutil.rmtree(default_temp)
+    if units_temp.exists():
+        shutil.rmtree(units_temp)
+    temp_path.mkdir(parents=True)
+    if settings.CUSTOM_UOAS:
+        default_temp.mkdir(parents=True)
 
-            # Create a marker file to indicate that these files have been fixed
-            (destination_aoi_path / ".fixed").touch()
+    try:
+        for source_file in sorted(source_aoi_path.glob("[!.]*.csv")):
+            shutil.copy2(source_file, temp_path / source_file.name)
+        _split_aoi_files(temp_path)
 
-        elif len(aoi_files) == 0:
-            logger.warning(f"No AOI files found in '{destination_aoi_path}'.")
-        else:
-            raise ValueError(
-                f"Unexpected number of AOI files ({len(aoi_files)}) found in '{destination_aoi_path}'. "
-                "Expected 12 (not split) or 24 (already split into texts and questions)."
+        missing_custom_uoa: list[str] = []
+        for aoi_file in sorted(temp_path.glob("[!.]*.csv")):
+            custom_uoa_file = (
+                _match_custom_uoa_file(aoi_file, uoa_source)
+                if settings.CUSTOM_UOAS
+                else None
             )
+            if settings.CUSTOM_UOAS and custom_uoa_file is None:
+                missing_custom_uoa.append(aoi_file.name)
+            prepare_aoi_file(
+                aoi_file,
+                custom_uoa_file=custom_uoa_file,
+                uoa_column_name=settings.UOA_COLUMN,
+                uoa_idx_column_name=settings.UOA_IDX_COLUMN,
+                default_copy_path=(
+                    default_temp / aoi_file.name if settings.CUSTOM_UOAS else None
+                ),
+            )
+
+        if missing_custom_uoa:
+            raise FileNotFoundError(
+                "Custom UoAs are enabled but no matching UoA file was found for: "
+                + ", ".join(sorted(missing_custom_uoa))
+            )
+
+        _validate_or_raise(temp_path, expected["outputs"])
+        _write_applied_units(temp_path, units_temp)
+        _swap_folder(
+            units_temp,
+            preprocessed_stimulus_path / "provenance" / "units_of_analysis",
+        )
+        _copy_provenance_inputs(
+            source_aoi_path,
+            uoa_source,
+            preprocessed_stimulus_path,
+            settings.CUSTOM_UOAS,
+        )
+        if settings.CUSTOM_UOAS:
+            _validate_or_raise(default_temp, expected["default_outputs"])
+            _swap_folder(
+                default_temp,
+                preprocessed_stimulus_path / "provenance" / "aoi_default",
+            )
+        else:
+            stale_default = preprocessed_stimulus_path / "provenance" / "aoi_default"
+            if stale_default.exists():
+                shutil.rmtree(stale_default)
+
+        new_manifest = _build_aoi_manifest(
+            source_aoi_path, uoa_source, preprocessed_stimulus_path
+        )
+        (temp_path / _AOI_MANIFEST_NAME).write_text(
+            json.dumps(new_manifest, indent=2), encoding="utf-8"
+        )
+        _swap_folder(temp_path, destination_aoi_path)
+        logger.info(f"AOI files prepared in {destination_aoi_path}.")
+    except Exception:
+        if temp_path.exists():
+            shutil.rmtree(temp_path)
+        if default_temp.exists():
+            shutil.rmtree(default_temp)
+        if units_temp.exists():
+            shutil.rmtree(units_temp)
+        raise
 
 
 def _copy_stimulus_assets(
@@ -402,21 +701,6 @@ def _copy_stimulus_assets(
     for pattern in ["[!.]*.xlsx", "[!.]*.xls", "[!.]*.csv"]:
         for file in source_stimulus_dir.glob(pattern):
             dest_file = dest_stimulus_dir / file.name
-            if not dest_file.exists():
-                shutil.copy2(
-                    _to_win_long_path(file) if os.name == "nt" else file,
-                    _to_win_long_path(dest_file) if os.name == "nt" else dest_file,
-                )
-
-    # 6. Copy Custom units of analysis, if applicable
-    uoa_folder = "custom_units_of_analysis"
-    uoa_dir = source_stimulus_dir / uoa_folder
-    dest_uoa = dest_stimulus_dir / "custom_units_of_analysis"
-    if uoa_dir.exists():
-        if not dest_uoa.exists():
-            os.mkdir(dest_uoa)
-        for file in uoa_dir.glob("*.csv"):
-            dest_file = dest_uoa / file.name
             if not dest_file.exists():
                 shutil.copy2(
                     _to_win_long_path(file) if os.name == "nt" else file,

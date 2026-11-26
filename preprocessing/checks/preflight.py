@@ -36,6 +36,7 @@ from ..utils.data_path_utils import (
 )
 from ..utils.logging import get_logger
 from ..utils.pq_normalisation import find_questionnaire_files
+from ..utils.stimulus_versions import version_dir, version_suffix_for_pid
 
 logger = get_logger()
 
@@ -203,7 +204,45 @@ def _find_archives(directory: Path) -> list[str]:
     return archives
 
 
-def _stim_dir_empty_check(stim_dir: Path, groups: dict[str, list[str]]) -> bool:
+def _stimulus_dir(data_collection) -> Path:
+    """Return the stimulus directory the pipeline actually reads.
+
+    ``create_from_data_folder`` resolves the prepared copy first and falls back
+    to the raw data folder, so preflight validates the same files.
+    """
+    return Path(data_collection.stimulus_dir).resolve()
+
+
+def _source_data_dir(data_collection) -> Path:
+    """Return the raw data collection folder.
+
+    Files that are not copied to the prepared output, such as documentation and
+    questionnaires, stay in the raw data folder.
+    """
+    if getattr(data_collection, "data_collection_name", None):
+        return Path(settings.DATASET_DIR).resolve()
+    return _stimulus_dir(data_collection).parent
+
+
+def _session_stimulus_dir(data_collection, session_identifier: str) -> Path:
+    """Return the stimulus directory the pipeline uses for a session."""
+    resolver = getattr(data_collection, "_resolve_stimulus_dir", None)
+    if callable(resolver):
+        return Path(resolver(session_identifier)).resolve()
+
+    # Test and demo data collections may only expose ``stimulus_dir``. Derive
+    # the versioned sibling from the suffix-less base folder.
+    pid = Sid(session_identifier).pid
+    return version_dir(
+        _stimulus_dir(data_collection), version_suffix_for_pid(pid)
+    ).resolve()
+
+
+def _stim_dir_empty_check(
+    stim_dir: Path,
+    groups: dict[str, list[str]],
+    archive_dir: Path | None = None,
+) -> bool:
     """Check the stimulus directory is usable.
 
     Returns True if usable, False if missing or empty
@@ -222,7 +261,7 @@ def _stim_dir_empty_check(stim_dir: Path, groups: dict[str, list[str]]) -> bool:
 
     if not entries:
         msg = f"Stimulus folder is empty: {stim_dir}"
-        archives = _find_archives(stim_dir.parent)
+        archives = _find_archives(archive_dir or stim_dir.parent)
         if archives:
             archive_list = ", ".join(sorted(archives))
             msg += (
@@ -241,16 +280,10 @@ def _check_shared_files(
     warnings: dict[str, list[str]] | None = None,
 ) -> None:
     """Check files that are shared across all sessions (data-collection level)."""
-    from ..config import settings
-
-    # Preflight always validates the input data/ folder, never the
-    # preprocessed_data/ output copy.  Fall back to stimulus_dir only for
-    # test/demo contexts that lack a real data_collection_name.
-    dcn_name = getattr(data_collection, "data_collection_name", None)
-    if dcn_name:
-        stim_dir = settings.DATASET_DIR / f"stimuli_{dcn_name}"
-    else:
-        stim_dir = data_collection.stimulus_dir.resolve()
+    # Validate the stimulus folder the pipeline reads. It is the prepared copy
+    # when available and the raw data folder otherwise.
+    stim_dir = _stimulus_dir(data_collection)
+    source_dir = _source_data_dir(data_collection)
     lang = data_collection.language
     country = data_collection.country
     labnum = data_collection.lab_number
@@ -258,7 +291,7 @@ def _check_shared_files(
     year = data_collection.year
 
     # --- Stimulus directory empty check -----------------------------------
-    if not _stim_dir_empty_check(stim_dir, errors):
+    if not _stim_dir_empty_check(stim_dir, errors, archive_dir=source_dir):
         return
 
     # --- Stimulus definition files (errors) -------------------------------
@@ -318,7 +351,7 @@ def _check_shared_files(
     # --- Documentation folder ---------------------------------------------
     # The metadata form is flaky (warning when absent) but must be parseable
     # when present, otherwise the DCN overview cannot read its fields.
-    doc_dir = stim_dir.parent / "documentation"
+    doc_dir = source_dir / "documentation"
     metadata_form_path = find_metadata_form(
         doc_dir,
         getattr(data_collection, "data_collection_name", None),
@@ -464,37 +497,19 @@ def _check_stimulus_order_coverage(
     missing and duplicate participant IDs, which would cause
     ``_load_session_stimulus_order`` to fail mid-pipeline.
     """
-    from ..config import settings
-    from ..models.sid import Sid
-    from ..utils.stimulus_versions import (
-        stimulus_folder_name,
-        version_dir,
-        version_suffix_for_pid,
-    )
-
-    # Resolve the *source* stimulus dir (same logic as _check_shared_files).
-    # Preflight always validates the input data/ folder, never the
-    # preprocessed_data/ output copy. Fall back to stimulus_dir only for
-    # test/demo contexts that lack a real data_collection_name.
-    dcn_name = getattr(data_collection, "data_collection_name", None)
-    if dcn_name:
-        base_stim_dir = settings.DATASET_DIR / stimulus_folder_name(dcn_name, None)
-    else:
-        base_stim_dir = data_collection.stimulus_dir.resolve()
-
     order_csv_name = (
         f"stimulus_order_versions_{data_collection.language}_"
         f"{data_collection.country}_{data_collection.lab_number}.csv"
     )
 
-    # Group sessions by their resolved version dir so each CSV is read once.
+    # Group sessions by the version dir the pipeline uses, so each CSV is read once.
     sessions_by_dir: dict[Path, list[tuple[str, str]]] = {}
     for session in data_collection.sessions.values():
         try:
             pid = Sid(session.session_identifier).pid
         except (ValueError, TypeError):
             continue
-        vdir = version_dir(base_stim_dir, version_suffix_for_pid(pid))
+        vdir = _session_stimulus_dir(data_collection, session.session_identifier)
         sessions_by_dir.setdefault(vdir, []).append((session.session_identifier, pid))
 
     for vdir, entries in sessions_by_dir.items():
@@ -724,19 +739,10 @@ def _check_stimulus_versions(
     that every session PID assigned to a version is present in that version's CSV.
     """
     from ..config import settings
-    from ..models.sid import Sid
-    from ..utils.stimulus_versions import version_dir, version_suffix_for_pid
 
     pid_map = settings.STIMULUS_VERSIONS_PID_MAP or {}
     if not pid_map:
         return
-
-    # Resolve the *source* stimulus dir (same logic as _check_shared_files).
-    dcn_name = getattr(data_collection, "data_collection_name", None)
-    if dcn_name:
-        source_stim_dir = settings.DATASET_DIR / f"stimuli_{dcn_name}"
-    else:
-        source_stim_dir = data_collection.stimulus_dir.resolve()
 
     lang = data_collection.language
     country = data_collection.country
@@ -747,6 +753,7 @@ def _check_stimulus_versions(
     # Unused configured versions are not prepared (see prepare_language_folder),
     # so requiring their folder here would be a false error.
     needed_versions: set[str] = set()
+    version_dirs: dict[str, Path] = {}
     session_ids = list(data_collection.sessions.keys()) + list(
         getattr(data_collection, "skipped_sessions", {}).keys()
     )
@@ -756,13 +763,18 @@ def _check_stimulus_versions(
         except (ValueError, TypeError):
             continue
         suffix = version_suffix_for_pid(pid)
-        if suffix is not None:
-            needed_versions.add(suffix)
+        if suffix is None:
+            continue
+        needed_versions.add(suffix)
+        version_dirs.setdefault(
+            suffix, _session_stimulus_dir(data_collection, session_id)
+        )
 
-    version_dirs: dict[str, Path] = {}
     for version in sorted(needed_versions):
-        vdir = version_dir(source_stim_dir, version)
-        version_dirs[version] = vdir
+        vdir = version_dirs.get(version)
+        if vdir is None:
+            vdir = version_dir(_stimulus_dir(data_collection), version)
+            version_dirs[version] = vdir
         if not _ci_exists(vdir):
             groups.setdefault("Stimulus versions", []).append(
                 f"Stimulus folder for version '{version}' does not exist: {vdir}"
@@ -784,6 +796,8 @@ def _check_stimulus_versions(
         if version is None:
             continue
         vdir = version_dirs.get(version)
+        if vdir is None:
+            continue
         csv_path = vdir / "config" / order_csv_name
         if not _ci_exists(csv_path):
             continue  # already reported above

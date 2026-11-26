@@ -341,7 +341,7 @@ def correct_fixations(
     vertical = is_vertical_script(direction)
 
     dot_x, dot_y, dot_radius = validate_final_fix_dot(lab_config)
-    stimulus = build_combined_text_stimulus(stimuli)
+    stimulus = build_combined_text_stimulus(stimuli, use_correction_aois=True)
     character_level = settings.CHAR_IDX_COL in stimulus.aois.columns
 
     excluded_rows = _separate_excluded_events(
@@ -361,6 +361,7 @@ def correct_fixations(
             transposed_stimulus = build_combined_text_stimulus(
                 stimuli,
                 script_direction="ttb",
+                use_correction_aois=True,
             )
             gaze.events.correct_fixations(
                 transposed_stimulus,

@@ -1,5 +1,6 @@
 """Unit tests for per-session stimulus version folder resolution."""
 
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -92,6 +93,41 @@ def test_create_from_data_folder_no_versions_no_map(dummy_data_dir, mock_lab_con
     """Without stimulus version config, no pid map is built."""
     dc = MultipleyeDataCollection.create_from_data_folder(dummy_data_dir)
     assert dc.pid_stimulus_dirs is None
+
+
+def test_create_from_data_folder_uses_default_version_folder(
+    dummy_data_dir, mock_lab_config, monkeypatch_settings, monkeypatch, tmp_path
+):
+    """The default stimulus dir follows the configured default version."""
+    dcn = dummy_data_dir.name
+    output_dir = tmp_path / "preprocessed_data" / dcn
+    config_dir = output_dir / f"stimuli_{dcn}_vs1" / "config"
+    config_dir.mkdir(parents=True)
+    pd.DataFrame({"participant_id": [1], "version_number": [1]}).to_csv(
+        config_dir / "stimulus_order_versions_EN_UK_1.csv", index=False
+    )
+    monkeypatch.setattr(settings, "STIMULUS_VERSIONS_DEFAULT_VERSION", "vs1")
+
+    dc = MultipleyeDataCollection.create_from_data_folder(
+        dummy_data_dir, output_dir=output_dir
+    )
+
+    assert dc.stimulus_dir == (output_dir / f"stimuli_{dcn}_vs1").resolve()
+
+
+def test_create_from_data_folder_errors_when_default_folder_missing(
+    dummy_data_dir, mock_lab_config, monkeypatch_settings, tmp_path
+):
+    """A missing default folder reports how to configure versioned-only data."""
+    dcn = dummy_data_dir.name
+    output_dir = tmp_path / "preprocessed_data" / dcn
+    (output_dir / f"stimuli_{dcn}_v2").mkdir(parents=True)
+    shutil.rmtree(dummy_data_dir / f"stimuli_{dcn}")
+
+    with pytest.raises(FileNotFoundError, match="default_version"):
+        MultipleyeDataCollection.create_from_data_folder(
+            dummy_data_dir, output_dir=output_dir
+        )
 
 
 def test_resolve_stimulus_dir_maps_pid(
@@ -245,13 +281,13 @@ def test_build_pid_stimulus_dirs_prefers_output_copy(tmp_path, monkeypatch_setti
     data_dir = tmp_path / dcn
     (data_dir / f"stimuli_{dcn}_v2").mkdir(parents=True)
 
-    output_default = tmp_path / "preprocessed_data" / dcn / f"stimuli_{dcn}"
-    output_default.mkdir(parents=True)
-    (output_default.parent / f"stimuli_{dcn}_v2").mkdir()
+    output_dir = tmp_path / "preprocessed_data" / dcn
+    (output_dir / f"stimuli_{dcn}").mkdir(parents=True)
+    (output_dir / f"stimuli_{dcn}_v2").mkdir()
 
-    result = MultipleyeDataCollection._build_pid_stimulus_dirs(data_dir, output_default)
+    result = MultipleyeDataCollection._build_pid_stimulus_dirs(data_dir, output_dir)
 
-    assert result["003"] == output_default.parent / f"stimuli_{dcn}_v2"
+    assert result["003"] == output_dir / f"stimuli_{dcn}_v2"
 
 
 def test_build_pid_stimulus_dirs_falls_back_to_data(tmp_path, monkeypatch_settings):
@@ -260,9 +296,25 @@ def test_build_pid_stimulus_dirs_falls_back_to_data(tmp_path, monkeypatch_settin
     data_dir = tmp_path / dcn
     (data_dir / f"stimuli_{dcn}_v2").mkdir(parents=True)
 
-    output_default = tmp_path / "preprocessed_data" / dcn / f"stimuli_{dcn}"
-    output_default.mkdir(parents=True)
+    output_dir = tmp_path / "preprocessed_data" / dcn
+    (output_dir / f"stimuli_{dcn}").mkdir(parents=True)
 
-    result = MultipleyeDataCollection._build_pid_stimulus_dirs(data_dir, output_default)
+    result = MultipleyeDataCollection._build_pid_stimulus_dirs(data_dir, output_dir)
 
     assert result["003"] == data_dir / f"stimuli_{dcn}_v2"
+
+
+def test_build_pid_stimulus_dirs_uses_output_root_without_default_folder(
+    tmp_path, monkeypatch_settings
+):
+    """Versioned folders resolve under output when no default folder exists."""
+    dcn = "MultiplEYE_KL_DK_Example_1_2026"
+    data_dir = tmp_path / dcn
+    (data_dir / f"stimuli_{dcn}_v2").mkdir(parents=True)
+
+    output_dir = tmp_path / "preprocessed_data" / dcn
+    (output_dir / f"stimuli_{dcn}_v2").mkdir(parents=True)
+
+    result = MultipleyeDataCollection._build_pid_stimulus_dirs(data_dir, output_dir)
+
+    assert result["003"] == output_dir / f"stimuli_{dcn}_v2"
