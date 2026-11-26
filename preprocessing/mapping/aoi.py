@@ -305,13 +305,15 @@ def add_custom_uoa(
 
     new_aois = aoi_data.join(uoa_data, on=["page", "char_idx", "char"])
 
-    # get the line index of the new units of analysis
+    # get the zero-based line index of the new units of analysis
     new_aois = new_aois.with_columns(
-        pl.col("unit_of_analysis_idx")
-        .rank(method="dense")
-        .over(["page", "line_idx"])
-        .cast(pl.Int64)
-        .alias("unit_of_analysis_idx_in_line")
+        (
+            pl.col("unit_of_analysis_idx")
+            .rank(method="dense")
+            .over(["page", "line_idx"])
+            .cast(pl.Int64)
+            - 1
+        ).alias("unit_of_analysis_idx_in_line")
     )
 
     col_order = [

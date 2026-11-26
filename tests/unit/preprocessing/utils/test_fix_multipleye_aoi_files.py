@@ -519,3 +519,23 @@ def test_add_question_custom_uoa(tmp_path):
             uoa_df["question_image_version"] == "question_images_version_1"
         )
     )
+
+
+def test_add_custom_uoa_recomputes_zero_based_in_line_index(tmp_path):
+    uoa_path = tmp_path / "custom_units_of_analysis" / "test_aoi.csv"
+    uoa_path.parent.mkdir()
+    aoi_df, uoa_df = _aoi_uoa_df_for_merging()
+    uoa_df.write_csv(uoa_path)
+    aoi_path = tmp_path / "test_aoi.csv"
+    aoi_df.write_csv(aoi_path)
+
+    add_custom_uoa(
+        tmp_path,
+        aoi_path,
+        uoa_column_name="unit_of_analysis",
+        uoa_idx_column_name="unit_of_analysis_idx",
+    )
+
+    new_aoi_df = pl.read_csv(aoi_path)
+
+    assert new_aoi_df["unit_of_analysis_idx_in_line"].to_list() == [0, 1, 1, 1, 2, 3, 3]
