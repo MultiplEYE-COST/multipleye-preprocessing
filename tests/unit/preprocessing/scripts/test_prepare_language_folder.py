@@ -649,9 +649,11 @@ def test_aoi_manifest_skips_unchanged_preparation(
     prepare_language_folder(name)
     assert calls == []
 
-    _, pre_aoi = _prepared_stimulus_paths(tmp_path, name)
+    stim_dir, pre_aoi = _prepared_stimulus_paths(tmp_path, name)
     manifest = json.loads((pre_aoi / ".aoi_manifest.json").read_text())
     assert manifest["custom_uoas"] is False
+    assert manifest["uoa_source"] == "space_delimited"
+    assert (stim_dir / "provenance" / "units_of_analysis").exists()
     assert sorted(manifest["outputs"]) == sorted(
         path.name for path in pre_aoi.glob("[!.]*.csv")
     )
@@ -675,12 +677,44 @@ def test_aoi_manifest_rebuilds_when_custom_uoa_enabled(
     stim_dir, pre_aoi = _prepared_stimulus_paths(tmp_path, name)
     manifest = json.loads((pre_aoi / ".aoi_manifest.json").read_text())
     assert manifest["custom_uoas"] is True
+    assert manifest["uoa_source"] == "custom"
     assert (stim_dir / "provenance" / "custom_units_of_analysis").exists()
     assert (stim_dir / "provenance" / "aoi_default").exists()
+    assert (stim_dir / "provenance" / "units_of_analysis").exists()
 
     text_file = min(pre_aoi.glob("test_*_aoi.csv"))
     df = pd.read_csv(text_file)
     assert "CUSTOM" in set(df["unit_of_analysis"].astype(str))
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_missing_custom_uoa_folder_raises_when_enabled(
+    mock_data_collection_factory, monkeypatch, data_collection_name
+):
+    tmp_path, name, aoi_dir = mock_data_collection_factory(data_collection_name)
+    setup_stimulus_assets(tmp_path, name, aoi_dir)
+    monkeypatch.setattr(settings, "CUSTOM_UOAS", True)
+    monkeypatch.setattr(settings, "UOA_COLUMN", "unit_of_analysis")
+    monkeypatch.setattr(settings, "UOA_IDX_COLUMN", "unit_of_analysis_idx")
+
+    with pytest.raises(FileNotFoundError, match="custom_units_of_analysis"):
+        prepare_language_folder(name)
+
+
+@pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])
+def test_missing_custom_uoa_file_raises_when_enabled(
+    mock_data_collection_factory, monkeypatch, data_collection_name
+):
+    tmp_path, name, aoi_dir = mock_data_collection_factory(data_collection_name)
+    setup_stimulus_assets(tmp_path, name, aoi_dir)
+    _add_custom_uoa_files(aoi_dir)
+    (aoi_dir.parent / "custom_units_of_analysis" / "test_1_aoi_questions.csv").unlink()
+    monkeypatch.setattr(settings, "CUSTOM_UOAS", True)
+    monkeypatch.setattr(settings, "UOA_COLUMN", "unit_of_analysis")
+    monkeypatch.setattr(settings, "UOA_IDX_COLUMN", "unit_of_analysis_idx")
+
+    with pytest.raises(FileNotFoundError, match="no matching UoA file"):
+        prepare_language_folder(name)
 
 
 @pytest.mark.parametrize("data_collection_name", ["MultiplEYE_DA_DK_Aalborg_1_2026"])

@@ -58,6 +58,12 @@ the pEYEpline has everything it needs in one place. If the stimulus folder has c
 the last run (e.g. after a team upload), the pEYEpline detects this automatically and
 re-copies everything on the next run.
 
+AOI preparation is tracked by `.aoi_manifest.json` in each prepared AOI folder. The manifest
+records the AOI pipeline version, the UoA settings, the source and custom UoA hashes, and the
+expected outputs. The AOI folder is rebuilt from pristine source when any of these change.
+Raw source AOIs, custom UoA files, default-fixed AOIs and the applied units are kept in the
+`provenance/` folder so the prepared output can be reused without the raw data folder.
+
 (preprocessing_step_1)=
 
 ## Stage 1: Preflight Check

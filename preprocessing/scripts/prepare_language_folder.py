@@ -443,11 +443,13 @@ def _build_aoi_manifest(
         "uoa_column": settings.UOA_COLUMN,
         "uoa_idx_column": settings.UOA_IDX_COLUMN,
         "word_idx_col": settings.WORD_IDX_COL,
+        "uoa_source": "custom" if custom_uoas else "space_delimited",
         "source_aoi_sha256": _hash_folder(source_aoi_path),
         "custom_uoa_sha256": _hash_folder(uoa_source) if custom_uoas else None,
         "default_aoi_sha256": (
             _hash_folder(provenance / "aoi_default") if custom_uoas else None
         ),
+        "units_of_analysis_sha256": _hash_folder(provenance / "units_of_analysis"),
         "outputs": _expected_aoi_outputs(source_aoi_path),
         "default_outputs": (
             _expected_aoi_outputs(source_aoi_path) if custom_uoas else []
@@ -476,9 +478,11 @@ def _manifest_matches(
         "uoa_column",
         "uoa_idx_column",
         "word_idx_col",
+        "uoa_source",
         "source_aoi_sha256",
         "custom_uoa_sha256",
         "default_aoi_sha256",
+        "units_of_analysis_sha256",
         "outputs",
         "default_outputs",
     ]
@@ -490,6 +494,11 @@ def _manifest_matches(
     provenance = preprocessed_stimulus_path / "provenance"
     if _hash_folder(provenance / "aoi_sources") != expected["source_aoi_sha256"]:
         return False
+    if (
+        _hash_folder(provenance / "units_of_analysis")
+        != expected["units_of_analysis_sha256"]
+    ):
+        return False
     if expected["custom_uoas"]:
         if (
             _hash_folder(provenance / "custom_units_of_analysis")
@@ -499,6 +508,23 @@ def _manifest_matches(
         if _hash_folder(provenance / "aoi_default") != expected["default_aoi_sha256"]:
             return False
     return True
+
+
+def _write_applied_units(aoi_dir: Path, destination: Path) -> None:
+    """Write the applied units as CSV files shaped like custom UoA inputs."""
+    destination.mkdir(parents=True, exist_ok=True)
+    for aoi_file in sorted(aoi_dir.glob("[!.]*.csv")):
+        df = pl.read_csv(aoi_file)
+        columns = [
+            "page",
+            "char",
+            "char_idx",
+            "unit_of_analysis",
+            "unit_of_analysis_idx",
+        ]
+        if "question_image_version" in df.columns:
+            columns.append("question_image_version")
+        df.select(columns).write_csv(destination / aoi_file.name)
 
 
 def _prepare_aoi_folder(
@@ -524,6 +550,11 @@ def _prepare_aoi_folder(
         if settings.CUSTOM_UOAS
         else None
     )
+    if settings.CUSTOM_UOAS and uoa_source is None:
+        raise FileNotFoundError(
+            "Custom UoAs are enabled but no custom_units_of_analysis folder was "
+            f"found for '{source_stimulus_path}'. Add the folder or disable custom UoAs."
+        )
     expected = _build_aoi_manifest(
         source_aoi_path, uoa_source, preprocessed_stimulus_path
     )
@@ -538,10 +569,13 @@ def _prepare_aoi_folder(
     logger.info(f"Preparing AOI files in {destination_aoi_path}...")
     temp_path = destination_aoi_path.with_name(destination_aoi_path.name + ".tmp")
     default_temp = preprocessed_stimulus_path / "provenance" / "aoi_default.tmp"
+    units_temp = preprocessed_stimulus_path / "provenance" / "units_of_analysis.tmp"
     if temp_path.exists():
         shutil.rmtree(temp_path)
     if default_temp.exists():
         shutil.rmtree(default_temp)
+    if units_temp.exists():
+        shutil.rmtree(units_temp)
     temp_path.mkdir(parents=True)
     if settings.CUSTOM_UOAS:
         default_temp.mkdir(parents=True)
@@ -570,7 +604,18 @@ def _prepare_aoi_folder(
                 ),
             )
 
+        if missing_custom_uoa:
+            raise FileNotFoundError(
+                "Custom UoAs are enabled but no matching UoA file was found for: "
+                + ", ".join(sorted(missing_custom_uoa))
+            )
+
         _validate_or_raise(temp_path, expected["outputs"])
+        _write_applied_units(temp_path, units_temp)
+        _swap_folder(
+            units_temp,
+            preprocessed_stimulus_path / "provenance" / "units_of_analysis",
+        )
         _copy_provenance_inputs(
             source_aoi_path,
             uoa_source,
@@ -591,7 +636,6 @@ def _prepare_aoi_folder(
         new_manifest = _build_aoi_manifest(
             source_aoi_path, uoa_source, preprocessed_stimulus_path
         )
-        new_manifest["missing_custom_uoa"] = missing_custom_uoa
         (temp_path / _AOI_MANIFEST_NAME).write_text(
             json.dumps(new_manifest, indent=2), encoding="utf-8"
         )
@@ -602,6 +646,8 @@ def _prepare_aoi_folder(
             shutil.rmtree(temp_path)
         if default_temp.exists():
             shutil.rmtree(default_temp)
+        if units_temp.exists():
+            shutil.rmtree(units_temp)
         raise
 
 
