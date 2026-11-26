@@ -353,7 +353,9 @@ This section records the resolved settings used for the run. It covers:
 
 `uoa_source` is `space_delimited` when `unit_of_analysis` contains the default whitespace
 units. It is `custom` when the column contains custom units. In the custom case, the original
-whitespace units remain available from the AOI provenance folder.
+whitespace units remain available from the AOI provenance folder. `uoa_column` and
+`uoa_idx_column` default to `unit_of_analysis` and `unit_of_analysis_idx` when custom UoAs are
+off.
 
 `aoi_enlargement` is `none` when fixation correction is active, because corrected fixations land
 on the AOIs. It is `half_line_spacing` when correction is off.

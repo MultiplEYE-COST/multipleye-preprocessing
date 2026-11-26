@@ -823,6 +823,10 @@ class TestProcessingConfig:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         pc = overview["processing_config"]
 
+        assert pc["custom_units_of_analysis"] is False
+        assert pc["uoa_column"] == "unit_of_analysis"
+        assert pc["uoa_idx_column"] == "unit_of_analysis_idx"
+        assert pc["uoa_source"] == "space_delimited"
         assert pc["detection_eye"] == "auto"
         assert pc["fixation_method"] == "ivt"
         assert pc["fixation_minimum_duration_ms"] == 100

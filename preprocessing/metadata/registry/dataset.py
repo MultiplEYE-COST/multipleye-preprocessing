@@ -942,7 +942,10 @@ FIELDS = (
     _field(
         "processing_config.uoa_column",
         "Unit of analysis column",
-        "Column name holding the unit labels in the custom UoA files.",
+        (
+            "Column holding the unit labels used for analysis. Defaults to "
+            "unit_of_analysis when custom UoAs are off."
+        ),
         "string",
         "processing_config",
         "provenance",
@@ -950,7 +953,10 @@ FIELDS = (
     _field(
         "processing_config.uoa_idx_column",
         "Unit of analysis index column",
-        "Column name holding the unit indices in the custom UoA files.",
+        (
+            "Column holding the unit indices used for analysis. Defaults to "
+            "unit_of_analysis_idx when custom UoAs are off."
+        ),
         "string",
         "processing_config",
         "provenance",

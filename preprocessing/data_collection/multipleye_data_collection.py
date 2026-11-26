@@ -1800,8 +1800,14 @@ class MultipleyeDataCollection:
                 "stimulus_col": settings.STIMULUS_COL,
                 "word_idx_col": settings.WORD_IDX_COL,
                 "custom_units_of_analysis": settings.CUSTOM_UOAS,
-                "uoa_column": settings.UOA_COLUMN,
-                "uoa_idx_column": settings.UOA_IDX_COLUMN,
+                "uoa_column": (
+                    settings.UOA_COLUMN if settings.CUSTOM_UOAS else "unit_of_analysis"
+                ),
+                "uoa_idx_column": (
+                    settings.UOA_IDX_COLUMN
+                    if settings.CUSTOM_UOAS
+                    else "unit_of_analysis_idx"
+                ),
                 "uoa_source": ("custom" if settings.CUSTOM_UOAS else "space_delimited"),
                 "char_idx_col": settings.CHAR_IDX_COL,
                 "fixation_correction": settings.RUN_FIXATION_CORRECTION,
