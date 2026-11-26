@@ -15,6 +15,7 @@ from preprocessing.metadata.language_tree import (
     LanguageTreeError,
     language_node_overview,
     psychometric_language_node_overview,
+    psychometric_test_ids_for_flag,
 )
 
 
@@ -60,6 +61,18 @@ def _config(tmp_path, language_tree: dict) -> Settings:
     settings = Settings()
     settings.load(path)
     return settings
+
+
+def test_psychometric_test_ids_for_known_flags() -> None:
+    assert psychometric_test_ids_for_flag("plab") == ("plab",)
+    assert psychometric_test_ids_for_flag("ran") == ("ran",)
+    assert psychometric_test_ids_for_flag("stroop_flanker") == ("stroop", "flanker")
+    assert psychometric_test_ids_for_flag("wmc") == ("lwmc",)
+    assert psychometric_test_ids_for_flag("wiki_vocab") == ("wiki_vocab",)
+
+
+def test_psychometric_test_ids_for_unknown_flag() -> None:
+    assert psychometric_test_ids_for_flag(" BCST ") == ("bcst",)
 
 
 def test_no_language_node_configured() -> None:

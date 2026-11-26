@@ -823,6 +823,12 @@ class TestProcessingConfig:
         overview = dc.create_dataset_overview(path=dummy_dcn_dir)
         pc = overview["processing_config"]
 
+        assert pc["psychometric_test_mapping"]["wmc"] == "WMC"
+        assert pc["psychometric_test_ids"]["wmc"] == ["lwmc"]
+        assert pc["psychometric_test_ids"]["stroop_flanker"] == [
+            "stroop",
+            "flanker",
+        ]
         assert pc["detection_eye"] == "auto"
         assert pc["fixation_method"] == "ivt"
         assert pc["fixation_minimum_duration_ms"] == 100

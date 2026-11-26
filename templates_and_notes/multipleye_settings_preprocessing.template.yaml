@@ -299,6 +299,24 @@ RUN_SANITY_CHECKS: true
 # Whether to process psychometric tests.
 RUN_PSYCHOMETRIC_TESTS: true
 
+# Mapping from participant-config flags to raw psychometric test folder names.
+# The keys are the flags in the participant YAML files. The values are the
+# subfolders inside psychometric_test_<lang>_<country>_<lab>/.
+# Known flags map to codebook test IDs:
+#   plab -> plab
+#   ran -> ran
+#   stroop_flanker -> stroop, flanker
+#   wmc -> lwmc
+#   wiki_vocab -> wiki_vocab
+# Add another flag and folder to restructure a new test, for example bcst: BCST.
+# Scoring is only implemented for the known tests.
+psychometric_test_mapping:
+  plab: PLAB
+  ran: RAN
+  stroop_flanker: Stroop_Flanker
+  wmc: WMC
+  wiki_vocab: WikiVocab
+
 # --- INTERNAL (do not change) ---
 # Whether to force reconversion of EDF files to ASC even if output exists.
 force_reconvert_asc: false

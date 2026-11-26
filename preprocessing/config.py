@@ -208,6 +208,21 @@ class Settings:
         self.__dict__["PSYM_PARTICIPANT_CONFIGS"] = Path(value)
 
     @property
+    def PSYCHOMETRIC_TEST_FOLDERS(self) -> list[str]:
+        """Unique configured raw psychometric test folder names."""
+        return list(dict.fromkeys(self.PSYCHOMETRIC_TEST_MAPPING.values()))
+
+    @property
+    def PSYCHOMETRIC_TEST_CANONICAL_IDS(self) -> dict[str, tuple[str, ...]]:
+        """Map participant-config flags to canonical codebook test IDs."""
+        from .metadata.language_tree import psychometric_test_ids_for_flag
+
+        return {
+            flag: psychometric_test_ids_for_flag(flag)
+            for flag in self.PSYCHOMETRIC_TEST_MAPPING
+        }
+
+    @property
     def START_RECORDING_REGEX(self) -> re.Pattern:
         """Regex to identify the start of a recording."""
         if "START_RECORDING_REGEX" in self.__dict__:
@@ -1055,6 +1070,7 @@ class Settings:
         self.validate_participant_groups()
         self.validate_language_node()
         self.validate_availability_overrides()
+        self.validate_psychometric_test_mapping()
         self._loaded = True
 
     def update(self, config_dict: dict[str, Any]) -> None:
@@ -1188,6 +1204,60 @@ class Settings:
         if not val:
             # We don't raise here if we are just loading, as we might be loading the template
             return
+
+    def validate_psychometric_test_mapping(self) -> None:
+        """Validate and normalize ``psychometric_test_mapping``.
+
+        The mapping keys are the flags used in participant YAML files. The values
+        are the raw test subfolder names below ``psychometric_test_*``. The known
+        folder settings are kept in sync so restructuring and preprocessing use
+        the same names.
+
+        Raises
+        ------
+        TypeError
+            If the mapping or one of its values has the wrong type.
+        ValueError
+            If a flag or folder name is empty or the folder is not a relative name.
+        """
+        mapping = self.PSYCHOMETRIC_TEST_MAPPING
+        if not isinstance(mapping, dict):
+            raise TypeError("psychometric_test_mapping must be a mapping.")
+
+        normalized: dict[str, str] = {}
+        for flag, folder in mapping.items():
+            flag_text = str(flag).strip().lower().replace(" ", "_")
+            if not flag_text:
+                raise ValueError("psychometric_test_mapping keys must not be empty.")
+            if not isinstance(folder, (str, Path)):
+                raise TypeError(
+                    f"Folder for psychometric test flag '{flag_text}' must be a "
+                    "string or Path."
+                )
+            folder_text = str(folder).strip()
+            if not folder_text:
+                raise ValueError(
+                    f"Folder for psychometric test flag '{flag_text}' must not be empty."
+                )
+            folder_path = Path(folder_text)
+            if folder_path.is_absolute() or ".." in folder_path.parts:
+                raise ValueError(
+                    f"Folder for psychometric test flag '{flag_text}' must be a "
+                    "relative name."
+                )
+            normalized[flag_text] = folder_text
+
+        self.PSYCHOMETRIC_TEST_MAPPING = normalized
+
+        for flag, setting_name in (
+            ("wmc", "PSYM_LWMC_DIR"),
+            ("ran", "PSYM_RAN_DIR"),
+            ("stroop_flanker", "PSYM_STROOP_FLANKER_DIR"),
+            ("plab", "PSYM_PLAB_DIR"),
+            ("wiki_vocab", "PSYM_WIKIVOCAB_DIR"),
+        ):
+            if flag in normalized:
+                setattr(self, setting_name, Path(normalized[flag]) / "")
 
     def validate_stimulus_versions(self) -> None:
         """Validate the stimulus version configuration.

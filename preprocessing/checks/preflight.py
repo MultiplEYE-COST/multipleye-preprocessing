@@ -916,7 +916,7 @@ def _check_psychometric_tests(
     lang = data_collection.language
     country = data_collection.country
     lab = str(data_collection.lab_number)
-    test_names = set(settings.PSYCHOMETRIC_TEST_MAPPING.values())
+    test_names = set(settings.PSYCHOMETRIC_TEST_FOLDERS)
 
     if not pt_dir.exists():
         pt_warnings.append(
