@@ -2,12 +2,17 @@ import re
 from unittest.mock import patch
 
 import polars as pl
+import pymovements as pm
 import pytest
 
 from preprocessing.answers.msg_parser import parse_answers_from_messages
 from preprocessing.config import settings
 from preprocessing.data_collection.stimulus import LabConfig
-from preprocessing.io.load import _duration_to_ms, load_gaze_data
+from preprocessing.io.load import (
+    _duration_to_ms,
+    _normalize_mixed_eye_gaze,
+    load_gaze_data,
+)
 from preprocessing.models.sid import Sid
 
 
@@ -264,6 +269,129 @@ def test_load_gaze_data_stores_session_id_as_metadata(synthetic_asc, lab_config)
 
     assert gaze.metadata["session"] == str(sid)
     assert "session" not in gaze.samples.columns
+
+
+def _mixed_eye_gaze() -> pm.Gaze:
+    """Build a 4-component gaze with right-only and left-only blocks."""
+    samples = pl.DataFrame(
+        {
+            "time": pl.Series([0, 1, 2, 3], dtype=pl.Duration("us")),
+            "trial": ["trial_1"] * 4,
+            "page": ["page_1"] * 4,
+            "x_left": [None, None, 510.0, 511.0],
+            "y_left": [None, None, 510.0, 511.0],
+            "x_right": [500.0, 501.0, None, None],
+            "y_right": [500.0, 501.0, None, None],
+            "pupil_left": [None, None, 110.0, 111.0],
+            "pupil_right": [100.0, 101.0, None, None],
+        }
+    )
+
+    gaze = pm.Gaze(
+        samples,
+        trial_columns=["trial", "page"],
+        pixel_columns=["x_left", "y_left", "x_right", "y_right"],
+    )
+    gaze.samples = gaze.samples.with_columns(
+        pl.concat_list([pl.col("pupil_left"), pl.col("pupil_right")]).alias("pupil")
+    ).drop("pupil_left", "pupil_right")
+    assert gaze.n_components == 4
+    return gaze
+
+
+def test_normalize_mixed_eye_gaze_coalesces_left_and_right(caplog):
+    gaze = _mixed_eye_gaze()
+
+    _normalize_mixed_eye_gaze(gaze, session_id="037_TR_TR_1_ET1")
+
+    assert gaze.n_components == 2
+    assert gaze.samples["pixel"].to_list() == [
+        [500.0, 500.0],
+        [501.0, 501.0],
+        [510.0, 510.0],
+        [511.0, 511.0],
+    ]
+    assert gaze.samples["pixel"].list.len().unique().to_list() == [2]
+    assert gaze.samples["pupil"].to_list() == [100.0, 101.0, 110.0, 111.0]
+    assert gaze.samples["pupil"].dtype == pl.Float64
+    assert "2 left" in caplog.text
+    assert "2 right" in caplog.text
+
+
+def test_normalize_mixed_eye_gaze_rejects_simultaneous_eyes():
+    samples = pl.DataFrame(
+        {
+            "time": pl.Series([0], dtype=pl.Duration("us")),
+            "trial": ["trial_1"],
+            "page": ["page_1"],
+            "x_left": [100.0],
+            "y_left": [100.0],
+            "x_right": [200.0],
+            "y_right": [200.0],
+        }
+    )
+    gaze = pm.Gaze(
+        samples,
+        trial_columns=["trial", "page"],
+        pixel_columns=["x_left", "y_left", "x_right", "y_right"],
+    )
+
+    with pytest.raises(ValueError, match="both left and right"):
+        _normalize_mixed_eye_gaze(gaze, session_id="037_TR_TR_1_ET1")
+
+
+def test_normalize_mixed_eye_gaze_leaves_monocular_gaze_unchanged():
+    samples = pl.DataFrame(
+        {
+            "time": pl.Series([0, 1], dtype=pl.Duration("us")),
+            "x": [100.0, 101.0],
+            "y": [200.0, 201.0],
+        }
+    )
+    gaze = pm.Gaze(samples, pixel_columns=["x", "y"])
+    original = gaze.samples.clone()
+
+    _normalize_mixed_eye_gaze(gaze, session_id="001_SV_CH_Zurich_S1_ET1")
+
+    assert gaze.n_components == 2
+    assert gaze.samples.equals(original)
+
+
+@pytest.mark.filterwarnings("ignore")
+def test_load_gaze_data_normalizes_mixed_eye_asc(tmp_path, lab_config):
+    path = tmp_path / "mixed_eye.asc"
+    content = """** CONVERTED FROM synthetic.edf
+START 1000 RIGHT SAMPLES EVENTS
+SAMPLES GAZE RIGHT RATE 1000.00 TRACKING CR FILTER 2
+MSG 1000 start_recording_trial_1_stimulus_Lit_MagicMountain_6_page_1
+1000 500.0 500.0 100.0 .
+1001 501.0 501.0 101.0 .
+END 1001 SAMPLES EVENTS RES 1920 1080
+START 2000 LEFT SAMPLES EVENTS
+SAMPLES GAZE LEFT RATE 1000.00 TRACKING CR FILTER 2
+MSG 2000 start_recording_trial_1_stimulus_Lit_MagicMountain_6_page_1
+2000 510.0 510.0 110.0 .
+2001 511.0 511.0 111.0 .
+END 2001 SAMPLES EVENTS RES 1920 1080
+MSG 3000 stop_recording_trial_1_stimulus_Lit_MagicMountain_6_page_1
+"""
+    path.write_text(content)
+
+    gaze = load_gaze_data(
+        asc_file=path,
+        lab_config=lab_config,
+        sid=Sid("037_TR_TR_1_ET1"),
+    )
+
+    assert gaze.n_components == 2
+    assert gaze.samples["pixel"].list.len().unique().to_list() == [2]
+    assert gaze.samples["pixel"].to_list() == [
+        [500.0, 500.0],
+        [501.0, 501.0],
+        [510.0, 510.0],
+        [511.0, 511.0],
+    ]
+    assert gaze.samples["pupil"].to_list() == [100.0, 101.0, 110.0, 111.0]
 
 
 def test_duration_to_ms_handles_duration_dtype():

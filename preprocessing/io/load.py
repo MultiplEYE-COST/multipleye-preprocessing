@@ -79,6 +79,113 @@ def _blink_loss_table(
     )
 
 
+def _normalize_mixed_eye_gaze(gaze: pm.Gaze, session_id: str) -> None:
+    """Collapse a mixed monocular EyeLink recording to a single 2-component stream.
+
+    pymovements represents an ASC file whose tracked eye changes between recording
+    blocks as a 4-component binocular gaze object (pymovements#1676). Each sample then
+    stores the tracked eye in the left or the right component pair and null in the other
+    pair. The rest of this pipeline expects 2-component monocular samples, so the present
+    components are coalesced into one pair here.
+
+    Parameters
+    ----------
+    gaze : pm.Gaze
+        Gaze object parsed from an ASC file. Modified in place.
+    session_id : str
+        Session identifier used in log and error messages.
+
+    Raises
+    ------
+    ValueError
+        If the gaze has an unsupported number of components, or if any sample contains
+        both left and right eye data. The latter is a truly binocular recording and must
+        not be silently reduced to one eye.
+    """
+    n_components = getattr(gaze, "n_components", None)
+    if n_components is None or n_components == 2:
+        return
+
+    if n_components != 4:
+        raise ValueError(
+            f"Session {session_id} has gaze samples with {n_components} components. "
+            "Only monocular (2) and mixed monocular (4) EyeLink recordings are supported."
+        )
+
+    samples = gaze.samples
+    if "pixel" not in samples.columns:
+        raise ValueError(
+            f"Session {session_id} has 4-component samples but no 'pixel' column."
+        )
+
+    if samples.is_empty():
+        gaze.samples = samples.with_columns(
+            pl.Series("pixel", [], dtype=pl.List(pl.Float64)).alias("pixel")
+        )
+        if "pupil" in gaze.samples.columns and isinstance(
+            gaze.samples.schema["pupil"], pl.List
+        ):
+            gaze.samples = gaze.samples.with_columns(
+                pl.Series("pupil", [], dtype=pl.Float64).alias("pupil")
+            )
+        gaze.n_components = 2
+        logging.warning(
+            "Session %s has mixed monocular eye blocks but no samples. "
+            "Using a 2-component monocular layout.",
+            session_id,
+        )
+        return
+
+    x_left = pl.col("pixel").list.get(0)
+    y_left = pl.col("pixel").list.get(1)
+    x_right = pl.col("pixel").list.get(2)
+    y_right = pl.col("pixel").list.get(3)
+    left_present = x_left.is_not_null() | y_left.is_not_null()
+    right_present = x_right.is_not_null() | y_right.is_not_null()
+
+    counts = samples.select(
+        left_present.sum().alias("left"),
+        right_present.sum().alias("right"),
+        (left_present & right_present).sum().alias("both"),
+        (~left_present & ~right_present).sum().alias("neither"),
+    ).row(0, named=True)
+
+    if counts["both"]:
+        raise ValueError(
+            f"Session {session_id} has {counts['both']} samples with both left and right "
+            "eye data. This is a truly binocular recording, which this pipeline does not "
+            "support. Re-export the ASC with a single eye or select one eye before "
+            "preprocessing."
+        )
+
+    expressions = [
+        pl.concat_list(
+            [
+                pl.coalesce(x_left, x_right),
+                pl.coalesce(y_left, y_right),
+            ]
+        ).alias("pixel")
+    ]
+
+    if "pupil" in samples.columns and isinstance(samples.schema["pupil"], pl.List):
+        pupil_left = pl.col("pupil").list.get(0)
+        pupil_right = pl.col("pupil").list.get(1)
+        expressions.append(pl.coalesce(pupil_left, pupil_right).alias("pupil"))
+
+    gaze.samples = samples.with_columns(expressions)
+    gaze.n_components = 2
+
+    logging.warning(
+        "Session %s switches the tracked eye between recording blocks "
+        "(%d left, %d right, %d without eye data). Merged the blocks into a single "
+        "2-component monocular stream.",
+        session_id,
+        counts["left"],
+        counts["right"],
+        counts["neither"],
+    )
+
+
 def load_gaze_data(
     asc_file: Path,
     lab_config: LabConfig,
@@ -141,6 +248,11 @@ def load_gaze_data(
         messages=messages,
         events=True,
     )
+
+    # pymovements loads an ASC file that switches the tracked eye between recording
+    # blocks as 4-component binocular data (pymovements#1676). Collapse it to the
+    # monocular representation this pipeline uses before any signal processing.
+    _normalize_mixed_eye_gaze(gaze, session_id=str(sid))
 
     # Compute measure-based blink loss via measure_events_ratio.
     # Session-level (duration-weighted), not per-trial mean.
